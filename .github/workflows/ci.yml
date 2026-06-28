@@ -67,6 +67,17 @@ jobs:
       - name: test
         run: cargo test
 
+      # Architecture guard: the domain layer (entities + pure rules) stays free of
+      # I/O crates. Dependencies point inward (api → services → {db,infra} → domain);
+      # domain knows nothing of axum/sqlite/ffmpeg/http. See ARCHITECTURE.md.
+      - name: Domain purity (no I/O in src/domain)
+        run: |
+          if [ -d src/domain ] && grep -rEn 'use (axum|rusqlite|reqwest|tokio::process|std::process::Command)' src/domain; then
+            echo "::error::server/src/domain must stay pure — no axum/rusqlite/reqwest/process imports."
+            exit 1
+          fi
+          echo "✓ domain layer is I/O-free"
+
       # Drift gate: the TS wire types in packages/core/src/generated are generated
       # from the Rust #[derive(TS)] structs. Regenerate and fail if they differ
       # from what's committed (someone changed a model but forgot `bun gen:types`).
