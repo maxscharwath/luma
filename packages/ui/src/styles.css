@@ -1,9 +1,9 @@
 /* LUMA global stylesheet — import once per app: `import '@luma/ui/styles.css'`. */
-@import './styles/fonts.css';
-@import './styles/tokens/colors.css';
-@import './styles/tokens/typography.css';
-@import './styles/tokens/spacing.css';
-@import './styles/tokens/effects.css';
+@import "./styles/fonts.css";
+@import "./styles/tokens/colors.css";
+@import "./styles/tokens/typography.css";
+@import "./styles/tokens/spacing.css";
+@import "./styles/tokens/effects.css";
 
 *,
 *::before,

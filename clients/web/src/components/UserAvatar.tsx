@@ -42,7 +42,7 @@ export function UserAvatar({
   size = 138,
   radius,
   className = '',
-}: {
+}: Readonly<{
   name: string;
   avatarUrl?: string | null;
   /** Stable colour seed (defaults to the name). */
@@ -50,14 +50,13 @@ export function UserAvatar({
   size?: number;
   radius?: number;
   className?: string;
-}) {
+}>) {
   const r = radius ?? Math.round(size * 0.13);
   return (
-    <Avatar
-      className={className}
-      style={{ width: size, height: size, borderRadius: r }}
-    >
-      {avatarUrl ? <AvatarImage src={imageUrl(avatarUrl) ?? undefined} alt="" loading="lazy" /> : null}
+    <Avatar className={className} style={{ width: size, height: size, borderRadius: r }}>
+      {avatarUrl ? (
+        <AvatarImage src={imageUrl(avatarUrl) ?? undefined} alt="" loading="lazy" />
+      ) : null}
       <AvatarFallback
         className="font-display font-bold text-white/90"
         style={{ background: avatarGradient(seed ?? name), fontSize: Math.round(size * 0.38) }}

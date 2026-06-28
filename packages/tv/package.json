@@ -8,12 +8,13 @@
     "./tv.css": "./src/tv.css"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
   },
   "dependencies": {
     "@luma/core": "workspace:*",
     "@luma/ui": "workspace:*",
+    "@tabler/icons-react": "^3.44.0",
     "qrcode-generator": "^2.0.4"
   },
   "peerDependencies": {

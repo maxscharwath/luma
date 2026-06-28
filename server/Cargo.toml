@@ -1,6 +1,6 @@
 [package]
 name = "luma-server"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.81"
 description = "LUMA — a self-hosted, direct-play media streaming server"
@@ -43,6 +43,10 @@ mdns-sd = "0.11"
 # Filesystem change notifications (instant re-scan when the server is local to the
 # media; on network mounts we fall back to a periodic re-scan — see watch.rs).
 notify = "6"
+
+# System metrics (CPU / RAM / disks) for the admin dashboard. Cross-platform
+# (Linux NAS + macOS dev), libc-based, MSRV-friendly for rustc 1.81.
+sysinfo = "0.30"
 
 # Smart Hub preview "cards": composite a landscape backdrop + LUMA logo + title +
 # badge into a JPEG, fully in-process (no resvg/font-system deps, 1.81-safe).

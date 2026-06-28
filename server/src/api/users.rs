@@ -12,10 +12,11 @@ use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::api::error::json_error;
+use crate::api::error::lerr;
 use crate::api::handlers::blocking;
 use crate::auth::{self, AuthUser};
 use crate::db;
+use crate::i18n::{self, ReqLocale};
 use crate::model::{Permission, User};
 use crate::quickconnect::PollState;
 use crate::state::SharedState;
@@ -41,14 +42,15 @@ pub struct RegisterBody {
 /// The **first** account ever created is the owner (gets every permission, no
 /// invite needed). After that, registration requires a valid `inviteToken`; the
 /// new account inherits the invite's permissions.
-pub async fn register(State(state): State<SharedState>, Json(body): Json<RegisterBody>) -> Response {
+pub async fn register(
+    State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
+    Json(body): Json<RegisterBody>,
+) -> Response {
     let email = body.email.trim().to_lowercase();
     let username = body.username.trim().to_string();
     if email.is_empty() || !email.contains('@') || username.is_empty() || body.password.len() < 4 {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            "email valide, nom d'utilisateur et mot de passe (≥ 4 caractères) requis",
-        );
+        return lerr(loc, StatusCode::BAD_REQUEST, "auth.registerInvalid");
     }
 
     // How many accounts exist already decides whether this is the bootstrap
@@ -66,7 +68,7 @@ pub async fn register(State(state): State<SharedState>, Json(body): Json<Registe
     let pool = state.db.clone();
     let email_check = email.clone();
     match blocking(move || db::find_user_by_email(&pool, &email_check)).await {
-        Ok(Some(_)) => return json_error(StatusCode::CONFLICT, "cet email est déjà utilisé"),
+        Ok(Some(_)) => return lerr(loc, StatusCode::CONFLICT, "auth.emailTaken"),
         Ok(None) => {}
         Err(resp) => return resp,
     }
@@ -78,15 +80,12 @@ pub async fn register(State(state): State<SharedState>, Json(body): Json<Registe
         Permission::all()
     } else {
         let Some(token) = body.invite_token.clone().filter(|t| !t.trim().is_empty()) else {
-            return json_error(
-                StatusCode::FORBIDDEN,
-                "inscription sur invitation uniquement",
-            );
+            return lerr(loc, StatusCode::FORBIDDEN, "auth.inviteOnly");
         };
         let pool = state.db.clone();
         match blocking(move || db::consume_invite(&pool, token.trim())).await {
             Ok(Some(perms)) => perms,
-            Ok(None) => return json_error(StatusCode::FORBIDDEN, "invitation invalide ou expirée"),
+            Ok(None) => return lerr(loc, StatusCode::FORBIDDEN, "auth.inviteInvalid"),
             Err(resp) => return resp,
         }
     };
@@ -110,7 +109,11 @@ pub struct LoginBody {
 }
 
 /// `POST /api/auth/login` → `{ token, user }`. Accepts email or username.
-pub async fn login(State(state): State<SharedState>, Json(body): Json<LoginBody>) -> Response {
+pub async fn login(
+    State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
+    Json(body): Json<LoginBody>,
+) -> Response {
     let identifier = body.email.trim().to_string();
     let pool = state.db.clone();
     let found = match blocking(move || db::find_user_by_login(&pool, &identifier)).await {
@@ -119,10 +122,10 @@ pub async fn login(State(state): State<SharedState>, Json(body): Json<LoginBody>
     };
     // Same response whether the email is unknown or the password is wrong.
     let Some((user, hash)) = found else {
-        return json_error(StatusCode::UNAUTHORIZED, "identifiants invalides");
+        return lerr(loc, StatusCode::UNAUTHORIZED, "auth.invalidCredentials");
     };
     if !auth::verify_password(&body.password, &hash) {
-        return json_error(StatusCode::UNAUTHORIZED, "identifiants invalides");
+        return lerr(loc, StatusCode::UNAUTHORIZED, "auth.invalidCredentials");
     }
     issue_session(state, user).await
 }
@@ -141,6 +144,32 @@ pub async fn me(AuthUser(user): AuthUser) -> Response {
     Json(json!({ "user": user })).into_response()
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateMeBody {
+    /// Preferred UI locale, e.g. `"fr"` | `"en"`. `null` clears it (fall back to
+    /// the device locale). Unknown tags are ignored (left unchanged).
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
+/// `PATCH /api/auth/me` (Bearer) `{ language }` → `{ user }`. Persists the
+/// account's preferred UI locale so it follows the profile across devices.
+pub async fn update_me(
+    State(state): State<SharedState>,
+    AuthUser(mut user): AuthUser,
+    Json(body): Json<UpdateMeBody>,
+) -> Response {
+    // Normalise to a supported code; an unknown/garbage tag leaves it unchanged.
+    let language = body.language.as_deref().and_then(i18n::normalize);
+    let pool = state.db.clone();
+    let uid = user.id.clone();
+    if let Err(resp) = blocking(move || db::set_user_language(&pool, &uid, language)).await {
+        return resp;
+    }
+    user.language = language.map(str::to_string);
+    Json(json!({ "user": user })).into_response()
+}
+
 /// Mint a session token for `user` and return `{ token, user }`.
 async fn issue_session(state: SharedState, user: User) -> Response {
     let token = auth::random_token();
@@ -152,6 +181,14 @@ async fn issue_session(state: SharedState, user: User) -> Response {
     {
         return resp;
     }
+    // Best-effort last-seen stamp for the admin members table.
+    let pool = state.db.clone();
+    let uid = user.id.clone();
+    let _ = blocking(move || {
+        let _ = db::touch_last_seen(&pool, &uid);
+        Ok(())
+    })
+    .await;
     Json(json!({ "token": token, "user": user })).into_response()
 }
 
@@ -170,26 +207,22 @@ pub async fn list_users(State(state): State<SharedState>) -> Response {
 /// The image is transcoded to WebP and stored in the shared image cache.
 pub async fn upload_avatar(
     State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
     AuthUser(user): AuthUser,
     body: Bytes,
 ) -> Response {
     if body.is_empty() {
-        return json_error(StatusCode::BAD_REQUEST, "corps de requête vide");
+        return lerr(loc, StatusCode::BAD_REQUEST, "error.emptyBody");
     }
     if body.len() > MAX_AVATAR_BYTES {
-        return json_error(StatusCode::PAYLOAD_TOO_LARGE, "image trop volumineuse (max 8 Mo)");
+        return lerr(loc, StatusCode::PAYLOAD_TOO_LARGE, "error.imageTooLarge");
     }
 
     let data_dir = state.config.data_dir.clone();
     let bytes = body.to_vec();
     let url = match blocking(move || Ok(crate::image::store_upload(&data_dir, &bytes))).await {
         Ok(Some(u)) => u,
-        Ok(None) => {
-            return json_error(
-                StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                "image illisible (formats courants attendus ; cwebp/ffmpeg requis)",
-            )
-        }
+        Ok(None) => return lerr(loc, StatusCode::UNSUPPORTED_MEDIA_TYPE, "error.imageUnreadable"),
         Err(resp) => return resp,
     };
 
@@ -308,6 +341,7 @@ pub struct QuickAuthorizeBody {
 /// receive on its next poll.
 pub async fn quick_authorize(
     State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
     AuthUser(user): AuthUser,
     Json(body): Json<QuickAuthorizeBody>,
 ) -> Response {
@@ -328,7 +362,7 @@ pub async fn quick_authorize(
         // Unknown/expired code → don't leave the just-created session dangling.
         let pool = state.db.clone();
         let _ = blocking(move || db::delete_session(&pool, &token)).await;
-        json_error(StatusCode::NOT_FOUND, "code invalide ou expiré")
+        lerr(loc, StatusCode::NOT_FOUND, "connect.invalidCode")
     }
 }
 
@@ -354,12 +388,14 @@ pub async fn quick_poll(State(state): State<SharedState>, Query(q): Query<QuickP
 /// Default invite lifetime, and the bounds accepted from clients.
 const INVITE_TTL_DAYS_DEFAULT: i64 = 7;
 
-/// Gate a handler behind a permission → 403 when the user lacks it.
+/// Gate a handler behind a permission → 403 when the user lacks it. Localised via
+/// the user's account preference (these endpoints are always authenticated).
 fn require(user: &User, perm: Permission) -> Result<(), Response> {
     if user.can(perm) {
         Ok(())
     } else {
-        Err(json_error(StatusCode::FORBIDDEN, "permission refusée"))
+        let loc = user.language.as_deref().and_then(i18n::normalize).unwrap_or(i18n::DEFAULT_LOCALE);
+        Err(lerr(loc, StatusCode::FORBIDDEN, "error.permissionDenied"))
     }
 }
 

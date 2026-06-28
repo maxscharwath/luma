@@ -34,7 +34,7 @@ function PosterCardImpl({
   width = 208,
   focusable = false,
   onClick,
-}: PosterCardProps) {
+}: Readonly<PosterCardProps>) {
   const [imgOk, setImgOk] = useState(true);
   const gradient = `linear-gradient(158deg, ${colors[0]} 0%, ${colors[1]} 70%)`;
   const showImg = Boolean(poster) && imgOk;
@@ -69,10 +69,22 @@ function PosterCardImpl({
             decoding="async"
             draggable={false}
             onError={() => setImgOk(false)}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
           />
         ) : null}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(170deg,rgba(0,0,0,.05) 35%,rgba(0,0,0,.72))' }} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(170deg,rgba(0,0,0,.05) 35%,rgba(0,0,0,.72))',
+          }}
+        />
         {badge ? (
           <div
             style={{
@@ -106,8 +118,19 @@ function PosterCardImpl({
           <div style={{ font: '700 20px var(--font-display)', color: '#fff' }}>{title}</div>
         </div>
         {progress != null ? (
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 5, background: 'rgba(255,255,255,.22)' }}>
-            <div style={{ height: '100%', width: `${progress}%`, background: 'var(--luma-accent)' }} />
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 5,
+              background: 'rgba(255,255,255,.22)',
+            }}
+          >
+            <div
+              style={{ height: '100%', width: `${progress}%`, background: 'var(--luma-accent)' }}
+            />
           </div>
         ) : null}
       </div>

@@ -1,3 +1,4 @@
+import { useT } from '@luma/ui';
 import { useAuth } from '#tv/auth';
 import { useClient } from '#tv/router';
 
@@ -23,11 +24,13 @@ function userInitials(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-/** Header account chip — focusable; OK signs out (back to the profile picker).
- * Reads the user + logout from the auth context (no props). */
+/** Header account chip — focusable; OK returns to the profile picker WITHOUT
+ * signing out, so this device stays remembered and switching back is password-
+ * free (same as the web). Reads the user + switchProfile from the auth context. */
 export function ProfileChip() {
   const client = useClient();
-  const { user, logout: onLogout } = useAuth();
+  const t = useT();
+  const { user, switchProfile } = useAuth();
   if (!user) return null;
   const avatar = client.resolveArt(user.avatarUrl);
   return (
@@ -35,10 +38,10 @@ export function ProfileChip() {
       data-focus=""
       tabIndex={0}
       role="button"
-      title="Changer de profil"
-      onClick={onLogout}
+      title={t('nav.changeProfile')}
+      onClick={switchProfile}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onLogout();
+        if (e.key === 'Enter' || e.key === ' ') switchProfile();
       }}
       className="flex cursor-pointer items-center gap-2.5 rounded-full border border-border bg-[rgba(10,10,12,0.42)] py-1.5 pl-1.5 pr-4 outline-none backdrop-blur-[10px] transition-transform focus:scale-[1.06]"
     >

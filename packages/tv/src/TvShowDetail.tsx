@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
 import { formatRuntime, posterColors, qualityBadgeForVideo, type ShowDetail } from '@luma/core';
+import { useT } from '@luma/ui';
+import { useEffect, useMemo, useState } from 'react';
 import { TvDetailScaffold } from '#tv/detail/DetailScaffold';
 import { useClient, useNav, useParams } from '#tv/router';
 import { PlayGlyph, TV_PLAY_BTN, TvArt } from '#tv/TvMedia';
@@ -9,6 +10,7 @@ export function TvShowDetail() {
   const nav = useNav();
   const { show } = useParams('show');
   const client = useClient();
+  const t = useT();
   const [detail, setDetail] = useState<ShowDetail | null>(null);
   const [season, setSeason] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +48,8 @@ export function TvShowDetail() {
 
   const metaLong = [
     show.year ? String(show.year) : null,
-    `${show.seasonCount} saison${show.seasonCount > 1 ? 's' : ''}`,
-    `${show.episodeCount} épisode${show.episodeCount > 1 ? 's' : ''}`,
+    t('content.seasonCount', { count: show.seasonCount }),
+    t('content.episodeCount', { count: show.episodeCount }),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -55,7 +57,7 @@ export function TvShowDetail() {
   return (
     <TvDetailScaffold
       id={show.id}
-      kind="Série"
+      kind={t('content.series')}
       title={show.title}
       backdrop={backdrop}
       rating={meta?.rating}
@@ -71,26 +73,41 @@ export function TvShowDetail() {
           onClick={() => firstEpisode && nav.go('player', { item: firstEpisode })}
         >
           <PlayGlyph />
-          {firstEpisode ? `Lecture S${firstEpisode.season}E${firstEpisode.episode}` : 'Lecture'}
+          {firstEpisode
+            ? t('player.playEpisode', {
+                season: firstEpisode.season ?? 0,
+                episode: firstEpisode.episode ?? 0,
+              })
+            : t('player.play')}
         </button>
       </div>
 
-      {error ? <p className="mt-6 font-display text-[20px] font-normal text-muted">Impossible de charger les épisodes. {error}</p> : null}
-      {!detail && !error ? <p className="mt-6 font-display text-[20px] font-normal text-muted">Chargement des épisodes…</p> : null}
+      {error ? (
+        <p className="mt-6 font-display text-[20px] font-normal text-muted">
+          {t('content.loadEpisodesFailed', { error })}
+        </p>
+      ) : null}
+      {!detail && !error ? (
+        <p className="mt-6 font-display text-[20px] font-normal text-muted">
+          {t('content.loadingEpisodes')}
+        </p>
+      ) : null}
 
       {detail && detail.seasons.length > 1 ? (
-        <div className="mt-[30px] flex items-center gap-[18px]">
-          <span className="font-sans text-[15px] font-bold tracking-[0.04em] text-muted">SAISONS</span>
+        <div className="mt-7.5 flex items-center gap-4.5">
+          <span className="font-sans text-[15px] font-bold tracking-[0.04em] text-muted">
+            {t('content.seasonsHeader')}
+          </span>
           <div className="scrollbar-none flex gap-2.5 overflow-x-auto px-2 py-1.5">
             {detail.seasons.map((s) => (
               <button
                 key={s.number}
-                className="shrink-0 cursor-pointer rounded-full border-none bg-surface-2 px-5 py-[9px] font-sans text-[15px] font-semibold text-muted transition-transform focus:scale-[1.05] aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink"
+                className="shrink-0 cursor-pointer rounded-full border-none bg-surface-2 px-5 py-2.25 font-sans text-[15px] font-semibold text-muted transition-transform focus:scale-[1.05] aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink"
                 data-focus=""
                 aria-current={s.number === activeSeason?.number}
                 onClick={() => setSeason(s.number)}
               >
-                Saison {s.number}
+                {t('content.season', { number: s.number })}
               </button>
             ))}
           </div>
@@ -99,25 +116,33 @@ export function TvShowDetail() {
 
       {activeSeason ? (
         <div className="mt-8">
-          <div className="mb-4 font-sans text-[15px] font-bold tracking-[0.04em] text-muted">ÉPISODES</div>
-          <div className="scrollbar-none flex gap-[18px] overflow-x-auto px-1.5 py-[18px]">
+          <div className="mb-4 font-sans text-[15px] font-bold tracking-[0.04em] text-muted">
+            {t('content.episodesHeader')}
+          </div>
+          <div className="scrollbar-none flex gap-4.5 overflow-x-auto px-1.5 py-4.5">
             {activeSeason.episodes.map((ep) => (
               <button
                 key={ep.id}
-                className="w-[260px] shrink-0 cursor-pointer border-none bg-transparent p-0 text-left transition-transform focus:scale-[1.05]"
+                className="w-65 shrink-0 cursor-pointer border-none bg-transparent p-0 text-left transition-transform focus:scale-[1.05]"
                 data-focus=""
                 onClick={() => nav.go('player', { item: ep })}
               >
                 <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-[12px] bg-surface-1">
-                  <TvArt src={client.backdropFor(ep) ?? backdrop} colors={posterColors(ep.id)} position="50% 30%" />
-                  <div className="relative flex h-[46px] w-[46px] items-center justify-center rounded-full bg-[rgba(10,10,12,0.5)] text-white">
+                  <TvArt
+                    src={client.backdropFor(ep) ?? backdrop}
+                    colors={posterColors(ep.id)}
+                    position="50% 30%"
+                  />
+                  <div className="relative flex h-11.5 w-11.5 items-center justify-center rounded-full bg-[rgba(10,10,12,0.5)] text-white">
                     <PlayGlyph size={18} />
                   </div>
                 </div>
-                <div className="mt-[9px] font-sans text-[15px] font-semibold text-text">
+                <div className="mt-2.25 font-sans text-[15px] font-semibold text-text">
                   {ep.episode}. {ep.episodeTitle ?? ep.title}
                 </div>
-                <div className="font-sans text-[13px] font-medium text-dim tabular-nums">{formatRuntime(ep.durationMs)}</div>
+                <div className="font-sans text-[13px] font-medium text-dim tabular-nums">
+                  {formatRuntime(ep.durationMs)}
+                </div>
               </button>
             ))}
           </div>

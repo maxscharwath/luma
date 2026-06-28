@@ -98,7 +98,11 @@ function tizen(): Tizen | null {
 
 /** Newest first, by ISO-8601 `addedAt`. */
 function newest(movies: MediaItem[]): MediaItem[] {
-  return [...movies].sort((a, b) => (a.addedAt < b.addedAt ? 1 : a.addedAt > b.addedAt ? -1 : 0));
+  return [...movies].sort((a, b) => {
+    if (a.addedAt < b.addedAt) return 1;
+    if (a.addedAt > b.addedAt) return -1;
+    return 0;
+  });
 }
 
 interface Tile {
@@ -122,7 +126,9 @@ function hasArt(m: MediaItem): boolean {
 
 /** Where a tile points: movies/videos → their detail page; episodes → the show. */
 function deepLinkFor(m: MediaItem): DeepLink {
-  return m.kind === 'episode' && m.showId ? { type: 'show', id: m.showId } : { type: 'movie', id: m.id };
+  return m.kind === 'episode' && m.showId
+    ? { type: 'show', id: m.showId }
+    : { type: 'movie', id: m.id };
 }
 
 /** Native tile title: the show name for episodes, else the item title. */
@@ -167,7 +173,9 @@ export function buildPreviewData(
   const resume = continueItems
     .filter((c) => hasArt(c.item))
     .slice(0, MAX_TILES)
-    .map((c) => tile(client, c.item, RESUME_BADGE, c.durationMs ? c.positionMs / c.durationMs : undefined));
+    .map((c) =>
+      tile(client, c.item, RESUME_BADGE, c.durationMs ? c.positionMs / c.durationMs : undefined),
+    );
   if (resume.length) sections.push({ title: RESUME_SECTION, tiles: resume });
 
   const recent = newest(movies.filter(hasArt))

@@ -1,0 +1,43 @@
+#!/bin/sh
+# DSM 7 service control for LUMA. One process: luma-server serves the API,
+# streaming, AND the bundled web SPA on a single port. ffmpeg/ffprobe are taken
+# from the bundled static copies via PATH. Config (media dirs + port) is written
+# by the install wizard (postinst) to var/luma.conf.
+
+PKG="luma"
+TARGET="/var/packages/${PKG}/target"
+VAR="/var/packages/${PKG}/var"
+BIN="${TARGET}/bin/luma-server"
+PID="${VAR}/luma.pid"
+LOG="${VAR}/luma.log"
+
+# shellcheck disable=SC1090
+[ -f "${VAR}/luma.conf" ] && . "${VAR}/luma.conf"
+
+start_daemon() {
+    mkdir -p "${VAR}/data"
+    PATH="${TARGET}/ffmpeg:${PATH}" \
+    LUMA_PORT="${LUMA_PORT:-4040}" \
+    LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS}" \
+    LUMA_DATA_DIR="${VAR}/data" \
+    LUMA_WEB_DIR="${TARGET}/web" \
+    "${BIN}" >> "${LOG}" 2>&1 &
+    echo $! > "${PID}"
+}
+
+stop_daemon() {
+    [ -f "${PID}" ] && kill "$(cat "${PID}")" 2>/dev/null
+    rm -f "${PID}"
+}
+
+daemon_status() {
+    [ -f "${PID}" ] && kill -0 "$(cat "${PID}")" 2>/dev/null
+}
+
+case "$1" in
+    start)  daemon_status || start_daemon ;;
+    stop)   stop_daemon ;;
+    status) daemon_status && exit 0 || exit 3 ;;
+    *)      exit 1 ;;
+esac
+exit 0

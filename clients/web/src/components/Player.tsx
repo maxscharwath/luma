@@ -1,23 +1,60 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audioSupport, formatTimecode as fmtTime, metaLine } from '@luma/core';
-import type { MovieView } from '#web/lib/api';
+import { useT } from '@luma/ui';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AvDrawer } from '#web/components/player/AvDrawer';
 import { ControlBar } from '#web/components/player/ControlBar';
-import { IconBack } from '#web/components/player/icons';
+import { IconBack, IconStopped } from '#web/components/player/icons';
 import { StatsOverlay } from '#web/components/player/StatsOverlay';
 import { SubtitleLayer } from '#web/components/player/SubtitleLayer';
 import { useSubtitleStyle } from '#web/components/player/subtitleStyle';
+import { usePlaybackSession } from '#web/components/player/usePlaybackSession';
 import { useResumeProgress } from '#web/components/player/useResumeProgress';
 import { useVideoPlayback } from '#web/components/player/useVideoPlayback';
+import type { MovieView } from '#web/lib/api';
 
 /** Custom fullscreen player: scrub bar with hover preview, ±10s, volume, speed,
  * PiP, fullscreen, auto-hiding controls, full keyboard control, an audio/
  * subtitle drawer and a stats-for-nerds overlay. Mechanics live in
  * `useVideoPlayback` / `useResumeProgress`; this file is composition + chrome. */
-export function Player({ item, onClose }: { item: MovieView; onClose: () => void }) {
+export function Player({ item, onClose }: Readonly<{ item: MovieView; onClose: () => void }>) {
+  const t = useT();
   const pb = useVideoPlayback(item);
-  const { videoRef, containerRef, playing, scrubbing, togglePlay, skip, setVol, toggleMute, toggleFullscreen } = pb;
-  const { resumeAt, showResume, setShowResume } = useResumeProgress(videoRef, item);
+  const {
+    videoRef,
+    containerRef,
+    playing,
+    scrubbing,
+    togglePlay,
+    skip,
+    setVol,
+    toggleMute,
+    toggleFullscreen,
+  } = pb;
+  // Offset-aware position control so resume + progress-save use the REAL time
+  // (the seamless stream's own timeline is relative to the server -ss offset).
+  const position = useMemo(
+    () => ({ seekTo: pb.seekTo, getPosition: pb.getPosition }),
+    [pb.seekTo, pb.getPosition],
+  );
+  const { resumeAt, showResume, setShowResume } = useResumeProgress(videoRef, item, position);
+  // Admin can remotely stop this playback → show a message and close.
+  const [terminated, setTerminated] = useState<string | null>(null);
+  // Heartbeat this playback to the server for the admin dashboard's live sessions.
+  usePlaybackSession({
+    item,
+    getPosition: pb.getPosition,
+    playing: pb.playing,
+    mode: pb.useHls ? 'transcode' : 'direct',
+    onTerminated: (message) => {
+      try {
+        videoRef.current?.pause();
+      } catch {
+        /* ignore */
+      }
+      setTerminated(message?.trim() || t('player.stoppedDefault'));
+      window.setTimeout(onClose, 6000);
+    },
+  });
 
   const [controls, setControls] = useState(true);
   const [avOpen, setAvOpen] = useState(false);
@@ -30,7 +67,10 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
   const audio = audioSupport(item);
   // Stable identity so the subtitle layer doesn't re-run effects on every timeupdate.
   const renderedSubs = useMemo(() => item.subs.filter((s) => s.url), [item.subs]);
-  const subtitle = item.kind === 'episode' && item.showTitle ? `${item.showTitle} · ${item.title}` : metaLine(item);
+  const subtitle =
+    item.kind === 'episode' && item.showTitle
+      ? `${item.showTitle} · ${item.title}`
+      : metaLine(item);
 
   // SubtitleLayer owns rendering; we only track which subtitle is active.
   const pickSub = useCallback((index: number | null) => setActiveSub(index), []);
@@ -104,21 +144,37 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
           else onClose();
           break;
         default:
-          if (/^[0-9]$/.test(e.key) && videoRef.current?.duration) {
-            videoRef.current.currentTime = (Number(e.key) / 10) * videoRef.current.duration;
+          // Number keys → jump to N/10 of the movie (offset-aware via seekTo).
+          if (/^[0-9]$/.test(e.key) && pb.dur) {
+            pb.seekTo((Number(e.key) / 10) * pb.dur);
           }
       }
       poke();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [videoRef, togglePlay, skip, setVol, toggleMute, toggleFullscreen, pickSub, activeSub, item.subs, avOpen, onClose, poke]);
+  }, [
+    videoRef,
+    togglePlay,
+    skip,
+    setVol,
+    toggleMute,
+    toggleFullscreen,
+    pickSub,
+    activeSub,
+    item.subs,
+    avOpen,
+    onClose,
+    poke,
+    pb.seekTo,
+    pb.dur,
+  ]);
 
   return (
     <div
       ref={containerRef}
       onPointerMove={poke}
-      className="fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-black"
+      className="fixed inset-0 z-60 flex items-center justify-center overflow-hidden bg-black"
       style={{ cursor: controls ? 'default' : 'none' }}
     >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -132,11 +188,38 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
       />
 
       {/* custom, fully-styleable subtitle renderer (fetches VTT itself) */}
-      <SubtitleLayer videoRef={videoRef} rendered={renderedSubs} activeIndex={activeSub} style={subStyle} raised={controls} />
+      <SubtitleLayer
+        videoRef={videoRef}
+        rendered={renderedSubs}
+        activeIndex={activeSub}
+        style={subStyle}
+        raised={controls}
+        offset={pb.baseSec}
+      />
 
-      {pb.waiting ? (
+      {pb.waiting && !terminated ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-14 w-14 animate-spin rounded-full border-[3px] border-white/20 border-t-accent" />
+        </div>
+      ) : null}
+
+      {/* Admin stopped this stream → blocking message, then auto-close. */}
+      {terminated ? (
+        <div className="absolute inset-0 z-70 flex flex-col items-center justify-center gap-5 bg-black/85 px-8 text-center backdrop-blur-sm">
+          <span className="text-[#E8536A]">
+            <IconStopped size={52} />
+          </span>
+          <div className="font-display text-[24px] font-bold text-white">
+            {t('player.stoppedTitle')}
+          </div>
+          <p className="max-w-115 text-[15px] text-white/70">{terminated}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md bg-white/10 px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-white/20"
+          >
+            {t('player.back')}
+          </button>
         </div>
       ) : null}
 
@@ -144,14 +227,14 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
           switch to the HLS audio-transcode (stereo AAC) and just note it. */}
       {!audio.canPlay && audioWarn && pb.useHls ? (
         <Toast variant="info" onDismiss={() => setAudioWarn(false)}>
-          ♪ Audio {item.audio?.codec?.toUpperCase()} réencodé en AAC stéréo pour ce navigateur.
+          {t('player.audioReencodedToast', { codec: item.audio?.codec?.toUpperCase() ?? '' })}
         </Toast>
       ) : null}
 
       {/* Video also undecodable here → no recovery, so warn (Safari/TV needed). */}
-      {!audio.canPlay && audioWarn && !pb.useHls ? (
+      {!audio.canPlay && audioWarn && !pb.useHls && audio.messageKey ? (
         <Toast variant="danger" onDismiss={() => setAudioWarn(false)}>
-          ⚠ {audio.reason}
+          ⚠ {t(audio.messageKey, audio.messageVars)}
         </Toast>
       ) : null}
 
@@ -168,15 +251,24 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
               }}
               className="rounded-md bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-white/20"
             >
-              Recommencer
+              {t('player.restart')}
             </button>
           }
         >
-          ⏵ Reprise à {fmtTime(resumeAt)}
+          ⏵ {t('player.resumeAt', { time: fmtTime(resumeAt) })}
         </Toast>
       ) : null}
 
-      {statsOpen ? <StatsOverlay videoRef={videoRef} item={item} cur={pb.cur} dur={pb.dur} bufEnd={pb.bufEnd} onClose={() => setStatsOpen(false)} /> : null}
+      {statsOpen ? (
+        <StatsOverlay
+          videoRef={videoRef}
+          item={item}
+          cur={pb.cur}
+          dur={pb.dur}
+          bufEnd={pb.bufEnd}
+          onClose={() => setStatsOpen(false)}
+        />
+      ) : null}
 
       {/* top bar */}
       <div
@@ -185,8 +277,8 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
       >
         <button
           onClick={onClose}
-          className="flex h-[42px] w-[42px] items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
-          aria-label="Retour"
+          className="flex h-10.5 w-10.5 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
+          aria-label={t('player.back')}
         >
           <IconBack />
         </button>
@@ -201,12 +293,20 @@ export function Player({ item, onClose }: { item: MovieView; onClose: () => void
         className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-8 pb-6 pt-20 transition-opacity duration-300"
         style={{ opacity: controls ? 1 : 0, pointerEvents: controls ? 'auto' : 'none' }}
       >
-        <ControlBar pb={pb} statsOpen={statsOpen} onToggleStats={() => setStatsOpen((s) => !s)} onOpenAv={() => setAvOpen(true)} />
+        <ControlBar
+          pb={pb}
+          statsOpen={statsOpen}
+          onToggleStats={() => setStatsOpen((s) => !s)}
+          onOpenAv={() => setAvOpen(true)}
+        />
       </div>
 
       {avOpen ? (
         <AvDrawer
           item={item}
+          audioTracks={pb.audioTracks}
+          audioIndex={pb.audioIndex}
+          onPickAudio={pb.setAudio}
           activeSub={activeSub}
           onPickSub={pickSub}
           subStyle={subStyle}
@@ -224,18 +324,25 @@ function Toast({
   onDismiss,
   action,
   children,
-}: {
+}: Readonly<{
   variant: 'info' | 'danger';
   onDismiss: () => void;
   action?: React.ReactNode;
   children: React.ReactNode;
-}) {
+}>) {
+  const t = useT();
   const border = variant === 'danger' ? 'border-danger/40' : 'border-white/15';
   return (
-    <div className={`absolute left-1/2 top-6 z-40 flex max-w-[640px] -translate-x-1/2 items-center gap-3 rounded-xl border ${border} bg-black/80 px-4 py-3 backdrop-blur-md`}>
+    <div
+      className={`absolute left-1/2 top-6 z-40 flex max-w-160 -translate-x-1/2 items-center gap-3 rounded-xl border ${border} bg-black/80 px-4 py-3 backdrop-blur-md`}
+    >
       <span className="text-[13px] text-white/90">{children}</span>
       {action}
-      <button onClick={onDismiss} className="text-white/50 hover:text-white" aria-label="Ignorer">
+      <button
+        onClick={onDismiss}
+        className="text-white/50 hover:text-white"
+        aria-label={t('player.dismiss')}
+      >
         ✕
       </button>
     </div>

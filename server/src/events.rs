@@ -44,6 +44,26 @@ pub enum ServerEvent {
     ProbeProgress { done: usize, total: usize },
     #[serde(rename = "probe.completed")]
     ProbeCompleted { total: usize },
+    /// A playback session started — `count` is the new active-session total.
+    #[serde(rename = "playback.started")]
+    PlaybackStarted { count: usize },
+    /// A live playback session updated (state/position changed).
+    #[serde(rename = "playback.updated")]
+    PlaybackUpdated { count: usize },
+    /// One or more playback sessions ended (stopped or reaped).
+    #[serde(rename = "playback.stopped")]
+    PlaybackStopped { count: usize },
+    /// An admin terminated a playback session: the owning client must stop and
+    /// show `message` (empty → the client shows a localized default).
+    #[serde(rename = "playback.terminate")]
+    PlaybackTerminate {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        message: String,
+    },
+    /// Server settings changed via the admin console.
+    #[serde(rename = "settings.updated")]
+    SettingsUpdated,
 }
 
 /// Cheap-to-clone handle to the broadcast channel.

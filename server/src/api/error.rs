@@ -9,3 +9,9 @@ use serde_json::json;
 pub fn json_error(status: StatusCode, message: &str) -> Response {
     (status, Json(json!({ "error": message }))).into_response()
 }
+
+/// Localised JSON error: resolves message `key` in `locale` against the shared
+/// catalogs (`packages/core/src/locales`).
+pub fn lerr(locale: &str, status: StatusCode, key: &str) -> Response {
+    json_error(status, &crate::i18n::t(locale, key, &[]))
+}

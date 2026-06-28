@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { audioSupport, canDirectPlay } from '@luma/core';
-import type { MovieView } from '#web/lib/api';
+import type { AudioTrack } from '@luma/core';
+import {
+  audioTracksOf,
+  canSeamlessAudioSwitch,
+  masterNeedsAac,
+  planAudio,
+  restorePlaybackAfterSwap,
+} from '@luma/core';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lumaClient, type MovieView } from '#web/lib/api';
 
 export interface VideoPlayback {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -15,14 +22,33 @@ export interface VideoPlayback {
   muted: boolean;
   rate: number;
   fs: boolean;
-  /** True when audio is being re-encoded to AAC via an HLS variant. */
+  /** True when audio is delivered via an HLS remux variant (track switch or
+   * the AAC fallback) rather than plain direct-play. */
   useHls: boolean;
+  /** Every audio track, for the picker. */
+  audioTracks: AudioTrack[];
+  /** Index of the currently-selected audio track. */
+  audioIndex: number;
+  /** Switch to the audio track with this audio-relative index. */
+  setAudio: (index: number) => void;
   scrubbing: boolean;
   setScrubbing: (v: boolean) => void;
+  /** Previewed absolute position (s) while dragging the bar, else null. */
+  scrubPreview: number | null;
+  /** Preview the scrub position at a client X (no seek yet). */
+  scrubToClientX: (clientX: number) => void;
+  /** Commit the previewed scrub position (actually seeks). */
+  commitScrub: () => void;
   hover: { x: number; t: number } | null;
   setHover: (h: { x: number; t: number } | null) => void;
   togglePlay: () => void;
   skip: (delta: number) => void;
+  /** Seek to an absolute position in seconds (offset-aware in seamless mode). */
+  seekTo: (absSec: number) => void;
+  /** Read the absolute current position in seconds (offset-aware). */
+  getPosition: () => number;
+  /** Absolute position where the current stream starts (server -ss offset). */
+  baseSec: number;
   setVol: (val: number) => void;
   toggleMute: () => void;
   applyRate: (r: number) => void;
@@ -53,15 +79,47 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   const [rate, setRate] = useState(1);
   const [fs, setFs] = useState(false);
   const [useHls, setUseHls] = useState(false);
+  const [audioIndex, setAudioIndex] = useState(() => {
+    const tracks = audioTracksOf(item);
+    return (tracks.find((t) => t.default) ?? tracks[0])?.index ?? 0;
+  });
   const [hover, setHover] = useState<{ x: number; t: number } | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
+  // While dragging the scrub bar, the previewed absolute position (s) — the thumb
+  // follows it but we only COMMIT the seek on release, so a seamless (-ss) stream
+  // isn't reloaded on every mouse-move (which never settled at the drop point).
+  const [scrubPreview, setScrubPreview] = useState<number | null>(null);
+  const scrubPreviewRef = useRef<number | null>(null);
+  scrubPreviewRef.current = scrubPreview;
+  // Absolute position (s) where the current seamless stream starts. The server
+  // `-ss` remux restarts the timeline at 0, so the REAL position is
+  // baseSec + video.currentTime. Always 0 in direct-play (timeline is absolute).
+  const [baseSec, setBaseSec] = useState(0);
+  const baseSecRef = useRef(0);
+  baseSecRef.current = baseSec;
+  // Latest selected audio index, for the manifest-parsed re-select after a reload.
+  const audioIndexRef = useRef(0);
+  audioIndexRef.current = audioIndex;
+
+  const audioTracks = audioTracksOf(item);
+  // Seamless multi-language: one HLS master with every track as a rendition →
+  // language switches happen in place (no reload, the picture never moves).
+  const seamless = useMemo(() => canSeamlessAudioSwitch(item), [item]);
+  const hlsRef = useRef<import('hls.js').default | null>(null);
 
   // ----- video element wiring -------------------------------------------------
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onTime = () => setCur(v.currentTime);
-    const onDur = () => setDur(v.duration || 0);
+    // Real position = stream offset (server -ss base) + element time.
+    const onTime = () => setCur(baseSecRef.current + v.currentTime);
+    // Prefer the catalogue runtime: a per-track HLS remux is a growing event
+    // playlist whose `video.duration` is Infinity/growing, which desyncs the bar.
+    const onDur = () => {
+      const total = item.durationMs ? item.durationMs / 1000 : 0;
+      if (total > 0) setDur(total);
+      else if (Number.isFinite(v.duration)) setDur(v.duration);
+    };
     const onProg = () => setBufEnd(v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
@@ -94,47 +152,137 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     };
   }, []);
 
-  // ----- source wiring: direct-play <video src> vs HLS audio-transcode --------
+  // ----- source wiring --------------------------------------------------------
+  // Seamless mode attaches the HLS master ONCE (audio switches happen in place —
+  // see the next effect — so the source is NOT re-pointed and the picture never
+  // moves). Otherwise the source re-attaches per chosen track (direct-play, or a
+  // per-track AAC remux for audio this runtime can't decode → reloads on switch).
+  // The deps gate `audioIndex` out in seamless mode so switching never re-attaches.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
-    const hlsNeeded = !audioSupport(item).canPlay && canDirectPlay(item).canDirectPlay;
-    setUseHls(hlsNeeded);
-
-    if (!hlsNeeded) {
-      v.src = item.stream; // direct-play: server range-streams the original file
-      return;
+    if (seamless) {
+      setUseHls(true);
+      // -ss the master at baseSec so resume/seek to any position is available
+      // immediately (the stream restarts at 0; baseSec is added back for display).
+      const url = lumaClient().hlsMasterUrl(item.id, masterNeedsAac(item), baseSecRef.current);
+      let destroyed = false;
+      if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        v.src = url; // Safari/iOS: native HLS exposes renditions on video.audioTracks
+      } else {
+        void import('hls.js').then(({ default: Hls }) => {
+          if (destroyed) return;
+          if (!Hls.isSupported()) {
+            v.src = url;
+            return;
+          }
+          const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+          hlsRef.current = hls;
+          // A reload (seek/-ss change) recreates hls → it would revert to the
+          // master's default audio. Re-select the user's track once the manifest
+          // is parsed so the chosen language survives seeks. (Live switches are
+          // handled by the in-place effect below.)
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            const order = audioTracksOf(item);
+            const rendition = order.findIndex((t) => t.index === audioIndexRef.current);
+            if (rendition > 0) {
+              try {
+                hls.audioTrack = rendition;
+              } catch {
+                /* ignore */
+              }
+            }
+          });
+          hls.loadSource(url);
+          hls.attachMedia(v);
+        });
+      }
+      return () => {
+        destroyed = true;
+        hlsRef.current?.destroy();
+        hlsRef.current = null;
+        v.removeAttribute('src');
+        v.load();
+      };
     }
 
-    // Audio-transcode: copy video, re-encode audio to stereo AAC, delivered as HLS.
+    // Non-seamless: per-track remux / direct-play. Re-attaches on track change.
+    const plan = planAudio(item, audioIndex);
+    setUseHls(plan.mode === 'hls');
+
+    // Capture position + play state BEFORE re-pointing the source (assigning the
+    // new src resets currentTime to 0).
+    const resumeAt = v.currentTime || 0;
+    const wasPlaying = !v.paused;
+
+    if (plan.mode === 'direct') {
+      v.src = item.stream; // direct-play: server range-streams the original file
+      return restorePlaybackAfterSwap(v, resumeAt, wasPlaying);
+    }
+
+    // Per-track remux: copy video, copy-or-AAC the chosen audio, delivered as HLS.
+    // Built here (not in the loader) so the route's loader data stays a plain,
+    // SSR-serializable object — a function on it breaks Seroval dehydration.
+    const url = lumaClient().hlsAudioUrl(item.id, plan.index, plan.copy);
     let destroyed = false;
     let hls: import('hls.js').default | null = null;
 
     if (v.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari/iOS play HLS natively (and decode AC3 natively, so they rarely
-      // reach this branch — but handle it for completeness).
-      v.src = item.hlsAudio;
+      v.src = url;
     } else {
       void import('hls.js').then(({ default: Hls }) => {
         if (destroyed) return;
         if (!Hls.isSupported()) {
-          v.src = item.hlsAudio; // last resort
+          v.src = url; // last resort
           return;
         }
         hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-        hls.loadSource(item.hlsAudio);
+        hls.loadSource(url);
         hls.attachMedia(v);
       });
     }
 
+    // Restore the old position once the new source makes it seekable.
+    const restore = restorePlaybackAfterSwap(v, resumeAt, wasPlaying);
     return () => {
       destroyed = true;
       hls?.destroy();
+      restore();
       v.removeAttribute('src');
       v.load();
     };
-  }, [item]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, seamless, baseSec, seamless ? 0 : audioIndex]);
+
+  // ----- seamless language switch: select the rendition IN PLACE --------------
+  // Runs on audioIndex change in seamless mode only — no source reload, so the
+  // video keeps playing at the same position while the audio rendition swaps.
+  useEffect(() => {
+    if (!seamless) return;
+    const order = audioTracksOf(item);
+    const rendition = Math.max(
+      0,
+      order.findIndex((t) => t.index === audioIndex),
+    );
+    const hls = hlsRef.current;
+    if (hls) {
+      try {
+        hls.audioTrack = rendition; // hls.js renditions are in playlist order
+      } catch {
+        /* manifest not parsed yet — the default rendition is already correct */
+      }
+      return;
+    }
+    // Native HLS (Safari/iOS): toggle the matching audioTracks entry.
+    type NativeAudioTracks = { length: number; [i: number]: { enabled: boolean } };
+    const tracks = (videoRef.current as unknown as { audioTracks?: NativeAudioTracks } | null)
+      ?.audioTracks;
+    if (tracks?.length) {
+      for (let i = 0; i < tracks.length; i += 1) tracks[i]!.enabled = i === rendition;
+    }
+    // baseSec in deps: after a seek reloads the master, re-apply the chosen track.
+  }, [item, seamless, audioIndex, baseSec]);
 
   useEffect(() => {
     const onFs = () => setFs(Boolean(document.fullscreenElement));
@@ -150,20 +298,82 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     else v.pause();
   }, []);
 
-  const skip = useCallback((delta: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + delta));
-  }, []);
+  // Seek to an ABSOLUTE position (seconds). In seamless mode this re-`-ss`-es the
+  // master at that offset (so the target is instantly available, no waiting for a
+  // from-0 remux); in direct-play it's a normal range seek.
+  const seekTo = useCallback(
+    (absSec: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      let total: number;
+      if (item.durationMs) total = item.durationMs / 1000;
+      else if (Number.isFinite(v.duration)) total = v.duration;
+      else total = 0;
+      const target = Math.max(0, total ? Math.min(total - 1, absSec) : absSec);
+      if (seamless) {
+        setBaseSec(target); // reloads the master at -ss=target; currentTime → 0; cur → target
+        setCur(target);
+      } else {
+        v.currentTime = target; // direct-play timeline is absolute
+      }
+    },
+    [item, seamless],
+  );
 
-  const seekToClientX = useCallback((clientX: number) => {
-    const v = videoRef.current;
-    const bar = barRef.current;
-    if (!v || !bar || !v.duration) return;
-    const rect = bar.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    v.currentTime = pct * v.duration;
-  }, []);
+  // Absolute current position (s), offset-aware — stable getter for progress save.
+  const getPosition = useCallback(
+    () => baseSecRef.current + (videoRef.current?.currentTime ?? 0),
+    [],
+  );
+
+  const skip = useCallback(
+    (delta: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      seekTo(baseSecRef.current + v.currentTime + delta);
+    },
+    [seekTo],
+  );
+
+  // Map a client X on the scrub bar → absolute seconds. Catalogue runtime, not
+  // v.duration (Infinity for the growing HLS remux → NaN/∞).
+  const clientXToSec = useCallback(
+    (clientX: number): number | null => {
+      const v = videoRef.current;
+      const bar = barRef.current;
+      let total: number;
+      if (item.durationMs) total = item.durationMs / 1000;
+      else if (Number.isFinite(v?.duration)) total = (v as HTMLVideoElement).duration;
+      else total = 0;
+      if (!v || !bar || !total) return null;
+      const rect = bar.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return pct * total;
+    },
+    [item],
+  );
+
+  // Drag start / move: preview only (thumb follows; no reload). Release: commit.
+  const scrubToClientX = useCallback(
+    (clientX: number) => {
+      const s = clientXToSec(clientX);
+      if (s != null) setScrubPreview(s);
+    },
+    [clientXToSec],
+  );
+  const commitScrub = useCallback(() => {
+    const s = scrubPreviewRef.current;
+    setScrubPreview(null);
+    if (s != null) seekTo(s);
+  }, [seekTo]);
+  // Back-compat: a single click on the bar (no drag) jumps immediately.
+  const seekToClientX = useCallback(
+    (clientX: number) => {
+      const s = clientXToSec(clientX);
+      if (s != null) seekTo(s);
+    },
+    [clientXToSec, seekTo],
+  );
 
   const onBarMove = useCallback(
     (e: React.PointerEvent) => {
@@ -172,9 +382,9 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       const rect = bar.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       setHover({ x: pct * rect.width, t: pct * dur });
-      if (scrubbing) seekToClientX(e.clientX);
+      if (scrubbing) setScrubPreview(pct * dur); // preview; committed on release
     },
-    [dur, scrubbing, seekToClientX],
+    [dur, scrubbing],
   );
 
   const setVol = useCallback((val: number) => {
@@ -203,11 +413,20 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   }, []);
 
   const togglePip = useCallback(() => {
-    const v = videoRef.current as (HTMLVideoElement & { requestPictureInPicture?: () => Promise<unknown> }) | null;
+    const v = videoRef.current as
+      | (HTMLVideoElement & { requestPictureInPicture?: () => Promise<unknown> })
+      | null;
     if (!v) return;
     if (document.pictureInPictureElement) void document.exitPictureInPicture();
     else void v.requestPictureInPicture?.();
   }, []);
+
+  // Switching tracks re-runs the source effect, which re-attaches the stream and
+  // restores the current position. No-op when the track is already selected.
+  const setAudio = useCallback(
+    (index: number) => setAudioIndex((cur) => (cur === index ? cur : index)),
+    [],
+  );
 
   return {
     videoRef,
@@ -223,12 +442,21 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     rate,
     fs,
     useHls,
+    audioTracks,
+    audioIndex,
+    setAudio,
     scrubbing,
     setScrubbing,
+    scrubPreview,
+    scrubToClientX,
+    commitScrub,
     hover,
     setHover,
     togglePlay,
     skip,
+    seekTo,
+    getPosition,
+    baseSec,
     setVol,
     toggleMute,
     applyRate,

@@ -4,8 +4,8 @@
 // don't exist during SSR, so it renders nothing on the server and until the first
 // client effect decides whether it should play (no hydration mismatch).
 
-import { useEffect, useState } from 'react';
 import { LumaIntro } from '@luma/ui';
+import { useEffect, useState } from 'react';
 
 const SEEN_KEY = 'luma:intro-seen';
 

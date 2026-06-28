@@ -28,7 +28,7 @@ export function Poster({
   progress = null,
   width = 208,
   onClick,
-}: PosterProps) {
+}: Readonly<PosterProps>) {
   const [imgOk, setImgOk] = useState(true);
   const showImg = Boolean(poster) && imgOk;
   const gradient = `linear-gradient(158deg, ${colors[0]} 0%, ${colors[1]} 70%)`;
@@ -38,10 +38,10 @@ export function Poster({
       type="button"
       onClick={onClick}
       style={{ width }}
-      className="group block shrink-0 text-left transition-transform duration-200 ease-[var(--ease-out)] hover:-translate-y-1.5 focus:outline-none"
+      className="group block shrink-0 text-left transition-transform duration-200 ease-(--ease-out) hover:-translate-y-1.5 focus:outline-none"
     >
       <div
-        className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-card transition-shadow duration-200
+        className="relative aspect-2/3 overflow-hidden rounded-lg shadow-card transition-shadow duration-200
           group-hover:shadow-[0_0_0_3px_var(--luma-accent),var(--shadow-pop)]
           group-focus-visible:shadow-[0_0_0_3px_var(--luma-accent),var(--shadow-pop)]"
         style={{ background: gradient }}
@@ -59,7 +59,7 @@ export function Poster({
         ) : null}
         <div className="absolute inset-0 bg-linear-to-b from-black/5 via-transparent to-black/70" />
         {badge ? (
-          <span className="absolute right-2.5 top-2.5 rounded bg-[rgba(10,10,12,.6)] px-[7px] py-1 text-[10px] font-bold text-accent">
+          <span className="absolute right-2.5 top-2.5 rounded bg-[rgba(10,10,12,.6)] px-1.75 py-1 text-[10px] font-bold text-accent">
             {badge}
           </span>
         ) : null}
@@ -69,12 +69,14 @@ export function Poster({
           }`}
         >
           {genre ? (
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/60">{genre}</div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/60">
+              {genre}
+            </div>
           ) : null}
           <div className="font-display text-[20px] font-bold text-white">{title}</div>
         </div>
         {progress != null ? (
-          <div className="absolute inset-x-0 bottom-0 h-[5px] bg-white/20">
+          <div className="absolute inset-x-0 bottom-0 h-1.25 bg-white/20">
             <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
           </div>
         ) : null}

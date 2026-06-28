@@ -15,9 +15,9 @@ use time::OffsetDateTime;
 use tracing::{debug, info, warn};
 use jwalk::{Parallelism, WalkDirGeneric};
 
-use crate::config::Config;
 use crate::model::{Kind, Library, LibraryKind, MediaFile, MediaItem, Show};
 use crate::naming::{self, Parsed};
+use crate::settings::LibraryDef;
 
 /// Extensions we treat as playable video.
 const VIDEO_EXTENSIONS: &[&str] = &["mkv", "mp4", "m4v", "mov", "webm", "avi", "ts"];
@@ -36,23 +36,61 @@ pub struct ScanData {
     pub mtimes: HashMap<String, Option<i64>>,
 }
 
-/// Walk every configured media dir and build the full index (phase 1, fast: no
-/// ffprobe). Files are `stat`-ed and grouped into logical items.
-pub fn scan_all(config: &Config) -> ScanData {
+/// Walk every configured library (each may span multiple folders) and build the
+/// full index (phase 1, fast: no ffprobe). Files are `stat`-ed and grouped into
+/// logical items. Items from every folder of a library share that library's id.
+pub fn scan_all(defs: &[LibraryDef]) -> ScanData {
     let mut data = ScanData::default();
     // Logical items, keyed by stable logical id, accumulating their files.
     let mut items: HashMap<String, MediaItem> = HashMap::new();
     // Dedupe shows across the whole scan by show id.
     let mut shows: HashMap<String, Show> = HashMap::new();
 
-    for dir in &config.media_dirs {
-        if !dir.is_dir() {
-            warn!(path = %dir.display(), "media dir does not exist or is not a directory; skipping");
-            continue;
+    for def in defs {
+        let mut movie_seen = false;
+        let mut episode_seen = false;
+        // Logical ids first seen in this library, to compute item_count.
+        let mut lib_item_ids = std::collections::HashSet::new();
+
+        for folder in &def.folders {
+            let root = Path::new(folder);
+            if !root.is_dir() {
+                warn!(path = %root.display(), "media dir does not exist or is not a directory; skipping");
+                continue;
+            }
+            scan_root(
+                &def.id,
+                root,
+                &mut items,
+                &mut shows,
+                &mut data.mtimes,
+                &mut lib_item_ids,
+                &mut movie_seen,
+                &mut episode_seen,
+            );
         }
-        let library = scan_library(dir, &mut items, &mut shows, &mut data.mtimes);
-        info!(library = %library.name, items = library.item_count, "scanned library");
-        data.libraries.push(library);
+
+        // Auto-detect kind from contents, unless the def pins one.
+        let detected = match (movie_seen, episode_seen) {
+            (false, true) => LibraryKind::Shows,
+            (true, true) => LibraryKind::Mixed,
+            _ => LibraryKind::Movies,
+        };
+        let kind = match def.kind.as_str() {
+            "movies" => LibraryKind::Movies,
+            "shows" => LibraryKind::Shows,
+            "mixed" => LibraryKind::Mixed,
+            _ => detected,
+        };
+
+        info!(library = %def.name, items = lib_item_ids.len(), "scanned library");
+        data.libraries.push(Library {
+            id: def.id.clone(),
+            name: def.name.clone(),
+            kind,
+            path: def.folders.join(", "),
+            item_count: lib_item_ids.len(),
+        });
     }
 
     data.shows = shows.into_values().collect();
@@ -60,27 +98,26 @@ pub fn scan_all(config: &Config) -> ScanData {
     data
 }
 
-/// Scan one root, accumulating items (by logical id) and shows; returns the
-/// [`Library`] descriptor. The `item_count` is the number of *distinct logical
-/// items* contributed by this library.
-fn scan_library(
+/// Scan one folder belonging to `lib_id`, accumulating items (by logical id) and
+/// shows into the shared maps. Flags/ids track what this library contributed so
+/// the caller can compute its kind + item count across all its folders.
+#[allow(clippy::too_many_arguments)]
+fn scan_root(
+    lib_id: &str,
     root: &Path,
     items: &mut HashMap<String, MediaItem>,
     shows: &mut HashMap<String, Show>,
     mtimes: &mut HashMap<String, Option<i64>>,
-) -> Library {
+    lib_item_ids: &mut std::collections::HashSet<String>,
+    movie_seen: &mut bool,
+    episode_seen: &mut bool,
+) {
     let lib_name = root
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("library")
         .to_string();
-    let lib_id = short_hash(&root.to_string_lossy());
     let added_at = now_iso8601();
-
-    let mut movie_seen = false;
-    let mut episode_seen = false;
-    // Logical ids first seen in this library, to compute item_count.
-    let mut lib_item_ids = std::collections::HashSet::new();
 
     // Resolve the root once (cheap, single syscall) so file abs-paths are stable
     // without a per-file `canonicalize()` (which is very slow over SMB).
@@ -145,6 +182,7 @@ fn scan_library(
             duration_ms: None,
             video: None,
             audio: None,
+            audio_tracks: Vec::new(),
             subtitles: Vec::new(),
             size,
             edition,
@@ -156,9 +194,9 @@ fn scan_library(
 
         match naming::parse(root, &path) {
             Parsed::Movie { title, year } => {
-                movie_seen = true;
+                *movie_seen = true;
                 let title = if title.is_empty() { "Untitled".into() } else { title };
-                let logical = movie_logical_id(&lib_id, &title, year);
+                let logical = movie_logical_id(lib_id, &title, year);
                 lib_item_ids.insert(logical.clone());
                 let item = items.entry(logical.clone()).or_insert_with(|| MediaItem {
                     id: logical.clone(),
@@ -169,8 +207,9 @@ fn scan_library(
                     container: String::new(),
                     video: None,
                     audio: None,
+                    audio_tracks: Vec::new(),
                     subtitles: Vec::new(),
-                    library: lib_id.clone(),
+                    library: lib_id.to_string(),
                     show_id: None,
                     show_title: None,
                     season: None,
@@ -195,8 +234,8 @@ fn scan_library(
                 episode_end,
                 episode_title,
             } => {
-                episode_seen = true;
-                let show_id = show_key(&lib_id, &show_title);
+                *episode_seen = true;
+                let show_id = show_key(lib_id, &show_title);
                 shows
                     .entry(show_id.clone())
                     .and_modify(|s| {
@@ -208,7 +247,7 @@ fn scan_library(
                         id: show_id.clone(),
                         title: show_title.clone(),
                         year: show_year,
-                        library: lib_id.clone(),
+                        library: lib_id.to_string(),
                         season_count: 0,
                         episode_count: 0,
                         video: None,
@@ -230,8 +269,9 @@ fn scan_library(
                     container: String::new(),
                     video: None,
                     audio: None,
+                    audio_tracks: Vec::new(),
                     subtitles: Vec::new(),
-                    library: lib_id.clone(),
+                    library: lib_id.to_string(),
                     show_id: Some(show_id.clone()),
                     show_title: Some(show_title.clone()),
                     season: Some(season),
@@ -251,20 +291,6 @@ fn scan_library(
         }
 
         debug!("indexed file under {}", lib_name);
-    }
-
-    let kind = match (movie_seen, episode_seen) {
-        (false, true) => LibraryKind::Shows,
-        (true, true) => LibraryKind::Mixed,
-        _ => LibraryKind::Movies,
-    };
-
-    Library {
-        id: lib_id,
-        name: lib_name,
-        kind,
-        path: root.to_string_lossy().to_string(),
-        item_count: lib_item_ids.len(),
     }
 }
 

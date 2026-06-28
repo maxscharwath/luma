@@ -2,15 +2,17 @@
 // this is per-user so it loads client-side once a session is hydrated, then
 // renders resumable items with a progress bar straight to the player.
 
-import { useEffect, useState } from 'react';
+import { type ContinueItem, posterColors } from '@luma/core';
+import { useT } from '@luma/ui';
 import { useNavigate } from '@tanstack/react-router';
-import { posterColors, type ContinueItem } from '@luma/core';
+import { useEffect, useState } from 'react';
 import { Poster, Rail } from '#web/components/ui';
 import { useAuth } from '#web/lib/auth';
 
 const SECTION_TITLE = 'mb-5 mt-10 font-display text-[22px] font-bold tracking-[-.02em] text-text';
 
 export function ContinueRow() {
+  const t = useT();
   const { user, ready, client } = useAuth();
   const [items, setItems] = useState<ContinueItem[]>([]);
   const navigate = useNavigate();
@@ -36,15 +38,15 @@ export function ContinueRow() {
 
   return (
     <section>
-      <h2 className={SECTION_TITLE}>Reprendre la lecture</h2>
-      <Rail label="Reprendre la lecture">
+      <h2 className={SECTION_TITLE}>{t('content.continueWatching')}</h2>
+      <Rail label={t('content.continueWatching')}>
         {items.map(({ item, positionMs, durationMs }) => {
           const dur = durationMs ?? item.durationMs ?? 0;
           const pct = dur > 0 ? Math.min(100, Math.round((positionMs / dur) * 100)) : 0;
           const label =
             item.kind === 'episode' && item.showTitle
               ? `${item.showTitle} · S${item.season}E${item.episode}`
-              : 'Film';
+              : t('content.film');
           return (
             <Poster
               key={item.id}

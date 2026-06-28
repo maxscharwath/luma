@@ -1,15 +1,15 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router';
+import { createRootRoute, HeadContent, Scripts, useRouterState } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { Sidebar } from '#web/components/Sidebar';
 import { AuthGate } from '#web/components/AuthGate';
 import { Intro } from '#web/components/Intro';
+import { Sidebar } from '#web/components/Sidebar';
 import { AuthProvider } from '#web/lib/auth';
-import { apiBase } from '#web/lib/api';
+import { LocaleProvider } from '#web/lib/locale';
 import appCss from '#web/styles.css?url';
 
 export const Route = createRootRoute({
-  // Resolve the LUMA origin server-side; injected below for client navigations.
-  loader: () => ({ apiBase: apiBase() }),
+  // No apiBase injection: the SPA resolves the API origin at runtime (same origin
+  // in the packaged build, VITE_LUMA_SERVER in dev — see lib/api `apiBase`).
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -21,24 +21,31 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 });
 
-function RootDocument({ children }: { children: ReactNode }) {
-  const { apiBase: base } = Route.useLoaderData();
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  // The admin console (/admin/*) brings its own full-screen sidebar, so it
+  // escapes the main app's two-column grid.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin = pathname.startsWith('/admin');
   return (
+    // `lang` is the SSR default; LocaleProvider updates it client-side to match
+    // the active locale (account preference → device → browser).
     <html lang="fr">
       <head>
         <HeadContent />
       </head>
       <body className="bg-bg text-text">
-        <script
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: `window.__LUMA_API__=${JSON.stringify(base)}` }}
-        />
         <AuthProvider>
-          <AuthGate />
-          <div className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)]">
-            <Sidebar />
-            {children}
-          </div>
+          <LocaleProvider>
+            <AuthGate />
+            {isAdmin ? (
+              children
+            ) : (
+              <div className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)]">
+                <Sidebar />
+                {children}
+              </div>
+            )}
+          </LocaleProvider>
         </AuthProvider>
         {/* Brand intro overlay — sits above everything, plays once per session. */}
         <Intro />

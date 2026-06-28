@@ -10,7 +10,14 @@ export type ServerEvent =
   | { type: 'item.updated'; id: string }
   | { type: 'show.updated'; id: string }
   | { type: 'enrich.progress'; done: number; total: number }
-  | { type: 'enrich.completed'; resolved: number; total: number };
+  | { type: 'enrich.completed'; resolved: number; total: number }
+  | { type: 'probe.progress'; done: number; total: number }
+  | { type: 'probe.completed'; total: number }
+  | { type: 'playback.started'; count: number }
+  | { type: 'playback.updated'; count: number }
+  | { type: 'playback.stopped'; count: number }
+  | { type: 'playback.terminate'; sessionId: string; message: string }
+  | { type: 'settings.updated' };
 
 export interface LumaEventsOptions {
   onEvent?: (event: ServerEvent) => void;

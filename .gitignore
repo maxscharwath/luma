@@ -9,6 +9,7 @@ bun.lockb
 dist/
 build/
 *.tsbuildinfo
+.tanstack/
 
 # Rust
 server/target/

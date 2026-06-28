@@ -1,6 +1,7 @@
-import { useEffect, useState, type RefObject } from 'react';
-import type { MovieView } from '#web/lib/api';
+import { useT } from '@luma/ui';
+import { type RefObject, useEffect, useState } from 'react';
 import { IconClose } from '#web/components/player/icons';
+import type { MovieView } from '#web/lib/api';
 
 const READY = ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT', 'HAVE_FUTURE', 'HAVE_ENOUGH'];
 const NETWORK = ['EMPTY', 'IDLE', 'LOADING', 'NO_SOURCE'];
@@ -19,14 +20,15 @@ export function StatsOverlay({
   dur,
   bufEnd,
   onClose,
-}: {
+}: Readonly<{
   videoRef: RefObject<HTMLVideoElement>;
   item: MovieView;
   cur: number;
   dur: number;
   bufEnd: number;
   onClose: () => void;
-}) {
+}>) {
+  const t = useT();
   const [, force] = useState(0);
   const [bytes, setBytes] = useState(0);
 
@@ -63,37 +65,58 @@ export function StatsOverlay({
   const dropPct = totalFrames ? ((dropped / totalFrames) * 100).toFixed(2) : '0';
   const bufferAhead = Math.max(0, bufEnd - cur);
   const avgMbps = bytes && dur ? (bytes * 8) / dur / 1e6 : 0;
-  const conn = (typeof navigator !== 'undefined' ? (navigator as Navigator & { connection?: ConnLike }).connection : undefined) ?? {};
+  const conn =
+    (typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { connection?: ConnLike }).connection
+      : undefined) ?? {};
   const vcodec = item.video?.codec?.toUpperCase() ?? '—';
   const acodec = item.audio?.codec?.toUpperCase() ?? '—';
 
   const rows: [string, string][] = [
-    ['Titre', item.title],
-    ['ID', item.id],
-    ['Conteneur', item.container.toUpperCase()],
-    ['Vidéo', `${vcodec}${item.video?.bitDepth ? ` ${item.video.bitDepth}-bit` : ''}${item.video?.hdr ? ' HDR' : ''}`],
-    ['Audio', `${acodec}${item.audio?.channels ? ` ${item.audio.channels}.0` : ''}${item.audio?.language ? ` (${item.audio.language})` : ''}`],
-    ['Résolution', vw && vh ? `${vw}×${vh}` : '—'],
-    ['Affichage', dw && dh ? `${dw}×${dh} @${dpr}x` : '—'],
-    ['Débit moyen', avgMbps ? `${avgMbps.toFixed(2)} Mb/s` : '…'],
-    ['Taille', bytes ? `${(bytes / 1e9).toFixed(2)} Go` : '…'],
-    ['Tampon', `${bufferAhead.toFixed(1)} s d'avance`],
-    ['Images perdues', `${dropped} / ${totalFrames} (${dropPct}%)`],
-    ['Volume', `${Math.round((v?.volume ?? 1) * 100)}%${v?.muted ? ' (muet)' : ''}`],
-    ['Vitesse', `${v?.playbackRate ?? 1}×`],
-    ['État', `${READY[v?.readyState ?? 0]} · NET_${NETWORK[v?.networkState ?? 0]}`],
-    ['Connexion', conn.downlink ? `${conn.downlink} Mb/s · ${conn.effectiveType ?? ''}` : '—'],
+    [t('stats.title2'), item.title],
+    [t('stats.id'), item.id],
+    [t('stats.container'), item.container.toUpperCase()],
+    [
+      t('stats.video'),
+      `${vcodec}${item.video?.bitDepth ? ` ${item.video.bitDepth}-bit` : ''}${item.video?.hdr ? ' HDR' : ''}`,
+    ],
+    [
+      t('stats.audio'),
+      `${acodec}${item.audio?.channels ? ` ${item.audio.channels}.0` : ''}${item.audio?.language ? ` (${item.audio.language})` : ''}`,
+    ],
+    [t('stats.resolution'), vw && vh ? `${vw}×${vh}` : '—'],
+    [t('stats.display'), dw && dh ? `${dw}×${dh} @${dpr}x` : '—'],
+    [t('stats.avgBitrate'), avgMbps ? `${avgMbps.toFixed(2)} Mb/s` : '…'],
+    [t('stats.size'), bytes ? `${(bytes / 1e9).toFixed(2)} Go` : '…'],
+    [t('stats.buffer'), t('stats.bufferAhead', { seconds: bufferAhead.toFixed(1) })],
+    [t('stats.droppedFrames'), `${dropped} / ${totalFrames} (${dropPct}%)`],
+    [
+      t('stats.volume'),
+      `${Math.round((v?.volume ?? 1) * 100)}%${v?.muted ? t('stats.volumeMuted') : ''}`,
+    ],
+    [t('stats.speed'), `${v?.playbackRate ?? 1}×`],
+    [t('stats.state'), `${READY[v?.readyState ?? 0]} · NET_${NETWORK[v?.networkState ?? 0]}`],
+    [
+      t('stats.connection'),
+      conn.downlink ? `${conn.downlink} Mb/s · ${conn.effectiveType ?? ''}` : '—',
+    ],
   ];
 
   return (
-    <div className="pointer-events-auto absolute left-8 top-24 z-[65] w-[330px] rounded-xl border border-white/10 bg-black/72 p-3.5 font-mono text-[12px] text-white/85 shadow-pop backdrop-blur-md">
+    <div className="pointer-events-auto absolute left-8 top-24 z-65 w-82.5 rounded-xl border border-white/10 bg-black/72 p-3.5 font-mono text-[12px] text-white/85 shadow-pop backdrop-blur-md">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-[.14em] text-accent">Stats for nerds</span>
-        <button onClick={onClose} className="text-white/60 hover:text-white" aria-label="Fermer">
+        <span className="text-[11px] font-bold uppercase tracking-[.14em] text-accent">
+          {t('stats.title')}
+        </span>
+        <button
+          onClick={onClose}
+          className="text-white/60 hover:text-white"
+          aria-label={t('common.close')}
+        >
           <IconClose size={15} />
         </button>
       </div>
-      <div className="flex flex-col gap-[3px]">
+      <div className="flex flex-col gap-0.75">
         {rows.map(([k, val]) => (
           <div key={k} className="flex justify-between gap-4">
             <span className="text-white/45">{k}</span>

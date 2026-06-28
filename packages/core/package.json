@@ -7,8 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

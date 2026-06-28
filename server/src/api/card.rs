@@ -1,14 +1,15 @@
 //! Smart Hub preview "cards": a 640×360 (16:9) landscape tile composited from a
-//! backdrop + dark scrims + a category **badge** (NOUVEAUTÉ / REPRENDRE) + the
-//! title's **logo** artwork (transparent PNG) — or the title as text when no logo
-//! exists — plus an optional resume progress bar. Encoded as JPEG.
+//! backdrop + dark scrims + a category **badge** (NOUVEAUTÉ / REPRENDRE), the
+//! **LUMA** brand lockup (top-right), and the title's **logo** artwork
+//! (transparent PNG, drawn only when one exists — no text fallback), plus an
+//! optional resume progress bar. Encoded as JPEG.
 //!
 //! The film/series title and meta line are shown by the carousel itself (the
 //! tile's `title`/`subtitle`), so they are deliberately NOT baked in here.
 //!
 //! Dependency-light (no resvg / system fonts): tiny-skia rasterises shapes,
-//! gradients and the pre-scaled PNG layers; fontdue draws the (Latin) badge/
-//! fallback text; jpeg-encoder writes the output. The brand font is embedded.
+//! gradients and the pre-scaled PNG layers; fontdue draws the (Latin) badge +
+//! brand wordmark; jpeg-encoder writes the output. The brand font is embedded.
 
 use std::sync::OnceLock;
 
@@ -16,7 +17,7 @@ use fontdue::Font;
 use jpeg_encoder::{ColorType, Encoder};
 use tiny_skia::{
     Color, FillRule, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap, PixmapPaint, Point,
-    PremultipliedColorU8, Rect, SpreadMode, Transform,
+    PremultipliedColorU8, Rect, SpreadMode, Stroke, Transform,
 };
 
 const W: u32 = 640;
@@ -24,6 +25,13 @@ const H: u32 = 360;
 const MARGIN: f32 = 28.0;
 const ACCENT: (u8, u8, u8) = (242, 180, 66); // LUMA amber
 const WHITE: (u8, u8, u8) = (245, 245, 247);
+
+// Top-left category pill geometry (shared so the brand lockup can align to it).
+const BADGE_SIZE: f32 = 20.0;
+const BADGE_TRACKING: f32 = 2.0;
+const BADGE_PAD_X: f32 = 16.0;
+const BADGE_PAD_Y: f32 = 11.0;
+const BADGE_H: f32 = BADGE_SIZE + BADGE_PAD_Y * 2.0;
 
 fn font() -> &'static Font {
     static FONT: OnceLock<Font> = OnceLock::new();
@@ -38,9 +46,8 @@ pub struct Card<'a> {
     pub base_png: &'a [u8],
     /// Category badge text, e.g. "Nouveauté" / "Reprendre".
     pub label: &'a str,
-    /// Title, drawn only as a fallback when no logo is available.
-    pub title: &'a str,
-    /// Title-treatment logo PNG (alpha), pre-scaled to fit. Preferred over text.
+    /// Title-treatment logo PNG (alpha), pre-scaled to fit. Drawn only when
+    /// present — there is deliberately no text fallback.
     pub logo_png: Option<&'a [u8]>,
     /// Resume fraction 0.0–1.0 → draws a progress bar.
     pub progress: Option<f32>,
@@ -52,9 +59,9 @@ pub fn render(card: &Card) -> Option<Vec<u8>> {
 
     paint_scrims(&mut pm);
 
-    // Title artwork: the logo if we have one, else the title as text.
-    let logo = card.logo_png.and_then(|b| Pixmap::decode_png(b).ok());
-    if let Some(logo) = logo {
+    // Title-treatment artwork (bottom-left). Drawn only when present — no text
+    // fallback, by design: a card with no logo simply shows the bare backdrop.
+    if let Some(logo) = card.logo_png.and_then(|b| Pixmap::decode_png(b).ok()) {
         let y = H as f32 - MARGIN - logo.height() as f32;
         pm.draw_pixmap(
             MARGIN as i32,
@@ -64,21 +71,14 @@ pub fn render(card: &Card) -> Option<Vec<u8>> {
             Transform::identity(),
             None,
         );
-    } else if !card.title.is_empty() {
-        let title = clip(card.title, 32.0, W as f32 - 2.0 * MARGIN, font());
-        draw_text(
-            &mut pm,
-            font(),
-            &title,
-            MARGIN,
-            H as f32 - MARGIN - 4.0,
-            &TextStyle { size: 32.0, color: WHITE, tracking: 0.0 },
-        );
     }
 
     if !card.label.is_empty() {
         paint_badge(&mut pm, &card.label.to_uppercase());
     }
+
+    // LUMA brand lockup, top-right, vertically centred on the badge row.
+    paint_brand(&mut pm, MARGIN + BADGE_H / 2.0);
 
     if let Some(p) = card.progress {
         paint_progress(&mut pm, p.clamp(0.0, 1.0));
@@ -123,13 +123,9 @@ fn paint_scrims(pm: &mut Pixmap) {
 /// Top-left category pill: translucent dark rounded rect + amber uppercase label.
 fn paint_badge(pm: &mut Pixmap, text: &str) {
     let f = font();
-    let size = 15.0;
-    let tracking = 1.8;
-    let pad_x = 14.0;
-    let pad_y = 9.0;
-    let tw = text_width(f, text, size, tracking);
-    let bw = tw + pad_x * 2.0;
-    let bh = size + pad_y * 2.0;
+    let tw = text_width(f, text, BADGE_SIZE, BADGE_TRACKING);
+    let bw = tw + BADGE_PAD_X * 2.0;
+    let bh = BADGE_H;
     let (x, y) = (MARGIN, MARGIN);
 
     if let Some(pill) = rounded_rect(x, y, bw, bh, bh / 2.0) {
@@ -143,9 +139,52 @@ fn paint_badge(pm: &mut Pixmap, text: &str) {
         pm,
         f,
         text,
-        x + pad_x,
-        y + pad_y + size * 0.82,
-        &TextStyle { size, color: ACCENT, tracking },
+        x + BADGE_PAD_X,
+        y + BADGE_PAD_Y + BADGE_SIZE * 0.82,
+        &TextStyle { size: BADGE_SIZE, color: ACCENT, tracking: BADGE_TRACKING },
+    );
+}
+
+/// Top-right LUMA brand lockup: an amber aperture mark (ring + centre dot)
+/// followed by the "LUMA" wordmark, right-aligned to the margin and vertically
+/// centred on `cy`. Mirrors the on-screen `<Logo>` lockup, drawn natively (no
+/// SVG/asset) from tiny-skia primitives + the embedded brand font.
+fn paint_brand(pm: &mut Pixmap, cy: f32) {
+    const WORD: &str = "LUMA";
+    let f = font();
+    let size = 20.0;
+    let tracking = size * 0.16; // matches the brand's .16em letter-spacing
+    let ring_r = 9.5;
+    let stroke_w = 2.4;
+    let dot_r = 3.4;
+    let gap = 11.0; // mark → wordmark
+
+    let mark_w = ring_r * 2.0 + stroke_w; // visual diameter incl. the stroke
+    let word_w = text_width(f, WORD, size, tracking);
+    let x0 = W as f32 - MARGIN - (mark_w + gap + word_w);
+    let mark_cx = x0 + mark_w / 2.0;
+
+    let mut amber = Paint::default();
+    amber.set_color_rgba8(ACCENT.0, ACCENT.1, ACCENT.2, 255);
+    amber.anti_alias = true;
+
+    // Aperture ring.
+    if let Some(ring) = PathBuilder::from_circle(mark_cx, cy, ring_r) {
+        let stroke = Stroke { width: stroke_w, ..Default::default() };
+        pm.stroke_path(&ring, &amber, &stroke, Transform::identity(), None);
+    }
+    // Centre dot.
+    if let Some(dot) = PathBuilder::from_circle(mark_cx, cy, dot_r) {
+        pm.fill_path(&dot, &amber, FillRule::Winding, Transform::identity(), None);
+    }
+    // Wordmark, vertically centred on the mark.
+    draw_text(
+        pm,
+        f,
+        WORD,
+        x0 + mark_w + gap,
+        cy + size * 0.32,
+        &TextStyle { size, color: WHITE, tracking },
     );
 }
 
@@ -218,23 +257,6 @@ fn text_width(font: &Font, text: &str, size: f32, tracking: f32) -> f32 {
         w += font.metrics(ch, size).advance_width + tracking;
     }
     (w - tracking).max(0.0)
-}
-
-/// Truncate with an ellipsis so the text fits `max_w` at `size`.
-fn clip(text: &str, size: f32, max_w: f32, font: &Font) -> String {
-    if text_width(font, text, size, 0.0) <= max_w {
-        return text.to_string();
-    }
-    let chars: Vec<char> = text.chars().collect();
-    let mut end = chars.len();
-    while end > 1 {
-        end -= 1;
-        let candidate = chars[..end].iter().collect::<String>().trim_end().to_string() + "…";
-        if text_width(font, &candidate, size, 0.0) <= max_w {
-            return candidate;
-        }
-    }
-    "…".to_string()
 }
 
 // ---- output ----------------------------------------------------------------

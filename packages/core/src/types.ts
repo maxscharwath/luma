@@ -2,7 +2,16 @@
 // Rust server's JSON model (see server/src/model.rs).
 
 export type VideoCodec = 'hevc' | 'h264' | 'av1' | 'vp9' | 'mpeg2' | 'mpeg4' | string;
-export type AudioCodec = 'aac' | 'eac3' | 'ac3' | 'dts' | 'truehd' | 'flac' | 'opus' | 'mp3' | string;
+export type AudioCodec =
+  | 'aac'
+  | 'eac3'
+  | 'ac3'
+  | 'dts'
+  | 'truehd'
+  | 'flac'
+  | 'opus'
+  | 'mp3'
+  | string;
 export type MediaKind = 'movie' | 'episode' | 'video';
 export type LibraryKind = 'movies' | 'shows' | 'mixed';
 
@@ -17,9 +26,16 @@ export interface VideoTrack {
 }
 
 export interface AudioTrack {
+  /** Audio-relative index (0 = first audio track) — the selector key, and what
+   * the server's per-track HLS remux maps with `-map 0:a:<index>`. */
+  index: number;
   codec: AudioCodec;
   channels: number | null;
   language: string | null;
+  /** Stream `title` tag ("Commentary", "Director's Cut", …), when present. */
+  title?: string | null;
+  /** Whether the container marks this as the default audio track. */
+  default?: boolean;
 }
 
 export interface SubtitleTrack {
@@ -73,7 +89,10 @@ export interface MediaItem {
   /** Container/extension, e.g. "mkv", "mp4". */
   container: string;
   video: VideoTrack | null;
+  /** Representative (first/default) audio track — kept for badges. */
   audio: AudioTrack | null;
+  /** Every audio track, for the player's audio-track picker. */
+  audioTracks: AudioTrack[];
   subtitles: SubtitleTrack[];
   /** Owning library id. */
   library: string;
@@ -148,7 +167,12 @@ export interface ScanResult {
 /** A granular capability. Mirrors the server's `Permission` enum; extend both
  * sides together (e.g. a future `stats.view`). Kept open (`| string`) so a
  * client built before a new permission still parses it. */
-export type Permission = 'users.manage' | 'library.manage' | 'settings.manage' | 'playback' | string;
+export type Permission =
+  | 'users.manage'
+  | 'library.manage'
+  | 'settings.manage'
+  | 'playback'
+  | string;
 
 export interface User {
   id: string;
@@ -156,15 +180,20 @@ export interface User {
   username: string;
   /** Cached WebP avatar (`/api/images/…`), or absent → fall back to initials. */
   avatarUrl?: string | null;
+  /** Preferred UI locale (`"fr"` | `"en"`), synced across this account's
+   * devices. Absent/null → clients fall back to the device/browser locale. */
+  language?: string | null;
   /** Granted capabilities (no roles — capability-based). Clients unlock pages
    * and actions from this set. The owner account holds every permission. */
   permissions: Permission[];
   createdAt: string;
 }
 
-/** True if the user holds `perm`. */
+/** True if the user holds `perm`. Tolerates a missing `permissions` array so a
+ * session persisted by an older client (before capabilities existed) degrades
+ * to "no permissions" instead of crashing. */
 export function hasPermission(user: Pick<User, 'permissions'>, perm: Permission): boolean {
-  return user.permissions.includes(perm);
+  return user.permissions?.includes(perm) ?? false;
 }
 
 /** The public subset of a user for the "Qui regarde ?" picker (no email). */
@@ -243,4 +272,199 @@ export interface Activity {
   enrichDone: number;
   enrichTotal: number;
   lastScanAt: string | null;
+}
+
+// ===== Admin console =========================================================
+
+/** A live playback session (`GET /api/admin/sessions`, dashboard "En cours de
+ * lecture"). Clients heartbeat these via {@link LumaClient.pingPlayback}. */
+export interface PlaybackSession {
+  id: string;
+  userId?: string;
+  username: string;
+  itemId: string;
+  title: string;
+  year: number | null;
+  kind: string;
+  showTitle?: string;
+  season: number | null;
+  episode: number | null;
+  videoLabel: string;
+  audioLabel: string;
+  subtitle: string;
+  /** Approx stream bitrate in Mb/s. */
+  bitrate: number;
+  /** `direct` | `transcode`. */
+  mode: string;
+  player: string;
+  device: string;
+  /** `LAN` | `WAN`. */
+  network: string;
+  ip: string;
+  /** `playing` | `paused`. */
+  state: string;
+  positionMs: number;
+  durationMs: number | null;
+  /** Unix seconds. */
+  startedAt: number;
+}
+
+/** What a client reports on each playback heartbeat. */
+export interface PlaybackPing {
+  sessionId: string;
+  itemId: string;
+  positionMs: number;
+  durationMs?: number | null;
+  state?: 'playing' | 'paused';
+  mode?: 'direct' | 'transcode';
+  player?: string;
+  device?: string;
+  audio?: string;
+  subtitle?: string;
+}
+
+/** Server identity + uptime for the admin sidebar status card. */
+export interface ServerInfo {
+  name: string;
+  hostname: string;
+  version: string;
+  uptimeSec: number;
+  online: boolean;
+  sessions: number;
+}
+
+/** Rolling CPU/RAM/bandwidth history (oldest → newest). Percentages 0..100. */
+export interface MetricsSeries {
+  cpuLuma: number[];
+  cpuSystem: number[];
+  ramLuma: number[];
+  ramSystem: number[];
+  /** Mb/s. */
+  bwLocal: number[];
+  bwRemote: number[];
+}
+
+/** `GET /api/admin/metrics`. */
+export interface MetricsSnapshot {
+  cpuLuma: number;
+  cpuSystem: number;
+  ramLumaBytes: number;
+  ramUsedBytes: number;
+  ramTotalBytes: number;
+  bwLocalMbps: number;
+  bwRemoteMbps: number;
+  uptimeSecs: number;
+  series: MetricsSeries;
+}
+
+/** One mounted volume (`GET /api/admin/storage`). */
+export interface Volume {
+  name: string;
+  mount: string;
+  fs: string;
+  totalBytes: number;
+  usedBytes: number;
+  availableBytes: number;
+}
+
+/** `GET /api/admin/storage`. */
+export interface StorageInfo {
+  volumes: Volume[];
+  totalBytes: number;
+  usedBytes: number;
+  availableBytes: number;
+  mediaBytes: number;
+  cache: { dir: string; bytes: number; limit: string };
+}
+
+/** A full account row for the admin "Membres & partage" table. */
+export interface AdminUser {
+  id: string;
+  email: string;
+  username: string;
+  avatarUrl?: string | null;
+  permissions: Permission[];
+  /** Derived display label: "Propriétaire" | "Membre" | "Restreint". */
+  role: string;
+  createdAt: string;
+  lastSeen?: string | null;
+  online: boolean;
+}
+
+/** `GET /api/admin/users`. */
+export interface AdminUsers {
+  users: AdminUser[];
+  libraryCount: number;
+}
+
+/** A named, multi-folder library (`GET /api/admin/libraries`). */
+export interface AdminLibrary {
+  id: string;
+  name: string;
+  /** `film` | `tv` | `music` | `photo`. */
+  kind: string;
+  folders: string[];
+  itemCount: number;
+  sizeBytes: number;
+  lastScan: string | null;
+  autoScan: boolean;
+}
+
+/** Per-user watch aggregate (dashboard "Top des utilisateurs"). */
+export interface TopUser {
+  username: string;
+  plays: number;
+  watchedMs: number;
+  filmsMs: number;
+  tvMs: number;
+}
+
+/** One weekly bucket of the play-history chart. */
+export interface HistoryBucket {
+  label: string;
+  filmsMs: number;
+  tvMs: number;
+}
+
+/** `GET /api/admin/stats/history`. */
+export interface HistoryStats {
+  buckets: HistoryBucket[];
+  totalFilmsMs: number;
+  totalTvMs: number;
+}
+
+/** `GET /api/admin/stats/overview`. */
+export interface AdminOverview {
+  users: number;
+  online: number;
+  invites: number;
+  items: number;
+  shows: number;
+  libraries: number;
+}
+
+/** One editable (or read-only) settings row. */
+export interface SettingRow {
+  key: string;
+  label: string;
+  desc?: string;
+  /** `toggle` | `select` | `text` | `value`. */
+  kind: string;
+  options?: string[];
+  value: unknown;
+  /** Whether the server actually enforces this setting (vs stored-only). */
+  applied: boolean;
+}
+
+/** A titled group of settings rows. */
+export interface SettingGroup {
+  title: string;
+  desc?: string;
+  rows: SettingRow[];
+}
+
+/** `GET /api/admin/settings?view=…`. */
+export interface SettingsView {
+  view: string;
+  groups: SettingGroup[];
 }

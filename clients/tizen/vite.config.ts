@@ -1,7 +1,8 @@
-import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { tvFrame } from '../tv-frame.vite';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -12,7 +13,9 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const TV_CSS_TARGETS = { chrome: 99 << 16 };
 
 export default defineConfig({
-  plugins: [tailwindcss(), react()],
+  // `tvFrame()` is dev-only (apply: 'serve') — it letterboxes the app into a
+  // 1920×1080 16:9 stage in the browser; never injected into `vite build` output.
+  plugins: [tailwindcss(), react(), tvFrame()],
   // `#tv/*` → the @luma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
   resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) } },
   // Packaged TV apps load from a local path — assets must be referenced relatively.

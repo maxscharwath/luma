@@ -14,17 +14,24 @@ mod demo;
 mod discovery;
 mod enrich;
 mod events;
+mod i18n;
 mod image;
 mod metadata;
+mod metrics;
 mod model;
 mod naming;
+mod playback;
 mod probe;
 mod quickconnect;
 mod scan;
+mod settings;
 mod state;
 mod stream;
 mod transcode;
 mod watch;
+
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use anyhow::Context;
 use tracing::{info, warn};
@@ -33,8 +40,17 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use crate::config::Config;
 use crate::state::AppState;
 
+/// Process start time, for the admin "Disponibilité" / uptime readout.
+static PROCESS_START: OnceLock<Instant> = OnceLock::new();
+
+/// When this process started (monotonic). Seeded on first call.
+pub fn process_started() -> Instant {
+    *PROCESS_START.get_or_init(Instant::now)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    process_started();
     let config = Config::from_env();
     // Keep the appender guard alive for the whole process so buffered log lines
     // are flushed to disk.
@@ -65,9 +81,15 @@ async fn main() -> anyhow::Result<()> {
 
     let db = db::init(&config.db_path()).context("failed to initialise database")?;
 
+    // Persisted settings (incl. the editable library definitions, seeded from
+    // LUMA_MEDIA_DIRS on first run).
+    let settings = settings::Settings::load(&db);
+    let library_defs = settings::library_defs(&settings, &config);
+    let has_folders = library_defs.iter().any(|d| !d.folders.is_empty());
+
     // Phase 1 (fast): walk + stat only, no ffprobe. The library becomes
     // browsable in seconds; codecs/duration/HDR fill in during phase 2 below.
-    let mut data = scan::scan_all(&config);
+    let mut data = scan::scan_all(&library_defs);
 
     // An empty scan is ambiguous. With *no* media dirs configured it's a fresh
     // install → seed demo content. But if dirs are configured and still produced
@@ -76,8 +98,8 @@ async fn main() -> anyhow::Result<()> {
     // and cascade-delete it along with all the expensive probed metadata, so in
     // that case we keep the existing index instead of overwriting it — the
     // watcher re-syncs automatically once the mount returns.
-    let mount_outage = data.items.is_empty() && !config.media_dirs.is_empty();
-    if data.items.is_empty() && config.media_dirs.is_empty() {
+    let mount_outage = data.items.is_empty() && has_folders;
+    if data.items.is_empty() && !has_folders {
         info!("no media dirs configured; seeding built-in demo content");
         data = demo::demo_data();
     }
@@ -99,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let addr = config.socket_addr();
-    let state = AppState::new(config, ffprobe_available, db);
+    let state = AppState::new(config, ffprobe_available, db, settings);
     activity::scan_completed(
         &state.activity,
         data.libraries.len(),
@@ -128,6 +150,18 @@ async fn main() -> anyhow::Result<()> {
     // Reap idle HLS audio-transcode sessions (ffmpeg children + temp dirs).
     state.transcode.spawn_reaper();
 
+    // Live playback sessions: reap stale heartbeats → append to play history.
+    state
+        .playback
+        .spawn_reaper(state.db.clone(), state.events.clone());
+
+    // Sample CPU / RAM (and bandwidth from the playback registry) for the
+    // admin dashboard charts.
+    state.metrics.spawn_sampler(state.playback.clone());
+
+    // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
+    let local_discovery = state.settings.get_bool("localDiscovery", true);
+
     let app = api::router(state);
 
     let listener = tokio::net::TcpListener::bind(addr)
@@ -136,17 +170,30 @@ async fn main() -> anyhow::Result<()> {
 
     info!("LUMA listening on http://{addr}  (API under /api)");
 
-    // Advertise over mDNS so LAN clients can auto-discover us. Best-effort: held
-    // alive until the process exits; failure (no multicast, etc.) is non-fatal.
-    let _mdns = match discovery::advertise(addr.port(), "LUMA") {
-        Ok(daemon) => Some(daemon),
-        Err(e) => {
-            warn!(error = %e, "mDNS advertising unavailable; clients must use an explicit address");
-            None
+    // Advertise over mDNS so LAN clients can auto-discover us, unless disabled in
+    // settings. Best-effort: held alive until the process exits; failure (no
+    // multicast, etc.) is non-fatal.
+    let _mdns = if local_discovery {
+        match discovery::advertise(addr.port(), "LUMA") {
+            Ok(daemon) => Some(daemon),
+            Err(e) => {
+                warn!(error = %e, "mDNS advertising unavailable; clients must use an explicit address");
+                None
+            }
         }
+    } else {
+        info!("local discovery (mDNS) disabled in settings");
+        None
     };
 
-    axum::serve(listener, app).await.context("server error")?;
+    // `into_make_service_with_connect_info` so handlers can read the client's
+    // socket address (LAN/WAN classification for playback sessions).
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .context("server error")?;
 
     Ok(())
 }

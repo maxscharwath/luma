@@ -1,0 +1,31 @@
+[
+  {
+    "step_title": "LUMA settings",
+    "items": [
+      {
+        "type": "textfield",
+        "desc": "Media folder(s) to scan — absolute paths. Separate several with a colon or semicolon (e.g. /volume1/video/Films:/volume1/video/Séries).",
+        "subitems": [
+          {
+            "key": "LUMA_MEDIA_DIRS",
+            "desc": "Media folders",
+            "defaultValue": "/volume1/video",
+            "validator": { "allowBlank": false }
+          }
+        ]
+      },
+      {
+        "type": "textfield",
+        "desc": "Port for the LUMA web UI + API.",
+        "subitems": [
+          {
+            "key": "LUMA_PORT",
+            "desc": "Port",
+            "defaultValue": "4040",
+            "validator": { "allowBlank": false }
+          }
+        ]
+      }
+    ]
+  }
+]

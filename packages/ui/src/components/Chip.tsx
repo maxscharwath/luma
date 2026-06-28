@@ -6,7 +6,7 @@ export interface ChipProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 /** Pill chip — language codes, audio formats, filters. */
-export function Chip({ active = false, children, style, ...rest }: ChipProps) {
+export function Chip({ active = false, children, style, ...rest }: Readonly<ChipProps>) {
   return (
     <span
       style={{

@@ -160,6 +160,7 @@ const SCHEMA: &str = "
         a_codec     TEXT,
         a_channels  INTEGER,
         a_language  TEXT,
+        audio_tracks TEXT NOT NULL DEFAULT '[]',
         subtitles   TEXT NOT NULL DEFAULT '[]',
         probed      INTEGER NOT NULL DEFAULT 0
     );
@@ -204,12 +205,32 @@ const SCHEMA: &str = "
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_progress_user ON progress(user_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS settings (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS play_history (
+        id         TEXT PRIMARY KEY,
+        user_id    TEXT,
+        username   TEXT,
+        item_id    TEXT,
+        kind       TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        library    TEXT,
+        started_at INTEGER NOT NULL,
+        ended_at   INTEGER NOT NULL,
+        watched_ms INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_history_user  ON play_history(user_id, ended_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_history_ended ON play_history(ended_at DESC);
 ";
 
 /// Explicit column list for file SELECTs — keeps [`row_to_file`] index-stable.
 const FILE_COLS: &str = "id,rel_path,container,size,edition,probed,\
     duration_ms,v_codec,v_width,v_height,v_hdr,v_bit_depth,\
-    a_codec,a_channels,a_language,subtitles,abs_path";
+    a_codec,a_channels,a_language,subtitles,abs_path,audio_tracks";
 
 /// Explicit column list for item SELECTs — keeps [`row_to_item`] index-stable.
 /// `metadata` is appended last (index 25).
@@ -243,6 +264,12 @@ fn migrate(conn: &Connection) {
         "ALTER TABLE shows ADD COLUMN metadata TEXT",
         // Per-user permissions for accounts created before they existed.
         "ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '[\"playback\"]'",
+        // Full per-file audio-track list (was a single representative track).
+        "ALTER TABLE files ADD COLUMN audio_tracks TEXT NOT NULL DEFAULT '[]'",
+        // Last-seen timestamp for the admin "Membres & partage" activity column.
+        "ALTER TABLE users ADD COLUMN last_seen TEXT",
+        // Per-account preferred UI locale ("fr" | "en"), synced across devices.
+        "ALTER TABLE users ADD COLUMN language TEXT",
     ] {
         let _ = conn.execute(sql, []);
     }
@@ -302,14 +329,16 @@ pub fn set_file_probe(
     duration_ms: Option<u64>,
     video: Option<&VideoStream>,
     audio: Option<&AudioStream>,
+    audio_tracks: &[AudioStream],
     subtitles: &[SubtitleTrack],
 ) -> Result<()> {
     let conn = pool.get()?;
     let subs = serde_json::to_string(subtitles).unwrap_or_else(|_| "[]".into());
+    let a_tracks = serde_json::to_string(audio_tracks).unwrap_or_else(|_| "[]".into());
     conn.execute(
         "UPDATE files SET probed=1, duration_ms=?2, \
             v_codec=?3, v_width=?4, v_height=?5, v_hdr=?6, v_bit_depth=?7, \
-            a_codec=?8, a_channels=?9, a_language=?10, subtitles=?11 \
+            a_codec=?8, a_channels=?9, a_language=?10, subtitles=?11, audio_tracks=?12 \
          WHERE id = ?1",
         params![
             file_id,
@@ -323,6 +352,7 @@ pub fn set_file_probe(
             audio.and_then(|a| a.channels),
             audio.and_then(|a| a.language.clone()),
             subs,
+            a_tracks,
         ],
     )?;
 
@@ -544,28 +574,29 @@ pub fn sync_all(
         )?;
         let mut reset_stmt = tx.prepare(
             "INSERT INTO files (id,item_id,abs_path,rel_path,container,size,mtime,edition,probed,\
-                 duration_ms,v_codec,v_width,v_height,v_hdr,v_bit_depth,a_codec,a_channels,a_language,subtitles) \
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'[]') \
+                 duration_ms,v_codec,v_width,v_height,v_hdr,v_bit_depth,a_codec,a_channels,a_language,subtitles,audio_tracks) \
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'[]','[]') \
              ON CONFLICT(abs_path) DO UPDATE SET \
                  id=excluded.id, item_id=excluded.item_id, rel_path=excluded.rel_path, \
                  container=excluded.container, size=excluded.size, mtime=excluded.mtime, \
                  edition=excluded.edition, probed=0, duration_ms=NULL, v_codec=NULL, v_width=NULL, \
                  v_height=NULL, v_hdr=NULL, v_bit_depth=NULL, a_codec=NULL, a_channels=NULL, \
-                 a_language=NULL, subtitles='[]'",
+                 a_language=NULL, subtitles='[]', audio_tracks='[]'",
         )?;
         // Files that arrive already probed (demo/seed content): store their stream
         // data directly as probed=1 so they never enter the phase-2 pass.
         let mut preprobed_stmt = tx.prepare(
             "INSERT INTO files (id,item_id,abs_path,rel_path,container,size,mtime,edition,probed,\
-                 duration_ms,v_codec,v_width,v_height,v_hdr,v_bit_depth,a_codec,a_channels,a_language,subtitles) \
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,1,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18) \
+                 duration_ms,v_codec,v_width,v_height,v_hdr,v_bit_depth,a_codec,a_channels,a_language,subtitles,audio_tracks) \
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,1,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19) \
              ON CONFLICT(abs_path) DO UPDATE SET \
                  id=excluded.id, item_id=excluded.item_id, rel_path=excluded.rel_path, \
                  container=excluded.container, size=excluded.size, mtime=excluded.mtime, \
                  edition=excluded.edition, probed=1, duration_ms=excluded.duration_ms, \
                  v_codec=excluded.v_codec, v_width=excluded.v_width, v_height=excluded.v_height, \
                  v_hdr=excluded.v_hdr, v_bit_depth=excluded.v_bit_depth, a_codec=excluded.a_codec, \
-                 a_channels=excluded.a_channels, a_language=excluded.a_language, subtitles=excluded.subtitles",
+                 a_channels=excluded.a_channels, a_language=excluded.a_language, subtitles=excluded.subtitles, \
+                 audio_tracks=excluded.audio_tracks",
         )?;
 
         for i in items {
@@ -579,6 +610,7 @@ pub fn sync_all(
                     let v = f.video.as_ref();
                     let a = f.audio.as_ref();
                     let subs = serde_json::to_string(&f.subtitles).unwrap_or_else(|_| "[]".into());
+                    let a_tracks = serde_json::to_string(&f.audio_tracks).unwrap_or_else(|_| "[]".into());
                     preprobed_stmt.execute(params![
                         f.id, i.id, abs, f.rel_path, f.container, size, mtime, f.edition,
                         f.duration_ms.map(|d| d as i64),
@@ -591,6 +623,7 @@ pub fn sync_all(
                         a.and_then(|a| a.channels),
                         a.and_then(|a| a.language.clone()),
                         subs,
+                        a_tracks,
                     ])?;
                     continue;
                 }
@@ -811,7 +844,8 @@ fn representative_video(conn: &rusqlite::Connection, show_id: &str) -> Result<Op
 
 // ----- users / sessions / progress --------------------------------------------
 
-/// Map a row of `id,email,username,avatar_url,created_at,permissions` to a [`User`].
+/// Map a row of `id,email,username,avatar_url,created_at,permissions,language` to
+/// a [`User`].
 fn row_to_user(r: &Row) -> rusqlite::Result<User> {
     Ok(User {
         id: r.get(0)?,
@@ -820,6 +854,7 @@ fn row_to_user(r: &Row) -> rusqlite::Result<User> {
         avatar_url: r.get(3)?,
         created_at: r.get(4)?,
         permissions: parse_permissions(&r.get::<_, String>(5)?),
+        language: r.get(6)?,
     })
 }
 
@@ -858,6 +893,7 @@ pub fn create_user(
         email: email.to_string(),
         username: username.to_string(),
         avatar_url: None,
+        language: None,
         permissions,
         created_at,
     })
@@ -962,10 +998,10 @@ pub fn delete_invite(pool: &Pool, token: &str) -> Result<()> {
 pub fn find_user_by_email(pool: &Pool, email: &str) -> Result<Option<(User, String)>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id,email,username,avatar_url,created_at,permissions,password_hash FROM users WHERE email = ?1",
+        "SELECT id,email,username,avatar_url,created_at,permissions,language,password_hash FROM users WHERE email = ?1",
     )?;
     let mut rows = stmt.query_map(params![email], |r| {
-        Ok((row_to_user(r)?, r.get::<_, String>(6)?))
+        Ok((row_to_user(r)?, r.get::<_, String>(7)?))
     })?;
     match rows.next() {
         Some(v) => Ok(Some(v?)),
@@ -979,11 +1015,11 @@ pub fn find_user_by_email(pool: &Pool, email: &str) -> Result<Option<(User, Stri
 pub fn find_user_by_login(pool: &Pool, identifier: &str) -> Result<Option<(User, String)>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id,email,username,avatar_url,created_at,permissions,password_hash FROM users \
+        "SELECT id,email,username,avatar_url,created_at,permissions,language,password_hash FROM users \
          WHERE email = ?1 COLLATE NOCASE OR username = ?1 LIMIT 1",
     )?;
     let mut rows = stmt.query_map(params![identifier], |r| {
-        Ok((row_to_user(r)?, r.get::<_, String>(6)?))
+        Ok((row_to_user(r)?, r.get::<_, String>(7)?))
     })?;
     match rows.next() {
         Some(v) => Ok(Some(v?)),
@@ -1016,6 +1052,16 @@ pub fn set_user_avatar(pool: &Pool, user_id: &str, avatar_url: Option<&str>) -> 
     Ok(())
 }
 
+/// Set (or clear, with `None`) a user's preferred UI locale.
+pub fn set_user_language(pool: &Pool, user_id: &str, language: Option<&str>) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET language = ?2 WHERE id = ?1",
+        params![user_id, language],
+    )?;
+    Ok(())
+}
+
 /// Persist a new session token (expiry as a unix-seconds integer for robust
 /// comparison).
 pub fn create_session(pool: &Pool, token: &str, user_id: &str, expires_at: i64) -> Result<()> {
@@ -1032,7 +1078,7 @@ pub fn session_user(pool: &Pool, token: &str) -> Result<Option<User>> {
     let conn = pool.get()?;
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
     let mut stmt = conn.prepare(
-        "SELECT u.id,u.email,u.username,u.avatar_url,u.created_at,u.permissions \
+        "SELECT u.id,u.email,u.username,u.avatar_url,u.created_at,u.permissions,u.language \
          FROM sessions s JOIN users u ON u.id = s.user_id \
          WHERE s.token = ?1 AND s.expires_at > ?2",
     )?;
@@ -1184,14 +1230,23 @@ fn row_to_file(r: &Row) -> rusqlite::Result<MediaFile> {
         hdr: r.get::<_, Option<i64>>(10).ok().flatten().unwrap_or(0) != 0,
         bit_depth: r.get(11).ok().flatten(),
     });
-    let a_codec: Option<String> = r.get(12)?;
-    let audio = a_codec.map(|codec| AudioStream {
-        codec,
-        channels: r.get(13).ok().flatten(),
-        language: r.get(14).ok().flatten(),
-    });
     let subs_json: String = r.get(15)?;
     let subtitles: Vec<SubtitleTrack> = serde_json::from_str(&subs_json).unwrap_or_default();
+    let tracks_json: String = r.get(17)?;
+    let audio_tracks: Vec<AudioStream> = serde_json::from_str(&tracks_json).unwrap_or_default();
+    // Representative audio = first listed track. Fall back to the legacy
+    // a_codec/a_channels/a_language columns for rows probed before audio_tracks
+    // existed (their JSON is still `[]`).
+    let audio = audio_tracks.first().cloned().or_else(|| {
+        r.get::<_, Option<String>>(12).ok().flatten().map(|codec| AudioStream {
+            index: 0,
+            codec,
+            channels: r.get(13).ok().flatten(),
+            language: r.get(14).ok().flatten(),
+            title: None,
+            default: true,
+        })
+    });
 
     Ok(MediaFile {
         id: r.get(0)?,
@@ -1203,6 +1258,7 @@ fn row_to_file(r: &Row) -> rusqlite::Result<MediaFile> {
         duration_ms: r.get::<_, Option<i64>>(6)?.map(|d| d as u64),
         video,
         audio,
+        audio_tracks,
         subtitles,
         abs_path: r.get(16)?,
     })
@@ -1245,6 +1301,7 @@ fn attach_files(conn: &Connection, item: &mut MediaItem) -> rusqlite::Result<()>
             item.duration_ms = rep.duration_ms;
             item.video = rep.video.clone();
             item.audio = rep.audio.clone();
+            item.audio_tracks = rep.audio_tracks.clone();
             item.subtitles = rep.subtitles.clone();
             item.rel_path = rep.rel_path.clone();
         } else {
@@ -1276,6 +1333,7 @@ fn row_to_item(r: &Row) -> rusqlite::Result<MediaItem> {
         container: r.get(5)?,
         video: None,
         audio: None,
+        audio_tracks: Vec::new(),
         subtitles,
         library: r.get(15)?,
         show_id: r.get(16)?,
@@ -1327,4 +1385,225 @@ fn parse_library_kind(s: &str) -> LibraryKind {
 
 fn now_or_blank() -> String {
     crate::scan::now_iso8601()
+}
+
+// ----- settings store ---------------------------------------------------------
+
+/// Every persisted setting as `(key, value)` pairs (value is parsed JSON).
+pub fn settings_all(pool: &Pool) -> Result<Vec<(String, serde_json::Value)>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare("SELECT key,value FROM settings")?;
+    let rows = stmt.query_map([], |r| {
+        let k: String = r.get(0)?;
+        let v: String = r.get(1)?;
+        Ok((k, v))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (k, raw) = row?;
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+            out.push((k, v));
+        }
+    }
+    Ok(out)
+}
+
+/// Upsert one setting (value stored as compact JSON).
+pub fn settings_set(pool: &Pool, key: &str, value: &serde_json::Value) -> Result<()> {
+    let conn = pool.get()?;
+    let json = serde_json::to_string(value)?;
+    conn.execute(
+        "INSERT INTO settings (key,value,updated_at) VALUES (?1,?2,?3) \
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+        params![key, json, now_or_blank()],
+    )?;
+    Ok(())
+}
+
+// ----- admin: users -----------------------------------------------------------
+
+fn row_to_admin_user(r: &Row) -> rusqlite::Result<User> {
+    // Reuse the User shape (cols 0..=5 match row_to_user); last_seen handled by caller.
+    row_to_user(r)
+}
+
+/// All accounts for the admin "Membres & partage" table, oldest first (owner is
+/// account 0). `online` is left false here — the handler fills it from the live
+/// playback registry.
+pub fn admin_users(pool: &Pool) -> Result<Vec<crate::model::AdminUser>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT id,email,username,avatar_url,created_at,permissions,last_seen \
+         FROM users ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        let user = row_to_admin_user(r)?;
+        let last_seen: Option<String> = r.get(6)?;
+        Ok((user, last_seen))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (u, last_seen) = row?;
+        out.push(crate::model::AdminUser {
+            role: crate::model::role_label(&u.permissions).to_string(),
+            id: u.id,
+            email: u.email,
+            username: u.username,
+            avatar_url: u.avatar_url,
+            permissions: u.permissions,
+            created_at: u.created_at,
+            last_seen,
+            online: false,
+        });
+    }
+    Ok(out)
+}
+
+/// Fetch one full user by id (with email + permissions), or `None`.
+#[allow(dead_code)] // public lookup helper; used by admin tooling/tests.
+pub fn get_user(pool: &Pool, id: &str) -> Result<Option<User>> {
+    let conn = pool.get()?;
+    let user = conn
+        .query_row(
+            "SELECT id,email,username,avatar_url,created_at,permissions,language FROM users WHERE id = ?1",
+            params![id],
+            row_to_user,
+        )
+        .optional()?;
+    Ok(user)
+}
+
+/// Replace a user's permission set.
+pub fn update_user_permissions(pool: &Pool, id: &str, permissions: &[Permission]) -> Result<()> {
+    let conn = pool.get()?;
+    let perms_json = serde_json::to_string(permissions).unwrap_or_else(|_| "[\"playback\"]".into());
+    conn.execute(
+        "UPDATE users SET permissions = ?2 WHERE id = ?1",
+        params![id, perms_json],
+    )?;
+    Ok(())
+}
+
+/// Rename a user.
+pub fn set_user_username(pool: &Pool, id: &str, username: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET username = ?2 WHERE id = ?1",
+        params![id, username],
+    )?;
+    Ok(())
+}
+
+/// Delete a user (cascades sessions + progress).
+pub fn delete_user(pool: &Pool, id: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute("DELETE FROM users WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+/// Stamp a user's last-seen time (called on login + playback ping).
+pub fn touch_last_seen(pool: &Pool, id: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET last_seen = ?2 WHERE id = ?1",
+        params![id, now_or_blank()],
+    )?;
+    Ok(())
+}
+
+// ----- admin: play history + analytics ---------------------------------------
+
+/// Append one finished playback to the history log.
+#[allow(clippy::too_many_arguments)]
+pub fn record_play(
+    pool: &Pool,
+    user_id: Option<&str>,
+    username: Option<&str>,
+    item_id: Option<&str>,
+    kind: &str,
+    title: &str,
+    library: Option<&str>,
+    started_at: i64,
+    ended_at: i64,
+    watched_ms: i64,
+) -> Result<()> {
+    let conn = pool.get()?;
+    let id = crate::scan::short_hash(&format!(
+        "play|{}|{}|{started_at}|{}",
+        user_id.unwrap_or("?"),
+        item_id.unwrap_or("?"),
+        crate::auth::random_token()
+    ));
+    conn.execute(
+        "INSERT INTO play_history \
+         (id,user_id,username,item_id,kind,title,library,started_at,ended_at,watched_ms) \
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+        params![id, user_id, username, item_id, kind, title, library, started_at, ended_at, watched_ms],
+    )?;
+    Ok(())
+}
+
+/// Per-user watch aggregates since `since` (unix-seconds), best watchers first.
+pub fn top_users(pool: &Pool, since: i64, limit: usize) -> Result<Vec<crate::model::TopUser>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(username,'?') AS u, COUNT(*) AS plays, \
+            SUM(watched_ms) AS total, \
+            SUM(CASE WHEN kind='movie' THEN watched_ms ELSE 0 END) AS films, \
+            SUM(CASE WHEN kind IN ('episode','video') THEN watched_ms ELSE 0 END) AS tv \
+         FROM play_history WHERE ended_at >= ?1 \
+         GROUP BY username ORDER BY total DESC LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![since, limit as i64], |r| {
+        Ok(crate::model::TopUser {
+            username: r.get(0)?,
+            plays: r.get(1)?,
+            watched_ms: r.get::<_, Option<i64>>(2)?.unwrap_or(0),
+            films_ms: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+            tv_ms: r.get::<_, Option<i64>>(4)?.unwrap_or(0),
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// Raw history rows since `since` (unix-seconds) for client/server-side bucketing.
+pub fn history_since(pool: &Pool, since: i64) -> Result<Vec<crate::model::HistoryRow>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT ended_at,kind,watched_ms FROM play_history WHERE ended_at >= ?1 ORDER BY ended_at",
+    )?;
+    let rows = stmt.query_map(params![since], |r| {
+        Ok(crate::model::HistoryRow {
+            ended_at: r.get(0)?,
+            kind: parse_kind(&r.get::<_, String>(1)?),
+            watched_ms: r.get(2)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+// ----- admin: library + storage stats ----------------------------------------
+
+/// Per-library item count + total bytes on disk (joins items→files).
+pub fn library_stats(pool: &Pool) -> Result<Vec<crate::model::LibraryStat>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT i.library, COUNT(DISTINCT i.id) AS items, COALESCE(SUM(f.size),0) AS bytes \
+         FROM items i LEFT JOIN files f ON f.item_id = i.id \
+         GROUP BY i.library",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(crate::model::LibraryStat {
+            id: r.get(0)?,
+            item_count: r.get(1)?,
+            total_bytes: r.get::<_, Option<i64>>(2)?.unwrap_or(0),
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// Total bytes across all indexed files (the "Utilisé" storage stat).
+pub fn total_media_bytes(pool: &Pool) -> Result<i64> {
+    let conn = pool.get()?;
+    Ok(conn.query_row("SELECT COALESCE(SUM(size),0) FROM files", [], |r| r.get(0))?)
 }

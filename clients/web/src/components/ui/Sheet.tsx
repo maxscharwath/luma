@@ -10,11 +10,11 @@ export function Sheet({
   title,
   onClose,
   children,
-}: {
+}: Readonly<{
   title: string;
   onClose: () => void;
   children: ReactNode;
-}) {
+}>) {
   return (
     <Dialog.Root
       open

@@ -27,7 +27,10 @@ const PROBE_WORKERS: usize = 10;
 pub struct ProbeResult {
     pub duration_ms: Option<u64>,
     pub video: Option<VideoStream>,
+    /// Representative (first) audio track, for badges. `audio_tracks.first()`.
     pub audio: Option<AudioStream>,
+    /// Every audio track, in container order (audio-relative index = position).
+    pub audio_tracks: Vec<AudioStream>,
     pub subtitles: Vec<SubtitleTrack>,
 }
 
@@ -115,6 +118,7 @@ pub fn spawn_probe_pass(pool: Pool, ffprobe_present: bool, bus: Bus, activity: A
                     result.duration_ms,
                     result.video.as_ref(),
                     result.audio.as_ref(),
+                    &result.audio_tracks,
                     &result.subtitles,
                 ) {
                     Ok(()) => {
@@ -183,6 +187,17 @@ fn run_ffprobe(path: &Path) -> Option<ProbeResult> {
 
 /// Build our model from raw ffprobe output.
 fn build_result(raw: FfprobeOutput) -> ProbeResult {
+    // Every audio stream, in container order. The audio-relative index (0-based
+    // among audio streams) is the position here — exactly ffmpeg's `0:a:<n>`.
+    let audio_tracks: Vec<AudioStream> = raw
+        .streams
+        .iter()
+        .filter(|&s| s.codec_type.as_deref() == Some("audio"))
+        .enumerate()
+        .map(|(i, s)| build_audio(s, i as u32))
+        .collect();
+    let audio = audio_tracks.first().cloned();
+
     ProbeResult {
         duration_ms: raw.format.as_ref().and_then(|fmt| {
             fmt.duration
@@ -198,11 +213,8 @@ fn build_result(raw: FfprobeOutput) -> ProbeResult {
             .iter()
             .find(|&s| s.codec_type.as_deref() == Some("video") && !is_probably_cover_art(s))
             .map(build_video),
-        audio: raw
-            .streams
-            .iter()
-            .find(|&s| s.codec_type.as_deref() == Some("audio"))
-            .map(build_audio),
+        audio,
+        audio_tracks,
         subtitles: raw
             .streams
             .iter()
@@ -239,11 +251,14 @@ fn build_video(stream: &FfStream) -> VideoStream {
     }
 }
 
-fn build_audio(stream: &FfStream) -> AudioStream {
+fn build_audio(stream: &FfStream, index: u32) -> AudioStream {
     AudioStream {
+        index,
         codec: normalize_codec(stream.codec_name.as_deref()),
         channels: stream.channels,
         language: stream.language(),
+        title: stream.title(),
+        default: stream.disposition.as_ref().is_some_and(|d| d.default == Some(1)),
     }
 }
 
@@ -330,6 +345,7 @@ fn fallback_from_extension(path: &Path) -> ProbeResult {
             bit_depth: None,
         }),
         audio: None,
+        audio_tracks: Vec::new(),
         subtitles: Vec::new(),
     }
 }
@@ -362,11 +378,20 @@ struct FfStream {
     bits_per_raw_sample: Option<String>,
     #[serde(default)]
     tags: Option<FfTags>,
+    #[serde(default)]
+    disposition: Option<FfDisposition>,
 }
 
 #[derive(Debug, Deserialize)]
 struct FfTags {
     language: Option<String>,
+    title: Option<String>,
+}
+
+/// ffprobe stream `disposition` flags — we only read `default`.
+#[derive(Debug, Deserialize)]
+struct FfDisposition {
+    default: Option<u8>,
 }
 
 impl FfStream {
@@ -375,5 +400,12 @@ impl FfStream {
             .as_ref()
             .and_then(|t| t.language.clone())
             .filter(|l| !l.is_empty() && l != "und")
+    }
+
+    fn title(&self) -> Option<String> {
+        self.tags
+            .as_ref()
+            .and_then(|t| t.title.clone())
+            .filter(|t| !t.trim().is_empty())
     }
 }

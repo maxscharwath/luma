@@ -1,7 +1,8 @@
+import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
-import { lumaClient, toMovieView, toShowView } from '#web/lib/api';
-import { Hero, MovieRail, ShowRail } from '#web/components/cards';
 import { ContinueRow } from '#web/components/ContinueRow';
+import { Hero, MovieRail, ShowRail } from '#web/components/cards';
+import { lumaClient, toMovieView, toShowView } from '#web/lib/api';
 
 export const Route = createFileRoute('/')({
   loader: async () => {
@@ -16,15 +17,16 @@ export const Route = createFileRoute('/')({
 });
 
 function HomePage() {
+  const t = useT();
   const { movies, shows } = Route.useLoaderData();
   const hdr = movies.filter((m) => m.video?.hdr);
   return (
-    <main className="max-w-[1600px] px-[var(--gutter-web)] pb-16 pt-10">
+    <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
       {movies[0] ? <Hero movie={movies[0]} /> : null}
       <ContinueRow />
-      {hdr.length >= 3 ? <MovieRail title="En 4K · HDR" movies={hdr} /> : null}
-      <MovieRail title="Films" movies={movies} />
-      <ShowRail title="Séries" shows={shows} />
+      {hdr.length >= 3 ? <MovieRail title={t('content.hdr4k')} movies={hdr} /> : null}
+      <MovieRail title={t('nav.films')} movies={movies} />
+      <ShowRail title={t('nav.series')} shows={shows} />
     </main>
   );
 }

@@ -1,21 +1,21 @@
-:root{
-  --space-1:4px;
-  --space-2:8px;
-  --space-3:12px;
-  --space-4:16px;
-  --space-5:20px;
-  --space-6:24px;
-  --space-8:32px;
-  --space-10:40px;
-  --space-14:56px;
-  --space-16:64px;
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-14: 56px;
+  --space-16: 64px;
 
   /* Layout gutters */
-  --gutter-web:56px;   /* desktop page side padding */
-  --gutter-tv:64px;    /* 10-foot side padding */
-  --gutter-mobile:20px;
+  --gutter-web: 56px; /* desktop page side padding */
+  --gutter-tv: 64px; /* 10-foot side padding */
+  --gutter-mobile: 20px;
 
   /* Component rhythm */
-  --row-gap:18px;      /* carousel card gap (web) */
-  --card-w:208px;      /* default poster width (web) */
+  --row-gap: 18px; /* carousel card gap (web) */
+  --card-w: 208px; /* default poster width (web) */
 }

@@ -1,4 +1,5 @@
 import { formatRuntime, qualityBadge } from '@luma/core';
+import { useT } from '@luma/ui';
 import { TvDetailScaffold } from '#tv/detail/DetailScaffold';
 import { useClient, useNav, useParams } from '#tv/router';
 import { PlayGlyph, TV_PLAY_BTN } from '#tv/TvMedia';
@@ -11,17 +12,22 @@ export function TvMovieDetail() {
   const nav = useNav();
   const { item } = useParams('movie');
   const client = useClient();
+  const t = useT();
   useFocusNav({ onBack: nav.back });
 
   const meta = item.metadata;
-  const metaLong = [item.year ? String(item.year) : null, formatRuntime(item.durationMs), meta?.genres?.[0]]
+  const metaLong = [
+    item.year ? String(item.year) : null,
+    formatRuntime(item.durationMs),
+    meta?.genres?.[0],
+  ]
     .filter(Boolean)
     .join(' · ');
 
   return (
     <TvDetailScaffold
       id={item.id}
-      kind="Film"
+      kind={t('content.film')}
       title={item.title}
       backdrop={client.backdropFor(item) ?? client.posterFor(item)}
       rating={meta?.rating}
@@ -32,7 +38,7 @@ export function TvMovieDetail() {
       <div className="flex items-center gap-4">
         <button className={TV_PLAY_BTN} data-focus="" onClick={() => nav.go('player', { item })}>
           <PlayGlyph />
-          Lecture
+          {t('player.play')}
         </button>
       </div>
     </TvDetailScaffold>

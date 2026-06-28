@@ -1,6 +1,10 @@
-// LUMA API access for SSR loaders. The base origin is resolved on the server
-// from `LUMA_SERVER_URL` and injected into the page (see __root) so client-side
-// navigations resolve it too. CORS on the server is permissive (LAN use).
+// LUMA API origin resolution.
+//
+// Production (the single-binary Synology package): the Rust server serves THIS
+// SPA *and* the API on the same origin, so we call the page's own origin and
+// there's nothing to configure. Dev: the web (vite :3000) and API (:4040) are
+// separate origins, so a build-time `VITE_LUMA_SERVER` points at the API.
+// `window.__LUMA_API__` (if injected) still wins, for embedding flexibility.
 import { isTextSubtitle, LumaClient, type MediaItem, type Show } from '@luma/core';
 
 declare global {
@@ -13,11 +17,26 @@ const DEFAULT_BASE = 'http://localhost:4040';
 
 /** The LUMA server origin (no trailing slash). */
 export function apiBase(): string {
+  // 1) Explicit runtime override (rare).
   if (typeof window !== 'undefined' && window.__LUMA_API__) {
-    return window.__LUMA_API__;
+    return window.__LUMA_API__.replace(/\/+$/, '');
   }
-  const env =
-    typeof process !== 'undefined' ? process.env.LUMA_SERVER_URL : undefined;
+  // 2) Build-time override — set in dev/staging to point at a specific API.
+  const envBase = import.meta.env?.VITE_LUMA_SERVER;
+  if (envBase) return envBase.replace(/\/+$/, '');
+  // 3) Dev (vite): same-origin — the Vite dev server reverse-proxies `/api`
+  //    (incl. the events WebSocket) to the Rust server, so the whole app lives
+  //    on one port (`:3000`). Just call the page origin, like production. SSR /
+  //    prerender (no window) falls back to the conventional local API.
+  if (import.meta.env?.DEV) {
+    return typeof window !== 'undefined'
+      ? window.location.origin.replace(/\/+$/, '')
+      : DEFAULT_BASE;
+  }
+  // 4) Production SPA: same origin as the page (the Rust server serves both).
+  if (typeof window !== 'undefined') return window.location.origin.replace(/\/+$/, '');
+  // 5) SSR / prerender fallback.
+  const env = typeof process !== 'undefined' ? process.env.LUMA_SERVER_URL : undefined;
   return (env ?? DEFAULT_BASE).replace(/\/+$/, '');
 }
 

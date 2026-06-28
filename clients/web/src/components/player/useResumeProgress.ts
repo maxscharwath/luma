@@ -15,7 +15,15 @@ export interface ResumeProgress {
  * position, seeks to it once the media is ready (flashing a toast), and writes
  * progress every 10 s / on pause / on close — clearing it once ~finished.
  */
-export function useResumeProgress(videoRef: React.RefObject<HTMLVideoElement>, item: MovieView): ResumeProgress {
+export function useResumeProgress(
+  videoRef: React.RefObject<HTMLVideoElement>,
+  item: MovieView,
+  // Offset-aware position control from useVideoPlayback: `seekTo` an absolute
+  // second (re-`-ss`-es the seamless stream so resume is instantly available),
+  // `getPosition` reads the absolute current position. Falls back to the raw
+  // <video> timeline when omitted (single-stream direct-play).
+  position?: { seekTo: (absSec: number) => void; getPosition: () => number },
+): ResumeProgress {
   const { client, user } = useAuth();
   const [resumeAt, setResumeAt] = useState<number | null>(null);
   const [showResume, setShowResume] = useState(false);
@@ -46,8 +54,10 @@ export function useResumeProgress(videoRef: React.RefObject<HTMLVideoElement>, i
     const apply = () => {
       if (applied) return;
       applied = true;
-      // Only jump forward if playback is still near the start.
-      if (v.currentTime < resumeAt - 2) v.currentTime = resumeAt;
+      // Seamless: re-`-ss` the stream at resumeAt (instantly available). Direct:
+      // a normal range seek. Either way we land at the real saved position.
+      if (position) position.seekTo(resumeAt);
+      else if (v.currentTime < resumeAt - 2) v.currentTime = resumeAt;
       setShowResume(true);
     };
     if (v.readyState >= 1) apply();
@@ -57,6 +67,9 @@ export function useResumeProgress(videoRef: React.RefObject<HTMLVideoElement>, i
       clearTimeout(hide);
       v.removeEventListener('loadedmetadata', apply);
     };
+    // `position` is read once when resumeAt resolves — excluded so a new
+    // position identity can't retrigger the resume seek.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoRef, resumeAt]);
 
   // Persist progress: every 10 s while watching, on pause, on close/unmount, and
@@ -64,12 +77,14 @@ export function useResumeProgress(videoRef: React.RefObject<HTMLVideoElement>, i
   const saveProgress = useCallback(() => {
     const v = videoRef.current;
     if (!v || !user) return;
-    const durSec = v.duration;
-    const pos = v.currentTime;
+    // ABSOLUTE position + catalogue runtime — the seamless stream's own
+    // currentTime/duration is relative to the -ss offset, so never use them here.
+    const pos = position ? position.getPosition() : v.currentTime;
+    const durSec = item.durationMs ? item.durationMs / 1000 : v.duration;
     if (!Number.isFinite(durSec) || durSec <= 0 || pos < 5) return;
     if (pos > durSec * 0.97) void client.deleteProgress(item.id);
     else void client.saveProgress(item.id, pos * 1000, durSec * 1000);
-  }, [videoRef, client, user, item.id]);
+  }, [videoRef, client, user, item.id, item.durationMs, position]);
 
   useEffect(() => {
     if (!user) return;

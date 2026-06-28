@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { activeCueText, type Cue, parseVtt } from '@luma/core';
+import { type CSSProperties, memo, type RefObject, useEffect, useRef, useState } from 'react';
 
 // 10-foot subtitle styling: large, white, heavy drop-shadow for legibility over
 // any artwork. Fixed (no per-user controls on TV).
@@ -26,17 +26,18 @@ function TvSubtitlesImpl({
   rendered,
   activeIndex,
   raised,
-}: {
+}: Readonly<{
   videoRef: RefObject<HTMLVideoElement>;
   rendered: { index: number; url: string | null }[];
   activeIndex: number | null;
   raised: boolean;
-}) {
+}>) {
   const [cues, setCues] = useState<Cue[]>([]);
   const [text, setText] = useState('');
   const pointer = useRef(0);
 
-  const activeUrl = activeIndex == null ? null : (rendered.find((s) => s.index === activeIndex)?.url ?? null);
+  const activeUrl =
+    activeIndex == null ? null : (rendered.find((s) => s.index === activeIndex)?.url ?? null);
 
   // Fetch + parse the active subtitle track (only when the URL actually changes).
   useEffect(() => {

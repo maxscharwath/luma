@@ -6,7 +6,7 @@ export interface LogoProps {
 }
 
 /** LUMA brand lockup — a minimal amber "aperture" ring + centre dot beside the wordmark. */
-export function Logo({ size = 26, markOnly = false }: LogoProps) {
+export function Logo({ size = 26, markOnly = false }: Readonly<LogoProps>) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: size * 0.42 }}>
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">

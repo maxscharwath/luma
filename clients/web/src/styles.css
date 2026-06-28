@@ -3,8 +3,8 @@
    the @theme block below maps them onto Tailwind utilities so classes like
    `bg-accent` / `text-muted` / `rounded-lg` / `shadow-card` render the exact
    LUMA design. */
-@import '@luma/ui/styles.css';
-@import 'tailwindcss';
+@import "@luma/ui/styles.css";
+@import "tailwindcss";
 
 @theme {
   /* Colors → reference the LUMA tokens (no namespace collision). */

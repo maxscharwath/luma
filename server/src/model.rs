@@ -34,12 +34,26 @@ pub struct VideoStream {
     pub bit_depth: Option<u32>,
 }
 
-/// Primary audio stream description.
+/// One audio stream/track. An item can carry several (e.g. EN + FR, or a
+/// director's commentary); `index` is the **audio-relative** position (0-based
+/// among audio streams only), which is exactly what ffmpeg's `-map 0:a:<index>`
+/// selector expects when remuxing a chosen track.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioStream {
+    /// Audio-relative stream index (0 = first audio track). Drives track
+    /// selection (`-map 0:a:<index>`) on the server's per-track HLS remux.
+    #[serde(default)]
+    pub index: u32,
     pub codec: String,
     pub channels: Option<u32>,
     pub language: Option<String>,
+    /// Human label from the stream's `title` tag ("Commentary", "Director's
+    /// Cut", …), when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Whether the container marks this as the default audio track.
+    #[serde(default)]
+    pub default: bool,
 }
 
 /// A subtitle track.
@@ -62,7 +76,13 @@ pub struct MediaFile {
     #[serde(rename = "durationMs")]
     pub duration_ms: Option<u64>,
     pub video: Option<VideoStream>,
+    /// Representative (first/default) audio track — kept for codec badges and
+    /// backward compatibility with clients that read `audio.codec` directly.
     pub audio: Option<AudioStream>,
+    /// Every audio track on this file, in container order. Drives the player's
+    /// audio-track picker. Empty when unprobed or for pre-`audioTracks` rows.
+    #[serde(rename = "audioTracks", default)]
+    pub audio_tracks: Vec<AudioStream>,
     pub subtitles: Vec<SubtitleTrack>,
     pub size: Option<u64>,
     /// Best-effort label parsed from the filename ("Director's Cut", "Extended",
@@ -96,7 +116,12 @@ pub struct MediaItem {
     pub duration_ms: Option<u64>,
     pub container: String,
     pub video: Option<VideoStream>,
+    /// Representative (first/default) audio track — kept for badges and
+    /// backward compatibility. The full list is `audio_tracks`.
     pub audio: Option<AudioStream>,
+    /// Every audio track of the representative file, for the audio-track picker.
+    #[serde(rename = "audioTracks", default)]
+    pub audio_tracks: Vec<AudioStream>,
     pub subtitles: Vec<SubtitleTrack>,
     pub library: String,
     // --- show / episode grouping (null for movies) ---
@@ -178,6 +203,11 @@ pub struct User {
     pub username: String,
     #[serde(rename = "avatarUrl", skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
+    /// Preferred UI locale (`"fr"` | `"en"`), synced across this account's
+    /// devices. `None` → clients fall back to the device/browser locale. See the
+    /// shared i18n catalogs (`packages/core/src/locales`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
     /// Granted permissions (capability-based, no roles). The first registered
     /// account (owner) gets every permission; the rest default to `[Playback]`.
     /// Clients unlock pages/actions from this set (admin panel, future stats…).
@@ -297,4 +327,69 @@ pub struct Library {
     pub path: String,
     #[serde(rename = "itemCount")]
     pub item_count: usize,
+}
+
+/// Derive a display role label from a capability set. The backend is
+/// capability-based; this is purely for the admin UI's "Rôle" badge.
+pub fn role_label(perms: &[Permission]) -> &'static str {
+    if perms.contains(&Permission::UsersManage) && perms.contains(&Permission::SettingsManage) {
+        "Propriétaire"
+    } else if perms.contains(&Permission::Playback) {
+        "Membre"
+    } else {
+        "Restreint"
+    }
+}
+
+/// One account as surfaced to the admin "Membres & partage" table. Unlike
+/// [`User`] this carries the email, a derived role, last-activity and a live
+/// `online` flag (set at request time from the playback registry).
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminUser {
+    pub id: String,
+    pub email: String,
+    pub username: String,
+    #[serde(rename = "avatarUrl", skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    pub permissions: Vec<Permission>,
+    /// Derived display role: "Propriétaire" | "Membre" | "Restreint".
+    pub role: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "lastSeen", skip_serializing_if = "Option::is_none")]
+    pub last_seen: Option<String>,
+    /// Whether the user is currently streaming (filled from the playback registry).
+    pub online: bool,
+}
+
+/// Aggregated per-user watch stats over a window (the dashboard "Top des
+/// utilisateurs" cards).
+#[derive(Debug, Clone, Serialize)]
+pub struct TopUser {
+    pub username: String,
+    pub plays: i64,
+    #[serde(rename = "watchedMs")]
+    pub watched_ms: i64,
+    #[serde(rename = "filmsMs")]
+    pub films_ms: i64,
+    #[serde(rename = "tvMs")]
+    pub tv_ms: i64,
+}
+
+/// One raw play-history record (used to bucket the weekly "Historique de
+/// lecture" chart server-side).
+#[derive(Debug, Clone)]
+pub struct HistoryRow {
+    pub ended_at: i64,
+    pub kind: Kind,
+    pub watched_ms: i64,
+}
+
+/// Per-library aggregate (item count + total bytes on disk) for the storage and
+/// libraries admin pages.
+#[derive(Debug, Clone)]
+pub struct LibraryStat {
+    pub id: String,
+    pub item_count: i64,
+    pub total_bytes: i64,
 }

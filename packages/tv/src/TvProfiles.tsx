@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { AuthResult, LumaClient, PublicUser, QuickConnectInit, StoredSession } from '@luma/core';
-import { Button, Logo } from '@luma/ui';
+import {
+  type AuthResult,
+  LOCALES,
+  type LumaClient,
+  type MessageKey,
+  type QuickConnectInit,
+} from '@luma/core';
+import { Button, Logo, useLocale, useSetLocale, useT } from '@luma/ui';
+import { IconApps, IconLock, IconPlus } from '@tabler/icons-react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useAuth } from '#tv/auth';
-import { useClient } from '#tv/router';
+import { useClient, useNav, useParams } from '#tv/router';
 import { useFocusNav } from '#tv/useFocusNav';
 
 // Same vivid gradient palette as the web profiles (LUMA.dc.html).
@@ -27,10 +34,32 @@ function initials(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-function ProfileAvatar({ name, seed, size }: { name: string; seed: string; size: number }) {
+/** Map a sign-in/registration failure to a catalog key: invalid credentials get
+ * their own message; anything else falls back to the screen-specific key. */
+function authError(e: unknown, fallback: MessageKey): MessageKey {
+  return e instanceof Error && /401|identifiants|invalid/i.test(e.message)
+    ? 'auth.invalidCredentials'
+    : fallback;
+}
+
+/** Rounded-square profile avatar — the uploaded photo when there is one, else a
+ * deterministic gradient with the user's initials (same look as the web picker). */
+function ProfileAvatar({
+  name,
+  seed,
+  size,
+  src,
+}: Readonly<{
+  name: string;
+  seed: string;
+  size: number;
+  src?: string | null;
+}>) {
+  const [failed, setFailed] = useState(false);
+  const showImg = Boolean(src) && !failed;
   return (
     <div
-      className="flex items-center justify-center font-display font-bold text-white/90"
+      className="flex items-center justify-center overflow-hidden font-display font-bold text-white/90"
       style={{
         width: size,
         height: size,
@@ -40,50 +69,27 @@ function ProfileAvatar({ name, seed, size }: { name: string; seed: string; size:
         boxShadow: '0 16px 40px rgba(0,0,0,.5)',
       }}
     >
-      {initials(name)}
+      {showImg ? (
+        <img
+          src={src ?? undefined}
+          alt=""
+          onError={() => setFailed(true)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : (
+        initials(name)
+      )}
     </div>
   );
 }
 
 const INPUT =
-  'w-full rounded-[10px] border border-border-strong bg-surface-2 px-5 py-4 text-center font-sans text-[18px] text-text';
+  'w-full rounded-md border border-border-strong bg-surface-2 px-5 py-4 text-center font-sans text-[18px] text-text';
 
-type View = { v: 'pick' } | { v: 'login'; user: PublicUser } | { v: 'register' } | { v: 'quick' };
-
-/**
- * 10-foot login gate. Shown after the server connects, before the home view,
- * whenever there's no session. A profile is selected with the remote, then its
- * password is typed in; new accounts can also be created (avatar upload stays a
- * web-only feature — TV accounts use the gradient/initials avatar).
- */
-export function TvProfiles() {
-  const client = useClient();
-  const { profiles, accounts, login, activate } = useAuth();
-  const [view, setView] = useState<View>({ v: 'pick' });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const onBack = useCallback(() => {
-    setError('');
-    setView({ v: 'pick' });
-  }, []);
-  useFocusNav({ resetKey: view.v, onBack });
-
-  const run = useCallback(
-    async (op: () => Promise<AuthResult>, failMsg: string) => {
-      setBusy(true);
-      setError('');
-      try {
-        login(await op());
-      } catch (e) {
-        setError(e instanceof Error && /401|identifiants|invalid/i.test(e.message) ? 'Identifiants invalides' : failMsg);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [login],
-  );
-
+/** Shared 10-foot auth backdrop + centred brand mark. Each auth screen
+ * (picker / login / register / quick-connect) is its own router route and wraps
+ * its body in this. */
+function AuthShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <div
       className="fixed inset-0 flex flex-col items-center justify-center px-16 text-center"
@@ -92,230 +98,276 @@ export function TvProfiles() {
       <div className="mb-12">
         <Logo size={40} />
       </div>
-
-      {view.v === 'pick' ? (
-        <PickView
-          profiles={profiles}
-          accounts={accounts}
-          onSelect={(u) => {
-            setError('');
-            // Already signed-in on this device → switch instantly, no password.
-            const acc = accounts.find((a) => a.user.id === u.id);
-            if (acc) activate(acc);
-            else setView({ v: 'login', user: u });
-          }}
-          onAdd={() => {
-            setError('');
-            setView({ v: 'register' });
-          }}
-          onQuick={() => {
-            setError('');
-            setView({ v: 'quick' });
-          }}
-        />
-      ) : null}
-
-      {view.v === 'quick' ? (
-        <QuickConnectView client={client} onAuthenticated={login} />
-      ) : null}
-
-      {view.v === 'login' ? (
-        <LoginView
-          user={view.user}
-          busy={busy}
-          error={error}
-          onSubmit={(password) => run(() => client.login(view.user.username, password), 'Connexion impossible')}
-        />
-      ) : null}
-
-      {view.v === 'register' ? (
-        <RegisterView
-          busy={busy}
-          error={error}
-          onSubmit={(email, username, password) =>
-            run(() => client.register(email, username, password), 'Création impossible')
-          }
-        />
-      ) : null}
+      {children}
     </div>
   );
 }
 
-function PickView({
-  profiles,
-  accounts,
-  onSelect,
-  onAdd,
-  onQuick,
-}: {
-  profiles: PublicUser[];
-  accounts: StoredSession[];
-  onSelect: (u: PublicUser) => void;
-  onAdd: () => void;
-  onQuick: () => void;
-}) {
+/**
+ * 10-foot language switcher: one focusable chip per locale (FR / EN). Each chip
+ * carries `data-focus` and activates on OK via its native `onClick` — exactly
+ * like the profile avatars and the Quick Connect button — so the remote's
+ * spatial navigation (useFocusNav) can reach and toggle it. Selecting a locale
+ * calls useSetLocale(), which persists it and syncs it to the account.
+ */
+function LanguageSwitcher() {
+  const t = useT();
+  const locale = useLocale();
+  const setLocale = useSetLocale();
   return (
-    <>
-      <h1 className="m-0 mb-12 font-display text-[44px] font-semibold">Qui regarde&nbsp;?</h1>
+    <div
+      className="mt-8 inline-flex items-center gap-1 rounded-full border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.06)] p-1"
+      aria-label={t('common.language')}
+    >
+      {LOCALES.map((l) => {
+        const active = l.code === locale;
+        return (
+          <button
+            key={l.code}
+            data-focus=""
+            type="button"
+            aria-current={active}
+            onClick={() => setLocale(l.code)}
+            className={`cursor-pointer rounded-full border-none px-5 py-2 font-sans text-[15px] font-semibold outline-none transition-transform focus:scale-[1.06] ${
+              active
+                ? 'bg-accent text-accent-ink'
+                : 'bg-transparent text-[rgba(244,243,240,0.7)] focus:text-accent'
+            }`}
+          >
+            {t(l.labelKey)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Profile picker — the signed-out home of the auth flow (route `profiles`).
+ * Selecting a remembered account signs in instantly (no password); any other
+ * profile / "Ajouter" / "Connexion rapide" pushes the matching route, so Back
+ * pops cleanly via the shared TV router instead of a local view state machine.
+ */
+export function TvProfiles() {
+  const client = useClient();
+  const nav = useNav();
+  const t = useT();
+  const { profiles, accounts, activate } = useAuth();
+  useFocusNav({ onBack: nav.back });
+
+  return (
+    <AuthShell>
+      <h1 className="m-0 mb-12 font-display text-[44px] font-semibold">{t('auth.whoWatching')}</h1>
       <div className="flex flex-wrap items-start justify-center gap-10">
         {profiles.map((p) => {
-          const remembered = accounts.some((a) => a.user.id === p.id);
+          const remembered = accounts.find((a) => a.user.id === p.id);
+          // Only the avatar is focusable, so the single amber ring hugs it (the
+          // name sits below, outside the focus box) — no double border.
           return (
-            <div
-              key={p.id}
-              data-focus=""
-              tabIndex={0}
-              role="button"
-              onClick={() => onSelect(p)}
-              className="flex w-[160px] cursor-pointer flex-col items-center gap-4 rounded-[20px] p-2 outline-none transition-transform focus:scale-[1.06] focus:[&>div]:shadow-[0_0_0_4px_#F4B642,0_16px_40px_rgba(0,0,0,.5)]"
-            >
-              <div className="relative">
-                <ProfileAvatar name={p.username} seed={p.id} size={150} />
+            <div key={p.id} className="flex w-40 flex-col items-center gap-4">
+              <div
+                data-focus=""
+                tabIndex={0}
+                role="button"
+                onClick={() => (remembered ? activate(remembered) : nav.go('login', { user: p }))}
+                className="relative cursor-pointer rounded-[20px] outline-none transition-transform focus:scale-[1.07]"
+              >
+                <ProfileAvatar
+                  name={p.username}
+                  seed={p.id}
+                  size={150}
+                  src={client.resolveArt(p.avatarUrl)}
+                />
                 {remembered ? null : (
                   <span className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(10,10,12,0.78)] text-[rgba(244,243,240,0.85)]">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <rect x="5" y="11" width="14" height="9" rx="2" />
-                      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-                    </svg>
+                    <IconLock size={16} stroke={2} />
                   </span>
                 )}
               </div>
-              <span className="font-sans text-[20px] font-medium text-[rgba(244,243,240,0.82)]">{p.username}</span>
+              <span className="font-sans text-[20px] font-medium text-[rgba(244,243,240,0.82)]">
+                {p.username}
+              </span>
             </div>
           );
         })}
-        <div
-          data-focus=""
-          tabIndex={0}
-          role="button"
-          onClick={onAdd}
-          className="flex w-[160px] cursor-pointer flex-col items-center gap-4 rounded-[20px] p-2 outline-none transition-transform focus:scale-[1.06]"
-        >
-          <div className="flex h-[150px] w-[150px] items-center justify-center rounded-[20px] border-2 border-dashed border-[rgba(255,255,255,0.2)] text-[rgba(255,255,255,0.4)]">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+        <div className="flex w-40 flex-col items-center gap-4">
+          <div
+            data-focus=""
+            tabIndex={0}
+            role="button"
+            onClick={() => nav.go('register')}
+            className="flex h-37.5 w-37.5 cursor-pointer items-center justify-center rounded-[20px] border-2 border-dashed border-[rgba(255,255,255,0.2)] text-[rgba(255,255,255,0.4)] outline-none transition-transform focus:scale-[1.07]"
+          >
+            <IconPlus size={44} stroke={1.6} />
           </div>
-          <span className="font-sans text-[20px] font-medium text-[rgba(244,243,240,0.5)]">Ajouter</span>
+          <span className="font-sans text-[20px] font-medium text-[rgba(244,243,240,0.5)]">
+            {t('profiles.add')}
+          </span>
         </div>
       </div>
       <button
         data-focus=""
         type="button"
-        onClick={onQuick}
+        onClick={() => nav.go('quick')}
         className="mt-12 inline-flex cursor-pointer items-center gap-2.5 rounded-full border border-[rgba(255,255,255,0.2)] bg-transparent px-6 py-3 font-sans text-[16px] font-semibold text-[rgba(244,243,240,0.78)] outline-none transition-transform focus:scale-[1.05] focus:border-accent focus:text-accent"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="3" y="14" width="7" height="7" rx="1" />
-          <path d="M14 14h3v3M20 20v.01M20 14v.01M14 20v.01" />
-        </svg>
-        Connexion rapide
+        <IconApps size={20} stroke={1.7} />
+        {t('connect.quickConnect')}
       </button>
-      <p className="mt-5 font-sans text-[15px] font-semibold text-dim">◀ ▶ Choisir · OK Sélectionner</p>
-    </>
+      <LanguageSwitcher />
+      <p className="mt-5 font-sans text-[15px] font-semibold text-dim">{t('profiles.chooseHint')}</p>
+    </AuthShell>
   );
 }
 
-function LoginView({
-  user,
-  busy,
-  error,
-  onSubmit,
-}: {
-  user: PublicUser;
-  busy: boolean;
-  error: string;
-  onSubmit: (password: string) => void;
-}) {
+/** Password entry for a chosen profile (route `login`). */
+export function TvLogin() {
+  const client = useClient();
+  const nav = useNav();
+  const t = useT();
+  const { login } = useAuth();
+  const { user } = useParams('login');
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<MessageKey | ''>('');
+  useFocusNav({ onBack: nav.back });
+
+  const submit = async () => {
+    if (!password) return;
+    setBusy(true);
+    setError('');
+    try {
+      login(await client.login(user.username, password));
+    } catch (e) {
+      setError(authError(e, 'auth.loginFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (password) onSubmit(password);
-      }}
-      className="flex w-full max-w-[460px] flex-col items-center gap-5"
-    >
-      <ProfileAvatar name={user.username} seed={user.id} size={104} />
-      <h1 className="m-0 font-display text-[30px] font-bold">{user.username}</h1>
-      <input
-        data-focus=""
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Mot de passe"
-        className={INPUT}
-      />
-      {error ? <p className="m-0 font-sans text-[15px] text-danger">{error}</p> : null}
-      <Button type="submit" data-focus="">
-        {busy ? 'Connexion…' : 'Se connecter'}
-      </Button>
-    </form>
+    <AuthShell>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+        className="flex w-full max-w-115 flex-col items-center gap-5"
+      >
+        <ProfileAvatar
+          name={user.username}
+          seed={user.id}
+          size={104}
+          src={client.resolveArt(user.avatarUrl)}
+        />
+        <h1 className="m-0 font-display text-[30px] font-bold">{user.username}</h1>
+        <input
+          data-focus=""
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={t('auth.password')}
+          className={INPUT}
+        />
+        {error ? <p className="m-0 font-sans text-[15px] text-danger">{t(error)}</p> : null}
+        <Button type="submit" data-focus="">
+          {busy ? t('auth.loggingIn') : t('auth.login')}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
-function RegisterView({
-  busy,
-  error,
-  onSubmit,
-}: {
-  busy: boolean;
-  error: string;
-  onSubmit: (email: string, username: string, password: string) => void;
-}) {
+/** New-account creation (route `register`). */
+export function TvRegister() {
+  const client = useClient();
+  const nav = useNav();
+  const t = useT();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<MessageKey | ''>('');
+  useFocusNav({ onBack: nav.back });
+
   const valid = email.includes('@') && username.trim().length > 0 && password.length >= 4;
+  const submit = async () => {
+    if (!valid) return;
+    setBusy(true);
+    setError('');
+    try {
+      login(await client.register(email.trim(), username.trim(), password));
+    } catch (e) {
+      setError(authError(e, 'auth.registerFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (valid) onSubmit(email.trim(), username.trim(), password);
-      }}
-      className="flex w-full max-w-[460px] flex-col items-center gap-4"
-    >
-      <h1 className="m-0 mb-2 font-display text-[30px] font-bold">Nouveau compte</h1>
-      <input data-focus="" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={INPUT} />
-      <input data-focus="" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nom d'utilisateur" className={INPUT} />
-      <input
-        data-focus=""
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Mot de passe (4+ caractères)"
-        className={INPUT}
-      />
-      {error ? <p className="m-0 font-sans text-[15px] text-danger">{error}</p> : null}
-      <Button type="submit" data-focus="">
-        {busy ? 'Création…' : 'Créer le compte'}
-      </Button>
-    </form>
+    <AuthShell>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+        className="flex w-full max-w-115 flex-col items-center gap-4"
+      >
+        <h1 className="m-0 mb-2 font-display text-[30px] font-bold">{t('auth.newAccount')}</h1>
+        <input
+          data-focus=""
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={t('auth.email')}
+          className={INPUT}
+        />
+        <input
+          data-focus=""
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder={t('auth.username')}
+          className={INPUT}
+        />
+        <input
+          data-focus=""
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={t('auth.passwordHint')}
+          className={INPUT}
+        />
+        {error ? <p className="m-0 font-sans text-[15px] text-danger">{t(error)}</p> : null}
+        <Button type="submit" data-focus="">
+          {busy ? t('auth.creating') : t('auth.createAccount')}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
 /**
- * Quick Connect: the TV shows a short code (and a QR when the server knows the
- * web URL); an already-signed-in user approves it from the web app, and the TV
- * logs in on its next poll — no password typed on the remote.
+ * Quick Connect (route `quick`): the TV shows a short code (and a QR when the
+ * server knows the web URL); an already-signed-in user approves it from the web
+ * app, and the TV logs in on its next poll — no password typed on the remote.
  */
-function QuickConnectView({
-  client,
-  onAuthenticated,
-}: {
-  client: LumaClient;
-  onAuthenticated: (res: AuthResult) => void;
-}) {
+export function TvQuickConnect() {
+  const client = useClient();
+  const nav = useNav();
+  const t = useT();
+  const { login } = useAuth();
   const [info, setInfo] = useState<QuickConnectInit | null>(null);
   const [qr, setQr] = useState<string | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<MessageKey | ''>('');
+  useFocusNav({ onBack: nav.back });
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let secret = '';
+
+    const onAuthenticated = (res: AuthResult) => login(res);
 
     const poll = async () => {
       if (cancelled) return;
@@ -360,7 +412,7 @@ function QuickConnectView({
         }
         timer = setTimeout(poll, 2500);
       } catch {
-        if (!cancelled) setError('Connexion rapide indisponible');
+        if (!cancelled) setError('connect.quickConnectUnavailable');
       }
     };
 
@@ -369,42 +421,48 @@ function QuickConnectView({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [client, onAuthenticated]);
-
-  useFocusNav({ resetKey: 'quick' });
+  }, [client, login]);
 
   return (
-    <div className="flex w-full max-w-[760px] flex-col items-center gap-7 text-center">
-      <h1 className="m-0 font-display text-[34px] font-bold">Connexion rapide</h1>
+    <AuthShell>
+      <div className="flex w-full max-w-190 flex-col items-center gap-7 text-center">
+        <h1 className="m-0 font-display text-[34px] font-bold">{t('connect.quickConnect')}</h1>
 
-      {error ? (
-        <p className="font-sans text-[16px] text-danger">{error}</p>
-      ) : info ? (
-        <div className="flex flex-col items-center gap-6">
-          {qr ? (
-            <div className="flex flex-col items-center gap-3">
-              {/* eslint-disable-next-line react/no-danger */}
-              <div
-                className="h-[220px] w-[220px] rounded-2xl bg-white p-3 [&>svg]:h-full [&>svg]:w-full"
-                dangerouslySetInnerHTML={{ __html: qr }}
-              />
-              <span className="font-sans text-[14px] font-semibold text-dim">Scanne ce QR avec ton téléphone</span>
+        {error ? <p className="font-sans text-[16px] text-danger">{t(error)}</p> : null}
+        {!error && info ? (
+          <div className="flex flex-col items-center gap-6">
+            {qr ? (
+              <div className="flex flex-col items-center gap-3">
+                {/* eslint-disable-next-line react/no-danger */}
+                <div
+                  className="h-55 w-55 rounded-2xl bg-white p-3 [&>svg]:h-full [&>svg]:w-full"
+                  dangerouslySetInnerHTML={{ __html: qr }}
+                />
+                <span className="font-sans text-[14px] font-semibold text-dim">
+                  {t('connect.scanQr')}
+                </span>
+              </div>
+            ) : null}
+
+            <p className="m-0 font-sans text-[16px] text-muted">
+              {t('connect.orInAppPrefix')}
+              <b className="text-text">{t('nav.connectDevice')}</b>
+              {t('connect.orInAppSuffix')}
+            </p>
+            <div className="font-display text-[96px] font-bold leading-none tracking-[0.2em] text-accent tabular-nums">
+              {info.code}
             </div>
-          ) : null}
-
-          <p className="m-0 font-sans text-[16px] text-muted">
-            ou sur l'app LUMA → <b className="text-text">Connecter un appareil</b>, saisis :
-          </p>
-          <div className="font-display text-[96px] font-bold leading-none tracking-[0.2em] text-accent tabular-nums">
-            {info.code}
           </div>
-        </div>
-      ) : (
-        <div className="h-10 w-10 rounded-full border-[3px] border-[rgba(255,255,255,0.2)] border-t-accent [animation:tvp-spin_0.9s_linear_infinite]" />
-      )}
+        ) : null}
+        {!error && !info ? (
+          <div className="h-10 w-10 rounded-full border-[3px] border-[rgba(255,255,255,0.2)] border-t-accent animate-[tvp-spin_0.9s_linear_infinite]" />
+        ) : null}
 
-      <p className="font-sans text-[14px] font-semibold text-dim">Retour pour revenir aux profils</p>
-    </div>
+        <p className="font-sans text-[14px] font-semibold text-dim">
+          {t('connect.backToProfiles')}
+        </p>
+      </div>
+    </AuthShell>
   );
 }
 

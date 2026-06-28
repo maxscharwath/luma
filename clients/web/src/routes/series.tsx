@@ -1,6 +1,7 @@
+import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
-import { lumaClient, toShowView } from '#web/lib/api';
 import { ShowGrid } from '#web/components/cards';
+import { lumaClient, toShowView } from '#web/lib/api';
 
 export const Route = createFileRoute('/series')({
   loader: async () => {
@@ -12,10 +13,13 @@ export const Route = createFileRoute('/series')({
 });
 
 function SeriesPage() {
+  const t = useT();
   const { shows } = Route.useLoaderData();
   return (
-    <main className="max-w-[1600px] px-[var(--gutter-web)] pb-16 pt-10">
-      <h2 className="mb-6 mt-2 font-display text-[28px] font-bold tracking-[-.02em]">Séries</h2>
+    <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
+      <h2 className="mb-6 mt-2 font-display text-[28px] font-bold tracking-[-.02em]">
+        {t('nav.series')}
+      </h2>
       <ShowGrid shows={shows} />
     </main>
   );

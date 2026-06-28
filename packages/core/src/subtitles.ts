@@ -54,7 +54,11 @@ export function parseVtt(raw: string): Cue[] {
  * binary search to re-sync after a seek. Returns the text and the new pointer to
  * remember for the next call.
  */
-export function activeCueText(cues: Cue[], t: number, hint: number): { text: string; index: number } {
+export function activeCueText(
+  cues: Cue[],
+  t: number,
+  hint: number,
+): { text: string; index: number } {
   if (cues.length === 0) return { text: '', index: 0 };
 
   const cur = cues[hint];

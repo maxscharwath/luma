@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useAuth } from '#web/lib/auth';
 
 // "Connecter un appareil" — the approver side of Quick Connect. A TV shows a
@@ -14,6 +15,7 @@ export const Route = createFileRoute('/connect')({
 });
 
 function ConnectPage() {
+  const t = useT();
   const { code: initial } = Route.useSearch();
   const { client, user } = useAuth();
   const [code, setCode] = useState(initial ?? '');
@@ -37,18 +39,19 @@ function ConnectPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-16">
-      <div className="w-full max-w-[420px] rounded-2xl border border-border bg-surface-1 p-8 text-center shadow-card">
-        <h1 className="mb-2 font-display text-[26px] font-bold">Connecter un appareil</h1>
+      <div className="w-full max-w-105 rounded-2xl border border-border bg-surface-1 p-8 text-center shadow-card">
+        <h1 className="mb-2 font-display text-[26px] font-bold">{t('connect.title')}</h1>
         <p className="mb-7 text-[14px] leading-relaxed text-muted">
-          Saisis le code à 4 chiffres affiché sur ta TV pour la connecter au compte
-          {user ? ` de ${user.username}` : ''}.
+          {user ? t('connect.codePromptForUser', { name: user.username }) : t('connect.codePrompt')}
         </p>
 
         {status === 'ok' ? (
           <div className="rounded-xl border border-success/40 bg-success/10 px-4 py-6">
             <div className="mb-1 text-[40px]">✓</div>
-            <div className="font-display text-[18px] font-bold text-text">Appareil connecté</div>
-            <p className="mt-1 text-[13px] text-muted">Ta TV va se connecter dans un instant.</p>
+            <div className="font-display text-[18px] font-bold text-text">
+              {t('connect.connected')}
+            </div>
+            <p className="mt-1 text-[13px] text-muted">{t('connect.willConnectSoon')}</p>
           </div>
         ) : (
           <form
@@ -66,17 +69,17 @@ function ConnectPage() {
               placeholder="1234"
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
-              className="w-[200px] rounded-xl border border-border-strong bg-surface-2 py-4 text-center font-display text-[40px] font-bold tracking-[0.3em] text-text outline-none focus:border-accent"
+              className="w-50 rounded-xl border border-border-strong bg-surface-2 py-4 text-center font-display text-[40px] font-bold tracking-[0.3em] text-text outline-none focus:border-accent"
             />
             {status === 'err' ? (
-              <p className="text-[13px] font-medium text-danger">Code invalide ou expiré</p>
+              <p className="text-[13px] font-medium text-danger">{t('connect.invalidCode')}</p>
             ) : null}
             <button
               type="submit"
               disabled={busy || code.trim().length < 4}
-              className="w-full rounded-[10px] bg-accent py-3.5 text-[15px] font-bold text-accent-ink transition-colors hover:bg-accent-hover disabled:opacity-50"
+              className="w-full rounded-md bg-accent py-3.5 text-[15px] font-bold text-accent-ink transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
-              {busy ? 'Connexion…' : 'Autoriser'}
+              {busy ? t('auth.loggingIn') : t('connect.authorize')}
             </button>
           </form>
         )}

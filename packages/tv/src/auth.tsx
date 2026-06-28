@@ -1,15 +1,23 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   type AuthResult,
   clearSession,
   forgetAccount,
+  type LumaClient,
   loadAccounts,
   loadSession,
-  type LumaClient,
   type PublicUser,
-  saveSession,
   type StoredSession,
+  saveSession,
 } from '@luma/core';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 interface Auth {
   /** The active session, or null when signed out. */
@@ -30,6 +38,9 @@ interface Auth {
   forget: (userId: string) => void;
   /** Fully sign out of the current account (invalidate + forget this device). */
   logout: () => void;
+  /** Merge a patch into the active user, persisting it to the stored session
+   * (e.g. the language preference, so a relaunch keeps it). No-op when signed out. */
+  updateUser: (patch: Partial<StoredSession['user']>) => void;
 }
 
 const AuthCtx = createContext<Auth | null>(null);
@@ -40,7 +51,13 @@ const AuthCtx = createContext<Auth | null>(null);
  * loads the profile list while signed out. Mounted inside <TvClientProvider> so
  * the `profiles` route and the home ProfileChip read it straight from the hook.
  */
-export function AuthProvider({ client, children }: { client: LumaClient | null; children: ReactNode }) {
+export function AuthProvider({
+  client,
+  children,
+}: Readonly<{
+  client: LumaClient | null;
+  children: ReactNode;
+}>) {
   const [session, setSession] = useState<StoredSession | null>(() => {
     const s = loadSession();
     // Apply the token during init (before children render) so the first authed
@@ -70,6 +87,28 @@ export function AuthProvider({ client, children }: { client: LumaClient | null; 
       cancelled = true;
     };
   }, [client, session]);
+
+  // Once a client is available, refresh the signed-in account from the server so
+  // a preference changed on another device (e.g. language) reaches this TV — the
+  // restored session only carries what was stored at the last sign-in here.
+  // Reads storage directly (not the `session` dep) so it runs once per client.
+  useEffect(() => {
+    if (!client) return;
+    const s = loadSession();
+    if (!s) return;
+    let cancelled = false;
+    client
+      .me()
+      .then(({ user }) => {
+        if (cancelled) return;
+        setSession((cur) => (cur && cur.user.id === user.id ? { ...cur, user } : cur));
+        saveSession({ token: s.token, user });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   const login = useCallback(
     (res: AuthResult) => {
@@ -125,6 +164,15 @@ export function AuthProvider({ client, children }: { client: LumaClient | null; 
     setSession(null);
   }, [client, session]);
 
+  const updateUser = useCallback((patch: Partial<StoredSession['user']>) => {
+    setSession((s) => {
+      if (!s) return s;
+      const next: StoredSession = { ...s, user: { ...s.user, ...patch } };
+      saveSession(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<Auth>(
     () => ({
       session,
@@ -136,8 +184,9 @@ export function AuthProvider({ client, children }: { client: LumaClient | null; 
       switchProfile,
       forget,
       logout,
+      updateUser,
     }),
-    [session, profiles, accounts, login, activate, switchProfile, forget, logout],
+    [session, profiles, accounts, login, activate, switchProfile, forget, logout, updateUser],
   );
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

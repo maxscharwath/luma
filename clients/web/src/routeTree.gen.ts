@@ -14,10 +14,18 @@ import { Route as JoinRouteImport } from './routes/join'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as FilmsRouteImport } from './routes/films'
 import { Route as ConnectRouteImport } from './routes/connect'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
 import { Route as ShowIdRouteImport } from './routes/show.$id'
 import { Route as MovieIdRouteImport } from './routes/movie.$id'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder'
+import { Route as AdminStorageRouteImport } from './routes/admin.storage'
+import { Route as AdminNetworkRouteImport } from './routes/admin.network'
+import { Route as AdminLibrariesRouteImport } from './routes/admin.libraries'
+import { Route as AdminGeneralRouteImport } from './routes/admin.general'
 
 const SeriesRoute = SeriesRouteImport.update({
   id: '/series',
@@ -44,10 +52,20 @@ const ConnectRoute = ConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
 } as any)
 const WatchIdRoute = WatchIdRouteImport.update({
   id: '/watch/$id',
@@ -64,17 +82,55 @@ const MovieIdRoute = MovieIdRouteImport.update({
   path: '/movie/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTranscoderRoute = AdminTranscoderRouteImport.update({
+  id: '/transcoder',
+  path: '/transcoder',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminStorageRoute = AdminStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminNetworkRoute = AdminNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLibrariesRoute = AdminLibrariesRouteImport.update({
+  id: '/libraries',
+  path: '/libraries',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminGeneralRoute = AdminGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/connect': typeof ConnectRoute
   '/films': typeof FilmsRoute
   '/invite': typeof InviteRoute
   '/join': typeof JoinRoute
   '/series': typeof SeriesRoute
+  '/admin/general': typeof AdminGeneralRoute
+  '/admin/libraries': typeof AdminLibrariesRoute
+  '/admin/network': typeof AdminNetworkRoute
+  '/admin/storage': typeof AdminStorageRoute
+  '/admin/transcoder': typeof AdminTranscoderRoute
+  '/admin/users': typeof AdminUsersRoute
   '/movie/$id': typeof MovieIdRoute
   '/show/$id': typeof ShowIdRoute
   '/watch/$id': typeof WatchIdRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,34 +139,57 @@ export interface FileRoutesByTo {
   '/invite': typeof InviteRoute
   '/join': typeof JoinRoute
   '/series': typeof SeriesRoute
+  '/admin/general': typeof AdminGeneralRoute
+  '/admin/libraries': typeof AdminLibrariesRoute
+  '/admin/network': typeof AdminNetworkRoute
+  '/admin/storage': typeof AdminStorageRoute
+  '/admin/transcoder': typeof AdminTranscoderRoute
+  '/admin/users': typeof AdminUsersRoute
   '/movie/$id': typeof MovieIdRoute
   '/show/$id': typeof ShowIdRoute
   '/watch/$id': typeof WatchIdRoute
+  '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/connect': typeof ConnectRoute
   '/films': typeof FilmsRoute
   '/invite': typeof InviteRoute
   '/join': typeof JoinRoute
   '/series': typeof SeriesRoute
+  '/admin/general': typeof AdminGeneralRoute
+  '/admin/libraries': typeof AdminLibrariesRoute
+  '/admin/network': typeof AdminNetworkRoute
+  '/admin/storage': typeof AdminStorageRoute
+  '/admin/transcoder': typeof AdminTranscoderRoute
+  '/admin/users': typeof AdminUsersRoute
   '/movie/$id': typeof MovieIdRoute
   '/show/$id': typeof ShowIdRoute
   '/watch/$id': typeof WatchIdRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/connect'
     | '/films'
     | '/invite'
     | '/join'
     | '/series'
+    | '/admin/general'
+    | '/admin/libraries'
+    | '/admin/network'
+    | '/admin/storage'
+    | '/admin/transcoder'
+    | '/admin/users'
     | '/movie/$id'
     | '/show/$id'
     | '/watch/$id'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -119,24 +198,40 @@ export interface FileRouteTypes {
     | '/invite'
     | '/join'
     | '/series'
+    | '/admin/general'
+    | '/admin/libraries'
+    | '/admin/network'
+    | '/admin/storage'
+    | '/admin/transcoder'
+    | '/admin/users'
     | '/movie/$id'
     | '/show/$id'
     | '/watch/$id'
+    | '/admin'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/connect'
     | '/films'
     | '/invite'
     | '/join'
     | '/series'
+    | '/admin/general'
+    | '/admin/libraries'
+    | '/admin/network'
+    | '/admin/storage'
+    | '/admin/transcoder'
+    | '/admin/users'
     | '/movie/$id'
     | '/show/$id'
     | '/watch/$id'
+    | '/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   ConnectRoute: typeof ConnectRoute
   FilmsRoute: typeof FilmsRoute
   InviteRoute: typeof InviteRoute
@@ -184,12 +279,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/watch/$id': {
       id: '/watch/$id'
@@ -212,11 +321,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MovieIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/transcoder': {
+      id: '/admin/transcoder'
+      path: '/transcoder'
+      fullPath: '/admin/transcoder'
+      preLoaderRoute: typeof AdminTranscoderRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/storage': {
+      id: '/admin/storage'
+      path: '/storage'
+      fullPath: '/admin/storage'
+      preLoaderRoute: typeof AdminStorageRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/network': {
+      id: '/admin/network'
+      path: '/network'
+      fullPath: '/admin/network'
+      preLoaderRoute: typeof AdminNetworkRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/libraries': {
+      id: '/admin/libraries'
+      path: '/libraries'
+      fullPath: '/admin/libraries'
+      preLoaderRoute: typeof AdminLibrariesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/general': {
+      id: '/admin/general'
+      path: '/general'
+      fullPath: '/admin/general'
+      preLoaderRoute: typeof AdminGeneralRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminGeneralRoute: typeof AdminGeneralRoute
+  AdminLibrariesRoute: typeof AdminLibrariesRoute
+  AdminNetworkRoute: typeof AdminNetworkRoute
+  AdminStorageRoute: typeof AdminStorageRoute
+  AdminTranscoderRoute: typeof AdminTranscoderRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminGeneralRoute: AdminGeneralRoute,
+  AdminLibrariesRoute: AdminLibrariesRoute,
+  AdminNetworkRoute: AdminNetworkRoute,
+  AdminStorageRoute: AdminStorageRoute,
+  AdminTranscoderRoute: AdminTranscoderRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   ConnectRoute: ConnectRoute,
   FilmsRoute: FilmsRoute,
   InviteRoute: InviteRoute,

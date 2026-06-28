@@ -43,7 +43,12 @@ export async function discoverServer(opts: DiscoverOptions = {}): Promise<string
     const ip = await getLocalIPv4();
     if (ip) {
       const hosts = subnetCandidates(ip, port);
-      const scanHit = await raceForServer(hosts, fetchFn, opts.timeoutMs ?? 1500, opts.concurrency ?? 48);
+      const scanHit = await raceForServer(
+        hosts,
+        fetchFn,
+        opts.timeoutMs ?? 1500,
+        opts.concurrency ?? 48,
+      );
       if (scanHit) return scanHit;
     }
   }
@@ -90,9 +95,18 @@ function tizenLocalIp(): Promise<string | null> {
         (w) => {
           const ip = good(w?.ipAddress);
           if (ip) return finish(ip);
-          si.getPropertyValue('ETHERNET_NETWORK', (e) => finish(good(e?.ipAddress)), () => finish(null));
+          si.getPropertyValue(
+            'ETHERNET_NETWORK',
+            (e) => finish(good(e?.ipAddress)),
+            () => finish(null),
+          );
         },
-        () => si.getPropertyValue('ETHERNET_NETWORK', (e) => finish(good(e?.ipAddress)), () => finish(null)),
+        () =>
+          si.getPropertyValue(
+            'ETHERNET_NETWORK',
+            (e) => finish(good(e?.ipAddress)),
+            () => finish(null),
+          ),
       );
     } catch {
       finish(null);
@@ -205,7 +219,11 @@ function raceForServer(
   });
 }
 
-async function probe(fetchFn: typeof globalThis.fetch, base: string, timeoutMs: number): Promise<boolean> {
+async function probe(
+  fetchFn: typeof globalThis.fetch,
+  base: string,
+  timeoutMs: number,
+): Promise<boolean> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);

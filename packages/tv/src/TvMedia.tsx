@@ -1,3 +1,4 @@
+import { IconPlayerPlayFilled } from '@tabler/icons-react';
 import { memo, useEffect, useState } from 'react';
 
 /* Shared class strings. Translucency uses literal rgba() arbitrary values (not
@@ -7,20 +8,16 @@ import { memo, useEffect, useState } from 'react';
 
 /** Amber primary action button (hero / detail "Lecture"). */
 export const TV_PLAY_BTN =
-  'inline-flex items-center gap-[11px] cursor-pointer rounded-[13px] bg-accent px-9 py-4 font-sans text-[19px] font-bold text-accent-ink transition-transform focus:scale-[1.04] disabled:cursor-default disabled:opacity-50';
+  'inline-flex items-center gap-2.75 cursor-pointer rounded-lg bg-accent px-9 py-4 font-sans text-[19px] font-bold text-accent-ink transition-transform focus:scale-[1.04] disabled:cursor-default disabled:opacity-50';
 
 /** Filled play triangle — primary-action / episode-thumb glyph. */
-export function PlayGlyph({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M7 4v16l13-8z" />
-    </svg>
-  );
+export function PlayGlyph({ size = 22 }: Readonly<{ size?: number }>) {
+  return <IconPlayerPlayFilled size={size} />;
 }
 
 /** Quality badge chip classes for a badge label (4K/H.265/HDR), or '' for none. */
 export function badgeClasses(badge: string | null): string {
-  const base = 'rounded-[7px] px-[11px] py-[5px] font-sans text-[13px] font-bold tracking-[0.02em]';
+  const base = 'rounded-[7px] px-2.75 py-1.25 font-sans text-[13px] font-bold tracking-[0.02em]';
   if (!badge) return '';
   if (badge === 'HDR') return `${base} text-hdr bg-[rgba(199,146,234,0.16)]`;
   if (badge === 'H.265') return `${base} text-h265 bg-[rgba(95,211,196,0.16)]`;
@@ -37,13 +34,13 @@ export function TvArt({
   colors,
   alt = '',
   position = '50% 30%',
-}: {
+}: Readonly<{
   src: string | null;
   colors: [string, string];
   alt?: string;
   /** object-position for the artwork (heroes favour the upper third). */
   position?: string;
-}) {
+}>) {
   const [ok, setOk] = useState(true);
   // Reset the error flag when the source changes (live catalog/art updates).
   useEffect(() => setOk(true), [src]);
@@ -86,7 +83,16 @@ export interface TvCardProps {
  * 16:9 landscape rail tile for the 10-foot home/rows. Focusable for the remote;
  * the amber focus ring comes from the global `[data-focus]:focus` rule.
  */
-function TvCardImpl({ title, genre, badge, backdrop, colors, progress = null, width = 328, onClick }: TvCardProps) {
+function TvCardImpl({
+  title,
+  genre,
+  badge,
+  backdrop,
+  colors,
+  progress = null,
+  width = 328,
+  onClick,
+}: Readonly<TvCardProps>) {
   return (
     <div
       className="flex-none cursor-pointer rounded-xl transition-transform [contain-intrinsic-size:328px_185px] [content-visibility:auto] focus:scale-[1.06]"
@@ -103,17 +109,19 @@ function TvCardImpl({ title, genre, badge, backdrop, colors, progress = null, wi
         <TvArt src={backdrop} colors={colors} position="50% 28%" />
         <div className="absolute inset-0 bg-linear-to-b from-[rgba(0,0,0,0.05)] from-40% to-[rgba(0,0,0,0.75)]" />
         {badge ? (
-          <div className="absolute right-3 top-3 rounded-md bg-[rgba(10,10,12,0.6)] px-[9px] py-[5px] font-sans text-[12px] font-bold text-accent">
+          <div className="absolute right-3 top-3 rounded-md bg-[rgba(10,10,12,0.6)] px-2.25 py-1.25 font-sans text-[12px] font-bold text-accent">
             {badge}
           </div>
         ) : null}
-        <div className="absolute inset-x-[18px] bottom-4">
+        <div className="absolute inset-x-4.5 bottom-4">
           {genre ? (
-            <div className="mb-[5px] font-sans text-[12px] font-bold uppercase tracking-[0.1em] text-[rgba(255,255,255,0.65)]">
+            <div className="mb-1.25 font-sans text-[12px] font-bold uppercase tracking-widest text-[rgba(255,255,255,0.65)]">
               {genre}
             </div>
           ) : null}
-          <div className="text-left font-display text-[24px] font-bold leading-[1.02] text-white">{title}</div>
+          <div className="text-left font-display text-[24px] font-bold leading-[1.02] text-white">
+            {title}
+          </div>
         </div>
         {progress != null ? (
           <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[rgba(255,255,255,0.25)]">
@@ -141,22 +149,24 @@ export interface TvPosterProps {
  * uses `content-visibility:auto` so off-screen tiles in a 1000-item grid skip
  * layout + paint entirely while staying in the DOM for remote focus navigation.
  */
-function TvPosterImpl({ title, badge, poster, colors, onClick }: TvPosterProps) {
+function TvPosterImpl({ title, badge, poster, colors, onClick }: Readonly<TvPosterProps>) {
   return (
     <button
-      className="w-full cursor-pointer rounded-[13px] border-none bg-transparent p-0 transition-transform [contain-intrinsic-size:200px_300px] [content-visibility:auto] focus:scale-[1.05]"
+      className="w-full cursor-pointer rounded-lg border-none bg-transparent p-0 transition-transform [contain-intrinsic-size:200px_300px] [content-visibility:auto] focus:scale-[1.05]"
       data-focus=""
       onClick={onClick}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-[13px] bg-surface-1 shadow-card">
+      <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-surface-1 shadow-card">
         <TvArt src={poster} colors={colors} position="50% 50%" />
         <div className="absolute inset-0 bg-[linear-gradient(170deg,rgba(0,0,0,0.05)_35%,rgba(0,0,0,0.72))]" />
         {badge ? (
-          <div className="absolute right-2.5 top-2.5 rounded-[5px] bg-[rgba(10,10,12,0.6)] px-[7px] py-1 font-sans text-[10px] font-bold text-accent">
+          <div className="absolute right-2.5 top-2.5 rounded-[5px] bg-[rgba(10,10,12,0.6)] px-1.75 py-1 font-sans text-[10px] font-bold text-accent">
             {badge}
           </div>
         ) : null}
-        <div className="absolute inset-x-3.5 bottom-3 text-left font-display text-[18px] font-bold leading-[1.05] text-white">{title}</div>
+        <div className="absolute inset-x-3.5 bottom-3 text-left font-display text-[18px] font-bold leading-[1.05] text-white">
+          {title}
+        </div>
       </div>
     </button>
   );

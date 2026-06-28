@@ -1,5 +1,5 @@
+import { Button, Logo, useT } from '@luma/ui';
 import { useState } from 'react';
-import { Button, Logo } from '@luma/ui';
 import { useConnection } from '#tv/connection';
 import { useFocusNav } from '#tv/useFocusNav';
 
@@ -9,26 +9,24 @@ import { useFocusNav } from '#tv/useFocusNav';
  */
 export function TvConnect() {
   const { status, serverUrl, error, platform, connect, discover } = useConnection();
+  const t = useT();
   const [value, setValue] = useState(serverUrl ?? 'http://luma.local:4040');
   const discovering = status === 'discovering';
   // Wire the remote: spatial focus + OK across the input and buttons. Re-runs on
   // status change so focus lands on the right control (button vs. form).
   useFocusNav({ resetKey: status });
 
-  const heading = discovering
-    ? 'Recherche du serveur LUMA…'
-    : status === 'connecting'
-      ? 'Connexion au serveur…'
-      : 'Serveur LUMA introuvable';
-  const sub = discovering
-    ? 'Détection automatique sur le réseau local (mDNS).'
-    : status === 'connecting'
-      ? `Connexion à ${serverUrl}`
-      : `Vérifiez que le serveur est démarré sur le réseau (${platform}), ou saisissez son adresse.`;
+  let heading = t('connect.serverNotFound');
+  if (discovering) heading = t('connect.searchingServer');
+  else if (status === 'connecting') heading = t('connect.connectingServer');
+
+  let sub = t('connect.serverNotFoundHint', { platform });
+  if (discovering) sub = t('connect.discoveryHint');
+  else if (status === 'connecting') sub = t('connect.connectingTo', { url: serverUrl ?? '' });
 
   return (
     <div className="grid min-h-screen place-items-center p-16 text-center">
-      <div className="max-w-[680px]">
+      <div className="max-w-170">
         <div className="mb-7">
           <Logo size={44} />
         </div>
@@ -39,7 +37,7 @@ export function TvConnect() {
         {discovering ? (
           <div className="mt-6">
             <Button data-focus="" onClick={discover}>
-              Rechercher à nouveau
+              {t('connect.searchAgain')}
             </Button>
           </div>
         ) : (
@@ -48,7 +46,7 @@ export function TvConnect() {
               e.preventDefault();
               connect(value.trim());
             }}
-            className="mx-auto mt-6 flex w-full max-w-[520px] flex-col gap-4"
+            className="mx-auto mt-6 flex w-full max-w-130 flex-col gap-4"
           >
             <input
               data-focus=""
@@ -56,14 +54,14 @@ export function TvConnect() {
               onChange={(e) => setValue(e.target.value)}
               placeholder="http://luma.local:4040"
               spellCheck={false}
-              className="w-full rounded-[10px] border border-border-strong bg-surface-2 px-5 py-4 text-center font-sans text-[18px] text-text"
+              className="w-full rounded-md border border-border-strong bg-surface-2 px-5 py-4 text-center font-sans text-[18px] text-text"
             />
             <div className="flex justify-center gap-3.5">
               <Button type="submit" data-focus="">
-                Connecter
+                {t('connect.connect')}
               </Button>
               <Button type="button" variant="glass" data-focus="" onClick={discover}>
-                Détecter
+                {t('connect.detect')}
               </Button>
             </div>
           </form>

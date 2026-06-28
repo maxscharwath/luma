@@ -1,16 +1,17 @@
+import { formatRuntime, qualityBadge, type Translate } from '@luma/core';
+import { useT } from '@luma/ui';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { formatRuntime, qualityBadge } from '@luma/core';
 import {
+  audioString,
   CastRail,
   DetailHero,
-  SimilarRail,
-  audioString,
   langName,
   qualityBadges,
-  subString,
   type SimilarItem,
+  SimilarRail,
+  subString,
 } from '#web/components/detail';
-import { lumaClient, toMovieView, type MovieView } from '#web/lib/api';
+import { lumaClient, type MovieView, toMovieView } from '#web/lib/api';
 
 export const Route = createFileRoute('/movie/$id')({
   loader: async ({ params }) => {
@@ -25,7 +26,8 @@ export const Route = createFileRoute('/movie/$id')({
     const similar: SimilarItem[] = pool.map((m) => ({
       id: m.id,
       title: m.title,
-      genre: m.metadata?.genres?.[0] ?? 'Film',
+      // Empty string → the component fills the localized "Movie" fallback.
+      genre: m.metadata?.genres?.[0] ?? '',
       badge: qualityBadge(m),
       poster: c.posterFor(m),
     }));
@@ -35,17 +37,18 @@ export const Route = createFileRoute('/movie/$id')({
 });
 
 /** "2024 · 2h08 · Français" — year, runtime, primary audio language. */
-function metaLong(movie: MovieView): string {
+function metaLong(t: Translate, movie: MovieView): string {
   const parts: string[] = [];
   if (movie.year) parts.push(String(movie.year));
   const rt = formatRuntime(movie.durationMs);
   if (rt) parts.push(rt);
-  const lang = langName(movie.audio?.language);
+  const lang = langName(t, movie.audio?.language);
   if (lang) parts.push(lang);
   return parts.join(' · ');
 }
 
 function MovieDetailPage() {
+  const t = useT();
   const { movie, similar } = Route.useLoaderData();
   const navigate = useNavigate();
   const meta = movie.metadata;
@@ -55,23 +58,23 @@ function MovieDetailPage() {
     <main className="animate-[fade-in_.4s_ease] pb-16">
       <DetailHero
         art={{ id: movie.id, backdrop: movie.backdrop, poster: movie.poster }}
-        overline={genres.length ? genres.slice(0, 3).join(' · ') : 'Film'}
+        overline={genres.length ? genres.slice(0, 3).join(' · ') : t('content.film')}
         title={movie.title}
         rating={meta?.rating}
-        meta={metaLong(movie)}
+        meta={metaLong(t, movie)}
         badges={qualityBadges(movie.video)}
         tagline={meta?.tagline}
         overview={meta?.overview}
-        audio={audioString(movie)}
-        subtitles={subString(movie)}
+        audio={audioString(t, movie)}
+        subtitles={subString(t, movie)}
         playable={movie}
         onBack={() => navigate({ to: '/' })}
         onPlay={() => navigate({ to: '/watch/$id', params: { id: movie.id } })}
       />
       <CastRail cast={meta?.cast ?? []} />
       <SimilarRail
-        title="Titres similaires"
-        items={similar}
+        title={t('content.similarTitles')}
+        items={similar.map((s) => ({ ...s, genre: s.genre || t('content.film') }))}
         onOpen={(id) => navigate({ to: '/movie/$id', params: { id } })}
       />
     </main>

@@ -1,17 +1,34 @@
+import {
+  type Activity,
+  discoverServer,
+  LumaClient,
+  LumaEvents,
+  type MediaItem,
+  type Show,
+} from '@luma/core';
+import { LumaIntro } from '@luma/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { type Activity, discoverServer, LumaClient, LumaEvents, type MediaItem, type Show } from '@luma/core';
 import { AuthProvider, useAuth } from '#tv/auth';
 import { type Connection, ConnectionProvider, useConnection } from '#tv/connection';
 import { ContinueProvider } from '#tv/continue';
+import { type RedirectRule, resolveRedirect } from '#tv/guard';
+import { LocaleProvider } from '#tv/locale';
 import { type DeepLink, onDeepLink, publishPreview, readDeepLink } from '#tv/preview';
-import { type TvScreens, TvClientProvider, TvNavProvider, TvOutlet, useNav } from '#tv/router';
+import {
+  type RouteName,
+  TvClientProvider,
+  TvNavProvider,
+  TvOutlet,
+  type TvScreens,
+  useNav,
+} from '#tv/router';
 import { initialServerUrl, setServerUrl } from '#tv/server';
 import { TvConnect } from '#tv/TvConnect';
 import { TvHome } from '#tv/TvHome';
 import { TvMovieDetail } from '#tv/TvMovieDetail';
-import { TvProfiles } from '#tv/TvProfiles';
-import { TvShowDetail } from '#tv/TvShowDetail';
 import { TvPlayer } from '#tv/TvPlayer';
+import { TvLogin, TvProfiles, TvQuickConnect, TvRegister } from '#tv/TvProfiles';
+import { TvShowDetail } from '#tv/TvShowDetail';
 
 export interface TvAppProps {
   /** Platform label shown in diagnostics, e.g. "Tizen" / "webOS". */
@@ -32,7 +49,18 @@ const EMPTY_ACTIVITY: Activity = {
 };
 const base = (a: Activity | null): Activity => a ?? EMPTY_ACTIVITY;
 
-export function TvApp({ platform = 'TV' }: TvAppProps) {
+// The brand intro plays once per launch. sessionStorage survives Vite HMR (so dev
+// reloads don't replay it) but is fresh on a real TV cold-start.
+const INTRO_SEEN_KEY = 'luma:intro-seen';
+const introAlreadySeen = (() => {
+  try {
+    return sessionStorage.getItem(INTRO_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
+
+export function TvApp({ platform = 'TV' }: Readonly<TvAppProps>) {
   const [serverUrl, setUrl] = useState<string | null>(() => initialServerUrl());
   const [client, setClient] = useState<LumaClient | null>(() =>
     serverUrl ? new LumaClient({ baseUrl: serverUrl }) : null,
@@ -44,6 +72,8 @@ export function TvApp({ platform = 'TV' }: TvAppProps) {
   const [error, setError] = useState('');
   // A movie/show the app was launched into from a Smart Hub preview tile.
   const [deepLink, setDeepLink] = useState<DeepLink | null>(() => readDeepLink());
+  // Cinematic brand intro — plays once per app launch (session), then hands off.
+  const [introDone, setIntroDone] = useState(introAlreadySeen);
 
   const connect = useCallback((url: string, persist = true) => {
     if (persist) setServerUrl(url);
@@ -121,21 +151,42 @@ export function TvApp({ platform = 'TV' }: TvAppProps) {
     };
     const events = new LumaEvents(client.baseUrl, {
       // On (re)connect, grab the current scan/enrich snapshot.
-      onOpen: () => void client.status().then(setActivity).catch(() => undefined),
+      onOpen: () =>
+        void client
+          .status()
+          .then(setActivity)
+          .catch(() => undefined),
       onEvent: (e) => {
         switch (e.type) {
           case 'scan.started':
             setActivity((a) => ({ ...base(a), phase: 'scanning', scanning: true }));
             break;
           case 'scan.completed':
-            setActivity((a) => ({ ...base(a), phase: 'ready', scanning: false, libraries: e.libraries, shows: e.shows, items: e.items }));
+            setActivity((a) => ({
+              ...base(a),
+              phase: 'ready',
+              scanning: false,
+              libraries: e.libraries,
+              shows: e.shows,
+              items: e.items,
+            }));
             trigger();
             break;
           case 'enrich.progress':
-            setActivity((a) => ({ ...base(a), phase: 'enriching', enrichDone: e.done, enrichTotal: e.total }));
+            setActivity((a) => ({
+              ...base(a),
+              phase: 'enriching',
+              enrichDone: e.done,
+              enrichTotal: e.total,
+            }));
             break;
           case 'enrich.completed':
-            setActivity((a) => ({ ...base(a), phase: 'ready', enrichDone: e.resolved, enrichTotal: e.total }));
+            setActivity((a) => ({
+              ...base(a),
+              phase: 'ready',
+              enrichDone: e.resolved,
+              enrichTotal: e.total,
+            }));
             trigger();
             break;
           case 'library.updated':
@@ -184,21 +235,52 @@ export function TvApp({ platform = 'TV' }: TvAppProps) {
       discover,
       clearDeepLink: () => setDeepLink(null),
     }),
-    [platform, status, serverUrl, error, client, movies, shows, activity, deepLink, connect, discover],
+    [
+      platform,
+      status,
+      serverUrl,
+      error,
+      client,
+      movies,
+      shows,
+      activity,
+      deepLink,
+      connect,
+      discover,
+    ],
   );
 
   return (
-    <TvNavProvider screens={SCREENS}>
-      <ConnectionProvider value={connection}>
-        <TvClientProvider client={client}>
-          <AuthProvider client={client}>
-            <ContinueProvider>
-              <TvRouterGuard />
-            </ContinueProvider>
-          </AuthProvider>
-        </TvClientProvider>
-      </ConnectionProvider>
-    </TvNavProvider>
+    <>
+      <TvNavProvider screens={SCREENS}>
+        <ConnectionProvider value={connection}>
+          <TvClientProvider client={client}>
+            <AuthProvider client={client}>
+              <LocaleProvider client={client}>
+                <ContinueProvider>
+                  <TvRouterGuard />
+                </ContinueProvider>
+              </LocaleProvider>
+            </AuthProvider>
+          </TvClientProvider>
+        </ConnectionProvider>
+      </TvNavProvider>
+      {introDone ? null : (
+        // `lite` = compositor-only animation for a smooth frame rate on TV GPUs.
+        // No buttons: it auto-ends with the sting, OK/Back on the remote skips.
+        <LumaIntro
+          lite
+          onDone={() => {
+            try {
+              sessionStorage.setItem(INTRO_SEEN_KEY, '1');
+            } catch {
+              /* ignore */
+            }
+            setIntroDone(true);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -207,11 +289,37 @@ export function TvApp({ platform = 'TV' }: TvAppProps) {
 const SCREENS: TvScreens = {
   connect: TvConnect,
   profiles: TvProfiles,
+  login: TvLogin,
+  register: TvRegister,
+  quick: TvQuickConnect,
   home: TvHome,
   movie: TvMovieDetail,
   show: TvShowDetail,
   player: TvPlayer,
 };
+
+// Screen groups for the navigation guard below.
+const CONNECT_SCREENS = ['connect'] as const; // pre-session discovery / connection
+const AUTH_SCREENS = ['profiles', 'login', 'register', 'quick'] as const; // signed-out
+const APP_SCREENS = ['home', 'movie', 'show', 'player'] as const; // signed-in app
+
+interface GuardState {
+  ready: boolean;
+  signedIn: boolean;
+}
+
+// The guard only ever redirects to a param-less screen (so `nav.replace(target)`
+// needs no params).
+type GuardTarget = 'connect' | 'profiles' | 'home';
+
+// Declarative navigation policy (first match wins), replacing the old nested
+// `if (status) … else if (!user) …` ladder: each rule says which screens are
+// allowed in a given state, and where to send the user otherwise.
+const GUARD: readonly RedirectRule<GuardState, RouteName, GuardTarget>[] = [
+  { when: (s) => !s.ready, to: 'connect', allow: CONNECT_SCREENS }, // not connected → connect
+  { when: (s) => !s.signedIn, to: 'profiles', allow: AUTH_SCREENS }, // connected, signed out → auth flow
+  { when: () => true, to: 'home', allow: APP_SCREENS }, // signed in → the app (connect/auth bounce home)
+];
 
 /** Drives the route from connection status + session and applies Smart-Hub deep
  * links, then renders the routed screen. Mounted inside every provider. */
@@ -220,17 +328,15 @@ function TvRouterGuard() {
   const { status, deepLink, movies, shows, clearDeepLink } = useConnection();
   const { user } = useAuth();
 
-  // The single guard that replaces the old `if (!ready) return <TvConnect>` /
-  // `if (!session) return <TvProfiles>` gates. `replace` = single-screen stack.
+  // Apply the declarative guard: it returns the screen we must be on (or null to
+  // stay). `replace` = single-screen stack, so there's nothing to "go back" to.
   useEffect(() => {
-    const r = nav.route.name;
-    if (status !== 'ready') {
-      if (r !== 'connect') nav.replace('connect');
-    } else if (!user) {
-      if (r !== 'profiles') nav.replace('profiles');
-    } else if (r === 'connect' || r === 'profiles') {
-      nav.replace('home');
-    }
+    const target = resolveRedirect(
+      GUARD,
+      { ready: status === 'ready', signedIn: Boolean(user) },
+      nav.route.name,
+    );
+    if (target) nav.replace(target);
   }, [status, user, nav]);
 
   // Apply a pending Smart-Hub deep link once signed in and its target is loaded.
@@ -253,4 +359,3 @@ function TvRouterGuard() {
 
   return <TvOutlet />;
 }
-

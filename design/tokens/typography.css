@@ -1,19 +1,19 @@
-:root{
+:root {
   /* Families — display grotesk for titles, humanist grotesk for UI */
-  --font-display:'Bricolage Grotesque',system-ui,sans-serif;
-  --font-ui:'Hanken Grotesk',system-ui,sans-serif;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-ui: "Hanken Grotesk", system-ui, sans-serif;
 
   /* Roles (font shorthand: weight size/line family) */
-  --type-hero:700 66px/.98 var(--font-display);
-  --type-h1:700 38px/1 var(--font-display);
-  --type-h2:700 22px/1.1 var(--font-display);
-  --type-title:700 20px/1.05 var(--font-display);
-  --type-body:400 16px/1.55 var(--font-ui);
-  --type-label:600 15px/1.3 var(--font-ui);
-  --type-meta:500 13px/1.4 var(--font-ui);
-  --type-overline:700 11px/1 var(--font-ui);
+  --type-hero: 700 66px / 0.98 var(--font-display);
+  --type-h1: 700 38px / 1 var(--font-display);
+  --type-h2: 700 22px / 1.1 var(--font-display);
+  --type-title: 700 20px / 1.05 var(--font-display);
+  --type-body: 400 16px / 1.55 var(--font-ui);
+  --type-label: 600 15px / 1.3 var(--font-ui);
+  --type-meta: 500 13px / 1.4 var(--font-ui);
+  --type-overline: 700 11px / 1 var(--font-ui);
 
   /* Overline modifier: letter-spacing .12em; text-transform:uppercase */
-  --tracking-overline:.12em;
-  --tracking-display:-.02em;
+  --tracking-overline: 0.12em;
+  --tracking-display: -0.02em;
 }

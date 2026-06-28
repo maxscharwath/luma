@@ -165,14 +165,53 @@ fn pick_file_path(item: &crate::model::MediaItem, file_id: Option<&str>) -> Opti
     item.abs_path.clone()
 }
 
-/// `GET /api/items/:id/hls/index.m3u8` → HLS playlist for the audio-transcode
-/// variant: the video stream is copied untouched and only the audio is
-/// re-encoded to stereo AAC, for browsers that decode the video codec but not
-/// the source audio (AC3/EAC3/DTS/TrueHD). Direct-play stays the default
-/// everywhere else.
+/// Parse an HLS `variant` path segment of the form `a<idx>c<0|1>` into the
+/// audio-relative track index and the stream-copy flag. `a0c0` is the legacy
+/// default (first track, re-encoded to AAC).
+fn parse_variant(variant: &str) -> Option<(u32, bool)> {
+    let rest = variant.strip_prefix('a')?;
+    let (idx, copy) = rest.split_once('c')?;
+    let idx: u32 = idx.parse().ok()?;
+    let copy = match copy {
+        "0" => false,
+        "1" => true,
+        _ => return None,
+    };
+    Some((idx, copy))
+}
+
+/// Parse an HLS *master* `variant`: `master`/`masteraac` (offset 0) or the
+/// positioned form `master.<copy|aac>.<startMs>`. Returns `(transcode_to_aac,
+/// start_seconds)`, or `None` when it's not a master variant (a per-track
+/// `a<idx>c<copy>` instead). The start is baked into the path (not a query) so
+/// the relative segment/rendition URLs the player derives keep the same session.
+fn master_spec(variant: &str) -> Option<(bool, f64)> {
+    let spec = variant.strip_prefix("master")?;
+    if spec.is_empty() {
+        return Some((false, 0.0));
+    }
+    if spec == "aac" {
+        return Some((true, 0.0));
+    }
+    let rest = spec.strip_prefix('.')?; // "<copy|aac>.<startMs>"
+    let mut it = rest.splitn(2, '.');
+    let aac = it.next() == Some("aac");
+    let start_secs = it
+        .next()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map_or(0.0, |ms| ms as f64 / 1000.0);
+    Some((aac, start_secs))
+}
+
+/// `GET /api/items/:id/hls/:variant/index.m3u8` → HLS playlist for a per-track
+/// remux. The video stream is always copied untouched; the audio track named by
+/// `variant` (`a<idx>c<copy>`) is either stream-copied (`c1`, preserves surround)
+/// or re-encoded to stereo AAC (`c0`, for runtimes that can't decode the source
+/// codec). Powers both the audio-track picker and the AC3/EAC3/DTS fallback.
+/// Direct-play stays the default for the first track everywhere it can decode.
 pub async fn hls_playlist(
     State(state): State<SharedState>,
-    Path(id): Path<String>,
+    Path((id, variant)): Path<(String, String)>,
 ) -> Result<Response, Response> {
     let pool = state.db.clone();
     let id2 = id.clone();
@@ -181,9 +220,54 @@ pub async fn hls_playlist(
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
     let abs = item
         .abs_path
+        .clone()
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "no media file for item"))?;
+    let path = std::path::Path::new(&abs);
+    let key = format!("{id}:{variant}");
 
-    let resp = match state.transcode.playlist(&id, std::path::Path::new(&abs)).await {
+    // Enforce the concurrent-transcode cap (Transcodage → Flux simultanés max).
+    // Reusing an existing session for this key never counts against it.
+    if !state.transcode.has(&key).await {
+        let cap = crate::settings::max_transcodes(&state.settings);
+        if state.transcode.active_count().await >= cap {
+            return Err(json_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "trop de transcodages simultanés",
+            ));
+        }
+    }
+
+    let bytes = if let Some(spec) = master_spec(&variant) {
+        // One stream carrying every audio track as an alternate rendition, so the
+        // client switches language in place (no reload). `aac` re-encodes every
+        // rendition to stereo AAC for runtimes that can't decode the source audio
+        // (e.g. AC3/EAC3 on Chrome); else stream-copy (surround kept). `start_secs`
+        // (-ss) starts the remux at the requested position so resume/seek to any
+        // offset is available immediately, instead of waiting for a from-0 remux.
+        let (aac, start_secs) = spec;
+        let mut tracks: Vec<crate::transcode::MasterTrack> = item
+            .audio_tracks
+            .iter()
+            .map(|a| crate::transcode::MasterTrack {
+                index: a.index,
+                language: a.language.clone(),
+                default: false,
+            })
+            .collect();
+        if tracks.is_empty() {
+            return Err(json_error(StatusCode::BAD_REQUEST, "item has no audio tracks for a master playlist"));
+        }
+        // Exactly one default rendition: the container default, else the first.
+        let def = item.audio_tracks.iter().position(|a| a.default).unwrap_or(0);
+        tracks[def].default = true;
+        state.transcode.master(&key, path, &tracks, aac, start_secs).await
+    } else {
+        let (audio_idx, copy) = parse_variant(&variant)
+            .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, "bad hls variant"))?;
+        state.transcode.playlist(&key, path, audio_idx, copy).await
+    };
+
+    let resp = match bytes {
         Some(bytes) => Response::builder()
             .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
             .header(header::CACHE_CONTROL, "no-store")
@@ -191,20 +275,21 @@ pub async fn hls_playlist(
             .unwrap(),
         None => json_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "audio transcode unavailable (is ffmpeg installed?)",
+            "audio remux unavailable (is ffmpeg installed?)",
         ),
     };
     Ok(resp)
 }
 
-/// `GET /api/items/:id/hls/:file` → an init fragment or media segment for a live
-/// audio-transcode session. A refreshed playlist (`index.m3u8`) is also served
-/// here as the `event` playlist grows.
+/// `GET /api/items/:id/hls/:variant/:file` → an init fragment or media segment
+/// for a live per-track remux session. A refreshed playlist (`index.m3u8`) is
+/// also served here as the `event` playlist grows.
 pub async fn hls_segment(
     State(state): State<SharedState>,
-    Path((id, file)): Path<(String, String)>,
+    Path((id, variant, file)): Path<(String, String, String)>,
 ) -> Response {
-    match state.transcode.file(&id, &file).await {
+    let key = format!("{id}:{variant}");
+    match state.transcode.file(&key, &file).await {
         Some((bytes, content_type)) => Response::builder()
             .header(header::CONTENT_TYPE, content_type)
             .header(header::CACHE_CONTROL, "no-store")
@@ -292,7 +377,8 @@ pub struct CardQuery {
 }
 
 /// `GET /api/items/:id/card?label=&progress=` → a 640×360 landscape JPEG "card"
-/// (backdrop + LUMA logo + label + title) for Samsung TV Smart Hub preview tiles.
+/// (backdrop + category badge + LUMA brand logo + title-treatment logo) for
+/// Samsung TV Smart Hub preview tiles.
 pub async fn item_card(
     State(state): State<SharedState>,
     Path(id): Path<String>,
@@ -321,7 +407,6 @@ pub async fn item_card(
         .and_then(cache_name)
         .map(str::to_string);
 
-    let title = item.title.clone();
     let label = q.label.unwrap_or_default();
     let progress = q.progress;
     let data_dir = state.config.data_dir.clone();
@@ -337,7 +422,6 @@ pub async fn item_card(
         Ok(crate::api::card::render(&crate::api::card::Card {
             base_png: &base,
             label: &label,
-            title: &title,
             logo_png: logo_bytes.as_deref(),
             progress,
         }))
@@ -509,7 +593,7 @@ async fn resolve_metadata(
 /// `POST /api/scan` → rescan all dirs, reseeding demo content if empty.
 pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Response> {
     let pool = state.db.clone();
-    let config = state.config.clone();
+    let defs = crate::settings::library_defs(&state.settings, &state.config);
 
     state.events.publish(ServerEvent::ScanStarted);
     crate::activity::scan_started(&state.activity);
@@ -517,7 +601,7 @@ pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Respon
     // Phase 1 (fast): walk + stat only, diff-synced (preserves metadata + probed
     // data via the mtime cache). Phase 2 probing is spawned afterwards.
     let data = blocking(move || {
-        let mut data = crate::scan::scan_all(&config);
+        let mut data = crate::scan::scan_all(&defs);
         if data.items.is_empty() {
             info!("scan yielded no items; seeding demo content");
             data = crate::demo::demo_data();

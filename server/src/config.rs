@@ -32,6 +32,10 @@ pub struct Config {
     /// Connect QR target (`<web>/connect?code=…`). `None` → the device shows the
     /// numeric code only (no QR).
     pub web_url: Option<String>,
+    /// Directory of the built web SPA (`LUMA_WEB_DIR`) to serve on the same origin
+    /// as the API (the single-binary deploy, e.g. the Synology package). `None` →
+    /// API only (dev, where the web runs on its own Vite server).
+    pub web_dir: Option<PathBuf>,
 }
 
 impl Config {
@@ -76,6 +80,11 @@ impl Config {
             .map(|s| s.trim().trim_end_matches('/').to_string())
             .filter(|s| !s.is_empty());
 
+        let web_dir = env::var("LUMA_WEB_DIR")
+            .ok()
+            .map(|s| PathBuf::from(s.trim()))
+            .filter(|p| p.as_os_str().len() > 0 && p.join("_shell.html").is_file());
+
         Config {
             host,
             port,
@@ -85,6 +94,7 @@ impl Config {
             tmdb_language,
             tmdb_enrich,
             web_url,
+            web_dir,
         }
     }
 
@@ -109,11 +119,13 @@ impl Config {
     }
 }
 
-/// Split a directory list on either the OS path separator (`:` on Unix, `;` on
-/// Windows) or commas. Empty / whitespace-only entries are dropped.
+/// Split a directory list on `:`, `;`, or `,`. On Unix we accept `;` in addition
+/// to the native `:` so a user who types semicolons (natural, and what the NAS
+/// install wizard's examples invite) still gets the directories split correctly
+/// rather than one bogus combined path. Empty / whitespace entries are dropped.
 fn parse_dir_list(raw: &str) -> Vec<PathBuf> {
-    let os_sep = if cfg!(windows) { ';' } else { ':' };
-    raw.split([os_sep, ','])
+    let seps: &[char] = if cfg!(windows) { &[';', ','] } else { &[':', ';', ','] };
+    raw.split(seps)
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)

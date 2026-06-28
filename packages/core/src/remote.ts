@@ -67,6 +67,38 @@ export function resolveRemoteKey(e: KeyboardEvent): RemoteKey | null {
   return KEY_CODES[e.keyCode] ?? null;
 }
 
+/** A remote-key handler. Return `false` to mark the key *unhandled* (so the event
+ * keeps its default — e.g. let a text field own ◀ ▶ / Enter); anything else
+ * (incl. `undefined`) counts as handled and the event is `preventDefault`-ed. */
+export type RemoteKeyHandler = (e: KeyboardEvent) => void | boolean;
+/** Declarative key → action table: `{ Enter: () => …, Back: () => … }`. */
+export type RemoteKeyMap = Partial<Record<RemoteKey, RemoteKeyHandler>>;
+
+/**
+ * Resolve a keydown and dispatch it through a {@link RemoteKeyMap} — so screens
+ * declare *what* each key does instead of hand-rolling a `switch` with the same
+ * resolve / auto-repeat / `preventDefault` plumbing every time. Returns the
+ * resolved key (or null), so callers can fall through on unbound keys.
+ *
+ * `ignoreRepeat` lists keys whose auto-repeat is swallowed (discrete OK actions:
+ * a held OK that entered a screen must not re-fire on the next one).
+ */
+export function dispatchRemoteKey(
+  e: KeyboardEvent,
+  map: RemoteKeyMap,
+  opts: { ignoreRepeat?: readonly RemoteKey[] } = {},
+): RemoteKey | null {
+  const key = resolveRemoteKey(e);
+  if (!key) return null;
+  if (e.repeat && opts.ignoreRepeat?.includes(key)) {
+    e.preventDefault();
+    return key;
+  }
+  const handler = map[key];
+  if (handler && handler(e) !== false) e.preventDefault();
+  return key;
+}
+
 const TIZEN_KEYS = [
   'MediaPlay',
   'MediaPause',
@@ -85,7 +117,8 @@ const TIZEN_KEYS = [
  * platform delivers them. No-op everywhere else. Call once at boot.
  */
 export function registerTvMediaKeys(): void {
-  const tizen = (globalThis as { tizen?: { tvinputdevice?: { registerKey(k: string): void } } }).tizen;
+  const tizen = (globalThis as { tizen?: { tvinputdevice?: { registerKey(k: string): void } } })
+    .tizen;
   const dev = tizen?.tvinputdevice;
   if (!dev) return;
   for (const k of TIZEN_KEYS) {

@@ -1,5 +1,6 @@
-import { useNavigate } from '@tanstack/react-router';
 import { metaLine, posterColors, qualityBadge, qualityBadgeForVideo } from '@luma/core';
+import { useT } from '@luma/ui';
+import { useNavigate } from '@tanstack/react-router';
 import { Badge, Button, Poster, Rail } from '#web/components/ui';
 import type { MovieView, ShowView } from '#web/lib/api';
 
@@ -19,7 +20,8 @@ const SECTION_TITLE = 'mb-5 mt-10 font-display text-[22px] font-bold tracking-[-
 
 /** Full-bleed featured banner — TMDB backdrop as cinematic art, bled to the
  * content edges (cancels the page gutter) and faded into the rails below. */
-export function Hero({ movie }: { movie: MovieView }) {
+export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
+  const t = useT();
   const navigate = useNavigate();
   const colors = posterColors(movie.id);
   const bg = movie.backdrop
@@ -30,21 +32,23 @@ export function Hero({ movie }: { movie: MovieView }) {
 
   return (
     <div
-      className="relative -mx-[var(--gutter-web)] -mt-10 mb-8 flex min-h-[460px] flex-col justify-end overflow-hidden px-[var(--gutter-web)] pb-10 pt-16"
+      className="relative -mx-(--gutter-web) -mt-10 mb-8 flex min-h-115 flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-16"
       style={{ backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center 18%' }}
     >
       <div className="pointer-events-none absolute inset-0 animate-[luma-breathe_7s_var(--ease-out)_infinite] bg-[radial-gradient(58%_68%_at_72%_32%,rgba(242,180,66,.16),transparent_62%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,var(--luma-bg)_6%,rgba(10,10,12,.35)_42%,transparent_64%),linear-gradient(0deg,var(--luma-bg)_2%,transparent_46%)]" />
 
-      <div className="relative max-w-[680px]">
-        <div className="mb-3.5 inline-flex items-center gap-[7px] text-[12px] font-bold uppercase tracking-[.22em] text-accent">
-          ★ En vedette
+      <div className="relative max-w-170">
+        <div className="mb-3.5 inline-flex items-center gap-1.75 text-[12px] font-bold uppercase tracking-[.22em] text-accent">
+          {t('content.featured')}
         </div>
         <h1 className="mb-3.5 font-display text-[66px] font-bold leading-[.98] tracking-[-.02em]">
           {movie.title}
         </h1>
         <div className="mb-4 flex flex-wrap items-center gap-3 text-[13px] font-medium text-muted">
-          {meta?.rating ? <span className="font-semibold text-accent">{meta.rating.toFixed(1)}★</span> : null}
+          {meta?.rating ? (
+            <span className="font-semibold text-accent">{meta.rating.toFixed(1)}★</span>
+          ) : null}
           <span>{metaLine(movie)}</span>
           {badges.map((b) => (
             <Badge key={b} tone={b}>
@@ -53,12 +57,19 @@ export function Hero({ movie }: { movie: MovieView }) {
           ))}
         </div>
         {meta?.overview ? (
-          <p className="mb-5 line-clamp-3 max-w-[540px] text-[16px] leading-[1.55] text-text">{meta.overview}</p>
+          <p className="mb-5 line-clamp-3 max-w-135 text-[16px] leading-[1.55] text-text">
+            {meta.overview}
+          </p>
         ) : null}
         <div className="flex gap-3.5">
-          <Button onClick={() => navigate({ to: '/watch/$id', params: { id: movie.id } })}>Lecture</Button>
-          <Button variant="glass" onClick={() => navigate({ to: '/movie/$id', params: { id: movie.id } })}>
-            Plus d’infos
+          <Button onClick={() => navigate({ to: '/watch/$id', params: { id: movie.id } })}>
+            {t('content.play')}
+          </Button>
+          <Button
+            variant="glass"
+            onClick={() => navigate({ to: '/movie/$id', params: { id: movie.id } })}
+          >
+            {t('content.moreInfo')}
           </Button>
         </div>
       </div>
@@ -66,12 +77,13 @@ export function Hero({ movie }: { movie: MovieView }) {
   );
 }
 
-function MoviePoster({ item }: { item: MovieView }) {
+function MoviePoster({ item }: Readonly<{ item: MovieView }>) {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <Poster
       title={item.title}
-      genre="Film"
+      genre={t('content.film')}
       badge={qualityBadge(item)}
       colors={posterColors(item.id)}
       poster={item.poster}
@@ -80,12 +92,13 @@ function MoviePoster({ item }: { item: MovieView }) {
   );
 }
 
-function ShowPoster({ show }: { show: ShowView }) {
+function ShowPoster({ show }: Readonly<{ show: ShowView }>) {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <Poster
       title={show.title}
-      genre={`${show.seasonCount} saison${show.seasonCount > 1 ? 's' : ''}`}
+      genre={t('content.seasonCount', { count: show.seasonCount })}
       badge={qualityBadgeForVideo(show.video)}
       colors={posterColors(show.id)}
       poster={show.poster}
@@ -94,7 +107,7 @@ function ShowPoster({ show }: { show: ShowView }) {
   );
 }
 
-export function MovieRail({ title, movies }: { title: string; movies: MovieView[] }) {
+export function MovieRail({ title, movies }: Readonly<{ title: string; movies: MovieView[] }>) {
   if (movies.length === 0) return null;
   return (
     <section>
@@ -108,7 +121,7 @@ export function MovieRail({ title, movies }: { title: string; movies: MovieView[
   );
 }
 
-export function ShowRail({ title, shows }: { title: string; shows: ShowView[] }) {
+export function ShowRail({ title, shows }: Readonly<{ title: string; shows: ShowView[] }>) {
   if (shows.length === 0) return null;
   return (
     <section>
@@ -122,9 +135,9 @@ export function ShowRail({ title, shows }: { title: string; shows: ShowView[] })
   );
 }
 
-const GRID = 'flex flex-wrap gap-x-[18px] gap-y-6';
+const GRID = 'flex flex-wrap gap-x-4.5 gap-y-6';
 
-export function MovieGrid({ movies }: { movies: MovieView[] }) {
+export function MovieGrid({ movies }: Readonly<{ movies: MovieView[] }>) {
   return (
     <div className={GRID}>
       {movies.map((item) => (
@@ -134,7 +147,7 @@ export function MovieGrid({ movies }: { movies: MovieView[] }) {
   );
 }
 
-export function ShowGrid({ shows }: { shows: ShowView[] }) {
+export function ShowGrid({ shows }: Readonly<{ shows: ShowView[] }>) {
   return (
     <div className={GRID}>
       {shows.map((show) => (

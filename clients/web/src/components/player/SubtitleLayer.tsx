@@ -1,7 +1,7 @@
-import { memo, useEffect, useRef, useState, type RefObject } from 'react';
 import { activeCueText, type Cue, parseVtt } from '@luma/core';
+import { memo, type RefObject, useEffect, useRef, useState } from 'react';
+import { type SubtitleStyle, subtitleCss } from '#web/components/player/subtitleStyle';
 import type { SubtitleView } from '#web/lib/api';
-import { subtitleCss, type SubtitleStyle } from '#web/components/player/subtitleStyle';
 
 /**
  * Custom subtitle renderer. Fetches the track's WebVTT itself (CORS-friendly,
@@ -18,13 +18,17 @@ function SubtitleLayerImpl({
   activeIndex,
   style,
   raised,
-}: {
+  offset = 0,
+}: Readonly<{
   videoRef: RefObject<HTMLVideoElement>;
   rendered: SubtitleView[];
   activeIndex: number | null;
   style: SubtitleStyle;
   raised: boolean;
-}) {
+  /** Absolute-time offset (server -ss base): cues are absolute, the seamless
+   * stream's currentTime is relative, so look up at currentTime + offset. */
+  offset?: number;
+}>) {
   const [cues, setCues] = useState<Cue[]>([]);
   const [text, setText] = useState('');
   const pointer = useRef(0);
@@ -68,7 +72,7 @@ function SubtitleLayerImpl({
 
     let last = '';
     const update = () => {
-      const { text: t, index } = activeCueText(cues, v.currentTime, pointer.current);
+      const { text: t, index } = activeCueText(cues, v.currentTime + offset, pointer.current);
       pointer.current = index;
       if (t !== last) {
         last = t;
@@ -84,7 +88,7 @@ function SubtitleLayerImpl({
       v.removeEventListener('seeking', update);
       v.removeEventListener('seeked', update);
     };
-  }, [videoRef, cues]);
+  }, [videoRef, cues, offset]);
 
   if (!text) return null;
 

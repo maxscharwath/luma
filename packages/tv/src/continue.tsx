@@ -1,5 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ContinueItem } from '@luma/core';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useAuth } from '#tv/auth';
 import { useConnection } from '#tv/connection';
 
@@ -13,7 +21,7 @@ const ContinueCtx = createContext<Continue | null>(null);
 
 /** "Reprendre" (continue watching) — per-user. Re-fetched on sign-in and whenever
  * the home screen asks. Mounted inside the auth + connection providers. */
-export function ContinueProvider({ children }: { children: ReactNode }) {
+export function ContinueProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { user } = useAuth();
   const { client } = useConnection();
   const [items, setItems] = useState<ContinueItem[]>([]);
@@ -23,7 +31,10 @@ export function ContinueProvider({ children }: { children: ReactNode }) {
       setItems([]);
       return;
     }
-    client.continueWatching().then(setItems).catch(() => undefined);
+    client
+      .continueWatching()
+      .then(setItems)
+      .catch(() => undefined);
   }, [client, user]);
 
   useEffect(() => {

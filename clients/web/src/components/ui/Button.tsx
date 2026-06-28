@@ -28,11 +28,11 @@ export function Button({
   className = '',
   children,
   ...rest
-}: ButtonProps) {
+}: Readonly<ButtonProps>) {
   return (
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-md font-semibold cursor-pointer
-        transition-[transform,background-color,box-shadow] duration-200 ease-[var(--ease-spring)]
+        transition-[transform,background-color,box-shadow] duration-200 ease-(--ease-spring)
         active:scale-95 disabled:opacity-50 disabled:pointer-events-none
         ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}

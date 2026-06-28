@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
 import { isTextSubtitle, type LumaClient, type MediaItem } from '@luma/core';
+import { useCallback, useMemo, useState } from 'react';
 
 export interface SubView {
   index: number;
@@ -35,7 +35,10 @@ export function useSubtitleSelection(client: LumaClient, item: MediaItem): Subti
     [client, item],
   );
 
-  const options = useMemo<(number | null)[]>(() => [null, ...rendered.map((s) => s.index)], [rendered]);
+  const options = useMemo<(number | null)[]>(
+    () => [null, ...rendered.map((s) => s.index)],
+    [rendered],
+  );
   const pick = useCallback((index: number | null) => setActive(index), []);
 
   return { rendered, options, active, pick };

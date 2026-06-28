@@ -5,25 +5,25 @@
 // for all per-user calls (progress, avatar upload).
 
 import {
+  type AuthResult,
+  clearSession,
+  forgetAccount,
+  LumaClient,
+  loadAccounts,
+  loadSession,
+  type StoredSession,
+  saveSession,
+  type User,
+} from '@luma/core';
+import {
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from 'react';
-import {
-  LumaClient,
-  clearSession,
-  forgetAccount,
-  loadAccounts,
-  loadSession,
-  saveSession,
-  type AuthResult,
-  type StoredSession,
-  type User,
-} from '@luma/core';
 import { apiBase } from '#web/lib/api';
 
 interface AuthValue {
@@ -52,11 +52,14 @@ interface AuthValue {
   forget: (userId: string) => void;
   /** Fully sign out of the current account (invalidate + forget this device). */
   logout: () => Promise<void>;
+  /** Merge a patch into the active user, persisting it to the stored session
+   * (e.g. the language preference, so a reload keeps it). No-op when signed out. */
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   // One authed client for the app's lifetime; the token is swapped in/out.
   const client = useMemo(() => new LumaClient({ baseUrl: apiBase() }), []);
   const [user, setUser] = useState<User | null>(null);
@@ -69,6 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (s) {
       client.setAuthToken(s.token);
       setUser(s.user);
+      // Pull fresh account state (language, avatar, permissions) so a change made
+      // on another device propagates here. Best-effort: keep the stored user if
+      // offline or the token is stale.
+      client
+        .me()
+        .then(({ user: fresh }) => {
+          setUser(fresh);
+          saveSession({ token: s.token, user: fresh });
+        })
+        .catch(() => {});
     }
     setAccounts(loadAccounts());
     setReady(true);
@@ -164,9 +177,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, [client, user]);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((u) => {
+      if (!u) return u;
+      const next = { ...u, ...patch };
+      const token = loadSession()?.token;
+      if (token) saveSession({ token, user: next });
+      return next;
+    });
+  }, []);
+
   const value = useMemo<AuthValue>(
-    () => ({ user, ready, client, accounts, login, register, activate, switchProfile, forget, logout }),
-    [user, ready, client, accounts, login, register, activate, switchProfile, forget, logout],
+    () => ({
+      user,
+      ready,
+      client,
+      accounts,
+      login,
+      register,
+      activate,
+      switchProfile,
+      forget,
+      logout,
+      updateUser,
+    }),
+    [
+      user,
+      ready,
+      client,
+      accounts,
+      login,
+      register,
+      activate,
+      switchProfile,
+      forget,
+      logout,
+      updateUser,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

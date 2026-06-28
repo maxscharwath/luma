@@ -1,5 +1,5 @@
+import { dispatchRemoteKey, registerTvMediaKeys } from '@luma/core';
 import { useEffect } from 'react';
-import { registerTvMediaKeys, resolveRemoteKey, type RemoteKey } from '@luma/core';
 
 function isVisible(el: HTMLElement): boolean {
   const r = el.getBoundingClientRect();
@@ -85,55 +85,47 @@ export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers)
     registerTvMediaKeys();
     // Focus the first focusable on mount / view change.
     const first = focusables()[0];
-    if (first && (!document.activeElement || (document.activeElement as HTMLElement).dataset?.focus === undefined)) {
+    if (
+      first &&
+      (!document.activeElement ||
+        (document.activeElement as HTMLElement).dataset?.focus === undefined)
+    ) {
       first.focus();
     }
 
     const onKey = (e: KeyboardEvent) => {
-      const key: RemoteKey | null = resolveRemoteKey(e);
-      if (!key) return;
       // When a text field is focused, let it own ◀ ▶ (cursor) and OK (submit);
       // only ▲ ▼ leave the field. Otherwise typing a server URL is impossible.
       const active = document.activeElement;
       const inText = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement;
-      switch (key) {
-        case 'Back':
-          e.preventDefault();
-          onBack?.();
-          break;
-        case 'Play':
-        case 'Pause':
-        case 'PlayPause':
-          onPlayPause?.();
-          break;
-        case 'Enter': {
-          if (inText) break; // native: submit the form / open the IME
-          const el = active as HTMLElement | null;
-          if (el && el.dataset.focus !== undefined) {
-            // Always suppress the native <button> Enter activation so it can't
-            // fire in addition to our click(). Crucially, ignore key-repeat: a
-            // single held OK that opens a new view (e.g. a card → detail) must
-            // NOT carry over and auto-activate the newly focused button (e.g.
-            // detail → player). Only a fresh press activates.
-            e.preventDefault();
-            if (!e.repeat) el.click();
-          }
-          break;
-        }
-        case 'Left':
-        case 'Right':
-          if (inText) break; // native: move the text cursor
-          e.preventDefault();
-          moveFocus(key);
-          break;
-        case 'Up':
-        case 'Down':
-          e.preventDefault();
-          moveFocus(key);
-          break;
-        default:
-          break;
-      }
+      // Media keys keep their native default (no preventDefault) — handlers that
+      // return `false` are treated as "not handled" by dispatchRemoteKey.
+      const media = () => {
+        onPlayPause?.();
+        return false as const;
+      };
+      dispatchRemoteKey(
+        e,
+        {
+          Back: () => onBack?.(),
+          Play: media,
+          Pause: media,
+          PlayPause: media,
+          Up: () => moveFocus('Up'),
+          Down: () => moveFocus('Down'),
+          Left: () => (inText ? false : moveFocus('Left')),
+          Right: () => (inText ? false : moveFocus('Right')),
+          Enter: () => {
+            if (inText) return false; // native: submit the form / open the IME
+            const el = active as HTMLElement | null;
+            if (el?.dataset.focus === undefined) return false; // not on a focusable
+            el.click(); // a fresh OK activates; auto-repeat is swallowed below
+          },
+        },
+        // Ignore held OK so opening a new view (card → detail) can't carry over
+        // and auto-activate the newly focused control (detail → player).
+        { ignoreRepeat: ['Enter'] },
+      );
     };
 
     window.addEventListener('keydown', onKey);

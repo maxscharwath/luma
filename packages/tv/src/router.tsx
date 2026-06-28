@@ -1,5 +1,13 @@
-import { createContext, type ComponentType, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { LumaClient, MediaItem, Show } from '@luma/core';
+import type { LumaClient, MediaItem, PublicUser, Show } from '@luma/core';
+import {
+  type ComponentType,
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
 
 /**
  * A tiny, type-safe, zero-dependency router for the 10-foot app — TanStack-grade
@@ -22,8 +30,14 @@ import type { LumaClient, MediaItem, Show } from '@luma/core';
 export interface TvRoutes {
   /** Server discovery / connection screen (no client yet). */
   connect: undefined;
-  /** Login / profile picker (signed out). */
+  /** Profile picker (signed out). */
   profiles: undefined;
+  /** Password entry for a chosen profile (signed out). */
+  login: { user: PublicUser };
+  /** New-account creation (signed out). */
+  register: undefined;
+  /** Quick Connect code / QR (signed out). */
+  quick: undefined;
   home: undefined;
   movie: { item: MediaItem };
   show: { show: Show };
@@ -34,7 +48,9 @@ export type RouteName = keyof TvRoutes;
 export type TvRoute = { [K in RouteName]: { name: K; params: TvRoutes[K] } }[RouteName];
 
 // Call signature: routes with no params omit the second arg — `go('home')` vs `go('movie', { item })`.
-type GoArgs<K extends RouteName> = TvRoutes[K] extends undefined ? [name: K] : [name: K, params: TvRoutes[K]];
+type GoArgs<K extends RouteName> = TvRoutes[K] extends undefined
+  ? [name: K]
+  : [name: K, params: TvRoutes[K]];
 
 export interface TvNav {
   /** The screen on top of the stack. */
@@ -73,7 +89,10 @@ function make<K extends RouteName>(name: K, params?: TvRoutes[K]): TvRoute {
   return { name, params } as TvRoute;
 }
 
-export function TvNavProvider({ screens, children }: { screens: TvScreens; children: ReactNode }) {
+export function TvNavProvider({
+  screens,
+  children,
+}: Readonly<{ screens: TvScreens; children: ReactNode }>) {
   // Start on `connect` — the app boots into discovery/connection before anything
   // else; the guard advances to profiles/home as the session resolves.
   const [stack, setStack] = useState<TvRoute[]>([CONNECT]);
@@ -91,7 +110,16 @@ export function TvNavProvider({ screens, children }: { screens: TvScreens; child
   const home = useCallback(() => setStack([HOME]), []);
 
   const value = useMemo<TvNav>(
-    () => ({ route: stack[stack.length - 1]!, depth: stack.length, canGoBack: stack.length > 1, go, back, reset, replace, home }),
+    () => ({
+      route: stack[stack.length - 1]!,
+      depth: stack.length,
+      canGoBack: stack.length > 1,
+      go,
+      back,
+      reset,
+      replace,
+      home,
+    }),
     [stack, go, back, reset, replace, home],
   );
   return (
@@ -119,7 +147,13 @@ const ClientCtx = createContext<LumaClient | null>(null);
 
 // Tolerates a null client (during connect, before a server is reached) so the
 // providers can wrap the whole app — the `connect` screen never calls useClient().
-export function TvClientProvider({ client, children }: { client: LumaClient | null; children: ReactNode }) {
+export function TvClientProvider({
+  client,
+  children,
+}: Readonly<{
+  client: LumaClient | null;
+  children: ReactNode;
+}>) {
   return <ClientCtx.Provider value={client}>{children}</ClientCtx.Provider>;
 }
 

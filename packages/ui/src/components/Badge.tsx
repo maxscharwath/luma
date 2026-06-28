@@ -18,7 +18,7 @@ const MAP: Record<BadgeTone, [string, string]> = {
 };
 
 /** Small quality / status pill. Text only — never emoji (FR/EN/4K/HDR/H.265). */
-export function Badge({ tone = '4K', children }: BadgeProps) {
+export function Badge({ tone = '4K', children }: Readonly<BadgeProps>) {
   const [color, background] = MAP[tone] ?? MAP.neutral;
   return (
     <span

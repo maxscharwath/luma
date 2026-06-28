@@ -7,18 +7,29 @@ import type { ComponentPropsWithoutRef } from 'react';
  * `<AvatarFallback>` that renders meanwhile / on error. Pass `loading="lazy"` to
  * the image; the art it points at is the server's cached WebP.
  */
-export function Avatar({ className = '', ...props }: ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>) {
-  return <AvatarPrimitive.Root className={`relative flex shrink-0 overflow-hidden ${className}`} {...props} />;
+export function Avatar({
+  className = '',
+  ...props
+}: Readonly<ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>>) {
+  return (
+    <AvatarPrimitive.Root
+      className={`relative flex shrink-0 overflow-hidden ${className}`}
+      {...props}
+    />
+  );
 }
 
-export function AvatarImage({ className = '', ...props }: ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>) {
+export function AvatarImage({
+  className = '',
+  ...props
+}: Readonly<ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>>) {
   return <AvatarPrimitive.Image className={`h-full w-full object-cover ${className}`} {...props} />;
 }
 
 export function AvatarFallback({
   className = '',
   ...props
-}: ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>) {
+}: Readonly<ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>>) {
   return (
     <AvatarPrimitive.Fallback
       className={`relative flex h-full w-full items-center justify-center ${className}`}

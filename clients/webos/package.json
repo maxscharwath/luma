@@ -6,9 +6,9 @@
   "description": "LUMA LG webOS TV client — thin shell over @luma/tv.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsgo --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "package": "echo 'Run: bun run build:webos, then: ares-package clients/webos/dist'"
   },
   "dependencies": {

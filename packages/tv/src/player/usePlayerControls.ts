@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { resolveRemoteKey } from '@luma/core';
+import { dispatchRemoteKey, type RemoteKeyMap, resolveRemoteKey } from '@luma/core';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type Zone = 'progress' | 'bar';
 /** Bottom control row, left → right. */
@@ -10,10 +10,17 @@ interface Args {
   togglePlay: () => void;
   seek: (delta: number) => void;
   onExit: () => void;
+  /** Audio-track indices, in panel order. */
+  audioOptions: number[];
+  activeAudio: number;
+  pickAudio: (index: number) => void;
   subOptions: (number | null)[];
-  activeSub: number | null;
   pickSub: (index: number | null) => void;
 }
+
+/** One selectable row in the Audio & Subtitles panel — audio rows first, then
+ * subtitle rows — so a single focus index walks both sections. */
+type AvRow = { kind: 'audio'; value: number } | { kind: 'sub'; value: number | null };
 
 export interface PlayerControls {
   controls: boolean;
@@ -30,7 +37,25 @@ export interface PlayerControls {
  * panel) and drives it entirely from the remote: ◀▶ move between controls, ▲
  * jumps to the progress bar, OK activates, Retour quits / closes the panel.
  */
-export function usePlayerControls({ playing, togglePlay, seek, onExit, subOptions, activeSub, pickSub }: Args): PlayerControls {
+export function usePlayerControls({
+  playing,
+  togglePlay,
+  seek,
+  onExit,
+  audioOptions,
+  activeAudio,
+  pickAudio,
+  subOptions,
+  pickSub,
+}: Args): PlayerControls {
+  // Combined, ordered row list the ▲/▼ focus walks: audio rows then subtitle rows.
+  const avRows = useMemo<AvRow[]>(
+    () => [
+      ...audioOptions.map((value): AvRow => ({ kind: 'audio', value })),
+      ...subOptions.map((value): AvRow => ({ kind: 'sub', value })),
+    ],
+    [audioOptions, subOptions],
+  );
   const [controls, setControls] = useState(true);
   const [zone, setZone] = useState<Zone>('bar');
   const [barIndex, setBarIndex] = useState(1); // start on Play
@@ -56,9 +81,11 @@ export function usePlayerControls({ playing, togglePlay, seek, onExit, subOption
   }, [playing, avOpen, poke]);
 
   const openAv = useCallback(() => {
-    setAvFocus(activeSub == null ? 0 : Math.max(0, subOptions.indexOf(activeSub)));
+    // Open focused on the active audio track (audio rows lead the list).
+    const i = avRows.findIndex((r) => r.kind === 'audio' && r.value === activeAudio);
+    setAvFocus(Math.max(0, i));
     setAvOpen(true);
-  }, [activeSub, subOptions]);
+  }, [avRows, activeAudio]);
 
   const activate = useCallback(
     (i: number) => {
@@ -81,6 +108,34 @@ export function usePlayerControls({ playing, togglePlay, seek, onExit, subOption
   );
 
   useEffect(() => {
+    // Pick the focused row in the open AV panel (audio rows lead, then subtitles).
+    const pickRow = () => {
+      const row = avRows[avFocus];
+      if (row?.kind === 'audio') pickAudio(row.value);
+      else if (row?.kind === 'sub') pickSub(row.value);
+    };
+    // While the overlay is hidden, the first key only reveals it (no action).
+    const move = (reveal: boolean, dir: -1 | 1) => {
+      if (reveal) return;
+      if (zone === 'progress') seek(dir * 10);
+      else setBarIndex((i) => Math.max(0, Math.min(BAR.length - 1, i + dir)));
+    };
+    const confirm = (reveal: boolean) => {
+      if (reveal) return;
+      if (zone === 'progress') togglePlay();
+      else activate(barIndex);
+    };
+
+    // Audio/subtitle panel captures navigation while open (unbound keys ignored).
+    const avMap: RemoteKeyMap = {
+      Up: () => setAvFocus((f) => Math.max(0, f - 1)),
+      Down: () => setAvFocus((f) => Math.min(avRows.length - 1, f + 1)),
+      Enter: pickRow,
+      PlayPause: pickRow,
+      Back: () => setAvOpen(false),
+      Stop: () => setAvOpen(false),
+    };
+
     const onKey = (e: KeyboardEvent) => {
       const key = resolveRemoteKey(e);
       if (!key) return;
@@ -91,30 +146,12 @@ export function usePlayerControls({ playing, togglePlay, seek, onExit, subOption
         return;
       }
 
-      // Audio/subtitle panel captures navigation while open.
       if (avOpen) {
-        switch (key) {
-          case 'Up':
-            setAvFocus((f) => Math.max(0, f - 1));
-            break;
-          case 'Down':
-            setAvFocus((f) => Math.min(subOptions.length - 1, f + 1));
-            break;
-          case 'Enter':
-          case 'PlayPause':
-            pickSub(subOptions[avFocus] ?? null);
-            break;
-          case 'Back':
-          case 'Stop':
-            setAvOpen(false);
-            break;
-          default:
-            return;
-        }
-        e.preventDefault();
+        dispatchRemoteKey(e, avMap);
         return;
       }
 
+      // Back/Stop exits before the reveal/poke, so quitting never just wakes the bar.
       if (key === 'Back' || key === 'Stop') {
         e.preventDefault();
         onExit();
@@ -123,49 +160,42 @@ export function usePlayerControls({ playing, togglePlay, seek, onExit, subOption
 
       const reveal = !controls;
       poke();
-      switch (key) {
-        case 'Up':
-          setZone('progress');
-          break;
-        case 'Down':
-          setZone('bar');
-          break;
-        case 'Left':
-          if (reveal) break;
-          if (zone === 'progress') seek(-10);
-          else setBarIndex((i) => Math.max(0, i - 1));
-          break;
-        case 'Right':
-          if (reveal) break;
-          if (zone === 'progress') seek(10);
-          else setBarIndex((i) => Math.min(BAR.length - 1, i + 1));
-          break;
-        case 'Enter':
-        case 'PlayPause':
-          if (reveal) break;
-          if (zone === 'progress') togglePlay();
-          else activate(barIndex);
-          break;
-        case 'Play':
+      dispatchRemoteKey(e, {
+        Up: () => setZone('progress'),
+        Down: () => setZone('bar'),
+        Left: () => move(reveal, -1),
+        Right: () => move(reveal, 1),
+        Enter: () => confirm(reveal),
+        PlayPause: () => confirm(reveal),
+        Play: () => {
           if (!playing) togglePlay();
-          break;
-        case 'Pause':
+        },
+        Pause: () => {
           if (playing) togglePlay();
-          break;
-        case 'FastForward':
-          seek(30);
-          break;
-        case 'Rewind':
-          seek(-10);
-          break;
-        default:
-          break;
-      }
-      e.preventDefault();
+        },
+        FastForward: () => seek(30),
+        Rewind: () => seek(-10),
+      });
+      e.preventDefault(); // the visible overlay swallows every key
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [avOpen, avFocus, subOptions, controls, zone, barIndex, playing, onExit, poke, seek, togglePlay, activate, pickSub]);
+  }, [
+    avOpen,
+    avFocus,
+    avRows,
+    controls,
+    zone,
+    barIndex,
+    playing,
+    onExit,
+    poke,
+    seek,
+    togglePlay,
+    activate,
+    pickAudio,
+    pickSub,
+  ]);
 
   const barFocus = (i: number) => controls && zone === 'bar' && barIndex === i;
   return { controls, zone, barIndex, avOpen, avFocus, barFocus };

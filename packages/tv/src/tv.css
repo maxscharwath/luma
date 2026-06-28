@@ -7,11 +7,11 @@
    `@luma/ui/styles.css`: that entry pulls a remote Google-Fonts `@import` which the
    Lightning CSS transformer can't inline. The TV shells load the fonts via a
    <link> in index.html instead. */
-@import '../../ui/src/styles/tokens/colors.css';
-@import '../../ui/src/styles/tokens/typography.css';
-@import '../../ui/src/styles/tokens/spacing.css';
-@import '../../ui/src/styles/tokens/effects.css';
-@import 'tailwindcss';
+@import "../../ui/src/styles/tokens/colors.css";
+@import "../../ui/src/styles/tokens/typography.css";
+@import "../../ui/src/styles/tokens/spacing.css";
+@import "../../ui/src/styles/tokens/effects.css";
+@import "tailwindcss";
 
 /* Tailwind ignores node_modules; the TV components live in this workspace
    package (symlinked), so scan them explicitly for utility class names. */

@@ -8,6 +8,7 @@ import type { User } from './types';
 
 const KEY = 'luma.session'; // active session
 const ACCOUNTS_KEY = 'luma.accounts'; // remembered sessions on this device
+const LOCALE_KEY = 'luma.locale'; // device-level UI locale override
 
 export interface StoredSession {
   token: string;
@@ -70,9 +71,33 @@ export function loadAccounts(): StoredSession[] {
   return readJson<StoredSession[]>(ACCOUNTS_KEY, []).filter((a) => a?.token && a?.user);
 }
 
+/** The device-level UI locale override (what the user last picked on THIS
+ * device), or null. Used before sign-in and as a fallback when the account has
+ * no preference. */
+export function loadLocalePref(): string | null {
+  try {
+    return storage()?.getItem(LOCALE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist (or clear, with `null`) the device-level UI locale override. */
+export function saveLocalePref(locale: string | null): void {
+  try {
+    if (locale) storage()?.setItem(LOCALE_KEY, locale);
+    else storage()?.removeItem(LOCALE_KEY);
+  } catch {
+    /* quota / disabled storage — non-fatal */
+  }
+}
+
 /** Forget one remembered account (full sign-out for it); also clears the active
  * session when it was the one being forgotten. */
 export function forgetAccount(userId: string): void {
-  writeJson(ACCOUNTS_KEY, loadAccounts().filter((a) => a.user.id !== userId));
+  writeJson(
+    ACCOUNTS_KEY,
+    loadAccounts().filter((a) => a.user.id !== userId),
+  );
   if (loadSession()?.user.id === userId) clearSession();
 }

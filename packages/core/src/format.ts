@@ -1,5 +1,6 @@
-import type { MediaItem, VideoTrack } from './types';
+import { match } from './match';
 import { formatRuntime } from './player';
+import type { MediaItem, VideoTrack } from './types';
 
 /** Deterministic two-stop key-art gradient derived from an item id. */
 export function posterColors(id: string): [string, string] {
@@ -28,10 +29,11 @@ export function codecLabel(codec: string): string {
 /** Top-right quality badge text for a video track, or null. */
 export function qualityBadgeForVideo(video: VideoTrack | null): string | null {
   if (!video) return null;
-  if (video.hdr) return 'HDR';
-  if ((video.width ?? 0) >= 3840) return '4K';
-  if (video.codec === 'hevc') return 'H.265';
-  return null;
+  return match(video)
+    .when((v) => v.hdr === true, 'HDR')
+    .when((v) => (v.width ?? 0) >= 3840, '4K')
+    .when((v) => v.codec === 'hevc', 'H.265')
+    .otherwise(null);
 }
 
 /** Top-right quality badge text for an item, or null. */

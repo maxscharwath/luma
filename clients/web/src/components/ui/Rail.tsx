@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { IconChevronLeft, IconChevronRight, type TablerIcon } from '@tabler/icons-react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 export interface RailProps {
   children: ReactNode;
@@ -10,16 +11,17 @@ export interface RailProps {
   label?: string;
 }
 
-const ARROW = {
-  prev: 'M15 5l-7 7 7 7',
-  next: 'M9 5l7 7-7 7',
-} as const;
+const ARROW: Record<'prev' | 'next', TablerIcon> = {
+  prev: IconChevronLeft,
+  next: IconChevronRight,
+};
 
 function Arrow({
   dir,
   show,
   onClick,
 }: Readonly<{ dir: 'prev' | 'next'; show: boolean; onClick: () => void }>) {
+  const Glyph = ARROW[dir];
   return (
     <button
       type="button"
@@ -27,14 +29,12 @@ function Arrow({
       aria-hidden="true"
       onClick={onClick}
       className={`absolute top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full
-        border border-white/[.14] bg-[#16161a] text-white shadow-[0_6px_18px_rgba(0,0,0,.5)]
+        border border-white/14 bg-[#16161a] text-white shadow-[0_6px_18px_rgba(0,0,0,.5)]
         transition-opacity duration-200 hover:bg-[#202028] md:flex
         ${dir === 'prev' ? 'left-1.5' : 'right-1.5'}
         ${show ? 'opacity-0 group-hover/rail:opacity-100' : 'pointer-events-none opacity-0'}`}
     >
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d={ARROW[dir]} />
-      </svg>
+      <Glyph size={22} stroke={2} />
     </button>
   );
 }
@@ -99,7 +99,7 @@ export function Rail({ children, gap = 18, padded = false, label }: Readonly<Rai
         ref={ref}
         aria-label={label}
         className={`flex overflow-x-auto py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
-          ${padded ? 'px-[var(--gutter-web)]' : ''}`}
+          ${padded ? 'px-(--gutter-web)' : ''}`}
         style={{ gap: `${gap}px` }}
       >
         {children}

@@ -1,5 +1,5 @@
-import { createContext, useContext, type ReactNode } from 'react';
 import type { Activity, LumaClient, MediaItem, Show } from '@luma/core';
+import { createContext, type ReactNode, useContext } from 'react';
 import type { DeepLink } from '#tv/preview';
 
 export type ConnectStatus = 'discovering' | 'connecting' | 'ready' | 'error';
@@ -26,7 +26,13 @@ export interface Connection {
 
 const ConnectionCtx = createContext<Connection | null>(null);
 
-export function ConnectionProvider({ value, children }: { value: Connection; children: ReactNode }) {
+export function ConnectionProvider({
+  value,
+  children,
+}: Readonly<{
+  value: Connection;
+  children: ReactNode;
+}>) {
   return <ConnectionCtx.Provider value={value}>{children}</ConnectionCtx.Provider>;
 }
 

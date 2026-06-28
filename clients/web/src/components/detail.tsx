@@ -1,14 +1,26 @@
-import { useEffect, useState } from 'react';
 import {
+  type CastMember,
   canDirectPlay,
   channelLabel,
   codecLabel,
-  posterColors,
-  type CastMember,
   type MediaItem,
+  type MessageKey,
+  posterColors,
+  type Translate,
   type VideoTrack,
 } from '@luma/core';
-import { Avatar, AvatarFallback, AvatarImage, Badge, Button, Poster, Rail } from '#web/components/ui';
+import { useT } from '@luma/ui';
+import { IconChevronLeft, IconPlayerPlayFilled, IconPlus } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Badge,
+  Button,
+  Poster,
+  Rail,
+} from '#web/components/ui';
 import { imageUrl } from '#web/lib/api';
 
 export type QualityTone = '4K' | 'HDR' | 'H.265';
@@ -23,51 +35,67 @@ export function qualityBadges(video: VideoTrack | null | undefined): QualityTone
   return out;
 }
 
-const LANG_NAMES: Record<string, string> = {
-  fr: 'Français', fra: 'Français', fre: 'Français',
-  en: 'Anglais', eng: 'Anglais',
-  es: 'Espagnol', spa: 'Espagnol',
-  de: 'Allemand', ger: 'Allemand', deu: 'Allemand',
-  it: 'Italien', ita: 'Italien',
-  ja: 'Japonais', jpn: 'Japonais',
-  ko: 'Coréen', kor: 'Coréen',
-  zh: 'Chinois', zho: 'Chinois', chi: 'Chinois',
-  ru: 'Russe', rus: 'Russe',
-  pt: 'Portugais', por: 'Portugais',
-  nl: 'Néerlandais', dut: 'Néerlandais', nld: 'Néerlandais',
+/** ISO 639 code (2- or 3-letter) → the `lang.*` catalog key for its native name. */
+export const LANG_KEYS: Record<string, MessageKey> = {
+  fr: 'lang.fr',
+  fra: 'lang.fr',
+  fre: 'lang.fr',
+  en: 'lang.en',
+  eng: 'lang.en',
+  es: 'lang.es',
+  spa: 'lang.es',
+  de: 'lang.de',
+  ger: 'lang.de',
+  deu: 'lang.de',
+  it: 'lang.it',
+  ita: 'lang.it',
+  ja: 'lang.ja',
+  jpn: 'lang.ja',
+  ko: 'lang.ko',
+  kor: 'lang.ko',
+  zh: 'lang.zh',
+  zho: 'lang.zh',
+  chi: 'lang.zh',
+  ru: 'lang.ru',
+  rus: 'lang.ru',
+  pt: 'lang.pt',
+  por: 'lang.pt',
+  nl: 'lang.nl',
+  dut: 'lang.nl',
+  nld: 'lang.nl',
 };
 
-export function langName(code: string | null | undefined): string | null {
+/** Localized language name for an ISO code, or the upper-cased code if unknown. */
+export function langName(t: Translate, code: string | null | undefined): string | null {
   if (!code) return null;
-  return LANG_NAMES[code.toLowerCase()] ?? code.toUpperCase();
+  const key = LANG_KEYS[code.toLowerCase()];
+  return key ? t(key) : code.toUpperCase();
 }
 
 /** "Français · AAC 5.1" — language then codec/channels. */
-export function audioString(item: Pick<MediaItem, 'audio'>): string {
+export function audioString(t: Translate, item: Pick<MediaItem, 'audio'>): string {
   const a = item.audio;
   if (!a) return '—';
   const tech = [codecLabel(a.codec), channelLabel(a.channels)].filter(Boolean).join(' ');
-  return [langName(a.language), tech].filter(Boolean).join(' · ') || '—';
+  return [langName(t, a.language), tech].filter(Boolean).join(' · ') || '—';
 }
 
 /** Distinct subtitle languages, or "Aucun". */
-export function subString(item: Pick<MediaItem, 'subtitles'>): string {
-  const langs = [...new Set(item.subtitles.map((s) => langName(s.language)).filter(Boolean))];
-  return langs.length ? langs.join(', ') : 'Aucun';
+export function subString(t: Translate, item: Pick<MediaItem, 'subtitles'>): string {
+  const langs = [...new Set(item.subtitles.map((s) => langName(t, s.language)).filter(Boolean))];
+  return langs.length ? langs.join(', ') : t('subtitle.none');
 }
 
 function PlayIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M7 4v16l13-8z" />
-    </svg>
-  );
+  return <IconPlayerPlayFilled size={18} />;
 }
 
 function Field({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
-      <div className="mb-[7px] text-[11px] font-semibold uppercase tracking-[.1em] text-white/45">{label}</div>
+      <div className="mb-1.75 text-[11px] font-semibold uppercase tracking-widest text-white/45">
+        {label}
+      </div>
       <div className="text-[14px] font-medium text-white/85">{value}</div>
     </div>
   );
@@ -107,11 +135,12 @@ export function DetailHero({
   overview,
   audio,
   subtitles,
-  playLabel = 'Lecture',
+  playLabel,
   onBack,
   onPlay,
   playable,
 }: Readonly<DetailHeroProps>) {
+  const t = useT();
   const [c1, c2] = posterColors(art.id);
   const heroBg = art.backdrop ? `url("${art.backdrop}")` : `linear-gradient(135deg, ${c1}, ${c2})`;
 
@@ -121,8 +150,8 @@ export function DetailHero({
   useEffect(() => {
     if (!playable) return setUnsupported(null);
     const v = canDirectPlay(playable);
-    setUnsupported(v.canDirectPlay ? null : v.reason);
-  }, [playable]);
+    setUnsupported(v.canDirectPlay ? null : t(v.messageKey, v.messageVars));
+  }, [playable, t]);
 
   return (
     <div className="relative min-h-[62vh]">
@@ -133,35 +162,42 @@ export function DetailHero({
       <button
         type="button"
         onClick={onBack}
-        aria-label="Retour"
-        className="absolute left-8 top-[26px] z-[3] flex h-[42px] w-[42px] items-center justify-center rounded-full
-          border border-white/[.12] bg-[rgba(10,10,12,.5)] backdrop-blur-[8px] transition-colors hover:bg-[rgba(10,10,12,.8)]"
+        aria-label={t('common.back')}
+        className="absolute left-8 top-6.5 z-3 flex h-10.5 w-10.5 items-center justify-center rounded-full
+          border border-white/12 bg-[rgba(10,10,12,.5)] backdrop-blur-sm transition-colors hover:bg-[rgba(10,10,12,.8)]"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" aria-hidden="true">
-          <path d="M15 5l-7 7 7 7" />
-        </svg>
+        <IconChevronLeft size={20} stroke={2} color="#fff" />
       </button>
 
-      <div className="relative flex flex-wrap items-end gap-10 px-[var(--gutter-web)] pb-9 pt-[90px]">
+      <div className="relative flex flex-wrap items-end gap-10 px-(--gutter-web) pb-9 pt-22.5">
         <div
-          className="relative aspect-[2/3] w-60 shrink-0 overflow-hidden rounded-[14px] shadow-hero"
+          className="relative aspect-2/3 w-60 shrink-0 overflow-hidden rounded-[14px] shadow-hero"
           style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
         >
-          <img src={art.poster} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={art.poster}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         </div>
 
-        <div className="max-w-[680px] flex-1">
-          <div className="mb-3 text-[12px] font-semibold tracking-[.18em] text-accent">{overline}</div>
-          <h1 className="mb-4 font-display text-[56px] font-bold leading-none tracking-[-.02em]">{title}</h1>
+        <div className="max-w-170 flex-1">
+          <div className="mb-3 text-[12px] font-semibold tracking-[.18em] text-accent">
+            {overline}
+          </div>
+          <h1 className="mb-4 font-display text-[56px] font-bold leading-none tracking-[-.02em]">
+            {title}
+          </h1>
 
-          <div className="mb-[18px] flex flex-wrap items-center gap-2.5">
+          <div className="mb-4.5 flex flex-wrap items-center gap-2.5">
             {rating ? (
               <>
                 <span className="text-[14px] font-bold text-accent">{rating.toFixed(1)}★</span>
                 <span className="text-white/40">·</span>
               </>
             ) : null}
-            <span className="text-[14px] font-medium text-white/[.72]">{meta}</span>
+            <span className="text-[14px] font-medium text-white/72">{meta}</span>
             {badges.map((b) => (
               <Badge key={b} tone={b}>
                 {b}
@@ -170,28 +206,28 @@ export function DetailHero({
           </div>
 
           {tagline ? <p className="mb-3 text-[14px] italic text-white/50">{tagline}</p> : null}
-          {overview ? <p className="mb-[22px] text-[16px] leading-[1.6] text-white/[.82]">{overview}</p> : null}
+          {overview ? (
+            <p className="mb-5.5 text-[16px] leading-[1.6] text-white/82">{overview}</p>
+          ) : null}
 
-          <div className="mb-[26px] flex flex-wrap items-center gap-3.5">
+          <div className="mb-6.5 flex flex-wrap items-center gap-3.5">
             <Button onClick={onPlay} icon={<PlayIcon />}>
-              {playLabel}
+              {playLabel ?? t('content.play')}
             </Button>
             <button
               type="button"
-              aria-label="Ajouter à ma liste"
-              title="Ma liste — bientôt"
-              className="flex h-[50px] w-[50px] items-center justify-center rounded-md border border-border-strong
+              aria-label={t('content.addToList')}
+              title={t('content.myListSoon')}
+              className="flex h-12.5 w-12.5 items-center justify-center rounded-md border border-border-strong
                 bg-white/10 text-text transition-colors hover:bg-white/15"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
+              <IconPlus size={20} stroke={2} />
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-x-11 gap-y-4 border-t border-white/[.08] py-[18px]">
-            <Field label="Audio" value={audio} />
-            <Field label="Sous-titres" value={subtitles} />
+          <div className="flex flex-wrap gap-x-11 gap-y-4 border-t border-white/8 py-4.5">
+            <Field label={t('content.fieldAudio')} value={audio} />
+            <Field label={t('content.fieldSubtitles')} value={subtitles} />
           </div>
           {unsupported ? <p className="mt-3.5 text-[13px] text-muted">{unsupported}</p> : null}
         </div>
@@ -204,6 +240,8 @@ export interface SimilarItem {
   id: string;
   title: string;
   genre: string;
+  /** When set, the show's season count — the genre line is localized at render. */
+  seasonCount?: number;
   badge: string | null;
   poster: string;
 }
@@ -220,20 +258,29 @@ function initials(name: string): string {
 /** "Distribution" — horizontal rail of initials avatars (matches the design;
  * the reference uses gradient initials, not photos). */
 export function CastRail({ cast }: Readonly<{ cast: CastMember[] }>) {
+  const t = useT();
   if (cast.length === 0) return null;
   return (
     <section className="mt-10">
-      <h2 className="mb-[18px] px-[var(--gutter-web)] font-display text-[22px] font-bold tracking-[-.02em]">
-        Distribution
+      <h2 className="mb-4.5 px-(--gutter-web) font-display text-[22px] font-bold tracking-[-.02em]">
+        {t('content.cast')}
       </h2>
-      <Rail gap={22} padded label="Distribution">
+      <Rail gap={22} padded label={t('content.cast')}>
         {cast.map((p, i) => {
           const [g1, g2] = posterColors(p.name);
           const photo = imageUrl(p.profileUrl);
           return (
             <div key={`${p.name}-${i}`} className="w-28 shrink-0 text-center">
-              <Avatar className="mb-[11px] h-28 w-28 rounded-full shadow-[0_8px_22px_rgba(0,0,0,.45)]">
-                {photo ? <AvatarImage src={photo} alt={p.name} loading="lazy" decoding="async" draggable={false} /> : null}
+              <Avatar className="mb-2.75 h-28 w-28 rounded-full shadow-[0_8px_22px_rgba(0,0,0,.45)]">
+                {photo ? (
+                  <AvatarImage
+                    src={photo}
+                    alt={p.name}
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                  />
+                ) : null}
                 <AvatarFallback
                   className="font-display text-[36px] font-bold text-white/90"
                   style={{ background: `linear-gradient(158deg, ${g1}, ${g2})` }}
@@ -243,7 +290,9 @@ export function CastRail({ cast }: Readonly<{ cast: CastMember[] }>) {
                 </AvatarFallback>
               </Avatar>
               <div className="truncate text-[14px] font-semibold">{p.name}</div>
-              {p.character ? <div className="truncate text-[12px] font-medium text-white/45">{p.character}</div> : null}
+              {p.character ? (
+                <div className="truncate text-[12px] font-medium text-white/45">{p.character}</div>
+              ) : null}
             </div>
           );
         })}
@@ -261,7 +310,9 @@ export function SimilarRail({
   if (items.length === 0) return null;
   return (
     <section className="mt-11">
-      <h2 className="mb-4 px-[var(--gutter-web)] font-display text-[22px] font-bold tracking-[-.02em]">{title}</h2>
+      <h2 className="mb-4 px-(--gutter-web) font-display text-[22px] font-bold tracking-[-.02em]">
+        {title}
+      </h2>
       <Rail gap={18} padded label={title}>
         {items.map((m) => (
           <Poster

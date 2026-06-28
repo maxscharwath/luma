@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { type CSSProperties, useCallback, useEffect, useState } from 'react';
 
 export type SubSize = 'sm' | 'md' | 'lg' | 'xl';
 export type SubEdge = 'shadow' | 'outline' | 'box' | 'none';

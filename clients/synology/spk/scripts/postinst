@@ -1,0 +1,18 @@
+#!/bin/sh
+# Runs once after install/upgrade. Persist the wizard answers (media folder + port)
+# to the package's writable var dir; the service script reads them on start.
+
+VAR="/var/packages/luma/var"
+mkdir -p "${VAR}/data"
+
+# Wizard field keys arrive as environment variables. Only write on a fresh install
+# — never clobber an existing config on upgrade (the wizard doesn't run then, so the
+# env vars would be empty and we'd reset the user's media folders to the default).
+if [ ! -f "${VAR}/luma.conf" ]; then
+    cat > "${VAR}/luma.conf" <<EOF
+LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS:-/volume1/video}"
+LUMA_PORT="${LUMA_PORT:-4040}"
+EOF
+fi
+
+exit 0

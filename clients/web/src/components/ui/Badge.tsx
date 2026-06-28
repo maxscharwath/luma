@@ -8,7 +8,7 @@ const TONES: Record<BadgeTone, string> = {
   'H.265': 'text-h265 bg-[rgba(95,211,196,.16)]',
   success: 'text-success bg-[rgba(70,208,141,.16)]',
   info: 'text-info bg-[rgba(134,168,255,.16)]',
-  neutral: 'text-text/85 bg-white/[.08]',
+  neutral: 'text-text/85 bg-white/8',
 };
 
 export interface BadgeProps {
@@ -16,10 +16,10 @@ export interface BadgeProps {
   children?: ReactNode;
 }
 
-export function Badge({ tone = '4K', children }: BadgeProps) {
+export function Badge({ tone = '4K', children }: Readonly<BadgeProps>) {
   return (
     <span
-      className={`inline-block rounded-md px-[7px] py-[3px] text-[11px] font-bold leading-none ${TONES[tone]}`}
+      className={`inline-block rounded-md px-1.75 py-0.75 text-[11px] font-bold leading-none ${TONES[tone]}`}
     >
       {children}
     </span>

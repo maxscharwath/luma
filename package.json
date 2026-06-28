@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "start": "bun run tizen:prepare && bun run dev",
-    "dev": "concurrently -k -n server,web -c yellow,cyan \"bun run server\" \"bun run dev:web\"",
+    "dev": "concurrently -k -n server,web,tv -c yellow,cyan,magenta \"bun run server:watch\" \"bun run dev:web\" \"VITE_LUMA_SERVER=http://localhost:4040 bun run dev:tizen\"",
+    "dev:webonly": "concurrently -k -n server,web -c yellow,cyan \"bun run server:watch\" \"bun run dev:web\"",
     "dev:web": "bun run --filter '@luma/web' dev",
     "dev:tizen": "bun run --filter '@luma/tizen' dev",
     "dev:webos": "bun run --filter '@luma/webos' dev",
@@ -19,10 +20,17 @@
     "build:webos": "bun run --filter '@luma/webos' build",
     "tizen:prepare": "bun run build:tizen && echo \"✓ Tizen app ready → clients/tizen/dist  (package: cd clients/tizen && tizen build-web && tizen package -t wgt -s <cert-profile> -- dist)\"",
     "typecheck": "bun run --filter '*' typecheck",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
     "server": "cd server && cargo run",
+    "server:watch": "cd server && cargo watch -x run",
     "server:build": "cd server && cargo build --release"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260628.1",
     "concurrently": "^9.1.2"
   },
   "engines": {

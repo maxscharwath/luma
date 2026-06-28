@@ -18,6 +18,7 @@ fn demo_file(item: &MediaItem) -> MediaFile {
         duration_ms: item.duration_ms,
         video: item.video.clone(),
         audio: item.audio.clone(),
+        audio_tracks: item.audio_tracks.clone(),
         subtitles: item.subtitles.clone(),
         size: None,
         edition: None,
@@ -48,35 +49,39 @@ pub fn demo_data() -> ScanData {
 
     let items = vec![
         movie("demo://blade-runner-2049", "Blade Runner 2049", Some(2017), Some(9_780_000), "mkv",
-            video("hevc", 3840, 2160, true, 10), audio("truehd", 8, Some("eng")),
+            video("hevc", 3840, 2160, true, 10),
+            vec![audio("truehd", 8, Some("eng")), audio("eac3", 6, Some("fra")), audio("aac", 2, Some("eng"))],
             vec![sub(Some("eng"), "subrip"), sub(Some("fra"), "subrip")], &movies_lib, &added),
         movie("demo://dune-part-two", "Dune Part Two", Some(2024), Some(9_960_000), "mkv",
-            video("hevc", 3840, 2160, true, 10), audio("eac3", 6, Some("eng")),
+            video("hevc", 3840, 2160, true, 10),
+            vec![audio("eac3", 6, Some("eng")), audio("ac3", 6, Some("fra"))],
             vec![sub(Some("eng"), "subrip")], &movies_lib, &added),
         movie("demo://the-matrix", "The Matrix", Some(1999), Some(8_160_000), "mp4",
-            video("h264", 1920, 1080, false, 8), audio("ac3", 6, Some("eng")),
+            video("h264", 1920, 1080, false, 8),
+            vec![audio("ac3", 6, Some("eng")), audio("aac", 2, Some("fra"))],
             vec![sub(Some("eng"), "mov_text")], &movies_lib, &added),
         movie("demo://spirited-away", "Spirited Away", Some(2001), Some(7_500_000), "mkv",
-            video("h264", 1920, 1040, false, 8), audio("flac", 2, Some("jpn")),
+            video("h264", 1920, 1040, false, 8),
+            vec![audio("flac", 2, Some("jpn")), audio("aac", 2, Some("eng"))],
             vec![sub(Some("eng"), "ass"), sub(Some("jpn"), "ass")], &movies_lib, &added),
         movie("demo://big-buck-bunny", "Big Buck Bunny", Some(2008), Some(596_000), "webm",
-            video("vp9", 1280, 720, false, 8), audio("opus", 2, None), vec![], &movies_lib, &added),
+            video("vp9", 1280, 720, false, 8), vec![audio("opus", 2, None)], vec![], &movies_lib, &added),
         movie("demo://sintel-av1", "Sintel", Some(2010), Some(888_000), "mp4",
-            video("av1", 4096, 1744, false, 10), audio("aac", 2, Some("eng")),
+            video("av1", 4096, 1744, false, 10), vec![audio("aac", 2, Some("eng"))],
             vec![sub(Some("eng"), "subrip")], &movies_lib, &added),
 
         episode("demo://pe2-s01e01", &planet_earth, "Planet Earth II", 1, 1, "Islands",
             Some(2016), Some(2_940_000), "mkv", video("hevc", 3840, 2160, true, 10),
-            audio("eac3", 6, Some("eng")), &shows_lib, &added),
+            vec![audio("eac3", 6, Some("eng")), audio("aac", 2, Some("fra"))], &shows_lib, &added),
         episode("demo://pe2-s01e02", &planet_earth, "Planet Earth II", 1, 2, "Mountains",
             Some(2016), Some(2_940_000), "mkv", video("hevc", 3840, 2160, true, 10),
-            audio("eac3", 6, Some("eng")), &shows_lib, &added),
+            vec![audio("eac3", 6, Some("eng"))], &shows_lib, &added),
         episode("demo://office-s02e01", &the_office, "The Office", 2, 1, "The Dundies",
             Some(2005), Some(1_320_000), "mp4", video("h264", 1280, 720, false, 8),
-            audio("aac", 2, Some("eng")), &shows_lib, &added),
+            vec![audio("aac", 2, Some("eng"))], &shows_lib, &added),
         episode("demo://office-s02e02", &the_office, "The Office", 2, 2, "Sexual Harassment",
             Some(2005), Some(1_320_000), "mp4", video("h264", 1280, 720, false, 8),
-            audio("aac", 2, Some("eng")), &shows_lib, &added),
+            vec![audio("aac", 2, Some("eng"))], &shows_lib, &added),
     ];
 
     let movies_count = items.iter().filter(|i| i.library == movies_lib).count();
@@ -107,12 +112,14 @@ fn show_id(lib: &str, title: &str) -> String {
 #[allow(clippy::too_many_arguments)]
 fn movie(
     seed: &str, title: &str, year: Option<u32>, duration_ms: Option<u64>, container: &str,
-    video: Option<VideoStream>, audio: Option<AudioStream>, subtitles: Vec<SubtitleTrack>,
+    video: Option<VideoStream>, audio_tracks: Vec<AudioStream>, subtitles: Vec<SubtitleTrack>,
     library: &str, added_at: &str,
 ) -> MediaItem {
+    let audio_tracks = tracks(audio_tracks);
     with_demo_file(MediaItem {
         id: short_hash(seed), title: title.into(), kind: Kind::Movie, year, duration_ms,
-        container: container.into(), video, audio, subtitles, library: library.into(),
+        container: container.into(), video, audio: audio_tracks.first().cloned(), audio_tracks,
+        subtitles, library: library.into(),
         show_id: None, show_title: None, season: None, episode: None, episode_end: None,
         episode_title: None, rel_path: None, added_at: added_at.into(), metadata: None, abs_path: None,
         files: Vec::new(), default_file_id: None,
@@ -123,11 +130,13 @@ fn movie(
 fn episode(
     seed: &str, show: &str, show_title: &str, season: u32, episode: u32, episode_title: &str,
     year: Option<u32>, duration_ms: Option<u64>, container: &str, video: Option<VideoStream>,
-    audio: Option<AudioStream>, library: &str, added_at: &str,
+    audio_tracks: Vec<AudioStream>, library: &str, added_at: &str,
 ) -> MediaItem {
+    let audio_tracks = tracks(audio_tracks);
     with_demo_file(MediaItem {
         id: short_hash(seed), title: episode_title.into(), kind: Kind::Episode, year, duration_ms,
-        container: container.into(), video, audio, subtitles: vec![sub(Some("eng"), "subrip")],
+        container: container.into(), video, audio: audio_tracks.first().cloned(), audio_tracks,
+        subtitles: vec![sub(Some("eng"), "subrip")],
         library: library.into(), show_id: Some(show.into()), show_title: Some(show_title.into()),
         season: Some(season), episode: Some(episode), episode_end: None,
         episode_title: Some(episode_title.into()), rel_path: None, added_at: added_at.into(),
@@ -139,8 +148,27 @@ fn video(codec: &str, width: u32, height: u32, hdr: bool, bit_depth: u32) -> Opt
     Some(VideoStream { codec: codec.into(), width: Some(width), height: Some(height), hdr, bit_depth: Some(bit_depth) })
 }
 
-fn audio(codec: &str, channels: u32, language: Option<&str>) -> Option<AudioStream> {
-    Some(AudioStream { codec: codec.into(), channels: Some(channels), language: language.map(Into::into) })
+fn audio(codec: &str, channels: u32, language: Option<&str>) -> AudioStream {
+    AudioStream {
+        index: 0,
+        codec: codec.into(),
+        channels: Some(channels),
+        language: language.map(Into::into),
+        title: None,
+        default: false,
+    }
+}
+
+/// Assign sequential audio-relative indices and mark the first track default.
+fn tracks(list: Vec<AudioStream>) -> Vec<AudioStream> {
+    list.into_iter()
+        .enumerate()
+        .map(|(i, mut a)| {
+            a.index = i as u32;
+            a.default = i == 0;
+            a
+        })
+        .collect()
 }
 
 fn sub(language: Option<&str>, codec: &str) -> SubtitleTrack {

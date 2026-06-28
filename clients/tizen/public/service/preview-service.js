@@ -37,10 +37,10 @@ function exit() {
 }
 
 function readPreviewData() {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     tizen.filesystem.resolve(
       PRIVATE_DIR,
-      function (dir) {
+      (dir) => {
         var file;
         try {
           file = dir.resolve(PREVIEW_FILE);
@@ -50,7 +50,7 @@ function readPreviewData() {
         }
         file.openStream(
           'r',
-          function (stream) {
+          (stream) => {
             var data = '';
             try {
               if (stream.bytesAvailable > 0) {
@@ -65,17 +65,17 @@ function readPreviewData() {
             resolve(data);
           },
           reject,
-          'UTF-8'
+          'UTF-8',
         );
       },
       reject,
-      'r'
+      'r',
     );
   });
 }
 
 function publish(data) {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     if (!data) {
       reject(new Error('no preview data on disk yet'));
       return;
@@ -91,12 +91,12 @@ function publish(data) {
     try {
       webapis.preview.setPreviewData(
         data,
-        function () {
+        () => {
           resolve();
         },
-        function (err) {
+        (err) => {
           reject(err);
-        }
+        },
       );
     } catch (e) {
       reject(e);
@@ -107,17 +107,17 @@ function publish(data) {
 function refresh() {
   readPreviewData()
     .then(publish)
-    .then(function () {
+    .then(() => {
       log('preview published OK');
     })
-    .catch(function (err) {
+    .catch((err) => {
       log('skip: ' + (err && err.message ? err.message : JSON.stringify(err)));
     })
     .then(exit, exit);
 }
 
 function safe(fn) {
-  return function () {
+  return () => {
     try {
       fn();
     } catch (e) {
@@ -128,14 +128,14 @@ function safe(fn) {
 }
 
 module.exports = {
-  onStart: safe(function () {
+  onStart: safe(() => {
     log('service start');
   }),
-  onRequest: safe(function () {
+  onRequest: safe(() => {
     log('onRequest');
     refresh();
   }),
-  onExit: safe(function () {
+  onExit: safe(() => {
     log('service exit');
   }),
 };
