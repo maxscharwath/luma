@@ -13,8 +13,15 @@ import {
 } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/components/admin/shell';
-import { Card, Modal, Select } from '#web/components/admin/ui';
+import {
+  Denied,
+  HeaderAction,
+  PageHeader,
+  useAsyncAction,
+  useCap,
+  usePoll,
+} from '#web/components/admin/shell';
+import { Card, Field, Modal, ModalActions, Select } from '#web/components/admin/ui';
 import { formatBytes, relativeSeen } from '#web/lib/adminFormat';
 import { useAuth } from '#web/lib/auth';
 
@@ -247,22 +254,19 @@ function AddLibraryModal({
   const [name, setName] = useState('');
   const [kind, setKind] = useState(movies);
   const [folder, setFolder] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAsyncAction();
 
-  async function create() {
+  const create = () => {
     if (!name.trim()) return;
-    setBusy(true);
-    try {
+    run(async () => {
       await client.createLibrary({
         name: name.trim(),
         kind: kind === shows ? 'shows' : 'movies',
         folders: folder.trim() ? [folder.trim()] : [],
       });
       onCreated();
-    } finally {
-      setBusy(false);
-    }
-  }
+    });
+  };
 
   return (
     <Modal title={t('admin.addLibrary')} onClose={onClose}>
@@ -285,23 +289,14 @@ function AddLibraryModal({
           className="w-full rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px]"
         />
       </Field>
-      <div className="mt-5 flex justify-end gap-2.5">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
-        >
-          {t('common.cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={() => void create()}
-          disabled={busy || !name.trim()}
-          className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink disabled:opacity-50"
-        >
-          {busy ? t('common.creating') : t('common.create')}
-        </button>
-      </div>
+      <ModalActions
+        onCancel={onClose}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => void create()}
+        confirmLabel={busy ? t('common.creating') : t('common.create')}
+        busy={busy}
+        disabled={!name.trim()}
+      />
     </Modal>
   );
 }
@@ -319,27 +314,20 @@ function ManageLibraryModal({
   const { client } = useAuth();
   const [name, setName] = useState(lib.name);
   const [autoScan, setAutoScan] = useState(lib.autoScan);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAsyncAction();
 
-  async function save() {
-    setBusy(true);
-    try {
+  const save = () =>
+    run(async () => {
       await client.updateLibrary(lib.id, { name: name.trim(), autoScan });
       onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function remove() {
+    });
+  const remove = () => {
     if (!confirm(t('admin.confirmDeleteLibrary', { name: lib.name }))) return;
-    setBusy(true);
-    try {
+    run(async () => {
       await client.deleteLibrary(lib.id);
       onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
+    });
+  };
 
   return (
     <Modal title={t('admin.manageLibrary', { name: lib.name })} onClose={onClose}>
@@ -359,44 +347,14 @@ function ManageLibraryModal({
         />
         <span className="text-[14px] font-semibold">{t('admin.autoScan')}</span>
       </label>
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => void remove()}
-          disabled={busy}
-          className="text-[13px] font-semibold text-[#E8536A] disabled:opacity-40"
-        >
-          {t('common.delete')}
-        </button>
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={busy}
-            className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink disabled:opacity-50"
-          >
-            {busy ? t('common.saving') : t('common.save')}
-          </button>
-        </div>
-      </div>
+      <ModalActions
+        onCancel={onClose}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => void save()}
+        confirmLabel={busy ? t('common.saving') : t('common.save')}
+        busy={busy}
+        destructive={{ label: t('common.delete'), onClick: () => void remove() }}
+      />
     </Modal>
-  );
-}
-
-function Field({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
-  return (
-    <div className="mb-4">
-      <label className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

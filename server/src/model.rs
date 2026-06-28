@@ -2,12 +2,14 @@
 //! depend on it, so field names and casing must not drift.
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::metadata::Metadata;
 
 /// What sort of thing a media item is.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export, rename = "MediaKind")]
 pub enum Kind {
     Movie,
     Episode,
@@ -15,8 +17,9 @@ pub enum Kind {
 }
 
 /// Library classification, derived from the kinds of items it holds.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum LibraryKind {
     Movies,
     Shows,
@@ -24,7 +27,8 @@ pub enum LibraryKind {
 }
 
 /// Video stream description (best-effort; fields may be null when unknown).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename = "VideoTrack")]
 pub struct VideoStream {
     pub codec: String,
     pub width: Option<u32>,
@@ -38,7 +42,8 @@ pub struct VideoStream {
 /// director's commentary); `index` is the **audio-relative** position (0-based
 /// among audio streams only), which is exactly what ffmpeg's `-map 0:a:<index>`
 /// selector expects when remuxing a chosen track.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename = "AudioTrack")]
 pub struct AudioStream {
     /// Audio-relative stream index (0 = first audio track). Drives track
     /// selection (`-map 0:a:<index>`) on the server's per-track HLS remux.
@@ -57,7 +62,8 @@ pub struct AudioStream {
 }
 
 /// A subtitle track.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SubtitleTrack {
     pub language: Option<String>,
     pub codec: String,
@@ -66,7 +72,8 @@ pub struct SubtitleTrack {
 /// One physical file backing a logical [`MediaItem`]. A single item can have
 /// several of these (Director's Cut + Theatrical, 1080p + 4K, …); they all share
 /// the same logical item id but each maps to a distinct file on disk.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MediaFile {
     /// `short_hash(abs_path)` — stable per physical file.
     pub id: String,
@@ -106,7 +113,8 @@ pub struct MediaFile {
 /// `video`/`audio`/`duration_ms`/`container`/`subtitles`/`abs_path` fields mirror
 /// the **representative file** (the highest-resolution probed file) for backward
 /// compatibility with clients that read `item.video.codec` directly.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MediaItem {
     pub id: String,
     pub title: String,
@@ -160,7 +168,8 @@ pub struct MediaItem {
 }
 
 /// A TV show aggregate (not a file). Built by grouping episodes during a scan.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Show {
     pub id: String,
     pub title: String,
@@ -181,14 +190,16 @@ pub struct Show {
 }
 
 /// One season's worth of episodes, sorted by episode number.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Season {
     pub number: u32,
     pub episodes: Vec<MediaItem>,
 }
 
 /// `GET /api/shows/:id` payload: a show plus its seasons.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ShowDetail {
     pub show: Show,
     pub seasons: Vec<Season>,
@@ -196,7 +207,8 @@ pub struct ShowDetail {
 
 /// A user account. `password_hash` lives only in the DB layer and is never part
 /// of this (serialized) shape, so a `User` is always safe to send to clients.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct User {
     pub id: String,
     pub email: String,
@@ -227,7 +239,8 @@ impl User {
 /// A granular capability. Stored on each user as a JSON array of the string keys
 /// below. Extend this enum (and the TS mirror in `@luma/core`) to add more —
 /// e.g. a `stats.view` for the upcoming stats pages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub enum Permission {
     /// Manage user accounts (the admin panel).
     #[serde(rename = "users.manage")]
@@ -268,7 +281,8 @@ impl Permission {
 
 /// The publicly-listable subset of a user, surfaced by `GET /api/users` to
 /// populate the "Qui regarde ?" profile picker (no email).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct PublicUser {
     pub id: String,
     pub username: String,
@@ -278,7 +292,8 @@ pub struct PublicUser {
 
 /// A registration invitation created by a user with `users.manage`. After the
 /// bootstrap owner, an invite is the only way to create an account.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct Invite {
     pub token: String,
     /// Permissions the invited account will be granted.
@@ -294,7 +309,8 @@ pub struct Invite {
 }
 
 /// One row of a user's playback progress.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ProgressEntry {
     #[serde(rename = "itemId")]
     pub item_id: String,
@@ -307,7 +323,8 @@ pub struct ProgressEntry {
 }
 
 /// A "continue watching" entry: the resumable item plus where to resume from.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct ContinueItem {
     pub item: MediaItem,
     #[serde(rename = "positionMs")]
@@ -319,7 +336,8 @@ pub struct ContinueItem {
 }
 
 /// A scanned library root.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Library {
     pub id: String,
     pub name: String,
@@ -344,7 +362,8 @@ pub fn role_label(perms: &[Permission]) -> &'static str {
 /// One account as surfaced to the admin "Membres & partage" table. Unlike
 /// [`User`] this carries the email, a derived role, last-activity and a live
 /// `online` flag (set at request time from the playback registry).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct AdminUser {
     pub id: String,
     pub email: String,
@@ -364,7 +383,8 @@ pub struct AdminUser {
 
 /// Aggregated per-user watch stats over a window (the dashboard "Top des
 /// utilisateurs" cards).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct TopUser {
     pub username: String,
     pub plays: i64,

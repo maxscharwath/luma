@@ -3,8 +3,8 @@ import {
   canDirectPlay,
   channelLabel,
   codecLabel,
+  langName,
   type MediaItem,
-  type MessageKey,
   posterColors,
   type Translate,
   type VideoTrack,
@@ -35,42 +35,9 @@ export function qualityBadges(video: VideoTrack | null | undefined): QualityTone
   return out;
 }
 
-/** ISO 639 code (2- or 3-letter) → the `lang.*` catalog key for its native name. */
-export const LANG_KEYS: Record<string, MessageKey> = {
-  fr: 'lang.fr',
-  fra: 'lang.fr',
-  fre: 'lang.fr',
-  en: 'lang.en',
-  eng: 'lang.en',
-  es: 'lang.es',
-  spa: 'lang.es',
-  de: 'lang.de',
-  ger: 'lang.de',
-  deu: 'lang.de',
-  it: 'lang.it',
-  ita: 'lang.it',
-  ja: 'lang.ja',
-  jpn: 'lang.ja',
-  ko: 'lang.ko',
-  kor: 'lang.ko',
-  zh: 'lang.zh',
-  zho: 'lang.zh',
-  chi: 'lang.zh',
-  ru: 'lang.ru',
-  rus: 'lang.ru',
-  pt: 'lang.pt',
-  por: 'lang.pt',
-  nl: 'lang.nl',
-  dut: 'lang.nl',
-  nld: 'lang.nl',
-};
-
-/** Localized language name for an ISO code, or the upper-cased code if unknown. */
-export function langName(t: Translate, code: string | null | undefined): string | null {
-  if (!code) return null;
-  const key = LANG_KEYS[code.toLowerCase()];
-  return key ? t(key) : code.toUpperCase();
-}
+// `langName` is re-exported so existing importers (AvDrawer, movie route) keep
+// their `#web/components/detail` path; the implementation now lives in @luma/core.
+export { langName };
 
 /** "Français · AAC 5.1" — language then codec/channels. */
 export function audioString(t: Translate, item: Pick<MediaItem, 'audio'>): string {

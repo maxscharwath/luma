@@ -7,7 +7,6 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
-use serde_json::json;
 use tracing::{error, info};
 
 use crate::api::error::json_error;
@@ -38,6 +37,18 @@ where
     }
 }
 
+/// Clone the connection pool and run a blocking DB closure off the async runtime.
+/// A thin combinator over [`blocking`] that hands the closure its own `Pool`, so
+/// handlers don't repeat `let pool = state.db.clone();` before every query.
+pub(crate) async fn query<T, F>(pool: &db::Pool, f: F) -> Result<T, Response>
+where
+    F: FnOnce(db::Pool) -> anyhow::Result<T> + Send + 'static,
+    T: Send + 'static,
+{
+    let pool = pool.clone();
+    blocking(move || f(pool)).await
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LibraryQuery {
     pub library: Option<String>,
@@ -45,23 +56,21 @@ pub struct LibraryQuery {
 
 /// `GET /api/health`
 pub async fn health(State(state): State<SharedState>) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let (libraries, items, shows) = blocking(move || db::counts(&pool)).await?;
-    Ok(Json(json!({
-        "status": "ok",
-        "version": env!("CARGO_PKG_VERSION"),
-        "ffprobe": state.ffprobe_available,
-        "libraries": libraries,
-        "items": items,
-        "shows": shows,
-    }))
+    let (libraries, items, shows) = query(&state.db, move |pool| db::counts(&pool)).await?;
+    Ok(Json(super::dto::Health {
+        status: "ok",
+        version: env!("CARGO_PKG_VERSION"),
+        ffprobe: state.ffprobe_available,
+        libraries,
+        items,
+        shows,
+    })
     .into_response())
 }
 
 /// `GET /api/libraries` → `Library[]`
 pub async fn list_libraries(State(state): State<SharedState>) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let libs = blocking(move || db::list_libraries(&pool)).await?;
+    let libs = query(&state.db, move |pool| db::list_libraries(&pool)).await?;
     Ok(Json(libs).into_response())
 }
 
@@ -70,8 +79,7 @@ pub async fn list_items(
     State(state): State<SharedState>,
     Query(q): Query<LibraryQuery>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let items = blocking(move || db::list_items(&pool, q.library.as_deref())).await?;
+    let items = query(&state.db, move |pool| db::list_items(&pool, q.library.as_deref())).await?;
     Ok(Json(items).into_response())
 }
 
@@ -80,8 +88,7 @@ pub async fn list_movies(
     State(state): State<SharedState>,
     Query(q): Query<LibraryQuery>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let items = blocking(move || db::list_movies(&pool, q.library.as_deref())).await?;
+    let items = query(&state.db, move |pool| db::list_movies(&pool, q.library.as_deref())).await?;
     Ok(Json(items).into_response())
 }
 
@@ -90,8 +97,7 @@ pub async fn list_shows(
     State(state): State<SharedState>,
     Query(q): Query<LibraryQuery>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let shows = blocking(move || db::list_shows(&pool, q.library.as_deref())).await?;
+    let shows = query(&state.db, move |pool| db::list_shows(&pool, q.library.as_deref())).await?;
     Ok(Json(shows).into_response())
 }
 
@@ -100,8 +106,7 @@ pub async fn get_show(
     State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let detail = blocking(move || db::get_show(&pool, &id))
+    let detail = query(&state.db, move |pool| db::get_show(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "show not found"))?;
     Ok(Json(detail).into_response())
@@ -112,9 +117,8 @@ pub async fn show_poster(
     State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
     let id2 = id.clone();
-    let title = blocking(move || db::show_title(&pool, &id2))
+    let title = query(&state.db, move |pool| db::show_title(&pool, &id2))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "show not found"))?;
     Ok(render_poster(&id, &title))
@@ -125,8 +129,7 @@ pub async fn get_item(
     State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let item = blocking(move || db::get_item(&pool, &id))
+    let item = query(&state.db, move |pool| db::get_item(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
     Ok(Json(item).into_response())
@@ -146,8 +149,7 @@ pub async fn stream_item(
     Query(q): Query<StreamQuery>,
     headers: HeaderMap,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let item = blocking(move || db::get_item(&pool, &id))
+    let item = query(&state.db, move |pool| db::get_item(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
     let abs_path = pick_file_path(&item, q.file.as_deref());
@@ -213,9 +215,8 @@ pub async fn hls_playlist(
     State(state): State<SharedState>,
     Path((id, variant)): Path<(String, String)>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
     let id2 = id.clone();
-    let item = blocking(move || db::get_item(&pool, &id2))
+    let item = query(&state.db, move |pool| db::get_item(&pool, &id2))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
     let abs = item
@@ -304,9 +305,8 @@ pub async fn item_poster(
     State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
     let id2 = id.clone();
-    let item = blocking(move || db::get_item(&pool, &id2))
+    let item = query(&state.db, move |pool| db::get_item(&pool, &id2))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
     Ok(render_poster(&id, &item.title))
@@ -384,8 +384,7 @@ pub async fn item_card(
     Path(id): Path<String>,
     Query(q): Query<CardQuery>,
 ) -> Result<Response, Response> {
-    let pool = state.db.clone();
-    let item = blocking(move || db::get_item(&pool, &id))
+    let item = query(&state.db, move |pool| db::get_item(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
 
@@ -453,8 +452,7 @@ pub async fn subtitles(
         Err(_) => return json_error(StatusCode::BAD_REQUEST, "invalid subtitle index"),
     };
 
-    let pool = state.db.clone();
-    let abs = match blocking(move || db::get_item(&pool, &id)).await {
+    let abs = match query(&state.db, move |pool| db::get_item(&pool, &id)).await {
         Ok(Some(item)) => item.abs_path,
         Ok(None) => return json_error(StatusCode::NOT_FOUND, "item not found"),
         Err(resp) => return resp,
@@ -517,8 +515,7 @@ pub async fn item_metadata(
 ) -> Result<Response, Response> {
     let api_key = require_tmdb_key(&state)?;
 
-    let pool = state.db.clone();
-    let item = blocking(move || db::get_item(&pool, &id))
+    let item = query(&state.db, move |pool| db::get_item(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
 
@@ -541,8 +538,7 @@ pub async fn show_metadata(
 ) -> Result<Response, Response> {
     let api_key = require_tmdb_key(&state)?;
 
-    let pool = state.db.clone();
-    let show = blocking(move || db::get_show(&pool, &id))
+    let show = query(&state.db, move |pool| db::get_show(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "show not found"))?
         .show;
@@ -592,7 +588,6 @@ async fn resolve_metadata(
 
 /// `POST /api/scan` → rescan all dirs, reseeding demo content if empty.
 pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Response> {
-    let pool = state.db.clone();
     let defs = crate::settings::library_defs(&state.settings, &state.config);
 
     state.events.publish(ServerEvent::ScanStarted);
@@ -600,7 +595,7 @@ pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Respon
 
     // Phase 1 (fast): walk + stat only, diff-synced (preserves metadata + probed
     // data via the mtime cache). Phase 2 probing is spawned afterwards.
-    let data = blocking(move || {
+    let data = query(&state.db, move |pool| {
         let mut data = crate::scan::scan_all(&defs);
         if data.items.is_empty() {
             info!("scan yielded no items; seeding demo content");
@@ -624,7 +619,7 @@ pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Respon
         state.activity.clone(),
     );
     crate::enrich::maybe_spawn(&state, &data.items, &data.shows);
-    Ok(Json(json!({ "scanned": items, "libraries": libraries, "shows": shows })).into_response())
+    Ok(Json(super::dto::ScanResult { scanned: items, libraries, shows }).into_response())
 }
 
 /// `GET /api/status` → live scan/enrichment snapshot.

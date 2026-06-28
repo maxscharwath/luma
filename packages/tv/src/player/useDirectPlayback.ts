@@ -5,12 +5,12 @@ import {
   canDirectPlay,
   type DirectPlayVerdict,
   type LumaClient,
-  LumaEvents,
   type MediaItem,
   type MessageKey,
   planAudio,
   restorePlaybackAfterSwap,
 } from '@luma/core';
+import { usePlaybackHeartbeat } from '@luma/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface Playback {
@@ -241,70 +241,39 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     };
   }, [client, item, saveProgress]);
 
-  // Heartbeat the session to the server so it shows in the admin dashboard's
-  // "En cours de lecture" panel (every 10 s + on play/pause; stop on unmount).
-  const sessionId = useRef<string>('');
-  if (!sessionId.current) {
-    sessionId.current = `tv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-  // Set once an admin terminates this session: stops pinging + shows the message.
-  const terminatedRef = useRef(false);
-  useEffect(() => {
-    if (!client.hasAuth) return;
+  // Heartbeat the session for the admin dashboard's "En cours de lecture" panel
+  // and react to a remote admin termination (pause + surface the message). The
+  // loop/terminate plumbing is shared with the web player (@luma/ui); the TV
+  // supplies platform labels, the raw <video> position, and play/pause events.
+  const tvDevice = (): string => {
     const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent || '';
-    let device = 'TV';
-    if (/Tizen/i.test(ua)) device = 'Samsung TV';
-    else if (/web0?s|LG/i.test(ua)) device = 'LG TV';
-    const ping = () => {
-      const v = videoRef.current;
-      if (!v || terminatedRef.current) return;
-      client
-        .pingPlayback({
-          sessionId: sessionId.current,
-          itemId: item.id,
-          positionMs: Math.round((v.currentTime || 0) * 1000),
-          durationMs: item.durationMs ?? null,
-          state: v.paused ? 'paused' : 'playing',
-          mode: 'direct',
-          player: 'LUMA TV',
-          device,
-        })
-        .catch(() => undefined);
-    };
-    ping();
-    const iv = setInterval(ping, 10000);
-    const v = videoRef.current;
-    v?.addEventListener('play', ping);
-    v?.addEventListener('pause', ping);
-    const sid = sessionId.current;
-    return () => {
-      clearInterval(iv);
-      v?.removeEventListener('play', ping);
-      v?.removeEventListener('pause', ping);
-      if (!terminatedRef.current) client.stopPlayback(sid).catch(() => undefined);
-    };
-  }, [client, item]);
-
-  // An admin can remotely terminate this session → pause + surface the message.
-  useEffect(() => {
-    if (!client.hasAuth) return;
-    const events = new LumaEvents(client.baseUrl, {
-      onEvent: (e) => {
-        if (e.type === 'playback.terminate' && e.sessionId === sessionId.current) {
-          terminatedRef.current = true;
-          try {
-            videoRef.current?.pause();
-          } catch {
-            /* ignore */
-          }
-          // Empty string → the render site supplies the localized default.
-          setTerminated(e.message?.trim() || '');
-        }
-      },
-    });
-    events.connect();
-    return () => events.close();
-  }, [client]);
+    if (/Tizen/i.test(ua)) return 'Samsung TV';
+    if (/web0?s|LG/i.test(ua)) return 'LG TV';
+    return 'TV';
+  };
+  usePlaybackHeartbeat({
+    client,
+    enabled: client.hasAuth,
+    itemId: item.id,
+    durationMs: item.durationMs ?? null,
+    getPosition: () => videoRef.current?.currentTime ?? 0,
+    getState: () => (videoRef.current?.paused ? 'paused' : 'playing'),
+    mode: 'direct',
+    player: 'LUMA TV',
+    device: tvDevice(),
+    eventsBaseUrl: client.baseUrl,
+    idPrefix: 'tv',
+    videoRef,
+    onTerminated: (message) => {
+      try {
+        videoRef.current?.pause();
+      } catch {
+        /* ignore */
+      }
+      // Empty string → the render site supplies the localized default.
+      setTerminated(message.trim() || '');
+    },
+  });
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;

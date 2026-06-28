@@ -1,14 +1,11 @@
-import { LumaApiError, LumaEvents } from '@luma/core';
-import { useEffect, useRef } from 'react';
+import { usePlaybackHeartbeat } from '@luma/ui';
 import { apiBase } from '#web/lib/api';
 import type { MovieView } from '#web/lib/api';
 import { useAuth } from '#web/lib/auth';
 
-// Heartbeat the current playback to the server so it shows up in the admin
-// dashboard's "En cours de lecture" panel. Pings every 10 s while the player is
-// open, immediately on play/pause transitions, and signals stop on unmount.
-// Also listens for an admin "terminate" event (or a 410 on the next ping) so a
-// remotely-stopped stream halts with a message.
+// Web adapter over the shared playback heartbeat (@luma/ui): supplies the signed-in
+// client, browser-UA labels, the offset-aware position, and drives the prompt ping
+// off the player's React `playing` state. See `usePlaybackHeartbeat` for the loop.
 
 interface Params {
   item: MovieView;
@@ -38,75 +35,22 @@ function uaInfo(): { player: string; device: string } {
   return { player, device };
 }
 
-let counter = 0;
-
 export function usePlaybackSession(params: Params): void {
   const { client, user } = useAuth();
-  const sessionId = useRef<string>('');
-  if (!sessionId.current) {
-    sessionId.current = `web-${Date.now().toString(36)}-${(counter++).toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-  const ref = useRef(params);
-  ref.current = params;
-  // Once terminated we stop pinging and don't send a redundant stop on unmount.
-  const terminated = useRef(false);
-
-  const fireTerminated = useRef((message: string) => {
-    if (terminated.current) return;
-    terminated.current = true;
-    ref.current.onTerminated?.(message);
+  const ua = uaInfo();
+  usePlaybackHeartbeat({
+    client,
+    enabled: !!user,
+    itemId: params.item.id,
+    durationMs: params.item.durationMs ?? null,
+    getPosition: params.getPosition,
+    getState: () => (params.playing ? 'playing' : 'paused'),
+    mode: params.mode,
+    player: ua.player,
+    device: ua.device,
+    eventsBaseUrl: apiBase(),
+    idPrefix: 'web',
+    pingSignal: params.playing,
+    onTerminated: (message) => params.onTerminated?.(message),
   });
-
-  const send = useRef(() => {
-    if (!user || terminated.current) return;
-    const p = ref.current;
-    const ua = uaInfo();
-    client
-      .pingPlayback({
-        sessionId: sessionId.current,
-        itemId: p.item.id,
-        positionMs: Math.round(p.getPosition() * 1000),
-        durationMs: p.item.durationMs ?? null,
-        state: p.playing ? 'playing' : 'paused',
-        mode: p.mode,
-        player: ua.player,
-        device: ua.device,
-      })
-      .catch((e: unknown) => {
-        // 410 Gone → an admin terminated this session (WS fallback).
-        if (e instanceof LumaApiError && e.status === 410) fireTerminated.current('');
-      });
-  });
-
-  // Heartbeat loop + stop on unmount.
-  useEffect(() => {
-    if (!user) return;
-    const ping = () => send.current();
-    ping();
-    const iv = setInterval(ping, 10000);
-    const sid = sessionId.current;
-    return () => {
-      clearInterval(iv);
-      if (!terminated.current) client.stopPlayback(sid).catch(() => undefined);
-    };
-  }, [client, user]);
-
-  // Promptly reflect play/pause transitions.
-  useEffect(() => {
-    send.current();
-  }, [params.playing]);
-
-  // Listen for an admin terminating this session (matched by session id).
-  useEffect(() => {
-    if (!user) return;
-    const ev = new LumaEvents(apiBase(), {
-      onEvent: (e) => {
-        if (e.type === 'playback.terminate' && e.sessionId === sessionId.current) {
-          fireTerminated.current(e.message);
-        }
-      },
-    });
-    ev.connect();
-    return () => ev.close();
-  }, [user]);
 }

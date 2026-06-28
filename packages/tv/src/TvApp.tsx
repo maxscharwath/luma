@@ -45,6 +45,8 @@ const EMPTY_ACTIVITY: Activity = {
   items: 0,
   enrichDone: 0,
   enrichTotal: 0,
+  probeDone: 0,
+  probeTotal: 0,
   lastScanAt: null,
 };
 const base = (a: Activity | null): Activity => a ?? EMPTY_ACTIVITY;

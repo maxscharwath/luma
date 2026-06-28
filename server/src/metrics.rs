@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 use sysinfo::{Disks, System};
+use ts_rs::TS;
 
 use crate::playback::Registry;
 use crate::process_started;
@@ -25,8 +26,9 @@ const SAMPLE_INTERVAL: Duration = Duration::from_millis(1500);
 const HISTORY: usize = 120;
 
 /// Time-series history (oldest → newest). Percentages are 0..100.
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, rename = "MetricsSeries")]
 pub struct Series {
     pub cpu_luma: Vec<f32>,
     pub cpu_system: Vec<f32>,
@@ -38,8 +40,9 @@ pub struct Series {
 }
 
 /// A point-in-time metrics snapshot plus the recent history series.
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, rename = "MetricsSnapshot")]
 pub struct Snapshot {
     pub cpu_luma: f32,
     pub cpu_system: f32,
@@ -198,8 +201,9 @@ fn num_cpus_safe(sys: &mut System) -> f32 {
 // ----- disks (storage page) ---------------------------------------------------
 
 /// One mounted volume's usage.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Volume")]
 pub struct DiskInfo {
     pub name: String,
     pub mount: String,

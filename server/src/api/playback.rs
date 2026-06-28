@@ -12,7 +12,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 
-use crate::api::handlers::blocking;
+use crate::api::handlers::query;
 use crate::auth::AuthUser;
 use crate::db;
 use crate::events::ServerEvent;
@@ -74,9 +74,8 @@ pub async fn ping(
     let item = if state.playback.contains(&body.session_id) {
         None
     } else {
-        let pool = state.db.clone();
         let id = body.item_id.clone();
-        match blocking(move || db::get_item(&pool, &id)).await {
+        match query(&state.db, move |pool| db::get_item(&pool, &id)).await {
             Ok(i) => i,
             Err(_) => None,
         }
@@ -105,9 +104,8 @@ pub async fn ping(
     );
 
     // Keep the user's last-seen fresh (best-effort).
-    let pool = state.db.clone();
     let uid = user.id.clone();
-    let _ = blocking(move || {
+    let _ = query(&state.db, move |pool| {
         let _ = db::touch_last_seen(&pool, &uid);
         Ok(())
     })
@@ -136,8 +134,7 @@ pub async fn stop(
     Json(body): Json<StopBody>,
 ) -> Response {
     if let Some(session) = state.playback.remove(&body.session_id) {
-        let pool = state.db.clone();
-        let _ = blocking(move || {
+        let _ = query(&state.db, move |pool| {
             playback::record(&pool, &session);
             Ok(())
         })

@@ -13,7 +13,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::api::error::lerr;
-use crate::api::handlers::blocking;
+use crate::api::handlers::{blocking, query};
 use crate::auth::{self, AuthUser};
 use crate::db;
 use crate::i18n::{self, ReqLocale};
@@ -55,8 +55,7 @@ pub async fn register(
 
     // How many accounts exist already decides whether this is the bootstrap
     // owner (no invite needed) or an invite-gated signup.
-    let pool = state.db.clone();
-    let count = match blocking(move || db::user_count(&pool)).await {
+    let count = match query(&state.db, move |pool| db::user_count(&pool)).await {
         Ok(n) => n,
         Err(resp) => return resp,
     };
@@ -65,9 +64,8 @@ pub async fn register(
     // a retry against an already-registered email spends the single-use invite
     // and locks the invitee out. (The UNIQUE constraint in `create_user` remains
     // the atomic backstop for the residual check-then-create window.)
-    let pool = state.db.clone();
     let email_check = email.clone();
-    match blocking(move || db::find_user_by_email(&pool, &email_check)).await {
+    match query(&state.db, move |pool| db::find_user_by_email(&pool, &email_check)).await {
         Ok(Some(_)) => return lerr(loc, StatusCode::CONFLICT, "auth.emailTaken"),
         Ok(None) => {}
         Err(resp) => return resp,
@@ -82,8 +80,7 @@ pub async fn register(
         let Some(token) = body.invite_token.clone().filter(|t| !t.trim().is_empty()) else {
             return lerr(loc, StatusCode::FORBIDDEN, "auth.inviteOnly");
         };
-        let pool = state.db.clone();
-        match blocking(move || db::consume_invite(&pool, token.trim())).await {
+        match query(&state.db, move |pool| db::consume_invite(&pool, token.trim())).await {
             Ok(Some(perms)) => perms,
             Ok(None) => return lerr(loc, StatusCode::FORBIDDEN, "auth.inviteInvalid"),
             Err(resp) => return resp,
@@ -91,9 +88,8 @@ pub async fn register(
     };
 
     let hash = auth::hash_password(&body.password);
-    let pool = state.db.clone();
     let user =
-        match blocking(move || db::create_user(&pool, &email, &username, &hash, &permissions)).await
+        match query(&state.db, move |pool| db::create_user(&pool, &email, &username, &hash, &permissions)).await
         {
             Ok(u) => u,
             Err(resp) => return resp,
@@ -115,8 +111,7 @@ pub async fn login(
     Json(body): Json<LoginBody>,
 ) -> Response {
     let identifier = body.email.trim().to_string();
-    let pool = state.db.clone();
-    let found = match blocking(move || db::find_user_by_login(&pool, &identifier)).await {
+    let found = match query(&state.db, move |pool| db::find_user_by_login(&pool, &identifier)).await {
         Ok(v) => v,
         Err(resp) => return resp,
     };
@@ -133,8 +128,7 @@ pub async fn login(
 /// `POST /api/auth/logout` → 204. No-op if the token is missing/unknown.
 pub async fn logout(State(state): State<SharedState>, headers: HeaderMap) -> Response {
     if let Some(token) = auth::bearer_from_headers(&headers) {
-        let pool = state.db.clone();
-        let _ = blocking(move || db::delete_session(&pool, &token)).await;
+        let _ = query(&state.db, move |pool| db::delete_session(&pool, &token)).await;
     }
     StatusCode::NO_CONTENT.into_response()
 }
@@ -161,9 +155,8 @@ pub async fn update_me(
 ) -> Response {
     // Normalise to a supported code; an unknown/garbage tag leaves it unchanged.
     let language = body.language.as_deref().and_then(i18n::normalize);
-    let pool = state.db.clone();
     let uid = user.id.clone();
-    if let Err(resp) = blocking(move || db::set_user_language(&pool, &uid, language)).await {
+    if let Err(resp) = query(&state.db, move |pool| db::set_user_language(&pool, &uid, language)).await {
         return resp;
     }
     user.language = language.map(str::to_string);
@@ -174,30 +167,27 @@ pub async fn update_me(
 async fn issue_session(state: SharedState, user: User) -> Response {
     let token = auth::random_token();
     let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + auth::SESSION_TTL_SECS;
-    let pool = state.db.clone();
     let token_db = token.clone();
     let uid = user.id.clone();
-    if let Err(resp) = blocking(move || db::create_session(&pool, &token_db, &uid, expires_at)).await
+    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, expires_at)).await
     {
         return resp;
     }
     // Best-effort last-seen stamp for the admin members table.
-    let pool = state.db.clone();
     let uid = user.id.clone();
-    let _ = blocking(move || {
+    let _ = query(&state.db, move |pool| {
         let _ = db::touch_last_seen(&pool, &uid);
         Ok(())
     })
     .await;
-    Json(json!({ "token": token, "user": user })).into_response()
+    Json(super::dto::AuthResult { token, user }).into_response()
 }
 
 // ----- profiles ---------------------------------------------------------------
 
 /// `GET /api/users` → `PublicUser[]` for the "Qui regarde ?" picker (no emails).
 pub async fn list_users(State(state): State<SharedState>) -> Response {
-    let pool = state.db.clone();
-    match blocking(move || db::list_users(&pool)).await {
+    match query(&state.db, move |pool| db::list_users(&pool)).await {
         Ok(users) => Json(users).into_response(),
         Err(resp) => resp,
     }
@@ -226,10 +216,9 @@ pub async fn upload_avatar(
         Err(resp) => return resp,
     };
 
-    let pool = state.db.clone();
     let uid = user.id.clone();
     let url_db = url.clone();
-    if let Err(resp) = blocking(move || db::set_user_avatar(&pool, &uid, Some(&url_db))).await {
+    if let Err(resp) = query(&state.db, move |pool| db::set_user_avatar(&pool, &uid, Some(&url_db))).await {
         return resp;
     }
     Json(json!({ "avatarUrl": url })).into_response()
@@ -253,8 +242,7 @@ pub async fn save_progress(
     Json(body): Json<ProgressBody>,
 ) -> Response {
     let pos = body.position_ms.max(0);
-    let pool = state.db.clone();
-    match blocking(move || db::upsert_progress(&pool, &user.id, &item_id, pos, body.duration_ms))
+    match query(&state.db, move |pool| db::upsert_progress(&pool, &user.id, &item_id, pos, body.duration_ms))
         .await
     {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
@@ -268,8 +256,7 @@ pub async fn delete_progress(
     AuthUser(user): AuthUser,
     Path(item_id): Path<String>,
 ) -> Response {
-    let pool = state.db.clone();
-    match blocking(move || db::delete_progress(&pool, &user.id, &item_id)).await {
+    match query(&state.db, move |pool| db::delete_progress(&pool, &user.id, &item_id)).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(resp) => resp,
     }
@@ -282,8 +269,7 @@ pub async fn get_progress(
     AuthUser(user): AuthUser,
     Path(item_id): Path<String>,
 ) -> Response {
-    let pool = state.db.clone();
-    match blocking(move || db::get_progress(&pool, &user.id, &item_id)).await {
+    match query(&state.db, move |pool| db::get_progress(&pool, &user.id, &item_id)).await {
         Ok(entry) => Json(entry).into_response(),
         Err(resp) => resp,
     }
@@ -291,8 +277,7 @@ pub async fn get_progress(
 
 /// `GET /api/progress` (Bearer) → `ProgressEntry[]` (all saved positions).
 pub async fn list_progress(State(state): State<SharedState>, AuthUser(user): AuthUser) -> Response {
-    let pool = state.db.clone();
-    match blocking(move || db::list_progress(&pool, &user.id)).await {
+    match query(&state.db, move |pool| db::list_progress(&pool, &user.id)).await {
         Ok(p) => Json(p).into_response(),
         Err(resp) => resp,
     }
@@ -303,8 +288,7 @@ pub async fn continue_watching(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
 ) -> Response {
-    let pool = state.db.clone();
-    match blocking(move || db::continue_watching(&pool, &user.id)).await {
+    match query(&state.db, move |pool| db::continue_watching(&pool, &user.id)).await {
         Ok(items) => Json(items).into_response(),
         Err(resp) => resp,
     }
@@ -322,12 +306,12 @@ pub async fn quick_initiate(State(state): State<SharedState>) -> Response {
         .web_url
         .as_ref()
         .map(|w| format!("{w}/connect?code={}", init.code));
-    Json(json!({
-        "code": init.code,
-        "secret": init.secret,
-        "expiresInSec": init.expires_in,
-        "authorizeUrl": authorize_url,
-    }))
+    Json(super::dto::QuickConnectInit {
+        code: init.code,
+        secret: init.secret,
+        expires_in_sec: init.expires_in,
+        authorize_url,
+    })
     .into_response()
 }
 
@@ -348,10 +332,9 @@ pub async fn quick_authorize(
     let code = body.code.trim().to_string();
     let token = auth::random_token();
     let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + auth::SESSION_TTL_SECS;
-    let pool = state.db.clone();
     let token_db = token.clone();
     let uid = user.id.clone();
-    if let Err(resp) = blocking(move || db::create_session(&pool, &token_db, &uid, expires_at)).await
+    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, expires_at)).await
     {
         return resp;
     }
@@ -360,8 +343,7 @@ pub async fn quick_authorize(
         StatusCode::NO_CONTENT.into_response()
     } else {
         // Unknown/expired code → don't leave the just-created session dangling.
-        let pool = state.db.clone();
-        let _ = blocking(move || db::delete_session(&pool, &token)).await;
+        let _ = query(&state.db, move |pool| db::delete_session(&pool, &token)).await;
         lerr(loc, StatusCode::NOT_FOUND, "connect.invalidCode")
     }
 }
@@ -374,13 +356,12 @@ pub struct QuickPollQuery {
 /// `GET /api/auth/quickconnect/poll?secret=…` → `{ status }` where status is
 /// `pending` | `authorized` (then `{ token, user }`) | `expired`.
 pub async fn quick_poll(State(state): State<SharedState>, Query(q): Query<QuickPollQuery>) -> Response {
-    match state.quickconnect.poll(&q.secret) {
-        PollState::Authorized { token, user } => {
-            Json(json!({ "status": "authorized", "token": token, "user": user })).into_response()
-        }
-        PollState::Pending => Json(json!({ "status": "pending" })).into_response(),
-        PollState::Unknown => Json(json!({ "status": "expired" })).into_response(),
-    }
+    let status = match state.quickconnect.poll(&q.secret) {
+        PollState::Authorized { token, user } => super::dto::QuickPoll::Authorized { token, user },
+        PollState::Pending => super::dto::QuickPoll::Pending,
+        PollState::Unknown => super::dto::QuickPoll::Expired,
+    };
+    Json(status).into_response()
 }
 
 // ----- invitations ------------------------------------------------------------
@@ -420,20 +401,16 @@ pub async fn create_invite(
     let days = body.expires_in_days.unwrap_or(INVITE_TTL_DAYS_DEFAULT).clamp(1, 365);
     let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + days * 24 * 3600;
 
-    let pool = state.db.clone();
     let token_db = token.clone();
     let perms = permissions.clone();
     let uid = user.id.clone();
-    blocking(move || db::create_invite(&pool, &token_db, &perms, &uid, expires_at)).await?;
+    query(&state.db, move |pool| db::create_invite(&pool, &token_db, &perms, &uid, expires_at)).await?;
     let url = state
         .config
         .web_url
         .as_ref()
         .map(|w| format!("{w}/join?invite={token}"));
-    Ok(
-        Json(json!({ "token": token, "url": url, "permissions": permissions, "expiresAt": expires_at }))
-            .into_response(),
-    )
+    Ok(Json(super::dto::InviteCreated { token, url, permissions, expires_at }).into_response())
 }
 
 /// `GET /api/invites` (Bearer + `users.manage`) → pending invites.
@@ -442,17 +419,15 @@ pub async fn list_invites(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require(&user, Permission::UsersManage)?;
-    let pool = state.db.clone();
-    let invites = blocking(move || db::list_invites(&pool)).await?;
+    let invites = query(&state.db, move |pool| db::list_invites(&pool)).await?;
     Ok(Json(invites).into_response())
 }
 
 /// `GET /api/invites/:token` (public) → `{ valid, expiresAt? }`, so the join page
 /// can validate before showing the form (the invitee isn't a user yet).
 pub async fn check_invite(State(state): State<SharedState>, Path(token): Path<String>) -> Response {
-    let pool = state.db.clone();
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
-    match blocking(move || db::get_invite(&pool, &token)).await {
+    match query(&state.db, move |pool| db::get_invite(&pool, &token)).await {
         Ok(Some(inv)) => {
             Json(json!({ "valid": !inv.used && inv.expires_at > now, "expiresAt": inv.expires_at }))
                 .into_response()
@@ -469,7 +444,6 @@ pub async fn delete_invite(
     Path(token): Path<String>,
 ) -> Result<Response, Response> {
     require(&user, Permission::UsersManage)?;
-    let pool = state.db.clone();
-    blocking(move || db::delete_invite(&pool, &token)).await?;
+    query(&state.db, move |pool| db::delete_invite(&pool, &token)).await?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }

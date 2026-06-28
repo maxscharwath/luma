@@ -3,8 +3,15 @@ import { useT } from '@luma/ui';
 import { IconDots, IconMail } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/components/admin/shell';
-import { Avatar, C, Card, Modal, Section, StatCard } from '#web/components/admin/ui';
+import {
+  Denied,
+  HeaderAction,
+  PageHeader,
+  useAsyncAction,
+  useCap,
+  usePoll,
+} from '#web/components/admin/shell';
+import { Avatar, C, Card, Field, Modal, ModalActions, Section, StatCard } from '#web/components/admin/ui';
 import { relativeSeen } from '#web/lib/adminFormat';
 import { useAuth } from '#web/lib/auth';
 
@@ -261,8 +268,7 @@ function EditUserModal({
   const { client, user: me } = useAuth();
   const [name, setName] = useState(user.username);
   const [perms, setPerms] = useState<Set<Permission>>(new Set(user.permissions));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { busy, error, run } = useAsyncAction();
   const isSelf = me?.id === user.id;
 
   function toggle(p: Permission) {
@@ -274,76 +280,47 @@ function EditUserModal({
     });
   }
 
-  async function save() {
-    setBusy(true);
-    setErr(null);
-    try {
+  const save = () =>
+    run(async () => {
       await client.updateUser(user.id, { permissions: [...perms], username: name.trim() });
       onSaved();
-    } catch {
-      setErr(t('admin.updateFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
+    }, () => t('admin.updateFailed'));
 
-  async function remove() {
+  const remove = () => {
     if (!confirm(t('admin.confirmDeleteUser', { name: user.username }))) return;
-    setBusy(true);
-    setErr(null);
-    try {
+    run(async () => {
       await client.deleteUser(user.id);
       onSaved();
-    } catch {
-      setErr(t('admin.deleteFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
+    }, () => t('admin.deleteFailed'));
+  };
 
   return (
     <Modal title={t('admin.editUser', { name: user.username })} onClose={onClose}>
-      <label className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim">
-        {t('admin.name')}
-      </label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="mb-4 w-full rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px]"
-      />
+      <Field label={t('admin.name')}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px]"
+        />
+      </Field>
       <div className="mb-2 text-[12px] font-bold uppercase tracking-[.12em] text-dim">
         {t('admin.permissions')}
       </div>
       <PermPicker selected={perms} toggle={toggle} />
-      {err ? <p className="mt-3 text-[13px] text-danger">{err}</p> : null}
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => void remove()}
-          disabled={busy || isSelf}
-          className="text-[13px] font-semibold text-[#E8536A] disabled:opacity-40"
-          title={isSelf ? t('admin.cantDeleteYourself') : undefined}
-        >
-          {t('admin.deleteAccount')}
-        </button>
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={busy}
-            className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink disabled:opacity-50"
-          >
-            {busy ? t('common.saving') : t('common.save')}
-          </button>
-        </div>
-      </div>
+      {error ? <p className="mt-3 text-[13px] text-danger">{error}</p> : null}
+      <ModalActions
+        onCancel={onClose}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => void save()}
+        confirmLabel={busy ? t('common.saving') : t('common.save')}
+        busy={busy}
+        destructive={{
+          label: t('admin.deleteAccount'),
+          onClick: () => void remove(),
+          disabled: isSelf,
+          title: isSelf ? t('admin.cantDeleteYourself') : undefined,
+        }}
+      />
     </Modal>
   );
 }
@@ -356,8 +333,8 @@ function InviteModal({
   const { client } = useAuth();
   const [perms, setPerms] = useState<Set<Permission>>(new Set<Permission>(['playback']));
   const [link, setLink] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { busy, run } = useAsyncAction();
 
   function toggle(p: Permission) {
     setPerms((s) => {
@@ -368,17 +345,13 @@ function InviteModal({
     });
   }
 
-  async function create() {
-    setBusy(true);
-    try {
+  const create = () =>
+    run(async () => {
       const res = await client.createInvite({ permissions: [...perms] });
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       setLink(res.url ?? `${origin}/join?invite=${res.token}`);
       onCreated();
-    } finally {
-      setBusy(false);
-    }
-  }
+    });
 
   return (
     <Modal title={t('nav.inviteUser')} onClose={onClose}>
@@ -414,23 +387,14 @@ function InviteModal({
           </div>
         </div>
       ) : (
-        <div className="mt-5 flex justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void create()}
-            disabled={busy || perms.size === 0}
-            className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink disabled:opacity-50"
-          >
-            {busy ? t('common.creating') : t('admin.createLink')}
-          </button>
-        </div>
+        <ModalActions
+          onCancel={onClose}
+          cancelLabel={t('common.cancel')}
+          onConfirm={() => void create()}
+          confirmLabel={busy ? t('common.creating') : t('admin.createLink')}
+          busy={busy}
+          disabled={perms.size === 0}
+        />
       )}
     </Modal>
   );

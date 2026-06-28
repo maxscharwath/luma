@@ -225,6 +225,72 @@ export function Modal({
   );
 }
 
+/** A labelled form field (uppercase caption + control). */
+export function Field({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
+  return (
+    <div className="mb-4">
+      <label className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+/** The standard modal footer: a right-aligned cancel + primary pair, with an
+ * optional destructive action pinned left (e.g. "Delete account"). The caller
+ * passes the already-resolved `confirmLabel` (so it can swap to "Saving…"). */
+export function ModalActions({
+  onCancel,
+  cancelLabel,
+  onConfirm,
+  confirmLabel,
+  busy,
+  disabled,
+  destructive,
+}: Readonly<{
+  onCancel: () => void;
+  cancelLabel: string;
+  onConfirm: () => void;
+  confirmLabel: string;
+  busy?: boolean;
+  disabled?: boolean;
+  destructive?: { label: string; onClick: () => void; disabled?: boolean; title?: string };
+}>) {
+  return (
+    <div className={`mt-5 flex items-center gap-3 ${destructive ? 'justify-between' : 'justify-end'}`}>
+      {destructive ? (
+        <button
+          type="button"
+          onClick={destructive.onClick}
+          disabled={busy || destructive.disabled}
+          title={destructive.title}
+          className="text-[13px] font-semibold text-[#E8536A] disabled:opacity-40"
+        >
+          {destructive.label}
+        </button>
+      ) : null}
+      <div className="flex gap-2.5">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
+        >
+          {cancelLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={busy || disabled}
+          className="rounded-md bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink disabled:opacity-50"
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Gradient avatar with initial fallback (or a cached image when present). */
 export function Avatar({
   name,

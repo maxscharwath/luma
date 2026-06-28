@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod card;
+pub mod dto;
 pub mod error;
 pub mod handlers;
 pub mod playback;

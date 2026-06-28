@@ -15,7 +15,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::api::error::lerr;
-use crate::api::handlers::blocking;
+use crate::api::handlers::{blocking, query};
 use crate::auth::AuthUser;
 use crate::db;
 use crate::events::ServerEvent;
@@ -70,14 +70,14 @@ pub async fn server_info(
 ) -> Result<Response, Response> {
     require_any_admin(&user)?;
     let hostname = sysinfo::System::host_name().unwrap_or_else(|| "luma".into());
-    Ok(Json(json!({
-        "name": settings::server_name(&state.settings),
-        "hostname": hostname,
-        "version": env!("CARGO_PKG_VERSION"),
-        "uptimeSec": crate::process_started().elapsed().as_secs(),
-        "online": true,
-        "sessions": state.playback.list().len(),
-    }))
+    Ok(Json(super::dto::ServerInfo {
+        name: settings::server_name(&state.settings),
+        hostname,
+        version: env!("CARGO_PKG_VERSION"),
+        uptime_sec: crate::process_started().elapsed().as_secs(),
+        online: true,
+        sessions: state.playback.list().len(),
+    })
     .into_response())
 }
 
@@ -110,8 +110,7 @@ pub async fn terminate_session(
     require_any_admin(&user)?;
     // Drop it from the registry (grace window blocks re-registration) + log it.
     if let Some(session) = state.playback.terminate(&id) {
-        let pool = state.db.clone();
-        let _ = blocking(move || {
+        let _ = query(&state.db, move |pool| {
             crate::playback::record(&pool, &session);
             Ok(())
         })
@@ -150,8 +149,7 @@ pub async fn storage(
 ) -> Result<Response, Response> {
     require_any_admin(&user)?;
     let data_dir = state.config.data_dir.clone();
-    let pool = state.db.clone();
-    let (volumes, media_bytes, cache_bytes) = blocking(move || {
+    let (volumes, media_bytes, cache_bytes) = query(&state.db, move |pool| {
         let volumes = crate::metrics::read_disks();
         let media = db::total_media_bytes(&pool).unwrap_or(0).max(0) as u64;
         let cache =
@@ -162,18 +160,18 @@ pub async fn storage(
 
     let total: u64 = volumes.iter().map(|v| v.total_bytes).sum();
     let used: u64 = volumes.iter().map(|v| v.used_bytes).sum();
-    Ok(Json(json!({
-        "volumes": volumes,
-        "totalBytes": total,
-        "usedBytes": used,
-        "availableBytes": total.saturating_sub(used),
-        "mediaBytes": media_bytes,
-        "cache": {
-            "dir": state.config.data_dir.join("transcode").to_string_lossy(),
-            "bytes": cache_bytes,
-            "limit": state.settings.get_str("cacheLimit", "80 Go"),
+    Ok(Json(super::dto::StorageInfo {
+        volumes,
+        total_bytes: total,
+        used_bytes: used,
+        available_bytes: total.saturating_sub(used),
+        media_bytes,
+        cache: super::dto::CacheInfo {
+            dir: state.config.data_dir.join("transcode").to_string_lossy().into_owned(),
+            bytes: cache_bytes,
+            limit: state.settings.get_str("cacheLimit", "80 Go"),
         },
-    }))
+    })
     .into_response())
 }
 
@@ -204,13 +202,12 @@ pub async fn list_users(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require(&user, Permission::UsersManage)?;
-    let pool = state.db.clone();
     let (mut users, library_count) =
-        blocking(move || Ok((db::admin_users(&pool)?, db::counts(&pool)?.0))).await?;
+        query(&state.db, move |pool| Ok((db::admin_users(&pool)?, db::counts(&pool)?.0))).await?;
     for u in &mut users {
         u.online = state.playback.user_online(&u.id);
     }
-    Ok(Json(json!({ "users": users, "libraryCount": library_count })).into_response())
+    Ok(Json(super::dto::AdminUsers { users, library_count }).into_response())
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,9 +226,8 @@ pub async fn update_user(
     Json(body): Json<UpdateUserBody>,
 ) -> Result<Response, Response> {
     require(&user, Permission::UsersManage)?;
-    let pool = state.db.clone();
     let id2 = id.clone();
-    let all = blocking(move || db::admin_users(&pool)).await?;
+    let all = query(&state.db, move |pool| db::admin_users(&pool)).await?;
     let Some(target) = all.iter().find(|u| u.id == id2) else {
         return Err(lerr(user_locale(&user), StatusCode::NOT_FOUND, "error.userNotFound"));
     };
@@ -251,15 +247,13 @@ pub async fn update_user(
                 "admin.cantRemoveLastOwner",
             ));
         }
-        let pool = state.db.clone();
         let id3 = id.clone();
-        blocking(move || db::update_user_permissions(&pool, &id3, &perms)).await?;
+        query(&state.db, move |pool| db::update_user_permissions(&pool, &id3, &perms)).await?;
     }
     if let Some(name) = body.username.clone().filter(|n| !n.trim().is_empty()) {
-        let pool = state.db.clone();
         let id3 = id.clone();
         let name = name.trim().to_string();
-        blocking(move || db::set_user_username(&pool, &id3, &name)).await?;
+        query(&state.db, move |pool| db::set_user_username(&pool, &id3, &name)).await?;
     }
     state.events.publish(ServerEvent::LibraryUpdated);
     Ok(StatusCode::NO_CONTENT.into_response())
@@ -275,9 +269,8 @@ pub async fn delete_user(
     if id == user.id {
         return Err(lerr(user_locale(&user), StatusCode::BAD_REQUEST, "admin.cantDeleteSelf"));
     }
-    let pool = state.db.clone();
     let id2 = id.clone();
-    let all = blocking(move || db::admin_users(&pool)).await?;
+    let all = query(&state.db, move |pool| db::admin_users(&pool)).await?;
     let Some(target) = all.iter().find(|u| u.id == id2) else {
         return Err(lerr(user_locale(&user), StatusCode::NOT_FOUND, "error.userNotFound"));
     };
@@ -288,8 +281,7 @@ pub async fn delete_user(
     if target.permissions.contains(&Permission::UsersManage) && owners <= 1 {
         return Err(lerr(user_locale(&user), StatusCode::BAD_REQUEST, "admin.cantDeleteLastOwner"));
     }
-    let pool = state.db.clone();
-    blocking(move || db::delete_user(&pool, &id)).await?;
+    query(&state.db, move |pool| db::delete_user(&pool, &id)).await?;
     state.events.publish(ServerEvent::LibraryUpdated);
     Ok(StatusCode::NO_CONTENT.into_response())
 }
@@ -303,24 +295,23 @@ pub async fn list_libraries(
 ) -> Result<Response, Response> {
     require_any_admin(&user)?;
     let defs = settings::library_defs(&state.settings, &state.config);
-    let pool = state.db.clone();
-    let stats = blocking(move || db::library_stats(&pool)).await?;
+    let stats = query(&state.db, move |pool| db::library_stats(&pool)).await?;
     let last_scan = crate::activity::snapshot(&state.activity).last_scan_at;
 
-    let libraries: Vec<Value> = defs
+    let libraries: Vec<super::dto::AdminLibrary> = defs
         .iter()
         .map(|d| {
             let st = stats.iter().find(|s| s.id == d.id);
-            json!({
-                "id": d.id,
-                "name": d.name,
-                "kind": kind_label(d, st),
-                "folders": d.folders,
-                "itemCount": st.map(|s| s.item_count).unwrap_or(0),
-                "sizeBytes": st.map(|s| s.total_bytes).unwrap_or(0),
-                "lastScan": last_scan,
-                "autoScan": d.auto_scan,
-            })
+            super::dto::AdminLibrary {
+                id: d.id.clone(),
+                name: d.name.clone(),
+                kind: kind_label(d, st),
+                folders: d.folders.clone(),
+                item_count: st.map(|s| s.item_count).unwrap_or(0),
+                size_bytes: st.map(|s| s.total_bytes).unwrap_or(0),
+                last_scan: last_scan.clone(),
+                auto_scan: d.auto_scan,
+            }
         })
         .collect();
     Ok(Json(json!({ "libraries": libraries })).into_response())
@@ -461,8 +452,7 @@ fn spawn_rescan(state: SharedState) {
         state.events.publish(ServerEvent::ScanStarted);
         crate::activity::scan_started(&state.activity);
 
-        let pool = state.db.clone();
-        let res = blocking(move || {
+        let res = query(&state.db, move |pool| {
             let mut data = crate::scan::scan_all(&defs);
             if data.items.is_empty() && !has_folders {
                 data = crate::demo::demo_data();
@@ -508,7 +498,7 @@ pub async fn get_settings(
     require(&user, Permission::SettingsManage)?;
     let view = q.view.unwrap_or_else(|| "general".into());
     let groups = settings::groups(&view, &state.settings, &state.config, user_locale(&user));
-    Ok(Json(json!({ "view": view, "groups": groups })).into_response())
+    Ok(Json(super::dto::SettingsView { view, groups }).into_response())
 }
 
 /// `PUT /api/admin/settings` body = `{ key: value, … }` → persist a patch.
@@ -540,8 +530,7 @@ pub async fn top_users(
     require_any_admin(&user)?;
     let days = q.days.unwrap_or(7).clamp(1, 365);
     let since = now_unix() - days * 86_400;
-    let pool = state.db.clone();
-    let users = blocking(move || db::top_users(&pool, since, 12)).await?;
+    let users = query(&state.db, move |pool| db::top_users(&pool, since, 12)).await?;
     Ok(Json(json!({ "users": users })).into_response())
 }
 
@@ -555,8 +544,7 @@ pub async fn history(
     let days = q.days.unwrap_or(28).clamp(7, 365);
     let now = now_unix();
     let since = now - days * 86_400;
-    let pool = state.db.clone();
-    let rows = blocking(move || db::history_since(&pool, since)).await?;
+    let rows = query(&state.db, move |pool| db::history_since(&pool, since)).await?;
 
     // Weekly buckets covering [since, now].
     let week = 7 * 86_400;
@@ -570,21 +558,21 @@ pub async fn history(
             _ => tv[idx] += r.watched_ms,
         }
     }
-    let out: Vec<Value> = (0..buckets as usize)
+    let out: Vec<super::dto::HistoryBucket> = (0..buckets as usize)
         .map(|i| {
             let start = since + (i as i64) * week;
-            json!({
-                "label": date_range_label(start, (start + week).min(now)),
-                "filmsMs": films[i],
-                "tvMs": tv[i],
-            })
+            super::dto::HistoryBucket {
+                label: date_range_label(start, (start + week).min(now)),
+                films_ms: films[i],
+                tv_ms: tv[i],
+            }
         })
         .collect();
-    Ok(Json(json!({
-        "buckets": out,
-        "totalFilmsMs": films.iter().sum::<i64>(),
-        "totalTvMs": tv.iter().sum::<i64>(),
-    }))
+    Ok(Json(super::dto::HistoryStats {
+        total_films_ms: films.iter().sum::<i64>(),
+        total_tv_ms: tv.iter().sum::<i64>(),
+        buckets: out,
+    })
     .into_response())
 }
 
@@ -594,8 +582,7 @@ pub async fn overview(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_any_admin(&user)?;
-    let pool = state.db.clone();
-    let (libraries, items, shows, users, invites) = blocking(move || {
+    let (libraries, items, shows, users, invites) = query(&state.db, move |pool| {
         let (libraries, items, shows) = db::counts(&pool)?;
         let users = db::admin_users(&pool)?;
         let invites = db::list_invites(&pool)?.len();
@@ -606,14 +593,14 @@ pub async fn overview(
         .iter()
         .filter(|u| state.playback.user_online(&u.id))
         .count();
-    Ok(Json(json!({
-        "users": users.len(),
-        "online": online,
-        "invites": invites,
-        "items": items,
-        "shows": shows,
-        "libraries": libraries,
-    }))
+    Ok(Json(super::dto::AdminOverview {
+        users: users.len(),
+        online,
+        invites,
+        items,
+        shows,
+        libraries,
+    })
     .into_response())
 }
 

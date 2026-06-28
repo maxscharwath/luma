@@ -17,6 +17,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
+use ts_rs::TS;
 
 const API: &str = "https://api.themoviedb.org/3";
 const IMG: &str = "https://image.tmdb.org/t/p";
@@ -56,11 +57,13 @@ impl Target {
 
 /// Resolved provider metadata for one movie or show. Serialized to clients and
 /// round-tripped through the DB's `metadata` JSON column (hence `Deserialize`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Metadata {
     // `&'static str` can't be deserialized into; it's always "tmdb" anyway, so
     // skip it on the way in and default it.
     #[serde(skip_deserializing, default = "default_provider")]
+    #[ts(type = "string")]
     pub provider: &'static str,
     #[serde(rename = "tmdbId")]
     pub tmdb_id: u64,
@@ -91,7 +94,8 @@ pub struct Metadata {
 }
 
 /// One top-billed cast member, surfaced in the detail page's "Distribution".
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct CastMember {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

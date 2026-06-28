@@ -113,6 +113,30 @@ export function usePoll<T>(
   return { data, reload };
 }
 
+/** A busy-tracked async action for modal save/delete handlers. `run(fn, onError?)`
+ * flips `busy` while `fn` runs and, on failure, sets `error` to `onError(e)` (when
+ * provided) — collapsing the repeated setBusy/try/catch/finally boilerplate. */
+export function useAsyncAction(): {
+  busy: boolean;
+  error: string | null;
+  run: (fn: () => Promise<void>, onError?: (e: unknown) => string) => Promise<void>;
+} {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = useCallback(async (fn: () => Promise<void>, onError?: (e: unknown) => string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      if (onError) setError(onError(e));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+  return { busy, error, run };
+}
+
 // ----- sidebar ----------------------------------------------------------------
 
 // `cap: null` → visible to any admin (the read-only dashboard panels); otherwise

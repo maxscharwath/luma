@@ -1,3 +1,4 @@
+import type { MessageKey, Translate } from './i18n';
 import { match } from './match';
 import { formatRuntime } from './player';
 import type { MediaItem, VideoTrack } from './types';
@@ -78,4 +79,43 @@ export function channelLabel(ch: number | null | undefined): string | null {
   if (ch === 6) return '5.1';
   if (ch === 8) return '7.1';
   return `${ch}.0`;
+}
+
+/** ISO 639 code (2- or 3-letter) → the `lang.*` catalog key for its native name. */
+const LANG_KEYS: Record<string, MessageKey> = {
+  fr: 'lang.fr',
+  fra: 'lang.fr',
+  fre: 'lang.fr',
+  en: 'lang.en',
+  eng: 'lang.en',
+  es: 'lang.es',
+  spa: 'lang.es',
+  de: 'lang.de',
+  ger: 'lang.de',
+  deu: 'lang.de',
+  it: 'lang.it',
+  ita: 'lang.it',
+  ja: 'lang.ja',
+  jpn: 'lang.ja',
+  ko: 'lang.ko',
+  kor: 'lang.ko',
+  zh: 'lang.zh',
+  zho: 'lang.zh',
+  chi: 'lang.zh',
+  ru: 'lang.ru',
+  rus: 'lang.ru',
+  pt: 'lang.pt',
+  por: 'lang.pt',
+  nl: 'lang.nl',
+  dut: 'lang.nl',
+  nld: 'lang.nl',
+};
+
+/** Localized language name for an ISO code, the upper-cased code if unknown, or
+ * null when there is no code at all. Shared by every client (audio/subtitle track
+ * labels localize identically). */
+export function langName(t: Translate, code: string | null | undefined): string | null {
+  if (!code) return null;
+  const key = LANG_KEYS[code.toLowerCase()];
+  return key ? t(key) : code.toUpperCase();
 }

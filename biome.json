@@ -13,6 +13,7 @@
       "!**/.tanstack",
       "!**/*.gen.ts",
       "!**/routeTree.gen.ts",
+      "!packages/core/src/generated",
       "!clients/synology",
       "!server"
     ]

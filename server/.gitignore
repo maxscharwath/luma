@@ -1,3 +1,6 @@
 /target
 /data
 **/*.rs.bk
+# ts-rs default export dir — a plain `cargo test` drops bindings here. The real
+# generated types live in packages/core/src/generated (see scripts/gen-types.sh).
+/bindings
