@@ -6,6 +6,7 @@
 //! `crate::model::X` call sites keep resolving unchanged.
 
 pub use crate::domain::media::*;
+pub use crate::domain::metadata::*;
 pub use crate::domain::accounts::*;
 pub use crate::domain::playback::*;
 pub use crate::domain::library::*;

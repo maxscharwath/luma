@@ -4,7 +4,9 @@
 //! namespace for backwards-compatible call sites.
 
 pub mod media;
+pub mod metadata;
 pub mod accounts;
 pub mod playback;
 pub mod library;
 pub mod admin;
+pub mod naming;

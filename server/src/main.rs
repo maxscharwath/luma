@@ -13,7 +13,6 @@ mod domain;
 mod i18n;
 mod infra;
 mod model;
-mod naming;
 mod services;
 mod state;
 

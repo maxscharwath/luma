@@ -1,108 +1,27 @@
-//! Library scanning: walk media roots, parse names, group files into logical
-//! items (Plex-style), and build the set of libraries/shows/items to persist.
-//!
-//! Phase 1 (this module's [`scan_all`]) is **fast**: it only `stat`s each video
-//! file (size + mtime — no read, no ffprobe). Files are grouped into logical
-//! items so the library is browsable in seconds. The slow per-file probing runs
-//! later in [`crate::infra::probe`]'s background pass.
+//! The phase-1 filesystem walk: a parallel jwalk traversal of one library
+//! folder that `stat`s each video file and groups it (via [`crate::domain::naming`])
+//! into the shared logical-item / show maps.
 
 use std::collections::HashMap;
 use std::path::Path;
 
-use sha2::{Digest, Sha256};
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
-use tracing::{debug, info, warn};
 use jwalk::{Parallelism, WalkDirGeneric};
+use tracing::debug;
 
-use crate::model::{Kind, Library, LibraryKind, MediaFile, MediaItem, Show};
-use crate::naming::{self, Parsed};
-use crate::services::settings::LibraryDef;
+use crate::domain::naming::{self, Parsed};
+use crate::model::{Kind, MediaFile, MediaItem, Show};
+
+use super::ids::{detect_edition, episode_logical_id, movie_logical_id, short_hash, show_key};
+use super::now_iso8601;
 
 /// Extensions we treat as playable video.
 const VIDEO_EXTENSIONS: &[&str] = &["mkv", "mp4", "m4v", "mov", "webm", "avi", "ts"];
-
-/// Everything a phase-1 scan produces, ready to hand to [`crate::db::sync_all`].
-#[derive(Debug, Default)]
-pub struct ScanData {
-    pub libraries: Vec<Library>,
-    pub shows: Vec<Show>,
-    pub items: Vec<MediaItem>,
-    /// `file_id -> mtime-secs` for every scanned file. Carried here (rather than
-    /// on `MediaFile`, which is the client JSON contract) so the DB sync can
-    /// detect changed files. Owned by this scan — no shared global, so two
-    /// overlapping scans (watcher rescan + `POST /api/scan`) can't steal each
-    /// other's entries.
-    pub mtimes: HashMap<String, Option<i64>>,
-}
-
-/// Walk every configured library (each may span multiple folders) and build the
-/// full index (phase 1, fast: no ffprobe). Files are `stat`-ed and grouped into
-/// logical items. Items from every folder of a library share that library's id.
-pub fn scan_all(defs: &[LibraryDef]) -> ScanData {
-    let mut data = ScanData::default();
-    // Logical items, keyed by stable logical id, accumulating their files.
-    let mut items: HashMap<String, MediaItem> = HashMap::new();
-    // Dedupe shows across the whole scan by show id.
-    let mut shows: HashMap<String, Show> = HashMap::new();
-
-    for def in defs {
-        let mut movie_seen = false;
-        let mut episode_seen = false;
-        // Logical ids first seen in this library, to compute item_count.
-        let mut lib_item_ids = std::collections::HashSet::new();
-
-        for folder in &def.folders {
-            let root = Path::new(folder);
-            if !root.is_dir() {
-                warn!(path = %root.display(), "media dir does not exist or is not a directory; skipping");
-                continue;
-            }
-            scan_root(
-                &def.id,
-                root,
-                &mut items,
-                &mut shows,
-                &mut data.mtimes,
-                &mut lib_item_ids,
-                &mut movie_seen,
-                &mut episode_seen,
-            );
-        }
-
-        // Auto-detect kind from contents, unless the def pins one.
-        let detected = match (movie_seen, episode_seen) {
-            (false, true) => LibraryKind::Shows,
-            (true, true) => LibraryKind::Mixed,
-            _ => LibraryKind::Movies,
-        };
-        let kind = match def.kind.as_str() {
-            "movies" => LibraryKind::Movies,
-            "shows" => LibraryKind::Shows,
-            "mixed" => LibraryKind::Mixed,
-            _ => detected,
-        };
-
-        info!(library = %def.name, items = lib_item_ids.len(), "scanned library");
-        data.libraries.push(Library {
-            id: def.id.clone(),
-            name: def.name.clone(),
-            kind,
-            path: def.folders.join(", "),
-            item_count: lib_item_ids.len(),
-        });
-    }
-
-    data.shows = shows.into_values().collect();
-    data.items = items.into_values().collect();
-    data
-}
 
 /// Scan one folder belonging to `lib_id`, accumulating items (by logical id) and
 /// shows into the shared maps. Flags/ids track what this library contributed so
 /// the caller can compute its kind + item count across all its folders.
 #[allow(clippy::too_many_arguments)]
-fn scan_root(
+pub(super) fn scan_root(
     lib_id: &str,
     root: &Path,
     items: &mut HashMap<String, MediaItem>,
@@ -319,83 +238,9 @@ fn file_meta(path: &Path) -> FileMeta {
     Some((md.len(), mtime))
 }
 
-// ----- logical ids ------------------------------------------------------------
-
-/// Stable movie logical id: same title+year → one item.
-fn movie_logical_id(lib_id: &str, title: &str, year: Option<u32>) -> String {
-    let norm = normalize_title(title);
-    let year = year.map(|y| y.to_string()).unwrap_or_default();
-    short_hash(&format!("{lib_id}|movie|{norm}|{year}"))
-}
-
-/// Stable episode logical id: same show/season/episode → one item.
-fn episode_logical_id(show_id: &str, season: u32, episode: u32) -> String {
-    short_hash(&format!("{show_id}|{season}|{episode}"))
-}
-
-fn normalize_title(title: &str) -> String {
-    title
-        .to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Stable show id from library + normalised show title.
-fn show_key(lib_id: &str, show_title: &str) -> String {
-    let norm = normalize_title(show_title);
-    short_hash(&format!("{lib_id}|show|{norm}"))
-}
-
-// ----- edition detection ------------------------------------------------------
-
-/// Best-effort edition label from a filename. Keep it simple: scan for a known
-/// set of edition/quality tokens and return the first match (preferring cut
-/// labels over resolution/source). `None` when nothing notable is present.
-fn detect_edition(file_name: &str) -> Option<String> {
-    let lower = file_name.to_ascii_lowercase();
-    // (needle, label) — cut/edition labels first, then source/quality.
-    const TABLE: &[(&str, &str)] = &[
-        ("director's cut", "Director's Cut"),
-        ("directors cut", "Director's Cut"),
-        ("director.cut", "Director's Cut"),
-        ("extended", "Extended"),
-        ("uncut", "Uncut"),
-        ("unrated", "Unrated"),
-        ("theatrical", "Theatrical"),
-        ("remastered", "Remastered"),
-        ("imax", "IMAX"),
-        ("remux", "Remux"),
-        ("2160p", "4K"),
-        ("4k", "4K"),
-        ("uhd", "4K"),
-        ("1080p", "1080p"),
-        ("720p", "720p"),
-        ("480p", "480p"),
-    ];
-    TABLE
-        .iter()
-        .find(|(needle, _)| lower.contains(needle))
-        .map(|(_, label)| label.to_string())
-}
-
 fn has_video_extension(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| VIDEO_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
         .unwrap_or(false)
-}
-
-/// `hex(sha256(input))[..16]` — stable, short, collision-resistant enough.
-pub fn short_hash(input: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(input.as_bytes());
-    hex::encode(hasher.finalize())[..16].to_string()
-}
-
-/// Current time as an RFC3339 / ISO8601 string (UTC).
-pub fn now_iso8601() -> String {
-    OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
 }

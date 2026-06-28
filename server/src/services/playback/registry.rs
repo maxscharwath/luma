@@ -1,15 +1,7 @@
-//! Live playback-session registry — the data behind the admin dashboard's
-//! "En cours de lecture" panel.
-//!
-//! Direct-play streams are plain range requests with no server-side session, so
-//! clients **heartbeat** their playback state to `POST /api/playback/ping`. Each
-//! ping (keyed by a client-generated session id) refreshes an in-memory record;
-//! records that stop pinging are reaped after [`SESSION_TTL`] and appended to the
-//! `play_history` log for the analytics panels. The registry is process-local
-//! (cleared on restart), which is exactly right for "what's playing right now".
+//! The live-session store: the in-memory heartbeat map, its upsert/list/reap
+//! lifecycle, and appending ended sessions to the play-history log.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -19,6 +11,8 @@ use ts_rs::TS;
 use crate::db::Pool;
 use crate::infra::events::{Bus, ServerEvent};
 use crate::model::MediaItem;
+
+use super::snapshot::snapshot;
 
 /// A session is considered ended once no ping arrives for this long. Clients
 /// heartbeat every ~10s, so this tolerates a couple of missed beats.
@@ -281,170 +275,6 @@ pub fn record(pool: &Pool, s: &Session) {
     );
 }
 
-/// Derived, display-ready snapshot of an item for a session card.
-#[derive(Default)]
-struct Snapshot {
-    title: String,
-    year: Option<u32>,
-    kind: String,
-    show_title: Option<String>,
-    season: Option<u32>,
-    episode: Option<u32>,
-    video_label: String,
-    audio_label: String,
-    bitrate: f64,
-}
-
-fn snapshot(item: &MediaItem) -> Snapshot {
-    let video_label = item
-        .video
-        .as_ref()
-        .map(|v| {
-            let res = resolution_label(v.width);
-            let codec = video_codec_label(&v.codec);
-            if v.hdr {
-                format!("{res} HDR · {codec}")
-            } else {
-                format!("{res} · {codec}")
-            }
-        })
-        .unwrap_or_else(|| "—".into());
-
-    let audio_label = item
-        .audio
-        .as_ref()
-        .map(|a| {
-            let ch = channels_label(a.channels);
-            let codec = a.codec.to_uppercase();
-            format!("{ch} · {codec}")
-        })
-        .unwrap_or_else(|| "—".into());
-
-    Snapshot {
-        title: item.title.clone(),
-        year: item.year,
-        kind: kind_str(&item.kind).to_string(),
-        show_title: item.show_title.clone(),
-        season: item.season,
-        episode: item.episode,
-        video_label,
-        audio_label,
-        bitrate: bitrate_mbps(item),
-    }
-}
-
-fn kind_str(k: &crate::model::Kind) -> &'static str {
-    match k {
-        crate::model::Kind::Movie => "movie",
-        crate::model::Kind::Episode => "episode",
-        crate::model::Kind::Video => "video",
-    }
-}
-
-fn resolution_label(width: Option<u32>) -> &'static str {
-    match width.unwrap_or(0) {
-        w if w >= 3000 => "4K",
-        w if w >= 1900 => "1080p",
-        w if w >= 1200 => "720p",
-        w if w > 0 => "SD",
-        _ => "—",
-    }
-}
-
-fn video_codec_label(codec: &str) -> String {
-    match codec.to_ascii_lowercase().as_str() {
-        "hevc" | "h265" => "H.265".into(),
-        "h264" | "avc" => "H.264".into(),
-        "av1" => "AV1".into(),
-        "vp9" => "VP9".into(),
-        other => other.to_uppercase(),
-    }
-}
-
-fn channels_label(ch: Option<u32>) -> &'static str {
-    match ch.unwrap_or(0) {
-        8 => "7.1",
-        7 => "6.1",
-        6 => "5.1",
-        2 => "Stéréo",
-        1 => "Mono",
-        _ => "Audio",
-    }
-}
-
-/// Approx stream bitrate in Mb/s from the representative file size ÷ duration.
-fn bitrate_mbps(item: &MediaItem) -> f64 {
-    let dur_s = item.duration_ms.unwrap_or(0) as f64 / 1000.0;
-    if dur_s <= 0.0 {
-        return 0.0;
-    }
-    let size = item
-        .default_file_id
-        .as_ref()
-        .and_then(|id| item.files.iter().find(|f| &f.id == id))
-        .or_else(|| item.files.first())
-        .and_then(|f| f.size)
-        .unwrap_or(0) as f64;
-    if size <= 0.0 {
-        return 0.0;
-    }
-    let mbps = size * 8.0 / dur_s / 1_000_000.0;
-    (mbps * 10.0).round() / 10.0
-}
-
 fn unix_now() -> i64 {
     time::OffsetDateTime::now_utc().unix_timestamp()
-}
-
-/// Classify a client IP as `LAN` or `WAN` against the configured local networks
-/// (CIDR `a.b.c.d/n` or a bare prefix like `192.168.`). Loopback is always LAN.
-pub fn classify_network(ip: &str, local_nets: &[String]) -> String {
-    let Ok(addr) = ip.parse::<IpAddr>() else {
-        return "WAN".into();
-    };
-    if addr.is_loopback() {
-        return "LAN".into();
-    }
-    // RFC1918 / link-local are LAN regardless of config.
-    if is_private(&addr) {
-        return "LAN".into();
-    }
-    for net in local_nets {
-        if cidr_contains(net, &addr) {
-            return "LAN".into();
-        }
-    }
-    "WAN".into()
-}
-
-fn is_private(addr: &IpAddr) -> bool {
-    match addr {
-        IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
-        IpAddr::V6(v6) => v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00,
-    }
-}
-
-/// Minimal IPv4 CIDR / prefix match. Accepts `a.b.c.d/n` and bare `a.b.` prefixes.
-fn cidr_contains(net: &str, addr: &IpAddr) -> bool {
-    let IpAddr::V4(ip) = addr else { return false };
-    let ip = u32::from(*ip);
-    if let Some((base, bits)) = net.split_once('/') {
-        let Ok(base_ip) = base.trim().parse::<std::net::Ipv4Addr>() else {
-            return false;
-        };
-        let Ok(bits) = bits.trim().parse::<u32>() else {
-            return false;
-        };
-        if bits == 0 {
-            return true;
-        }
-        if bits > 32 {
-            return false;
-        }
-        let mask = u32::MAX << (32 - bits);
-        (u32::from(base_ip) & mask) == (ip & mask)
-    } else {
-        // Bare prefix string match on the dotted form.
-        std::net::Ipv4Addr::from(ip).to_string().starts_with(net.trim())
-    }
 }

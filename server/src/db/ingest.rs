@@ -4,8 +4,7 @@ use std::collections::HashMap;
 
 use super::*;
 
-use crate::infra::metadata::Metadata;
-use crate::model::{Library, LibraryKind, Show};
+use crate::model::{Library, LibraryKind, Metadata, Show};
 
 /// Attach resolved TMDB metadata to one item (used by the enrichment pass).
 pub fn set_item_metadata(pool: &Pool, id: &str, meta: &Metadata) -> Result<()> {

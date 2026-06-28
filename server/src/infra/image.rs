@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::infra::metadata::Metadata;
+use crate::model::Metadata;
 use crate::services::scan::short_hash;
 
 /// Monotonic counter so two concurrent renditions of the same artwork get

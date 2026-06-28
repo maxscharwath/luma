@@ -1,23 +1,15 @@
-//! Optional movie/show metadata enrichment via **TMDB** (The Movie Database) —
-//! overview, poster, genres, rating, and the TMDB + IMDb IDs.
-//!
-//! Like [`crate::infra::probe`] (which shells out to `ffprobe`), this shells out to
-//! `curl` instead of pulling an HTTP/TLS dependency. That keeps the crate lean
-//! and `rustc 1.81`-friendly and reuses a binary the runtime image already
-//! ships. `--data-urlencode` makes query building safe for titles with spaces,
-//! accents, and `&`.
-//!
-//! A free TMDB API key in `LUMA_TMDB_API_KEY` enables it. With no key the
-//! helpers are inert and the server behaves exactly as before.
+//! TMDB HTTP client: search for the best match, fetch its details + external
+//! IDs / credits / images via `curl`, and map the JSON into a [`Metadata`].
 
-use std::collections::HashMap;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::{debug, warn};
-use ts_rs::TS;
+
+use crate::domain::metadata::{CastMember, Metadata};
+
+use super::cache::Cache;
 
 const API: &str = "https://api.themoviedb.org/3";
 const IMG: &str = "https://image.tmdb.org/t/p";
@@ -55,83 +47,8 @@ impl Target {
     }
 }
 
-/// Resolved provider metadata for one movie or show. Serialized to clients and
-/// round-tripped through the DB's `metadata` JSON column (hence `Deserialize`).
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct Metadata {
-    // `&'static str` can't be deserialized into; it's always "tmdb" anyway, so
-    // skip it on the way in and default it.
-    #[serde(skip_deserializing, default = "default_provider")]
-    #[ts(type = "string")]
-    pub provider: &'static str,
-    #[serde(rename = "tmdbId")]
-    pub tmdb_id: u64,
-    #[serde(rename = "imdbId", skip_serializing_if = "Option::is_none")]
-    pub imdb_id: Option<String>,
-    pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tagline: Option<String>,
-    pub overview: Option<String>,
-    #[serde(rename = "releaseDate", skip_serializing_if = "Option::is_none")]
-    pub release_date: Option<String>,
-    pub genres: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rating: Option<f32>,
-    #[serde(rename = "posterUrl", skip_serializing_if = "Option::is_none")]
-    pub poster_url: Option<String>,
-    #[serde(rename = "backdropUrl", skip_serializing_if = "Option::is_none")]
-    pub backdrop_url: Option<String>,
-    /// Stylised title-treatment logo (transparent PNG), for hero/preview artwork.
-    #[serde(rename = "logoUrl", skip_serializing_if = "Option::is_none")]
-    pub logo_url: Option<String>,
-    /// Top-billed cast (name + character), from TMDB credits. Empty when the
-    /// lookup predates this field or the provider returned none.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub cast: Vec<CastMember>,
-    #[serde(rename = "tmdbUrl")]
-    pub tmdb_url: String,
-}
-
-/// One top-billed cast member, surfaced in the detail page's "Distribution".
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct CastMember {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub character: Option<String>,
-    /// Profile photo. A TMDB URL when first resolved; rewritten to a locally
-    /// cached WebP path (`/api/images/<hash>.webp`) by [`crate::image::localize`].
-    #[serde(rename = "profileUrl", default, skip_serializing_if = "Option::is_none")]
-    pub profile_url: Option<String>,
-}
-
 /// How many cast members to keep (top-billed, by TMDB `order`).
 const MAX_CAST: usize = 12;
-
-fn default_provider() -> &'static str {
-    "tmdb"
-}
-
-/// Process-wide, in-memory result cache keyed by (target, title, year, lang).
-/// A cached `None` means "looked up, no match" — so misses aren't retried every
-/// request. Lives in [`crate::state::AppState`].
-#[derive(Default)]
-pub struct Cache(Mutex<HashMap<String, Option<Metadata>>>);
-
-impl Cache {
-    pub fn new() -> Self {
-        Self(Mutex::new(HashMap::new()))
-    }
-    fn get(&self, key: &str) -> Option<Option<Metadata>> {
-        self.0.lock().ok()?.get(key).cloned()
-    }
-    fn put(&self, key: String, value: Option<Metadata>) {
-        if let Ok(mut map) = self.0.lock() {
-            map.insert(key, value);
-        }
-    }
-}
 
 /// Detect whether `curl` is callable. Done once at startup for a log line.
 pub fn curl_available() -> bool {

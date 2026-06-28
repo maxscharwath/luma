@@ -20,9 +20,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, Row};
 
-use crate::infra::metadata::Metadata;
 use crate::model::{
-    AudioStream, Kind, MediaFile, MediaItem, Permission, SubtitleTrack, User, VideoStream,
+    AudioStream, Kind, MediaFile, MediaItem, Metadata, Permission, SubtitleTrack, User, VideoStream,
 };
 
 mod media;
