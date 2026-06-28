@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  # Tagging `vX.Y.Z` builds + publishes a GitHub Release with the artifacts.
+  push:
+    tags: ['v*']
+  # Manual run: builds the artifacts (uploaded to the run) without a Release.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (e.g. 0.1.0). Defaults to a dev string.'
+        required: false
+
+permissions:
+  contents: write # create the Release + upload assets
+
+jobs:
+  synology:
+    name: Synology .spk (x86_64 musl)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            V="${GITHUB_REF_NAME#v}"            # tag v0.1.0 -> 0.1.0
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="0.0.0-dev+${GITHUB_SHA::7}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Building version $V"
+
+      # Caches the static ffmpeg download + the musl cargo registry across runs
+      # (see clients/synology/.cache in build.sh) to keep rebuilds fast.
+      - name: Cache build inputs
+        uses: actions/cache@v4
+        with:
+          path: clients/synology/.cache
+          key: synology-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: synology-
+
+      # build.sh: web SPA -> static musl luma-server (Docker musl image) ->
+      # static ffmpeg -> assembles the .spk. Docker is preinstalled on the runner.
+      - name: Build .spk
+        run: clients/synology/build.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Upload .spk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-synology-spk
+          path: clients/synology/dist/*.spk
+          if-no-files-found: error
+
+      # The web SPA is built as a side effect of build.sh — publish it too so it
+      # can be dropped behind any static host / reverse proxy.
+      - name: Upload web SPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-web
+          path: clients/web/dist/client
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: clients/synology/dist/*.spk
+          generate_release_notes: true

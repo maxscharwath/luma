@@ -33,6 +33,18 @@ mkdir -p "$OUT" "$CACHE"
 
 say() { printf '\033[1;33m▶ %s\033[0m\n' "$*"; }
 
+# Portable tar flags. We always strip xattrs/ACLs so DSM's busybox tar doesn't
+# choke on SCHILY/pax records. `--no-mac-metadata` is a BSD/macOS-tar flag (drops
+# AppleDouble ._* + com.apple.* attrs); GNU tar on Linux/CI doesn't know it, so
+# only add it when the local tar accepts it. (`COPYFILE_DISABLE` below is a no-op
+# off macOS.)
+TAR_CLEAN=(--no-xattrs --no-acls)
+if tar --no-mac-metadata --help >/dev/null 2>&1; then
+  TAR_CLEAN+=(--no-mac-metadata)
+fi
+# SHA helper: macOS has `shasum`, Linux/CI has `sha256sum`.
+sha256() { if command -v shasum >/dev/null; then shasum -a 256 "$@"; else sha256sum "$@"; fi; }
+
 # 1) Web SPA -----------------------------------------------------------------
 if [ "${SKIP_WEB:-}" != "1" ]; then
   say "Building web SPA"
@@ -69,7 +81,7 @@ install -m755 "$FF/ffprobe" "$PAY/ffmpeg/ffprobe"
 # Strip macOS xattrs (com.apple.provenance etc.) so bsdtar doesn't embed SCHILY.xattr
 # pax records that DSM's busybox tar can reject. COPYFILE_DISABLE stops AppleDouble.
 xattr -cr "$PAY" 2>/dev/null || true
-( cd "$PAY" && COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --no-acls -czf "$WORK/package.tgz" . )
+( cd "$PAY" && COPYFILE_DISABLE=1 tar "${TAR_CLEAN[@]}" -czf "$WORK/package.tgz" . )
 
 # 5) Assemble the .spk -------------------------------------------------------
 say "Assembling .spk"
@@ -88,9 +100,9 @@ OUT_SPK="$OUT/luma-$VERSION-$ARCH.spk"
 # Pristine, deterministic outer tar: INFO first (DSM reads it first), no macOS
 # metadata/xattrs/AppleDouble. Members listed explicitly rather than globbed.
 xattr -cr "$SPK" 2>/dev/null || true
-( cd "$SPK" && COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --no-acls \
+( cd "$SPK" && COPYFILE_DISABLE=1 tar "${TAR_CLEAN[@]}" \
     -cf "$OUT_SPK" INFO package.tgz conf scripts WIZARD_UIFILES \
     PACKAGE_ICON.PNG PACKAGE_ICON_256.PNG )
 say "Done → $OUT_SPK"
 ls -lh "$OUT_SPK"
-shasum -a 256 "$OUT_SPK"
+sha256 "$OUT_SPK"
