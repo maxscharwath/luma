@@ -12,6 +12,7 @@ mod config;
 mod db;
 mod demo;
 mod discovery;
+mod domain;
 mod enrich;
 mod events;
 mod i18n;
