@@ -66,7 +66,7 @@ fn hydrate(pool: &db::Pool, hits: Vec<Hit>, library: Option<&str>) -> anyhow::Re
     let mut shows: HashMap<String, _> =
         db::get_shows_by_ids(pool, &show_ids)?.into_iter().map(|s| (s.id.clone(), s)).collect();
 
-    let in_library = |lib: &str| library.map_or(true, |want| lib == want);
+    let in_library = |lib: &str| library.is_none_or(|want| lib == want);
 
     let mut out = Vec::with_capacity(hits.len());
     for hit in hits {

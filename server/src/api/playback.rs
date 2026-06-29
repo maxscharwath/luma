@@ -76,10 +76,7 @@ pub async fn ping(
         None
     } else {
         let id = body.item_id.clone();
-        match query(&state.db, move |pool| db::get_item(&pool, &id)).await {
-            Ok(i) => i,
-            Err(_) => None,
-        }
+        (query(&state.db, move |pool| db::get_item(&pool, &id)).await).unwrap_or_default()
     };
 
     let ping = Ping {

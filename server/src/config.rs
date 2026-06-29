@@ -83,7 +83,7 @@ impl Config {
         let web_dir = env::var("LUMA_WEB_DIR")
             .ok()
             .map(|s| PathBuf::from(s.trim()))
-            .filter(|p| p.as_os_str().len() > 0 && p.join("_shell.html").is_file());
+            .filter(|p| !p.as_os_str().is_empty() && p.join("_shell.html").is_file());
 
         Config {
             host,

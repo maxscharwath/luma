@@ -9,7 +9,7 @@ Rust server · web + TV clients · one cinematic design language.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4B642.svg?style=flat-square)](LICENSE)
 [![Bun ≥ 1.3](https://img.shields.io/badge/Bun-%E2%89%A5%201.3-0A0A0C.svg?style=flat-square&logo=bun&logoColor=F4B642)](https://bun.sh)
-[![Rust ≥ 1.81](https://img.shields.io/badge/Rust-%E2%89%A5%201.81-0A0A0C.svg?style=flat-square&logo=rust&logoColor=F4B642)](https://www.rust-lang.org)
+[![Rust ≥ 1.85](https://img.shields.io/badge/Rust-%E2%89%A5%201.85-0A0A0C.svg?style=flat-square&logo=rust&logoColor=F4B642)](https://www.rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-0A0A0C.svg?style=flat-square&logo=typescript&logoColor=3178C6)](https://www.typescriptlang.org)
 [![Platforms](https://img.shields.io/badge/platforms-web%20%C2%B7%20Samsung%20%C2%B7%20LG-0A0A0C.svg?style=flat-square)](#platforms)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-F4B642.svg?style=flat-square)](CONTRIBUTING.md)
@@ -76,7 +76,13 @@ in one calm, cinematic, amber-on-charcoal design language.
   `1x02` / multi-episode markers, strips release junk from titles, groups shows →
   seasons → episodes. Hardened against 4000+ real-world filenames.
 - **TMDB metadata + artwork** — overviews, posters, backdrops, genres, ratings,
-  IMDb IDs; cached to disk as WebP. Works out of the box with a built-in key.
+  keywords, IMDb IDs; cached to disk as WebP. Works out of the box with a built-in key.
+- **Smart, automatic home** — the server assembles the home screen: For You,
+  "because you watched…", themed/seasonal rows, trending and recently-added — built
+  from on-device content embeddings + watch history. No cloud, no per-user
+  training; an optional multilingual semantic model upgrades the themed rows.
+- **Typo-tolerant search** — full-text catalogue search over titles, cast and
+  genres, tuned for imperfect input (incl. TV voice queries).
 - **One design language, three shells** — web (desktop), Samsung Tizen and LG
   webOS TVs share `@luma/core`, `@luma/ui` and the entire `@luma/tv` experience.
 - **10-foot TV UX** — spatial remote navigation, lazy poster decoding,
@@ -125,7 +131,7 @@ luma/
 ## Prerequisites
 
 - **[Bun](https://bun.sh)** ≥ 1.3 — package manager + runner (the repo is a Bun workspace)
-- **[Rust](https://www.rust-lang.org)** ≥ 1.81 + **ffmpeg/ffprobe** — for the server's metadata + HLS path
+- **[Rust](https://www.rust-lang.org)** ≥ 1.85 + **ffmpeg/ffprobe** — for the server's metadata + HLS path
 - Optional, only to package TV apps: **Tizen Studio** (Samsung) · **webOS TV CLI**
   [`@webos-tools/cli`](https://www.npmjs.com/package/@webos-tools/cli) (LG)
 
@@ -133,10 +139,11 @@ luma/
 
 ```bash
 bun install
-bun run dev      # ONE command: media server (:4040) + web client (:5173) together
+bun run dev      # ONE command: media server (:4040) + web client (:3000) together
 ```
 
-Open <http://localhost:5173>. With no media configured, the server seeds demo
+Open <http://localhost:3000>. In dev, Vite reverse-proxies `/api` to the Rust
+server on :4040, so the whole app is one origin. With no media configured, the server seeds demo
 titles (movies + two shows, a HEVC/HDR 4K hero among them) so the UI is populated
 immediately. Point it at real media with:
 
@@ -183,13 +190,20 @@ See each client's README for full device install steps.
 
 ## Server API
 
-`http://<host>:4040/api` — `GET /health`, `/libraries`, `/movies[?library=]`,
-`/shows[?library=]`, `/shows/:id` (seasons + episodes), `/items[?library=]`,
-`/items/:id`, `/items/:id/stream` (HTTP range), `/items/:id/hls/index.m3u8`
-(audio-only HLS), `/items/:id/metadata` (TMDB), poster endpoints, `GET /events`
-(WebSocket), `POST /scan`. Configure via `LUMA_HOST` / `LUMA_PORT` /
-`LUMA_MEDIA_DIRS` / `LUMA_DATA_DIR` / `LUMA_TMDB_API_KEY`. Library persisted in
-SQLite (`<data>/luma.db`, WAL). **Full reference → [server/README.md](server/README.md).**
+`http://<host>:4040/api`:
+
+- **Catalogue** — `GET /health`, `/libraries`, `/movies`, `/shows`, `/shows/:id`
+  (seasons + episodes), `/items`, `/items/:id`, `/items/:id/metadata` (TMDB), posters.
+- **Streaming** — `/items/:id/stream` (HTTP range), `/items/:id/hls/…` (audio-only HLS).
+- **Discovery** — `/search?q=` (typo-tolerant full-text), `/home` (generated
+  sections), `/for-you`, `/items/:id/similar`, `/themed?q=`, `/continue`.
+- **Accounts & control** — `/auth/*` (incl. Quick Connect), `/progress`,
+  `/admin/*`, `GET /events` (WebSocket), `POST /scan`.
+
+Configure via `LUMA_HOST` / `LUMA_PORT` / `LUMA_MEDIA_DIRS` / `LUMA_DATA_DIR` /
+`LUMA_TMDB_API_KEY`. Library persisted in SQLite (`<data>/luma.db`, WAL). Optional
+semantic recommendations are a `--features semantic-embeddings` build (a BERT
+sentence model in `LUMA_EMBED_MODEL_DIR`). **Full reference → [server/README.md](server/README.md).**
 
 ## Deploy on a Synology NAS
 

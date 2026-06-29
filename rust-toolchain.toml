@@ -7,3 +7,8 @@
 # for now since they belong to the search-index graph.
 [toolchain]
 channel = "1.85.0"
+# This file overrides any CI-installed toolchain (e.g. dtolnay/rust-toolchain@stable)
+# whenever cargo runs in the repo, so the components must be declared HERE or
+# `cargo clippy`/`cargo fmt` break on the pinned 1.85.0 (which ships neither by
+# default). rustup auto-installs these alongside the toolchain.
+components = ["clippy", "rustfmt"]
