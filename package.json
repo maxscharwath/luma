@@ -18,6 +18,7 @@
     "build:web": "bun run --filter '@luma/web' build",
     "build:tizen": "bun run --filter '@luma/tizen' build",
     "build:webos": "bun run --filter '@luma/webos' build",
+    "deploy:tizen": "bun run --filter '@luma/tizen' deploy",
     "tizen:prepare": "bun run build:tizen && echo \"✓ Tizen app ready → clients/tizen/dist  (package: cd clients/tizen && tizen build-web && tizen package -t wgt -s <cert-profile> -- dist)\"",
     "typecheck": "bun run --filter '*' typecheck",
     "gen:types": "./scripts/gen-types.sh",

@@ -1,0 +1,9 @@
+# Project toolchain floor = 1.85. The `semantic-embeddings` (candle/MiniLM) graph
+# transitively needs the `edition2024` Cargo feature, stabilized in Rust 1.85;
+# the default build is happy on 1.85 too. rustup auto-installs this in the repo.
+#
+# Lifting the old 1.81 floor means several edition2024 version pins in
+# server/Cargo.toml (uuid / jobserver / time) can now be relaxed — left in place
+# for now since they belong to the search-index graph.
+[toolchain]
+channel = "1.85.0"

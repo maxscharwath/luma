@@ -148,6 +148,13 @@ pub(crate) const SCHEMA: &str = "
     );
     CREATE INDEX IF NOT EXISTS idx_history_user  ON play_history(user_id, ended_at DESC);
     CREATE INDEX IF NOT EXISTS idx_history_ended ON play_history(ended_at DESC);
+
+    CREATE TABLE IF NOT EXISTS item_vectors (
+        id         TEXT PRIMARY KEY,
+        dim        INTEGER NOT NULL,
+        vec        BLOB NOT NULL,
+        updated_at TEXT NOT NULL
+    );
 ";
 
 /// Explicit column list for file SELECTs — keeps [`super::row_to_file`] index-stable.

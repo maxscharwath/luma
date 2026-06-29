@@ -10,10 +10,11 @@ import { useT } from '@luma/ui';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useContinue } from '#tv/app/providers/continue';
-import { TvTopNav } from '#tv/features/catalog/home/TopNav';
+import { useRecommend } from '#tv/app/providers/recommend';
 import { useClient, useNav } from '#tv/app/router';
-import { badgeClasses, PlayGlyph, TvArt, TvCard } from '#tv/shared/TvMedia';
 import { useFocusNav } from '#tv/app/useFocusNav';
+import { TvTopNav } from '#tv/features/catalog/home/TopNav';
+import { badgeClasses, PlayGlyph, TvArt, TvCard } from '#tv/shared/TvMedia';
 
 const RAIL_LIMIT = 20;
 const HERO_VEIL =
@@ -31,6 +32,7 @@ interface Row {
 export function TvHome() {
   const { movies, shows } = useConnection();
   const { items: continueItems, refresh: refreshContinue } = useContinue();
+  const { sections } = useRecommend();
   const { go } = useNav();
   const client = useClient();
   const t = useT();
@@ -41,7 +43,38 @@ export function TvHome() {
   const onSelectShow = useCallback((s: Show) => go('show', { show: s }), [go]);
   const onPlay = useCallback((m: MediaItem) => go('player', { item: m }), [go]);
 
-  const hero = movies[0] ?? null;
+  // One 16:9 movie rail (every server section): empty list in → null out, so the
+  // home drops it. Shared so every recommendation row renders and focus-navigates
+  // identically. `title` arrives already localized from the server — rendered as-is.
+  const mediaRow = useCallback(
+    (key: string, title: string, items: MediaItem[]): Row | null =>
+      items.length
+        ? {
+            key,
+            title,
+            cards: items
+              .slice(0, RAIL_LIMIT)
+              .map((m) => (
+                <TvCard
+                  key={`${key}-${m.id}`}
+                  title={m.title}
+                  genre={m.metadata?.genres?.[0] ?? t('content.film')}
+                  badge={qualityBadge(m)}
+                  backdrop={client.backdropFor(m) ?? client.posterFor(m)}
+                  colors={posterColors(m.id)}
+                  width={330}
+                  onClick={() => onSelectMovie(m)}
+                />
+              )),
+          }
+        : null,
+    [client, onSelectMovie, t],
+  );
+
+  // Featured spotlight: the first item of the top server section (For You),
+  // falling back to the most prominent catalog movie so the hero is never empty
+  // (new accounts / no history / no sections yet).
+  const hero = sections[0]?.items[0] ?? movies[0] ?? null;
 
   const rows = useMemo<Row[]>(() => {
     const continueRow: Row | null = continueItems.length
@@ -71,26 +104,18 @@ export function TvHome() {
           }),
         }
       : null;
-    const movieRow: Row | null = movies.length
-      ? {
-          key: 'films',
-          title: t('nav.films'),
-          cards: movies
-            .slice(0, RAIL_LIMIT)
-            .map((m) => (
-              <TvCard
-                key={m.id}
-                title={m.title}
-                genre={m.metadata?.genres?.[0] ?? t('content.film')}
-                badge={qualityBadge(m)}
-                backdrop={client.backdropFor(m) ?? client.posterFor(m)}
-                colors={posterColors(m.id)}
-                width={330}
-                onClick={() => onSelectMovie(m)}
-              />
-            )),
-        }
-      : null;
+    // One rail per server section, in the server's order. The top section is
+    // "For You"; its first item is the hero, so drop it there to avoid showing
+    // it twice (the server already de-dupes items across the other rows). When
+    // the hero fell back to the catalog it isn't in the section, so the filter
+    // is a no-op and the rail renders unchanged.
+    const sectionRows = sections.map((section, i) =>
+      mediaRow(
+        section.id,
+        section.title,
+        i === 0 && hero ? section.items.filter((m) => m.id !== hero.id) : section.items,
+      ),
+    );
     const showRow: Row | null = shows.length
       ? {
           key: 'series',
@@ -113,8 +138,8 @@ export function TvHome() {
             )),
         }
       : null;
-    return [continueRow, movieRow, showRow].filter((r): r is Row => r !== null);
-  }, [movies, shows, continueItems, client, onPlay, onSelectMovie, onSelectShow, t]);
+    return [continueRow, ...sectionRows, showRow].filter((r): r is Row => r !== null);
+  }, [shows, continueItems, sections, hero, mediaRow, client, onPlay, onSelectShow, t]);
 
   const heroBackdrop = hero ? (client.backdropFor(hero) ?? client.posterFor(hero)) : null;
   const heroBadge = hero ? qualityBadge(hero) : null;
@@ -154,6 +179,7 @@ export function TvHome() {
                 <button
                   className="inline-flex cursor-pointer items-center gap-3 rounded-[13px] bg-accent px-10 py-4.5 font-sans text-[20px] font-bold text-accent-ink transition-transform focus:scale-[1.04]"
                   data-focus=""
+                  type="button"
                   onClick={() => onPlay(hero)}
                 >
                   <PlayGlyph />
@@ -162,6 +188,7 @@ export function TvHome() {
                 <button
                   className="inline-flex cursor-pointer items-center gap-3 rounded-[13px] border border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.12)] px-8.5 py-4.5 font-sans text-[20px] font-semibold text-text transition-transform focus:scale-[1.04]"
                   data-focus=""
+                  type="button"
                   onClick={() => onSelectMovie(hero)}
                 >
                   {t('content.moreInfo')}

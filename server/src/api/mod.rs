@@ -10,11 +10,14 @@ pub mod ws;
 
 mod accounts;
 mod extract;
+mod home;
 mod images;
 mod invites;
 mod media;
 mod metadata;
 mod pin;
+mod recommend;
+mod search;
 mod stream;
 mod util;
 
@@ -35,6 +38,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/items", get(media::list_items))
         .route("/movies", get(media::list_movies))
         .route("/shows", get(media::list_shows))
+        .route("/search", get(search::search))
         .route("/shows/:id", get(media::get_show))
         .route("/shows/:id/poster", get(images::show_poster))
         .route("/shows/:id/metadata", get(metadata::show_metadata))
@@ -45,6 +49,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/items/:id/poster", get(images::item_poster))
         .route("/items/:id/card", get(images::item_card))
         .route("/items/:id/metadata", get(metadata::item_metadata))
+        .route("/items/:id/similar", get(recommend::similar))
+        .route("/themed", get(recommend::themed))
         .route("/items/:id/subtitles/:track", get(stream::subtitles))
         .route("/images/:name", get(images::image))
         .route("/events", get(ws::events))
@@ -78,6 +84,8 @@ pub fn router(state: SharedState) -> Router {
         // --- playback progress / resume ---
         .route("/progress", get(playback::list_progress))
         .route("/continue", get(playback::continue_watching))
+        .route("/home", get(home::home))
+        .route("/for-you", get(recommend::for_you))
         .route(
             "/progress/:id",
             get(playback::get_progress)

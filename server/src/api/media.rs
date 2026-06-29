@@ -121,6 +121,7 @@ pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Respon
         state.events.clone(),
         state.activity.clone(),
     );
+    crate::services::search::spawn_reindex(state.clone());
     crate::services::enrich::maybe_spawn(&state, &data.items, &data.shows);
     Ok(Json(super::dto::ScanResult { scanned: items, libraries, shows }).into_response())
 }

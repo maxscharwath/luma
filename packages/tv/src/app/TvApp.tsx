@@ -1,11 +1,12 @@
 import { LumaIntro } from '@luma/ui';
 import { useEffect, useState } from 'react';
+import { type RedirectRule, resolveRedirect } from '#tv/app/guard';
 import { AuthProvider, useAuth } from '#tv/app/providers/auth';
 import { ConnectionProvider, useConnection } from '#tv/app/providers/connection';
 import { ContinueProvider } from '#tv/app/providers/continue';
 import { LocaleProvider } from '#tv/app/providers/locale';
 import { MyListProvider } from '#tv/app/providers/mylist';
-import { type RedirectRule, resolveRedirect } from '#tv/app/guard';
+import { RecommendProvider } from '#tv/app/providers/recommend';
 import {
   type RouteName,
   TvClientProvider,
@@ -62,9 +63,11 @@ export function TvApp({ platform = 'TV' }: Readonly<TvAppProps>) {
             >
               <LocaleProvider client={client}>
                 <ContinueProvider>
-                  <MyListProvider>
-                    <TvRouterGuard />
-                  </MyListProvider>
+                  <RecommendProvider>
+                    <MyListProvider>
+                      <TvRouterGuard />
+                    </MyListProvider>
+                  </RecommendProvider>
                 </ContinueProvider>
               </LocaleProvider>
             </AuthProvider>

@@ -8,6 +8,8 @@
 pub mod auth;
 pub mod scan;
 pub mod enrich;
+pub mod search;
+pub mod sections;
 pub mod quickconnect;
 pub mod playback;
 pub mod settings;

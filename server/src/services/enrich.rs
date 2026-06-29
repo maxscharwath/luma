@@ -16,10 +16,12 @@ use tracing::{info, warn};
 
 use crate::services::activity::{self, Shared as Activity};
 use crate::db::{self, Pool};
+use crate::infra::embed::{self, Embedder};
 use crate::infra::events::{Bus, ServerEvent};
 use crate::infra::image;
 use crate::infra::metadata::{self, Cache, Target};
 use crate::model::{Kind, MediaItem, Show};
+use crate::services::search::SearchEngine;
 use crate::state::SharedState;
 
 /// Max concurrent TMDB lookups. Small enough to stay polite (TMDB allows ~50
@@ -74,6 +76,8 @@ pub fn maybe_spawn(state: &SharedState, items: &[MediaItem], shows: &[Show]) {
     let total = jobs.len();
     info!(titles = total, "starting background TMDB enrichment");
     activity::enrich_started(&state.activity, total);
+    // Reuse the process-wide embedder (built once in AppState) across workers.
+    let embedder = state.embedder.clone();
     spawn(
         state.db.clone(),
         state.metadata_cache.clone(),
@@ -82,6 +86,8 @@ pub fn maybe_spawn(state: &SharedState, items: &[MediaItem], shows: &[Show]) {
         state.config.data_dir.clone(),
         state.events.clone(),
         state.activity.clone(),
+        embedder,
+        state.search.clone(),
         jobs,
     );
 }
@@ -95,6 +101,8 @@ fn spawn(
     data_dir: PathBuf,
     bus: Bus,
     activity: Activity,
+    embedder: Arc<dyn Embedder>,
+    search: Arc<SearchEngine>,
     jobs: Vec<Job>,
 ) {
     let total = jobs.len();
@@ -116,6 +124,7 @@ fn spawn(
             let resolved = resolved.clone();
             let bus = bus.clone();
             let activity = activity.clone();
+            let embedder = embedder.clone();
             handles.push(thread::spawn(move || {
                 loop {
                     let job = match queue.lock().unwrap().pop() {
@@ -134,6 +143,10 @@ fn spawn(
                     };
                     // Download + transcode poster/backdrop to local WebP.
                     let meta = image::localize(&data_dir, meta);
+                    // Embed the title from its (title, year, genres, cast,
+                    // overview) for similar-to / themed / "For You" rows.
+                    let doc = embed::build_doc(&job.title, job.year, &meta);
+                    let vector = embedder.embed(&doc);
                     let write = if job.is_show {
                         db::set_show_metadata(&pool, &job.id, &meta)
                     } else {
@@ -141,6 +154,10 @@ fn spawn(
                     };
                     match write {
                         Ok(()) => {
+                            // Best-effort: a vector failure must not drop the art.
+                            if let Err(e) = db::set_item_vector(&pool, &job.id, &vector) {
+                                warn!(id = %job.id, error = %e, "failed to store embedding");
+                            }
                             let done = resolved.fetch_add(1, Ordering::Relaxed) + 1;
                             activity::enrich_progress(&activity, done);
                             // Push a live update so clients can swap in the art.
@@ -166,5 +183,12 @@ fn spawn(
         activity::enrich_completed(&activity);
         info!(resolved, total, "TMDB enrichment complete");
         bus.publish(ServerEvent::EnrichCompleted { resolved, total });
+
+        // Now that cast / overview / genres / localized titles are persisted,
+        // rebuild the search index so they become searchable.
+        match search.reindex_from_db(&pool) {
+            Ok(()) => info!("search index rebuilt after enrichment"),
+            Err(e) => warn!(error = %e, "search reindex after enrichment failed"),
+        }
     });
 }

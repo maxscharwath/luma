@@ -1,3 +1,14 @@
+import * as accounts from './client/accounts';
+import * as admin from './client/admin';
+import {
+  type LumaClientOptions,
+  preconnect,
+  type RequestContext,
+  requestJson,
+} from './client/base';
+import * as library from './client/library';
+import * as media from './client/media';
+import * as playback from './client/playback';
 import type {
   Activity,
   AdminLibrary,
@@ -21,6 +32,8 @@ import type {
   QuickConnectInit,
   QuickConnectStatus,
   ScanResult,
+  SearchResponse,
+  Section,
   ServerInfo,
   SettingsView,
   Show,
@@ -30,31 +43,30 @@ import type {
   User,
 } from './types';
 
-export interface LumaClientOptions {
-  /** Base server origin, e.g. "http://nas.local:4040". No trailing slash. */
-  baseUrl: string;
-  fetch?: typeof globalThis.fetch;
-  /** Bearer token for per-user endpoints (progress, profile). Optional — the
-   * catalogue is public. Can be set later with {@link LumaClient.setAuthToken}. */
-  authToken?: string;
-  /** Active UI locale (`"fr"` | `"en"`), sent as `Accept-Language` so the server
-   * localises its responses (admin settings labels, error messages). Change it
-   * later with {@link LumaClient.setLocale}. */
-  locale?: string;
-}
+export type { LumaClientOptions } from './client/base';
+export { LumaApiError } from './client/base';
 
-/** Thin typed client over the LUMA server REST API. Shared by every client shell. */
+/** Thin typed client over the LUMA server REST API. Shared by every client shell.
+ *
+ * The flat method surface is intentional — call sites use `client.listMovies()`.
+ * Each method is a thin delegate to a per-domain implementation in `./client/*`
+ * (media, accounts, playback, library, admin), wired through a shared
+ * {@link RequestContext}. */
 export class LumaClient {
   readonly baseUrl: string;
   private readonly fetchFn: typeof globalThis.fetch;
   private authToken?: string;
   private locale?: string;
+  /** The request plumbing handed to every domain function. `json` is bound so it
+   * always reads the current auth token / locale set on this instance. */
+  private readonly ctx: RequestContext;
 
   constructor(options: LumaClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.authToken = options.authToken;
     this.locale = options.locale;
+    this.ctx = { baseUrl: this.baseUrl, fetchFn: this.fetchFn, json: this.json.bind(this) };
     // Warm the connection to the media server as early as possible.
     preconnect(this.baseUrl);
   }
@@ -75,504 +87,240 @@ export class LumaClient {
     return Boolean(this.authToken);
   }
 
-  private async json<T>(path: string, init?: RequestInit): Promise<T> {
-    const headers = new Headers(init?.headers);
-    if (this.authToken) headers.set('Authorization', `Bearer ${this.authToken}`);
-    if (this.locale) headers.set('Accept-Language', this.locale);
-    const res = await this.fetchFn(`${this.baseUrl}/api${path}`, { ...init, headers });
-    if (!res.ok) {
-      // Attach the error body (e.g. PIN verify's `{ error, retryAfter }`) so
-      // callers can react without a second read.
-      const body = await res.json().catch(() => undefined);
-      throw new LumaApiError(
-        res.status,
-        `${init?.method ?? 'GET'} ${path} failed (${res.status})`,
-        body,
-      );
-    }
-    // 204 No Content (progress writes) → nothing to parse.
-    if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+  private json<T>(path: string, init?: RequestInit): Promise<T> {
+    return requestJson<T>(this.fetchFn, this.baseUrl, this.authToken, this.locale, path, init);
   }
+
+  // ----- catalogue / media ----------------------------------------------------
 
   health(): Promise<Health> {
-    return this.json<Health>('/health');
+    return media.health(this.ctx);
   }
-
   libraries(): Promise<Library[]> {
-    return this.json<Library[]>('/libraries');
+    return media.libraries(this.ctx);
   }
-
-  /** All playable items (movies + episodes). */
   items(libraryId?: string): Promise<MediaItem[]> {
-    return this.json<MediaItem[]>(`/items${libraryQuery(libraryId)}`);
+    return media.items(this.ctx, libraryId);
   }
-
-  /** Movies only (excludes episodes). */
   movies(libraryId?: string): Promise<MediaItem[]> {
-    return this.json<MediaItem[]>(`/movies${libraryQuery(libraryId)}`);
+    return media.movies(this.ctx, libraryId);
   }
-
-  /** TV shows (aggregates). */
   shows(libraryId?: string): Promise<Show[]> {
-    return this.json<Show[]>(`/shows${libraryQuery(libraryId)}`);
+    return media.shows(this.ctx, libraryId);
   }
-
-  /** One show with its seasons + episodes. */
   show(id: string): Promise<ShowDetail> {
-    return this.json<ShowDetail>(`/shows/${encodeURIComponent(id)}`);
+    return media.show(this.ctx, id);
   }
-
   item(id: string): Promise<MediaItem> {
-    return this.json<MediaItem>(`/items/${encodeURIComponent(id)}`);
+    return media.item(this.ctx, id);
   }
-
+  similar(id: string): Promise<MediaItem[]> {
+    return media.similar(this.ctx, id);
+  }
+  themed(query: string): Promise<MediaItem[]> {
+    return media.themed(this.ctx, query);
+  }
+  home(): Promise<Section[]> {
+    return media.home(this.ctx);
+  }
+  search(query: string, opts?: { libraryId?: string; limit?: number }): Promise<SearchResponse> {
+    return media.search(this.ctx, query, opts);
+  }
   scan(): Promise<ScanResult> {
-    return this.json<ScanResult>('/scan', { method: 'POST' });
+    return media.scan(this.ctx);
   }
-
-  /** Live scan/enrichment status snapshot. */
   status(): Promise<Activity> {
-    return this.json<Activity>('/status');
+    return media.status(this.ctx);
   }
-
-  /** URL of the server's recent log lines (text/plain). */
   logsUrl(tail = 200): string {
-    return `${this.baseUrl}/api/logs?tail=${tail}`;
+    return media.logsUrl(this.ctx, tail);
   }
-
-  /** Fetch the last `tail` lines of the server log as plain text. */
-  async logs(tail = 200): Promise<string> {
-    const res = await this.fetchFn(this.logsUrl(tail));
-    if (!res.ok) throw new LumaApiError(res.status, `GET /logs failed (${res.status})`);
-    return res.text();
+  logs(tail = 200): Promise<string> {
+    return media.logs(this.ctx, tail);
   }
-
-  /** Direct-play stream URL for a `<video>` src. Range requests are served by the server. */
   streamUrl(id: string): string {
-    return `${this.baseUrl}/api/items/${encodeURIComponent(id)}/stream`;
+    return media.streamUrl(this.ctx, id);
   }
-
-  /** HLS playlist URL for a per-track audio remux. The server always copies the
-   * video stream untouched and either stream-copies the selected audio track
-   * (`copy`, preserving surround) or re-encodes it to stereo AAC (`copy=false`,
-   * for runtimes that can't decode the source codec). `audioIndex` is the
-   * audio-relative track index. The default `a0c0` reproduces the legacy
-   * audio-transcode fallback. See {@link planAudio}. Needs hls.js outside Safari. */
   hlsAudioUrl(id: string, audioIndex = 0, copy = false): string {
-    const variant = `a${audioIndex}c${copy ? 1 : 0}`;
-    return `${this.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${variant}/index.m3u8`;
+    return media.hlsAudioUrl(this.ctx, id, audioIndex, copy);
   }
-
-  /** HLS *master* playlist that carries the video once plus EVERY audio track as
-   * an alternate rendition. The player switches language IN PLACE (no reload, the
-   * video never moves) — the stable way to change audio. Video + audio are
-   * stream-copied, so the runtime must natively decode them (see
-   * {@link canSeamlessAudioSwitch}). Needs hls.js outside Safari/TV. */
   hlsMasterUrl(id: string, aac = false, startSec = 0): string {
-    // `aac` transcodes every rendition to stereo AAC (for runtimes that can't
-    // decode the source codec, e.g. AC3/EAC3 on Chrome); else stream-copy
-    // (surround preserved, for TV/Safari). `startSec` (-ss) starts the remux at
-    // that position so resume/seek to any offset is instantly available — baked
-    // into the path (not a query) so the player's relative segment URLs match the
-    // session. The stream's own timeline restarts at 0; callers add startSec back.
-    const variant = `master.${aac ? 'aac' : 'copy'}.${Math.max(0, Math.round(startSec * 1000))}`;
-    return `${this.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${variant}/index.m3u8`;
+    return media.hlsMasterUrl(this.ctx, id, aac, startSec);
   }
-
-  /** Generated SVG poster URL for a movie/episode. */
   posterUrl(id: string): string {
-    return `${this.baseUrl}/api/items/${encodeURIComponent(id)}/poster`;
+    return media.posterUrl(this.ctx, id);
   }
-
-  /** Generated SVG poster URL for a show. */
   showPosterUrl(id: string): string {
-    return `${this.baseUrl}/api/shows/${encodeURIComponent(id)}/poster`;
+    return media.showPosterUrl(this.ctx, id);
   }
-
-  /** Resolve a metadata image URL against the server origin. Cached WebP art is
-   * stored as a relative path (`/api/images/…`); TMDB fallbacks are absolute. */
   resolveArt(url?: string | null): string | null {
-    if (!url) return null;
-    return /^https?:\/\//.test(url) ? url : `${this.baseUrl}${url}`;
+    return media.resolveArt(this.ctx, url);
   }
-
-  /** Best poster for a movie/episode: real cached TMDB art if resolved, else the
-   * generated SVG placeholder. */
   posterFor(item: Pick<MediaItem, 'id' | 'metadata'>): string {
-    return this.resolveArt(item.metadata?.posterUrl) ?? this.posterUrl(item.id);
+    return media.posterFor(this.ctx, item);
   }
-
-  /** Best poster for a show: real cached TMDB art if resolved, else the SVG. */
   showPosterFor(show: Pick<Show, 'id' | 'metadata'>): string {
-    return this.resolveArt(show.metadata?.posterUrl) ?? this.showPosterUrl(show.id);
+    return media.showPosterFor(this.ctx, show);
   }
-
-  /** Cover/backdrop art for a movie or show, or `null` when none was resolved. */
   backdropFor(x: { metadata?: Metadata | null }): string | null {
-    return this.resolveArt(x.metadata?.backdropUrl);
+    return media.backdropFor(this.ctx, x);
   }
-
-  /** WebVTT URL for the n-th embedded subtitle track of an item. The server
-   * extracts text subtitles on demand (`GET /api/items/:id/subtitles/:n.vtt`). */
   subtitleUrl(id: string, index: number): string {
-    return `${this.baseUrl}/api/items/${encodeURIComponent(id)}/subtitles/${index}.vtt`;
+    return media.subtitleUrl(this.ctx, id, index);
   }
 
-  // ----- accounts / sessions --------------------------------------------------
+  // ----- accounts / sessions / invites / quick connect ------------------------
 
-  /** Create an account and open a session. After the first (owner) account,
-   * `inviteToken` is required — registration is invite-only. Does NOT set the
-   * token; the caller persists it (then calls {@link setAuthToken}). */
   register(
     email: string,
     username: string,
     password: string,
     inviteToken?: string,
   ): Promise<AuthResult> {
-    return this.json<AuthResult>('/auth/register', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, username, password, inviteToken }),
-    });
+    return accounts.register(this.ctx, email, username, password, inviteToken);
   }
-
-  // ----- invitations ----------------------------------------------------------
-
-  /** Mint a registration invite (requires `users.manage`). */
   createInvite(opts?: {
     permissions?: Permission[];
     expiresInDays?: number;
   }): Promise<InviteCreated> {
-    return this.json<InviteCreated>('/invites', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(opts ?? {}),
-    });
+    return accounts.createInvite(this.ctx, opts);
   }
-
-  /** Pending invites (requires `users.manage`). */
   invites(): Promise<Invite[]> {
-    return this.json<Invite[]>('/invites');
+    return accounts.invites(this.ctx);
   }
-
-  /** Check an invite token's validity (public — used by the join page). */
   checkInvite(token: string): Promise<{ valid: boolean; expiresAt?: number }> {
-    return this.json<{ valid: boolean; expiresAt?: number }>(
-      `/invites/${encodeURIComponent(token)}`,
-    );
+    return accounts.checkInvite(this.ctx, token);
   }
-
-  /** Revoke an invite (requires `users.manage`). */
-  async revokeInvite(token: string): Promise<void> {
-    await this.json<void>(`/invites/${encodeURIComponent(token)}`, { method: 'DELETE' });
+  revokeInvite(token: string): Promise<void> {
+    return accounts.revokeInvite(this.ctx, token);
   }
-
-  /** Log in with email-or-username + password → `{ token, user }`. */
   login(identifier: string, password: string): Promise<AuthResult> {
-    return this.json<AuthResult>('/auth/login', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: identifier, password }),
-    });
+    return accounts.login(this.ctx, identifier, password);
   }
-
-  /** Invalidate the current session server-side (then clear the token locally). */
-  async logout(): Promise<void> {
-    await this.json<void>('/auth/logout', { method: 'POST' });
+  logout(): Promise<void> {
+    return accounts.logout(this.ctx);
   }
-
-  /** The currently-authenticated user (requires a token). */
   me(): Promise<{ user: User }> {
-    return this.json<{ user: User }>('/auth/me');
+    return accounts.me(this.ctx);
   }
-
-  /** Persist the signed-in user's preferred UI locale (synced across their
-   * devices) → the updated `{ user }`. Pass `null` to clear it. */
   updateLanguage(language: string | null): Promise<{ user: User }> {
-    return this.json<{ user: User }>('/auth/me', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ language }),
-    });
+    return accounts.updateLanguage(this.ctx, language);
   }
-
-  /** Public profile list for the "Qui regarde ?" picker (no emails). */
   users(): Promise<PublicUser[]> {
-    return this.json<PublicUser[]>('/users');
+    return accounts.users(this.ctx);
   }
-
-  /** Verify a profile-lock PIN with the remembered token (TV switch-in). Resolves
-   * on 204; throws `LumaApiError` on 401 (wrong) / 429 (locked out — the error's
-   * `retryAfter` seconds are surfaced as a cooldown). */
   pinVerify(pin: string): Promise<void> {
-    return this.json<void>('/auth/pin/verify', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pin }),
-    });
+    return accounts.pinVerify(this.ctx, pin);
   }
-
-  /** Set or rotate the signed-in user's PIN → the updated `{ user }`. `current`
-   * is required when one is already set. */
   setPin(pin: string, current?: string): Promise<{ user: User }> {
-    return this.json<{ user: User }>('/auth/me/pin', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pin, current }),
-    });
+    return accounts.setPin(this.ctx, pin, current);
   }
-
-  /** Clear the signed-in user's PIN (verifying `current`) → the updated `{ user }`. */
   clearPin(current: string): Promise<{ user: User }> {
-    return this.json<{ user: User }>('/auth/me/pin', {
-      method: 'DELETE',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ current }),
-    });
+    return accounts.clearPin(this.ctx, current);
   }
-
-  /** Upload the current user's avatar (raw image bytes) → its cached WebP URL. */
   uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {
-    return this.json<{ avatarUrl: string }>('/users/avatar', {
-      method: 'POST',
-      headers: { 'content-type': file.type || 'application/octet-stream' },
-      body: file,
-    });
+    return accounts.uploadAvatar(this.ctx, file);
   }
-
-  // ----- playback progress / resume -------------------------------------------
-
-  /** All of the user's saved positions. */
-  progress(): Promise<ProgressEntry[]> {
-    return this.json<ProgressEntry[]>('/progress');
-  }
-
-  /** Saved position for a single item, or null if none. */
-  itemProgress(itemId: string): Promise<ProgressEntry | null> {
-    return this.json<ProgressEntry | null>(`/progress/${encodeURIComponent(itemId)}`);
-  }
-
-  /** Resumable items, newest first (the "Reprendre la lecture" rail). */
-  continueWatching(): Promise<ContinueItem[]> {
-    return this.json<ContinueItem[]>('/continue');
-  }
-
-  /** Save (upsert) the playback position for an item. */
-  async saveProgress(
-    itemId: string,
-    positionMs: number,
-    durationMs?: number | null,
-  ): Promise<void> {
-    await this.json<void>(`/progress/${encodeURIComponent(itemId)}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ positionMs: Math.round(positionMs), durationMs: durationMs ?? null }),
-    });
-  }
-
-  /** Forget an item's position (finished / removed from Continue Watching). */
-  async deleteProgress(itemId: string): Promise<void> {
-    await this.json<void>(`/progress/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
-  }
-
-  // ----- quick connect (device pairing) ---------------------------------------
-
-  /** Start a Quick Connect request → a code to display + a secret to poll with. */
   quickConnectInitiate(): Promise<QuickConnectInit> {
-    return this.json<QuickConnectInit>('/auth/quickconnect/initiate', { method: 'POST' });
+    return accounts.quickConnectInitiate(this.ctx);
   }
-
-  /** Poll a Quick Connect request by its secret. */
   quickConnectPoll(secret: string): Promise<QuickConnectStatus> {
-    return this.json<QuickConnectStatus>(
-      `/auth/quickconnect/poll?secret=${encodeURIComponent(secret)}`,
-    );
+    return accounts.quickConnectPoll(this.ctx, secret);
+  }
+  quickConnectAuthorize(code: string): Promise<void> {
+    return accounts.quickConnectAuthorize(this.ctx, code);
   }
 
-  /** Approve a device's Quick Connect code (requires the approver's token). */
-  async quickConnectAuthorize(code: string): Promise<void> {
-    await this.json<void>('/auth/quickconnect/authorize', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
+  // ----- playback progress / resume / heartbeats ------------------------------
+
+  progress(): Promise<ProgressEntry[]> {
+    return playback.progress(this.ctx);
+  }
+  itemProgress(itemId: string): Promise<ProgressEntry | null> {
+    return playback.itemProgress(this.ctx, itemId);
+  }
+  continueWatching(): Promise<ContinueItem[]> {
+    return playback.continueWatching(this.ctx);
+  }
+  forYou(): Promise<MediaItem[]> {
+    return playback.forYou(this.ctx);
+  }
+  saveProgress(itemId: string, positionMs: number, durationMs?: number | null): Promise<void> {
+    return playback.saveProgress(this.ctx, itemId, positionMs, durationMs);
+  }
+  deleteProgress(itemId: string): Promise<void> {
+    return playback.deleteProgress(this.ctx, itemId);
+  }
+  pingPlayback(ping: PlaybackPing): Promise<void> {
+    return playback.pingPlayback(this.ctx, ping);
+  }
+  stopPlayback(sessionId: string): Promise<void> {
+    return playback.stopPlayback(this.ctx, sessionId);
   }
 
-  // ----- playback heartbeats --------------------------------------------------
+  // ----- admin: libraries -----------------------------------------------------
 
-  /** Report playback state so the admin dashboard can show a live session. */
-  async pingPlayback(ping: PlaybackPing): Promise<void> {
-    await this.json<void>('/playback/ping', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(ping),
-    });
-  }
-
-  /** End a playback session (logs it to history immediately). */
-  async stopPlayback(sessionId: string): Promise<void> {
-    await this.json<void>('/playback/stop', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
-    });
-  }
-
-  // ----- admin console --------------------------------------------------------
-
-  /** Server identity + uptime (requires an admin capability). */
-  adminServer(): Promise<ServerInfo> {
-    return this.json<ServerInfo>('/admin/server');
-  }
-
-  /** Live playback sessions for the dashboard. */
-  adminSessions(): Promise<{ sessions: PlaybackSession[] }> {
-    return this.json<{ sessions: PlaybackSession[] }>('/admin/sessions');
-  }
-
-  /** Terminate a live playback session; the owning client stops and shows
-   * `message` (empty → the client's localized default). */
-  async terminateSession(id: string, message?: string): Promise<void> {
-    await this.json<void>(`/admin/sessions/${encodeURIComponent(id)}/stop`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: message ?? '' }),
-    });
-  }
-
-  /** CPU / RAM / bandwidth snapshot + history (poll for live charts). */
-  adminMetrics(): Promise<MetricsSnapshot> {
-    return this.json<MetricsSnapshot>('/admin/metrics');
-  }
-
-  /** Volumes, totals and cache usage. */
-  adminStorage(): Promise<StorageInfo> {
-    return this.json<StorageInfo>('/admin/storage');
-  }
-
-  /** Wipe transcode + image caches (requires `settings.manage`). */
-  clearCache(): Promise<{ freedBytes: number }> {
-    return this.json<{ freedBytes: number }>('/admin/cache/clear', { method: 'POST' });
-  }
-
-  /** Full member list (requires `users.manage`). */
-  adminUsers(): Promise<AdminUsers> {
-    return this.json<AdminUsers>('/admin/users');
-  }
-
-  /** Update a user's permissions and/or username. */
-  async updateUser(
-    id: string,
-    patch: { permissions?: Permission[]; username?: string },
-  ): Promise<void> {
-    await this.json<void>(`/admin/users/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-  }
-
-  /** Delete a user account. */
-  async deleteUser(id: string): Promise<void> {
-    await this.json<void>(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  }
-
-  /** Libraries with folders, size and item counts (requires an admin capability). */
   adminLibraries(): Promise<{ libraries: AdminLibrary[] }> {
-    return this.json<{ libraries: AdminLibrary[] }>('/admin/libraries');
+    return library.adminLibraries(this.ctx);
   }
-
-  /** Add a library and trigger a rescan (requires `library.manage`). */
   createLibrary(body: { name: string; kind?: string; folders: string[] }): Promise<{ id: string }> {
-    return this.json<{ id: string }>('/admin/libraries', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    return library.createLibrary(this.ctx, body);
   }
-
-  /** Rename / change folders / toggle auto-scan for a library. */
-  async updateLibrary(
+  updateLibrary(
     id: string,
     patch: { name?: string; folders?: string[]; autoScan?: boolean },
   ): Promise<void> {
-    await this.json<void>(`/admin/libraries/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
+    return library.updateLibrary(this.ctx, id, patch);
+  }
+  deleteLibrary(id: string): Promise<void> {
+    return library.deleteLibrary(this.ctx, id);
+  }
+  scanLibrary(id: string): Promise<void> {
+    return library.scanLibrary(this.ctx, id);
   }
 
-  /** Remove a library (its items are dropped on the ensuing rescan). */
-  async deleteLibrary(id: string): Promise<void> {
-    await this.json<void>(`/admin/libraries/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  }
+  // ----- admin: console -------------------------------------------------------
 
-  /** Kick a full rescan (from the libraries page). */
-  async scanLibrary(id: string): Promise<void> {
-    await this.json<void>(`/admin/libraries/${encodeURIComponent(id)}/scan`, { method: 'POST' });
+  adminServer(): Promise<ServerInfo> {
+    return admin.adminServer(this.ctx);
   }
-
-  /** Grouped settings schema + current values for one view. */
+  adminSessions(): Promise<{ sessions: PlaybackSession[] }> {
+    return admin.adminSessions(this.ctx);
+  }
+  terminateSession(id: string, message?: string): Promise<void> {
+    return admin.terminateSession(this.ctx, id, message);
+  }
+  adminMetrics(): Promise<MetricsSnapshot> {
+    return admin.adminMetrics(this.ctx);
+  }
+  adminStorage(): Promise<StorageInfo> {
+    return admin.adminStorage(this.ctx);
+  }
+  clearCache(): Promise<{ freedBytes: number }> {
+    return admin.clearCache(this.ctx);
+  }
+  adminUsers(): Promise<AdminUsers> {
+    return admin.adminUsers(this.ctx);
+  }
+  updateUser(id: string, patch: { permissions?: Permission[]; username?: string }): Promise<void> {
+    return admin.updateUser(this.ctx, id, patch);
+  }
+  deleteUser(id: string): Promise<void> {
+    return admin.deleteUser(this.ctx, id);
+  }
   adminSettings(view: string): Promise<SettingsView> {
-    return this.json<SettingsView>(`/admin/settings?view=${encodeURIComponent(view)}`);
+    return admin.adminSettings(this.ctx, view);
   }
-
-  /** Persist a settings patch → the keys actually written. */
   updateSettings(patch: Record<string, unknown>): Promise<{ updated: string[] }> {
-    return this.json<{ updated: string[] }>('/admin/settings', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
+    return admin.updateSettings(this.ctx, patch);
   }
-
-  /** Per-user watch aggregates over the last `days` (default 7). */
   topUsers(days = 7): Promise<{ users: TopUser[] }> {
-    return this.json<{ users: TopUser[] }>(`/admin/stats/top-users?days=${days}`);
+    return admin.topUsers(this.ctx, days);
   }
-
-  /** Weekly films-vs-TV watch buckets over the last `days` (default 28). */
   playHistory(days = 28): Promise<HistoryStats> {
-    return this.json<HistoryStats>(`/admin/stats/history?days=${days}`);
+    return admin.playHistory(this.ctx, days);
   }
-
-  /** Top-line counts for the users page. */
   adminOverview(): Promise<AdminOverview> {
-    return this.json<AdminOverview>('/admin/stats/overview');
-  }
-}
-
-function libraryQuery(libraryId?: string): string {
-  return libraryId ? `?library=${encodeURIComponent(libraryId)}` : '';
-}
-
-/** Add a `<link rel="preconnect">` to the server origin (no-op off-DOM / if dup). */
-function preconnect(baseUrl: string): void {
-  if (typeof document === 'undefined') return;
-  try {
-    const origin = new URL(baseUrl).origin;
-    if (document.querySelector(`link[rel="preconnect"][href="${origin}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'preconnect';
-    link.href = origin;
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-  } catch {
-    /* invalid URL or no DOM — ignore */
-  }
-}
-
-export class LumaApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    /** Parsed JSON error body when the server sent one (e.g. `{ error,
-     * retryAfter }` from a rate-limited PIN verify). */
-    readonly body?: unknown,
-  ) {
-    super(message);
-    this.name = 'LumaApiError';
+    return admin.adminOverview(this.ctx);
   }
 }

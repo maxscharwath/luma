@@ -50,6 +50,10 @@ impl Target {
 /// How many cast members to keep (top-billed, by TMDB `order`).
 const MAX_CAST: usize = 12;
 
+/// How many TMDB keyword tags to keep (TMDB returns them unordered; the cap just
+/// bounds how much thematic text feeds the embedding doc).
+const MAX_KEYWORDS: usize = 20;
+
 /// Detect whether `curl` is callable. Done once at startup for a log line.
 pub fn curl_available() -> bool {
     Command::new("curl")
@@ -127,7 +131,7 @@ fn fetch(
     let lang2 = language.split('-').next().unwrap_or("en");
     let detail_params = vec![
         ("language", language.to_string()),
-        ("append_to_response", "external_ids,credits,images".to_string()),
+        ("append_to_response", "external_ids,credits,images,keywords".to_string()),
         // Logos: the configured language, English, and language-neutral.
         ("include_image_language", format!("{lang2},en,null")),
     ];
@@ -167,6 +171,7 @@ fn fetch(
         overview: d.overview.filter(|s| !s.is_empty()),
         release_date: d.release_date.or(d.first_air_date).filter(|s| !s.is_empty()),
         genres: d.genres.into_iter().map(|g| g.name).collect(),
+        keywords: d.keywords.map(collect_keywords).unwrap_or_default(),
         rating: d.vote_average.filter(|v| *v > 0.0),
         poster_url: d.poster_path.map(|p| format!("{IMG}/w500{p}")),
         backdrop_url: d.backdrop_path.map(|p| format!("{IMG}/w1280{p}")),
@@ -296,6 +301,35 @@ struct Details {
     credits: Option<Credits>, // appended (cast + crew)
     #[serde(default)]
     images: Option<Images>, // appended (logos)
+    #[serde(default)]
+    keywords: Option<Keywords>, // appended (thematic tags)
+}
+
+/// Appended `keywords` block. Movies nest the list under `keywords`, TV under
+/// `results` — only one is ever populated, so flattening both is safe.
+#[derive(Debug, Deserialize)]
+struct Keywords {
+    #[serde(default)]
+    keywords: Vec<KeywordEntry>,
+    #[serde(default)]
+    results: Vec<KeywordEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct KeywordEntry {
+    #[serde(default)]
+    name: String,
+}
+
+/// Flatten a TMDB keywords block into a capped list of non-empty tag names.
+fn collect_keywords(k: Keywords) -> Vec<String> {
+    k.keywords
+        .into_iter()
+        .chain(k.results)
+        .map(|e| e.name)
+        .filter(|n| !n.is_empty())
+        .take(MAX_KEYWORDS)
+        .collect()
 }
 
 #[derive(Debug, Deserialize)]
@@ -444,5 +478,18 @@ mod tests {
     fn empty_search_results_deserialize() {
         let s: SearchResp = serde_json::from_str(r#"{"results": []}"#).unwrap();
         assert!(s.results.is_empty());
+    }
+
+    #[test]
+    fn collects_movie_and_tv_keywords() {
+        // Movies nest under `keywords`.
+        let movie: Keywords =
+            serde_json::from_str(r#"{"keywords":[{"id":1,"name":"road movie"},{"id":2,"name":"summer"}]}"#)
+                .unwrap();
+        assert_eq!(collect_keywords(movie), vec!["road movie", "summer"]);
+        // Shows nest under `results`.
+        let tv: Keywords =
+            serde_json::from_str(r#"{"results":[{"id":3,"name":"dystopia"}]}"#).unwrap();
+        assert_eq!(collect_keywords(tv), vec!["dystopia"]);
     }
 }

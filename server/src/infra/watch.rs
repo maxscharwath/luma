@@ -120,6 +120,7 @@ fn rescan_if_changed(state: &SharedState, last: &mut u64) {
         state.events.clone(),
         state.activity.clone(),
     );
+    crate::services::search::spawn_reindex(state.clone());
     enrich::maybe_spawn(state, &data.items, &data.shows);
 }
 

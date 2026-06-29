@@ -2,7 +2,7 @@
 name = "luma-server"
 version = "0.1.1"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.85"
 description = "LUMA — a self-hosted, direct-play media streaming server"
 license = "MIT"
 
@@ -10,7 +10,38 @@ license = "MIT"
 name = "luma-server"
 path = "src/main.rs"
 
+[features]
+# Multilingual semantic embeddings (infra::embed::candle). OFF by default; the
+# default build uses the dependency-free lexical embedder (good for keyword-able
+# genre rows). Turn this on for the *aesthetic* themed rows lexical can't reach
+# ("mind-bending", "neon night drive") and proper cross-language matching.
+#
+# Needs rustc >= 1.85 (the candle graph pulls toml_parser → edition2024; that's
+# why rust-toolchain.toml pins 1.85). At runtime, point LUMA_EMBED_MODEL_DIR at a
+# BERT-arch sentence model — we use `paraphrase-multilingual-MiniLM-L12-v2`
+# (~470 MB, default ./models/ml-minilm): an English-only model collapses on a
+# French catalog (see infra/embed/candle.rs). Then re-embed (POST /api/scan) to
+# rewrite the 256-d lexical vectors as 384-d semantic ones. Keep candle on its
+# pure-Rust `gemm` backend (no mkl/accelerate/cuda) for the musl single binary.
+semantic-embeddings = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+]
+
 [dependencies]
+# --- Optional: semantic embeddings (feature `semantic-embeddings`) ---
+# CPU-only, pure-Rust backends so the musl single-binary keeps linking.
+candle-core = { version = "0.8", optional = true, default-features = false }
+candle-nn = { version = "0.8", optional = true, default-features = false }
+candle-transformers = { version = "0.8", optional = true, default-features = false }
+# `onig` (Oniguruma, C) is enabled: tokenizers 0.20's regex pre-tokenizer
+# references it unconditionally. C-on-musl is fine — the Synology build already
+# cross-compiles bundled SQLite + zstd C (see the rusqlite/tantivy notes below).
+# default-features stays off to drop the heavier `progressbar`/`http` extras.
+tokenizers = { version = "0.20", optional = true, default-features = false, features = ["onig"] }
+
 axum = { version = "0.7", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
@@ -63,6 +94,27 @@ jpeg-encoder = "0.6"
 # Effectively build-time only: the `TS` impls are unused at runtime and dropped by
 # release LTO+strip. Builds cleanly on the pinned rustc 1.81 (only 3 added crates).
 ts-rs = { version = "12.0.1", features = ["serde-compat"] }
+
+# Full-text search engine behind `GET /api/search` (services/search). Lucene-style
+# BM25 + per-term fuzzy matching → typo-tolerant, which matters for the TV's
+# Web-Speech voice queries ("avengrs" → "Avengers"). The index is in-RAM
+# (`RamDirectory`), rebuilt from SQLite — the source of truth — on scan/enrich, so
+# there are no on-disk index files to migrate or corrupt.
+#
+# `default-features = false` drops tantivy's `mmap` feature (we never touch disk),
+# removing the tempfile → getrandom 0.4 (edition2024) chain. `lz4-compression` is
+# pure-Rust store compression. zstd-sys (C, non-optional via tantivy-sstable) still
+# builds — fine: the Synology musl build already cross-compiles bundled SQLite's C.
+# Verified to compile on the pinned rustc 1.81.
+tantivy = { version = "0.22", default-features = false, features = ["lz4-compression"] }
+
+# Transitive pins for the tantivy graph — the same edition2024-on-1.81 hazard the
+# `time` pin above (and the rusqlite comment) guard against. tantivy → uuid ≥1.12
+# and cc/zstd-sys → jobserver ≥0.1.33 both require the edition2024 cargo feature,
+# unbuildable on rustc 1.81. Hold them at their last 2021-edition release. Declared
+# here (though unused directly) so the lockfile pins the whole graph to them.
+uuid = "=1.11.0"
+jobserver = "=0.1.32"
 
 # Keep the dependency graph lean and 1.81-friendly.
 [profile.release]

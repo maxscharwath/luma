@@ -88,6 +88,90 @@ pub fn list_shows(pool: &Pool, library: Option<&str>) -> Result<Vec<Show>> {
     Ok(shows)
 }
 
+/// Lightweight catalogue snapshot for the search index: `(items, shows)` with
+/// only the fields the index reads (title, show/episode title, metadata) and
+/// none of the per-row file / representative-video lookups [`list_movies`] /
+/// [`list_shows`] do — so a full reindex is just two table scans.
+pub fn index_snapshot(pool: &Pool) -> Result<(Vec<MediaItem>, Vec<Show>)> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLS} FROM items"))?;
+    let items: Vec<MediaItem> =
+        stmt.query_map([], row_to_item)?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut stmt = conn.prepare("SELECT id,title,year,library,added_at,metadata FROM shows")?;
+    let shows: Vec<Show> = stmt
+        .query_map([], |r| {
+            Ok(Show {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                year: r.get(2)?,
+                library: r.get(3)?,
+                added_at: r.get(4)?,
+                season_count: 0,
+                episode_count: 0,
+                video: None,
+                metadata: parse_metadata(r.get(5)?),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok((items, shows))
+}
+
+/// Fetch full items for a set of ids (search-result hydration). Order is
+/// unspecified — the caller re-orders by relevance.
+pub fn get_items_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<MediaItem>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let conn = pool.get()?;
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!("SELECT {ITEM_COLS} FROM items WHERE id IN ({placeholders})");
+    let mut stmt = conn.prepare(&sql)?;
+    let mut items: Vec<MediaItem> = stmt
+        .query_map(rusqlite::params_from_iter(ids.iter()), row_to_item)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for item in &mut items {
+        attach_files(&conn, item)?;
+    }
+    Ok(items)
+}
+
+/// Fetch full shows (with season/episode counts + representative video) for a set
+/// of ids. Order is unspecified — the caller re-orders by relevance.
+pub fn get_shows_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<Show>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let conn = pool.get()?;
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!(
+        "SELECT s.id,s.title,s.year,s.library,s.added_at,\
+            (SELECT COUNT(DISTINCT i.season) FROM items i WHERE i.show_id=s.id),\
+            (SELECT COUNT(*) FROM items i WHERE i.show_id=s.id),\
+            s.metadata \
+         FROM shows s WHERE s.id IN ({placeholders})",
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut shows: Vec<Show> = stmt
+        .query_map(rusqlite::params_from_iter(ids.iter()), |r| {
+            Ok(Show {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                year: r.get(2)?,
+                library: r.get(3)?,
+                added_at: r.get(4)?,
+                season_count: r.get::<_, i64>(5)? as u32,
+                episode_count: r.get::<_, i64>(6)? as u32,
+                video: None,
+                metadata: parse_metadata(r.get(7)?),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for s in &mut shows {
+        s.video = representative_video(&conn, &s.id)?;
+    }
+    Ok(shows)
+}
+
 /// Cheap title lookup for show poster rendering.
 pub fn show_title(pool: &Pool, id: &str) -> Result<Option<String>> {
     let conn = pool.get()?;

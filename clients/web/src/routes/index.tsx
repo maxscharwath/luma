@@ -1,7 +1,8 @@
 import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
 import { ContinueRow } from '#web/features/catalog/ContinueRow';
-import { Hero, MovieRail, ShowRail } from '#web/features/catalog/cards';
+import { Hero, ShowRail } from '#web/features/catalog/cards';
+import { HomeSections } from '#web/features/catalog/HomeSections';
 import { lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
 
 export const Route = createFileRoute('/')({
@@ -19,13 +20,11 @@ export const Route = createFileRoute('/')({
 function HomePage() {
   const t = useT();
   const { movies, shows } = Route.useLoaderData();
-  const hdr = movies.filter((m) => m.video?.hdr);
   return (
     <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
       {movies[0] ? <Hero movie={movies[0]} /> : null}
       <ContinueRow />
-      {hdr.length >= 3 ? <MovieRail title={t('content.hdr4k')} movies={hdr} /> : null}
-      <MovieRail title={t('nav.films')} movies={movies} />
+      <HomeSections />
       <ShowRail title={t('nav.series')} shows={shows} />
     </main>
   );

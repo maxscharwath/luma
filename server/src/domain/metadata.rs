@@ -41,6 +41,13 @@ pub struct Metadata {
     /// lookup predates this field or the provider returned none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cast: Vec<CastMember>,
+    /// TMDB keyword tags (e.g. "road movie", "dystopia", "heist") — a strong
+    /// thematic signal for the recommendation embedding. Internal: consumed
+    /// in-memory by `infra::embed::build_doc` during enrichment; deliberately not
+    /// persisted to the metadata JSON nor sent to clients.
+    #[serde(default, skip_serializing)]
+    #[ts(skip)]
+    pub keywords: Vec<String>,
     #[serde(rename = "tmdbUrl")]
     pub tmdb_url: String,
 }

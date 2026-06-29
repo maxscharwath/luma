@@ -7,6 +7,7 @@
 pub mod probe;
 pub mod transcode;
 pub mod metadata;
+pub mod embed;
 pub mod image;
 pub mod stream;
 pub mod discovery;

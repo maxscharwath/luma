@@ -9,7 +9,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::infra::metrics::DiskInfo;
-use crate::model::{AdminUser, Permission, User};
+use crate::model::{AdminUser, MediaItem, Permission, Show, User};
 use crate::services::settings::SettingGroup;
 
 /// `GET /api/health`.
@@ -178,4 +178,23 @@ pub struct AdminOverview {
 pub struct SettingsView {
     pub view: String,
     pub groups: Vec<SettingGroup>,
+}
+
+/// One ranked result of `GET /api/search` — a `type`-tagged union so the client
+/// can switch on it (`movie`/`episode` carry a `MediaItem`, `show` a `Show`).
+#[derive(Serialize, TS)]
+#[serde(tag = "type", rename_all = "lowercase")]
+#[ts(export)]
+pub enum SearchHit {
+    Movie { item: MediaItem },
+    Show { show: Show },
+    Episode { item: MediaItem },
+}
+
+/// `GET /api/search?q=…` — the echoed query plus hits in descending relevance.
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct SearchResponse {
+    pub query: String,
+    pub results: Vec<SearchHit>,
 }

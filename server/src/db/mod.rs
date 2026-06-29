@@ -31,9 +31,13 @@ mod playback;
 mod library;
 mod admin;
 mod schema;
+mod vectors;
+mod home;
 
 pub use media::*;
 pub use ingest::*;
+pub use vectors::*;
+pub use home::*;
 pub use accounts::*;
 pub use playback::*;
 pub use library::*;

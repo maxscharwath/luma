@@ -4,3 +4,7 @@
 # ts-rs default export dir — a plain `cargo test` drops bindings here. The real
 # generated types live in packages/core/src/generated (see scripts/gen-types.sh).
 /bindings
+# MiniLM model files for the optional `semantic-embeddings` feature (~90 MB).
+# A runtime asset fetched on demand / bundled into the deploy package, never
+# committed. Lives wherever LUMA_EMBED_MODEL_DIR points (default ./models/minilm).
+/models

@@ -124,6 +124,11 @@ async fn main() -> anyhow::Result<()> {
         state.activity.clone(),
     );
 
+    // Build the keyword search index from the freshly-synced catalogue (titles
+    // are searchable immediately; enrichment triggers a second rebuild once
+    // cast/overview/genres land). Off-thread so it never delays serving.
+    services::search::spawn_reindex(state.clone());
+
     // Resolve TMDB art for the freshly-scanned catalog in the background.
     services::enrich::maybe_spawn(&state, &data.items, &data.shows);
 

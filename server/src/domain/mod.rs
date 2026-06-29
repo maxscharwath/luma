@@ -10,3 +10,4 @@ pub mod playback;
 pub mod library;
 pub mod admin;
 pub mod naming;
+pub mod section;

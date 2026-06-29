@@ -377,6 +377,8 @@ pub fn sync_all(
 
     // 6) Recompute every item's representative columns from its probed files.
     recompute_all_representatives(pool)?;
+    // 7) Drop content embeddings for titles that vanished from the catalog.
+    let _ = prune_orphan_vectors(pool);
     Ok(())
 }
 

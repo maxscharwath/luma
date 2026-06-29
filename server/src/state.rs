@@ -6,11 +6,14 @@ use std::sync::Arc;
 use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
+use crate::infra::embed::{self, Embedder};
 use crate::infra::events::Bus;
 use crate::infra::metadata;
 use crate::infra::metrics::Metrics;
 use crate::services::playback::Registry;
 use crate::services::quickconnect::{self, QuickConnect};
+use crate::services::search::SearchEngine;
+use crate::services::sections::VectorCache;
 use crate::services::settings::Settings;
 use crate::infra::transcode;
 
@@ -37,6 +40,17 @@ pub struct AppState {
     pub playback: Registry,
     /// Rolling CPU / RAM / bandwidth metrics (the dashboard charts).
     pub metrics: Metrics,
+    /// Content embedder, built once at startup (the MiniLM backend loads a model;
+    /// the default lexical one is free). Used to embed titles during enrichment
+    /// and free-text queries for the `/api/themed` row.
+    pub embedder: Arc<dyn Embedder>,
+    /// In-RAM full-text search index (keyword/typo-tolerant title search behind
+    /// `/api/search`). Rebuilt from SQLite on scan/enrich. Internally synchronized.
+    pub search: Arc<SearchEngine>,
+    /// In-RAM snapshot of every title's embedding, powering the home-screen
+    /// section generator without re-reading SQLite per request. Self-reloads when
+    /// the vectors change (see [`crate::services::sections::VectorCache`]).
+    pub vectors: Arc<VectorCache>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -56,6 +70,9 @@ impl AppState {
             quickconnect: quickconnect::new(),
             playback: Registry::new(),
             metrics: Metrics::new(),
+            embedder: embed::default_embedder(),
+            search: Arc::new(SearchEngine::new().expect("init search index")),
+            vectors: Arc::new(VectorCache::new()),
         })
     }
 }
