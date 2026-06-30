@@ -4,12 +4,12 @@
 // when the model found nothing, in which case we render nothing). Reuses the same
 // Poster/Rail as the home + similar rails, and handles movies *and* shows.
 
-import { posterColors, type Section } from '@luma/core';
+import { type Section } from '@luma/core';
 import { useT } from '@luma/ui';
-import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { SectionPoster } from '#web/features/catalog/cards';
 import { useAuth } from '#web/shared/lib/auth';
-import { Poster, Rail } from '#web/shared/ui';
+import { Rail } from '#web/shared/ui';
 
 const HEADING = 'mb-1 px-(--gutter-web) font-display text-[22px] font-bold tracking-[-.02em]';
 /** How many times to re-poll while the model is still generating (×6s ≈ 72s). */
@@ -65,29 +65,13 @@ export function AiSuggestRail({ id }: Readonly<{ id: string }>) {
           <div className="mb-3" />
         )}
         <Rail gap={18} padded label={section.title}>
-          {section.items.map((entry) =>
-            entry.type === 'show' ? (
-              <Poster
-                key={entry.show.id}
-                title={entry.show.title}
-                genre={entry.show.metadata?.genres?.[0] ?? t('content.series')}
-                colors={posterColors(entry.show.id)}
-                poster={client.showPosterFor(entry.show)}
-                width={200}
-                onClick={() => navigate({ to: '/show/$id', params: { id: entry.show.id } })}
-              />
-            ) : (
-              <Poster
-                key={entry.item.id}
-                title={entry.item.title}
-                genre={entry.item.metadata?.genres?.[0] ?? t('content.film')}
-                colors={posterColors(entry.item.id)}
-                poster={client.posterFor(entry.item)}
-                width={200}
-                onClick={() => navigate({ to: '/movie/$id', params: { id: entry.item.id } })}
-              />
-            ),
-          )}
+          {section.items.map((entry) => (
+            <SectionPoster
+              key={entry.type === 'show' ? entry.show.id : entry.item.id}
+              entry={entry}
+              width={200}
+            />
+          ))}
         </Rail>
       </section>
     );

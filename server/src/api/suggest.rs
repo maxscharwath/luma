@@ -3,8 +3,9 @@
 //! generation and returns `null`, so the page never blocks on the (slow) model
 //! the client re-fetches until the cached row appears.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use axum::extract::{Path, State};
 use axum::response::{IntoResponse, Response};
@@ -23,6 +24,18 @@ fn in_flight() -> &'static Mutex<HashSet<String>> {
     static IN_FLIGHT: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     IN_FLIGHT.get_or_init(|| Mutex::new(HashSet::new()))
 }
+
+/// Last hard-failure time per seed. A hard LLM failure caches nothing (so it can
+/// retry), but the detail page keeps polling, so without a cooldown every poll
+/// would launch a fresh (possibly paid) generation. We retry at most once per
+/// [`RETRY_COOLDOWN`] while the provider is erroring.
+fn cooldowns() -> &'static Mutex<HashMap<String, Instant>> {
+    static COOLDOWNS: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    COOLDOWNS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Minimum gap between generation attempts for a seed that just hard-failed.
+const RETRY_COOLDOWN: Duration = Duration::from_secs(60);
 
 /// `GET /api/items/:id/ai-suggest` (Bearer) → `Section | null`. `null` means it's
 /// generating (the client polls); a `Section` possibly with empty `items`
@@ -63,6 +76,16 @@ pub async fn ai_suggest(
 /// Generate + cache suggestions for `id` off the request path. Guarded so only
 /// one generation runs per seed at a time.
 fn spawn_generation(state: SharedState, id: String) {
+    // Back off if a recent attempt for this seed hard-failed, so a persistently
+    // erroring provider isn't hit on every poll.
+    if cooldowns()
+        .lock()
+        .unwrap()
+        .get(&id)
+        .is_some_and(|t| t.elapsed() < RETRY_COOLDOWN)
+    {
+        return;
+    }
     if !in_flight().lock().unwrap().insert(id.clone()) {
         return; // already generating
     }
@@ -95,14 +118,20 @@ fn generate(state: &SharedState, id: &str) {
         .clamp(2048, 8192) as u32;
     match crate::services::llm::suggest_for(state, id, max_tokens) {
         Ok(Some(s)) => {
+            cooldowns().lock().unwrap().remove(id);
             let _ = db::set_suggestion(&state.db, id, &s.ids, s.reason_fr.as_deref(), s.reason_en.as_deref());
         }
         // Tried, nothing usable → cache empty (terminal; stops the client polling).
         Ok(None) => {
+            cooldowns().lock().unwrap().remove(id);
             let _ = db::set_suggestion(&state.db, id, &[], None, None);
         }
-        // Hard LLM failure → don't cache, so a later view retries.
-        Err(e) => tracing::warn!(item = %id, error = %e, "AI suggestion generation failed"),
+        // Hard LLM failure → don't cache (so a later view retries), but record the
+        // time so polls back off to one attempt per RETRY_COOLDOWN.
+        Err(e) => {
+            cooldowns().lock().unwrap().insert(id.to_string(), Instant::now());
+            tracing::warn!(item = %id, error = %e, "AI suggestion generation failed");
+        }
     }
 }
 

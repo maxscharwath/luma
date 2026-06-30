@@ -45,6 +45,11 @@ pub fn markers_for_item(conn: &Connection, item_id: &str) -> rusqlite::Result<Ve
 
 /// Upsert one segment marker (`(item_id, kind)` is unique). `source` records
 /// provenance (`chapters` | `fingerprint` | `manual`).
+///
+/// Writes respect a provenance precedence (`manual` > `fingerprint` > `chapters`):
+/// a write only overwrites an existing marker when its source ranks at least as
+/// high. This keeps a re-probe (cheap embedded `chapters`) from clobbering a more
+/// accurate `fingerprint` marker, while fingerprint/manual still refresh freely.
 pub fn set_marker(
     pool: &Pool,
     item_id: &str,
@@ -59,7 +64,9 @@ pub fn set_marker(
          VALUES (?1, ?2, ?3, ?4, ?5, datetime('now')) \
          ON CONFLICT(item_id, kind) DO UPDATE SET \
            start_ms = excluded.start_ms, end_ms = excluded.end_ms, \
-           source = excluded.source, updated_at = excluded.updated_at",
+           source = excluded.source, updated_at = excluded.updated_at \
+         WHERE (CASE excluded.source WHEN 'manual' THEN 3 WHEN 'fingerprint' THEN 2 WHEN 'chapters' THEN 1 ELSE 0 END) \
+            >= (CASE markers.source WHEN 'manual' THEN 3 WHEN 'fingerprint' THEN 2 WHEN 'chapters' THEN 1 ELSE 0 END)",
         params![item_id, kind_str(kind), start_ms as i64, end_ms as i64, source],
     )?;
     Ok(())

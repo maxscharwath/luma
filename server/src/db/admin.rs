@@ -233,8 +233,13 @@ pub fn total_media_bytes(pool: &Pool) -> Result<i64> {
 /// title embeddings are stored.
 pub fn metadata_counts(pool: &Pool) -> Result<(i64, i64, i64)> {
     let conn = pool.get()?;
-    let items: i64 =
-        conn.query_row("SELECT COUNT(*) FROM items WHERE metadata IS NOT NULL", [], |r| r.get(0))?;
+    // Episodes also carry metadata but aren't "titles"; exclude them so the
+    // count matches the movie/loose-video figure the panel documents.
+    let items: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM items WHERE metadata IS NOT NULL AND kind != 'episode'",
+        [],
+        |r| r.get(0),
+    )?;
     let shows: i64 =
         conn.query_row("SELECT COUNT(*) FROM shows WHERE metadata IS NOT NULL", [], |r| r.get(0))?;
     let vectors: i64 = conn.query_row("SELECT COUNT(*) FROM item_vectors", [], |r| r.get(0))?;

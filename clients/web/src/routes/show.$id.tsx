@@ -259,7 +259,9 @@ function ShowDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [client, user]);
+    // show.id: re-fetch when navigating between shows on the same route (the
+    // component is reused, so without it the bars keep the previous show's data).
+  }, [client, user, show.id]);
 
   const metaParts = [
     show.year ? String(show.year) : null,

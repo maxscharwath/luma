@@ -4,20 +4,17 @@
 // renderer. Per-user, so like ForYouRow it loads client-side once a session is
 // hydrated, and renders nothing until there's something to show.
 
-import { posterColors, type Section } from '@luma/core';
-import { useT } from '@luma/ui';
-import { useNavigate } from '@tanstack/react-router';
+import { type Section } from '@luma/core';
 import { useEffect, useState } from 'react';
+import { SectionPoster } from '#web/features/catalog/cards';
 import { useAuth } from '#web/shared/lib/auth';
-import { Poster, Rail } from '#web/shared/ui';
+import { Rail } from '#web/shared/ui';
 
 const SECTION_TITLE = 'mb-5 mt-10 font-display text-[22px] font-bold tracking-[-.02em] text-text';
 
 export function HomeSections() {
-  const t = useT();
   const { user, ready, client } = useAuth();
   const [sections, setSections] = useState<Section[]>([]);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!ready || !user) {
@@ -46,27 +43,12 @@ export function HomeSections() {
           <section key={section.id}>
             <h2 className={SECTION_TITLE}>{section.title}</h2>
             <Rail label={section.title}>
-              {section.items.map((entry) =>
-                entry.type === 'show' ? (
-                  <Poster
-                    key={entry.show.id}
-                    title={entry.show.title}
-                    genre={entry.show.metadata?.genres?.[0] ?? t('content.series')}
-                    colors={posterColors(entry.show.id)}
-                    poster={client.showPosterFor(entry.show)}
-                    onClick={() => navigate({ to: '/show/$id', params: { id: entry.show.id } })}
-                  />
-                ) : (
-                  <Poster
-                    key={entry.item.id}
-                    title={entry.item.title}
-                    genre={entry.item.metadata?.genres?.[0] ?? t('content.film')}
-                    colors={posterColors(entry.item.id)}
-                    poster={client.posterFor(entry.item)}
-                    onClick={() => navigate({ to: '/movie/$id', params: { id: entry.item.id } })}
-                  />
-                ),
-              )}
+              {section.items.map((entry) => (
+                <SectionPoster
+                  key={entry.type === 'show' ? entry.show.id : entry.item.id}
+                  entry={entry}
+                />
+              ))}
             </Rail>
           </section>
         );

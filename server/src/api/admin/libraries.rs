@@ -173,39 +173,11 @@ fn clean_folders(folders: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-/// Background rescan triggered by library edits mirrors the `/api/scan`
-/// handler but spawned so the admin request returns immediately.
+/// Background rescan triggered by library edits. Routes through the job manager
+/// (the same `library.scan` job as `POST /api/scan`) so it shares the single-
+/// flight guard no concurrent walk + sync racing on the DB and picks up the full
+/// follow-up pipeline (probe + search reindex + enrich), instead of spawning its
+/// own partial pass. A no-op when a scan is already running (it covers the edit).
 fn spawn_rescan(state: SharedState) {
-    tokio::spawn(async move {
-        let defs = settings::library_defs(&state.settings, &state.config);
-        let has_folders = defs.iter().any(|d| !d.folders.is_empty());
-        state.events.publish(ServerEvent::ScanStarted);
-        crate::services::activity::scan_started(&state.activity);
-
-        let res = query(&state.db, move |pool| {
-            let mut data = crate::services::scan::scan_all(&defs);
-            if data.items.is_empty() && !has_folders {
-                data = crate::services::demo::demo_data();
-            }
-            db::sync_all(&pool, &data.libraries, &data.shows, &data.items, &data.mtimes)?;
-            Ok(data)
-        })
-        .await;
-
-        if let Ok(data) = res {
-            let (l, s, i) = (data.libraries.len(), data.shows.len(), data.items.len());
-            crate::services::activity::scan_completed(&state.activity, l, s, i, crate::services::scan::now_iso8601());
-            state
-                .events
-                .publish(ServerEvent::ScanCompleted { items: i, shows: s, libraries: l });
-            state.events.publish(ServerEvent::LibraryUpdated);
-            crate::infra::probe::spawn_probe_pass(
-                state.db.clone(),
-                state.ffprobe_available,
-                state.events.clone(),
-                state.activity.clone(),
-            );
-            crate::services::enrich::maybe_spawn(&state, &data.items, &data.shows);
-        }
-    });
+    let _ = state.jobs.trigger(state.clone(), crate::model::JobId::LibraryScan, "library-edit");
 }

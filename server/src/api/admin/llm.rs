@@ -85,14 +85,34 @@ pub async fn save_llm(
     Json(body): Json<LlmSaveBody>,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
+    // New providers send a blank id; the server owns id assignment (never the
+    // client). Keep existing ids so their stored key/default survive, and give
+    // each new provider the lowest free `p{n}` not already taken by another
+    // provider here. (A plain index-based `p{i}` collides after a delete/reorder:
+    // a new provider can land on an index whose old id another provider still
+    // holds, silently merging the two onto one stored key.)
+    let mut taken: std::collections::HashSet<String> = body
+        .providers
+        .iter()
+        .map(|p| p.id.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let mut next_free = 0usize;
     let providers: Vec<LlmProvider> = body
         .providers
         .into_iter()
-        .enumerate()
-        .map(|(i, p)| LlmProvider {
-            // New providers send a blank id; the server owns id assignment (never
-            // the client). Keep an existing id so its stored key/default survive.
-            id: if p.id.trim().is_empty() { format!("p{i}") } else { p.id },
+        .map(|p| LlmProvider {
+            id: if p.id.trim().is_empty() {
+                loop {
+                    let cand = format!("p{next_free}");
+                    next_free += 1;
+                    if taken.insert(cand.clone()) {
+                        break cand;
+                    }
+                }
+            } else {
+                p.id
+            },
             name: p.name,
             provider: if p.provider.trim().is_empty() { "openai".into() } else { p.provider },
             base_url: p.base_url,

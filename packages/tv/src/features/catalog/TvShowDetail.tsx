@@ -56,7 +56,8 @@ export function TvShowDetail() {
     return () => {
       cancelled = true;
     };
-  }, [client]);
+    // show.id: re-fetch when switching shows (the screen is reused on this route).
+  }, [client, show.id]);
 
   useFocusNav({ onBack: nav.back, resetKey: detail });
 
@@ -145,7 +146,8 @@ export function TvShowDetail() {
         <WatchedButton watched={watched.has(show.id)} onToggle={() => watched.toggle(show.id)} />
         {theme.active ? <ThemeButton muted={theme.muted} onToggle={theme.toggle} /> : null}
       </div>
-      <EndsAtHint runtimeMs={firstEpisode?.durationMs} />
+      {/* Match the Play button's target (resume/next episode), not always ep 1. */}
+      <EndsAtHint runtimeMs={playTarget?.durationMs} />
 
       {error ? (
         <p className="mt-6 font-display text-[20px] font-normal text-muted">

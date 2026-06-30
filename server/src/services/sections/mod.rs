@@ -53,6 +53,12 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
 
     let mut out = Builder { pool, sections: Vec::new(), seen: HashSet::new() };
 
+    // Reserve the tail slots for the baseline browse rows (Trending, plus
+    // Recently-added when enabled) so heavy personalization can't crowd them out:
+    // the discretionary rows below (AI / curated / themed) stop here, leaving room.
+    let show_recent = state.settings.get_bool("showRecentHome", true);
+    let discretionary_cap = MAX_SECTIONS.saturating_sub(1 + usize::from(show_recent));
+
     // 1) For You personalized taste centroid (no floor: it reflects your taste
     //    even loosely, and is always wanted when you have history).
     if !ctx.watched.is_empty() {
@@ -81,7 +87,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
     //      static bank below when the user has none yet (no LLM / too little
     //      history).
     for gs in generate::load(pool, user_id) {
-        if out.sections.len() >= MAX_SECTIONS {
+        if out.sections.len() >= discretionary_cap {
             break;
         }
         let query = state.embedder.embed(&gs.query);
@@ -95,7 +101,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
     //      `sections.curate` job). Membership is explicit (resolved ids), so
     //      NO_FLOOR; a daily-rotated window keeps the home feeling fresh.
     for (key, title, reason, ids) in curated_rows(pool, locale) {
-        if out.sections.len() >= MAX_SECTIONS {
+        if out.sections.len() >= discretionary_cap {
             break;
         }
         out.push(&format!("curated:{key}"), title, reason, unscored(ids), NO_FLOOR);
@@ -105,7 +111,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
     //    the library actually has matches above the noise level.
     let mut themed = 0;
     for phrase in phrases::eligible(&ctx) {
-        if themed >= MAX_THEMED || out.sections.len() >= MAX_SECTIONS {
+        if themed >= MAX_THEMED || out.sections.len() >= discretionary_cap {
             break;
         }
         let query = state.embedder.embed(phrase.query);

@@ -1,6 +1,7 @@
-import { metaLine, posterColors } from '@luma/core';
+import { metaLine, posterColors, type Section } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useNavigate } from '@tanstack/react-router';
+import { useAuth } from '#web/shared/lib/auth';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
 import { useWatched } from '#web/shared/lib/watched';
 import { Badge, Button, Poster, Rail } from '#web/shared/ui';
@@ -109,6 +110,49 @@ function ShowPoster({ show }: Readonly<{ show: ShowView }>) {
       watched={isWatched(show.id)}
       onToggleWatched={() => toggleWatched(show.id)}
       onClick={() => navigate({ to: '/show/$id', params: { id: show.id } })}
+    />
+  );
+}
+
+/** One item of a server-built [`Section`] (movie or show). */
+type SectionEntry = Section['items'][number];
+
+/** Render a server section entry (movie or show) with the same watched badge +
+ * show-progress affordances as the catalogue grids. Used by the home rows and the
+ * per-title "Suggestions IA" rail so those rails stay consistent with the grids
+ * (the poster URL is resolved through the client, matching those rails). */
+export function SectionPoster({ entry, width }: Readonly<{ entry: SectionEntry; width?: number }>) {
+  const t = useT();
+  const navigate = useNavigate();
+  const { client } = useAuth();
+  const { isWatched, toggleWatched } = useWatched();
+  if (entry.type === 'show') {
+    const { show } = entry;
+    return (
+      <Poster
+        title={show.title}
+        genre={show.metadata?.genres?.[0] ?? t('content.series')}
+        colors={posterColors(show.id)}
+        poster={client.showPosterFor(show)}
+        width={width}
+        progress={show.progress ?? null}
+        watched={isWatched(show.id)}
+        onToggleWatched={() => toggleWatched(show.id)}
+        onClick={() => navigate({ to: '/show/$id', params: { id: show.id } })}
+      />
+    );
+  }
+  const { item } = entry;
+  return (
+    <Poster
+      title={item.title}
+      genre={item.metadata?.genres?.[0] ?? t('content.film')}
+      colors={posterColors(item.id)}
+      poster={client.posterFor(item)}
+      width={width}
+      watched={isWatched(item.id)}
+      onToggleWatched={() => toggleWatched(item.id)}
+      onClick={() => navigate({ to: '/movie/$id', params: { id: item.id } })}
     />
   );
 }

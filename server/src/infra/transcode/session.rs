@@ -65,6 +65,19 @@ impl Sessions {
         self.inner.lock().await.contains_key(key)
     }
 
+    /// On-disk directory names of every live session. A disk sweep (the
+    /// `cache.cleanup` job) consults this so it never deletes the working dir of a
+    /// stream that's still playing (evicted/reaped sessions already remove their
+    /// own dirs, so anything live here is in active use).
+    pub async fn live_dir_names(&self) -> std::collections::HashSet<String> {
+        self.inner
+            .lock()
+            .await
+            .values()
+            .filter_map(|s| s.dir.file_name().and_then(|n| n.to_str()).map(str::to_owned))
+            .collect()
+    }
+
     /// Make room for a new session (`new_key`) under `cap` without ever stuttering
     /// a live viewer:
     ///   1. Drop this *same title*'s other sessions: seeking/re-opening spawns a

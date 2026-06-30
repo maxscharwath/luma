@@ -12,6 +12,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
@@ -33,12 +34,20 @@ export function WatchedProvider({ children }: Readonly<{ children: ReactNode }>)
   const { client, user, ready: authReady } = useAuth();
   const [ids, setIds] = useState<ReadonlySet<string>>(() => new Set());
   const [ready, setReady] = useState(false);
+  // Authoritative mirror of `ids`, readable synchronously from `setWatched`
+  // without putting `ids` in its dep list (which would churn its identity). Lets
+  // us act only on a real transition.
+  const idsRef = useRef<ReadonlySet<string>>(ids);
+  const apply = useCallback((next: ReadonlySet<string>) => {
+    idsRef.current = next;
+    setIds(next);
+  }, []);
 
   // Hydrate the watched set when the signed-in user changes (clear when signed out).
   useEffect(() => {
     if (!authReady) return;
     if (!user) {
-      setIds(new Set());
+      apply(new Set());
       setReady(true);
       return;
     }
@@ -48,7 +57,7 @@ export function WatchedProvider({ children }: Readonly<{ children: ReactNode }>)
       .watched()
       .then((list) => {
         if (!cancelled) {
-          setIds(new Set(list));
+          apply(new Set(list));
           setReady(true);
         }
       })
@@ -58,30 +67,29 @@ export function WatchedProvider({ children }: Readonly<{ children: ReactNode }>)
     return () => {
       cancelled = true;
     };
-  }, [client, user, authReady]);
+  }, [client, user, authReady, apply]);
 
   const setWatched = useCallback(
     (id: string, watched: boolean) => {
       if (!user) return;
-      setIds((prev) => {
-        if (prev.has(id) === watched) return prev;
-        const next = new Set(prev);
-        if (watched) next.add(id);
-        else next.delete(id);
-        return next;
-      });
+      // Only act on a real transition. Skipping no-ops avoids the redundant POSTs
+      // that progress-save fires every 10s near the end, and (crucially) avoids a
+      // failed redundant call reverting and clearing an already-watched badge.
+      if (idsRef.current.has(id) === watched) return;
+      const next = new Set(idsRef.current);
+      if (watched) next.add(id);
+      else next.delete(id);
+      apply(next);
       const call = watched ? client.markWatched(id) : client.unmarkWatched(id);
       call.catch(() => {
         // Revert the optimistic change on failure.
-        setIds((prev) => {
-          const next = new Set(prev);
-          if (watched) next.delete(id);
-          else next.add(id);
-          return next;
-        });
+        const reverted = new Set(idsRef.current);
+        if (watched) reverted.delete(id);
+        else reverted.add(id);
+        apply(reverted);
       });
     },
-    [client, user],
+    [client, user, apply],
   );
 
   const value = useMemo<WatchedValue>(

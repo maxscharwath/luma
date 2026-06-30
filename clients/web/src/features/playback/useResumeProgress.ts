@@ -86,10 +86,15 @@ export function useResumeProgress(
     if (!Number.isFinite(durSec) || durSec <= 0 || pos < 5) return;
     // ~Finished → mark watched (clears the resume position server-side too, so it
     // drops out of "Reprendre la lecture") and updates the shared watched set so
-    // cards re-badge immediately on the way back.
-    if (pos > durSec * 0.97) setWatched(item.id, true);
+    // cards re-badge immediately on the way back. Reaching the credits marker
+    // counts as finished too: a binge auto-advance unmounts the player at the
+    // credits (below 97%), which would otherwise save as in-progress and leave the
+    // just-watched episode stuck in "Reprendre".
+    const creditsMs = (item.markers ?? []).find((m) => m.kind === 'credits')?.startMs;
+    const finished = pos > durSec * 0.97 || (creditsMs != null && pos >= creditsMs / 1000);
+    if (finished) setWatched(item.id, true);
     else void client.saveProgress(item.id, pos * 1000, durSec * 1000);
-  }, [videoRef, client, user, item.id, item.durationMs, position, setWatched]);
+  }, [videoRef, client, user, item.id, item.durationMs, item.markers, position, setWatched]);
 
   useEffect(() => {
     if (!user) return;

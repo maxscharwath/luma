@@ -185,6 +185,16 @@ pub fn list_users(pool: &Pool) -> Result<Vec<PublicUser>> {
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+/// Every non-null avatar URL across all users. Uploaded avatars live in the same
+/// `images` dir as the regenerable art cache, so the cache-cleanup job uses this
+/// to avoid trimming them (they can't be re-downloaded).
+pub fn avatar_urls(pool: &Pool) -> Result<Vec<String>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare("SELECT avatar_url FROM users WHERE avatar_url IS NOT NULL")?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
 /// Set (or clear) a user's avatar URL.
 pub fn set_user_avatar(pool: &Pool, user_id: &str, avatar_url: Option<&str>) -> Result<()> {
     let conn = pool.get()?;

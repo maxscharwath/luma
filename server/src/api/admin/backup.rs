@@ -114,25 +114,17 @@ pub async fn import_backup(
     };
 
     // Reflect the restored config, then regenerate the catalogue (same item IDs)
-    // so progress/history re-link to their items.
+    // so progress/history re-link to their items. Route through the job manager so
+    // the rescan shares the single-flight guard with /api/scan and watch-triggered
+    // runs, instead of racing a second walk + sync on the same DB.
     state.settings.reload(&state.db);
     state.events.publish(ServerEvent::SettingsUpdated);
-    spawn_rescan(state.clone());
+    let rescan_started = !matches!(
+        state.jobs.trigger(state.clone(), crate::model::JobId::LibraryScan, "backup-import"),
+        Err(crate::services::jobs::TriggerError::Unknown)
+    );
 
     let counts: serde_json::Map<String, serde_json::Value> =
         summary.into_iter().map(|(t, n)| (t, json!(n))).collect();
-    Ok(Json(json!({ "imported": counts, "rescanStarted": true })).into_response())
-}
-
-/// Background re-scan after an import mirrors `api::admin::libraries::spawn_rescan`
-/// but reuses the shared [`crate::services::scan::scan_and_publish`] path.
-fn spawn_rescan(state: SharedState) {
-    tokio::spawn(async move {
-        let st = state.clone();
-        match tokio::task::spawn_blocking(move || crate::services::scan::scan_and_publish(&st)).await {
-            Ok(Ok(data)) => crate::services::scan::spawn_follow_ups(&state, &data),
-            Ok(Err(e)) => tracing::error!(error = %e, "post-import rescan failed"),
-            Err(e) => tracing::error!(error = %e, "post-import rescan task join failed"),
-        }
-    });
+    Ok(Json(json!({ "imported": counts, "rescanStarted": rescan_started })).into_response())
 }

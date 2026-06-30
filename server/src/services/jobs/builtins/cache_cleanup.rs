@@ -3,6 +3,7 @@
 //! poster/backdrop image cache (never auto-wiped expensive to refetch so it
 //! grows unbounded without this; trimmed oldest-first when over the limit).
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use super::prelude::*;
@@ -10,7 +11,10 @@ use super::prelude::*;
 pub(super) fn run(ctx: &JobContext) -> Result<()> {
     let data_dir = &ctx.state.config.data_dir;
 
-    // 1) Wipe the disposable HLS transcode cache.
+    // 1) Wipe the disposable HLS transcode cache, but never a dir backing a live
+    // session: evicted/reaped sessions already delete their own dirs, so anything
+    // still present here is in active playback and removing it stalls the stream.
+    let live = tokio::runtime::Handle::current().block_on(ctx.state.transcode.live_dir_names());
     let transcode = data_dir.join("transcode");
     ctx.info(format!("clearing transcode cache at {}", transcode.display()));
     let before = dir_size(&transcode);
@@ -24,6 +28,14 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
             break;
         }
         let p = entry.path();
+        let live_session = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| live.contains(n));
+        if live_session {
+            ctx.progress(i + 1, total);
+            continue; // still playing leave it for the reaper
+        }
         if p.is_dir() {
             let _ = std::fs::remove_dir_all(&p);
         } else {
@@ -54,12 +66,27 @@ fn enforce_image_limit(ctx: &JobContext, images: &Path) {
         return;
     }
 
+    // Uploaded avatars live in this same dir (image::store_upload) but are NOT
+    // regenerable art, so never trim a file an account still references it would
+    // 404 the avatar with no way to refetch.
+    let protected: HashSet<String> = crate::db::avatar_urls(&ctx.state.db)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|u| u.rsplit('/').next().map(str::to_owned))
+        .collect();
+
     // Oldest-first by mtime: least-recently fetched art is evicted first.
     let mut files: Vec<(std::path::PathBuf, u64, std::time::SystemTime)> =
         walkdir::WalkDir::new(images)
             .into_iter()
             .filter_map(std::result::Result::ok)
             .filter(|e| e.file_type().is_file())
+            .filter(|e| {
+                !e.path()
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| protected.contains(n))
+            })
             .filter_map(|e| {
                 let m = e.metadata().ok()?;
                 Some((e.path().to_path_buf(), m.len(), m.modified().ok()?))
