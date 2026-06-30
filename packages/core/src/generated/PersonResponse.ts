@@ -2,7 +2,7 @@
 import type { SearchHit } from "./SearchHit";
 
 /**
- * `GET /api/people?name=…` — every movie + show one person is credited in (cast
+ * `GET /api/people?name=…` every movie + show one person is credited in (cast
  * or key crew), best-known work first. Reuses [`SearchHit`] so clients render the
  * results with their existing card UI.
  */

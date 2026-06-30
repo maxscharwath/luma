@@ -12,7 +12,7 @@
 //! use super::prelude::*;
 //! pub(super) fn run(ctx: &JobContext) -> Result<()> { /* … */ Ok(()) }
 //!
-//! // builtins.rs — one row in JOBS:
+//! // builtins.rs one row in JOBS:
 //! Builtin { id: JobId::CacheCleanup, category: Category::Maintenance,
 //!           schedule: Some("0 4 * * *"), triggers: &[], run: cache_cleanup::run },
 //! ```
@@ -206,7 +206,7 @@ impl JobManager {
             let pool = state.db.clone();
             // If this insert fails the run still executes, but the later
             // progress/finish UPDATEs no-op against a missing row and the run
-            // leaves no trace — so surface it rather than swallowing.
+            // leaves no trace so surface it rather than swallowing.
             if let Err(e) = db::insert_job_run(&pool, &run_id, key, trigger, started_ms) {
                 warn!(job = key, run = %run_id, error = %e, "failed to record job run start");
             }
@@ -225,7 +225,7 @@ impl JobManager {
             // Finalize the run row, retrying a few times: if this write keeps
             // failing (e.g. SQLite busy under contention) the row stays `running`
             // with no terminal status, and `reconcile_running_runs` only sweeps at
-            // startup — so the console would show it running until the next restart.
+            // startup so the console would show it running until the next restart.
             let mut finished = false;
             for attempt in 0..3u32 {
                 match db::finish_job_run(&pool, &run_id, status, finished_ms, error.as_deref()) {
@@ -302,7 +302,7 @@ impl JobManager {
     }
 
     /// Enabled jobs that opted into trigger source `t`, in registration order. A
-    /// disabled job is skipped here just as the scheduler's `due_jobs` skips it —
+    /// disabled job is skipped here just as the scheduler's `due_jobs` skips it
     /// so disabling a job in the console stops its watch/chain runs too, not only
     /// its scheduled ones (a manual "Run now" goes through `trigger` directly and
     /// is unaffected).

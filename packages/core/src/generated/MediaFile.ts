@@ -10,11 +10,11 @@ import type { VideoTrack } from "./VideoTrack";
  */
 export type MediaFile = { 
 /**
- * `short_hash(abs_path)` — stable per physical file.
+ * `short_hash(abs_path)` stable per physical file.
  */
 id: string, relPath: string | null, container: string, durationMs: number | null, video: VideoTrack | null, 
 /**
- * Representative (first/default) audio track — kept for codec badges and
+ * Representative (first/default) audio track kept for codec badges and
  * backward compatibility with clients that read `audio.codec` directly.
  */
 audio: AudioTrack | null, 

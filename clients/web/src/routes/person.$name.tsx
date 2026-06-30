@@ -12,7 +12,7 @@ import { initials } from '#web/features/catalog/detail';
 import { imageUrl, lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui';
 
-/** `/person/<name>` — every movie + show one cast/crew member is credited in.
+/** `/person/<name>` every movie + show one cast/crew member is credited in.
  * Reached by selecting a face in a detail page's "Distribution" rail. */
 export const Route = createFileRoute('/person/$name')({
   loader: async ({ params }) => {
@@ -26,7 +26,7 @@ export const Route = createFileRoute('/person/$name')({
         : { kind: 'movie', movie: toMovieView(c, hit.item) },
     );
     // Cast/crew (and the best profile photo) ride along in each result's metadata,
-    // so the header's name/photo/roles are derived client-side — no extra request.
+    // so the header's name/photo/roles are derived client-side no extra request.
     const metas = results.map((hit) =>
       hit.type === 'show' ? hit.show.metadata : hit.item.metadata,
     );

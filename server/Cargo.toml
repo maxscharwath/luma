@@ -3,7 +3,7 @@ name = "luma-server"
 version = "0.1.1"
 edition = "2021"
 rust-version = "1.85"
-description = "LUMA — a self-hosted, direct-play media streaming server"
+description = "LUMA a self-hosted, direct-play media streaming server"
 license = "MIT"
 
 [[bin]]
@@ -18,7 +18,7 @@ path = "src/main.rs"
 #
 # Needs rustc >= 1.85 (the candle graph pulls toml_parser → edition2024; that's
 # why rust-toolchain.toml pins 1.85). At runtime, point LUMA_EMBED_MODEL_DIR at a
-# BERT-arch sentence model — we use `paraphrase-multilingual-MiniLM-L12-v2`
+# BERT-arch sentence model we use `paraphrase-multilingual-MiniLM-L12-v2`
 # (~470 MB, default ./models/ml-minilm): an English-only model collapses on a
 # French catalog (see infra/embed/candle.rs). Then re-embed (POST /api/scan) to
 # rewrite the 256-d lexical vectors as 384-d semantic ones. Keep candle on its
@@ -37,7 +37,7 @@ candle-core = { version = "0.8", optional = true, default-features = false }
 candle-nn = { version = "0.8", optional = true, default-features = false }
 candle-transformers = { version = "0.8", optional = true, default-features = false }
 # `onig` (Oniguruma, C) is enabled: tokenizers 0.20's regex pre-tokenizer
-# references it unconditionally. C-on-musl is fine — the Synology build already
+# references it unconditionally. C-on-musl is fine the Synology build already
 # cross-compiles bundled SQLite + zstd C (see the rusqlite/tantivy notes below).
 # default-features stays off to drop the heavier `progressbar`/`http` extras.
 tokenizers = { version = "0.20", optional = true, default-features = false, features = ["onig"] }
@@ -54,13 +54,22 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 anyhow = "1"
 walkdir = "2"
-# Parallel directory walk — hides per-readdir/per-stat network latency over SMB
+# Parallel directory walk hides per-readdir/per-stat network latency over SMB
 # (a serial walkdir of ~1000 folders is minutes; jwalk on a big pool is seconds).
 jwalk = "0.8"
 sha2 = "0.10"
 hex = "0.4"
 # Pinned: time >= 0.3.37 requires the edition2024 cargo feature (not in rustc 1.81).
 time = { version = "=0.3.36", features = ["formatting", "macros"] }
+
+# Encrypted backup archives (services/backup). The portable backup is a ZIP
+# (backup.json + assets/ avatars); an optional password wraps the ZIP bytes in a
+# ChaCha20-Poly1305 envelope (key from the project's own PBKDF2, nonce from
+# /dev/urandom so no rand/getrandom feature). `zip` is store-only and `aead`
+# uses alloc, both with default-features off to dodge the `=0.3.36` time pin and
+# the aes/zstd/getrandom extras.
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # Embedded SQLite. `bundled` compiles SQLite from source (no system libsqlite3
 # needed). We hand-roll a tiny WAL connection pool (see db.rs) rather than pull
@@ -72,7 +81,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 mdns-sd = "0.11"
 
 # Filesystem change notifications (instant re-scan when the server is local to the
-# media; on network mounts we fall back to a periodic re-scan — see watch.rs).
+# media; on network mounts we fall back to a periodic re-scan see watch.rs).
 notify = "6"
 
 # System metrics (CPU / RAM / disks) for the admin dashboard. Cross-platform
@@ -98,23 +107,24 @@ ts-rs = { version = "12.0.1", features = ["serde-compat"] }
 # Full-text search engine behind `GET /api/search` (services/search). Lucene-style
 # BM25 + per-term fuzzy matching → typo-tolerant, which matters for the TV's
 # Web-Speech voice queries ("avengrs" → "Avengers"). The index is in-RAM
-# (`RamDirectory`), rebuilt from SQLite — the source of truth — on scan/enrich, so
+# (`RamDirectory`), rebuilt from SQLite the source of truth on scan/enrich, so
 # there are no on-disk index files to migrate or corrupt.
 #
 # `default-features = false` drops tantivy's `mmap` feature (we never touch disk),
 # removing the tempfile → getrandom 0.4 (edition2024) chain. `lz4-compression` is
 # pure-Rust store compression. zstd-sys (C, non-optional via tantivy-sstable) still
-# builds — fine: the Synology musl build already cross-compiles bundled SQLite's C.
+# builds fine: the Synology musl build already cross-compiles bundled SQLite's C.
 # Verified to compile on the pinned rustc 1.81.
 tantivy = { version = "0.22", default-features = false, features = ["lz4-compression"] }
 
-# Transitive pins for the tantivy graph — the same edition2024-on-1.81 hazard the
+# Transitive pins for the tantivy graph the same edition2024-on-1.81 hazard the
 # `time` pin above (and the rusqlite comment) guard against. tantivy → uuid ≥1.12
 # and cc/zstd-sys → jobserver ≥0.1.33 both require the edition2024 cargo feature,
 # unbuildable on rustc 1.81. Hold them at their last 2021-edition release. Declared
 # here (though unused directly) so the lockfile pins the whole graph to them.
 uuid = "=1.11.0"
 jobserver = "=0.1.32"
+rusty-chromaprint = "0.3.0"
 
 # Keep the dependency graph lean and 1.81-friendly.
 [profile.release]

@@ -2,7 +2,7 @@ import { IconPlayerPlayFilled } from '@tabler/icons-react';
 import { memo, useEffect, useState } from 'react';
 
 /* Shared class strings. Translucency uses literal rgba() arbitrary values (not
-   Tailwind's `/opacity`, which compiles to color-mix() — unsupported on the
+   Tailwind's `/opacity`, which compiles to color-mix() unsupported on the
    Chrome 99–110 / 2024-TV range and not down-levellable when the colour is a
    CSS variable). Solid theme colours map straight to `var(--color-*)`. */
 
@@ -10,7 +10,7 @@ import { memo, useEffect, useState } from 'react';
 export const TV_PLAY_BTN =
   'inline-flex items-center gap-2.75 cursor-pointer rounded-lg bg-accent px-9 py-4 font-sans text-[19px] font-bold text-accent-ink transition-transform focus:scale-[1.04] disabled:cursor-default disabled:opacity-50';
 
-/** Filled play triangle — primary-action / episode-thumb glyph. */
+/** Filled play triangle primary-action / episode-thumb glyph. */
 export function PlayGlyph({ size = 22 }: Readonly<{ size?: number }>) {
   return <IconPlayerPlayFilled size={size} />;
 }
@@ -51,7 +51,7 @@ export function badgeClasses(badge: string | null): string {
 /**
  * Key-art fill: a real `<img>` over a deterministic genre gradient. The gradient
  * shows instantly (and stays as the fallback) while the image loads or if it
- * fails — so a tile/hero is never blank, matching the cinematic LUMA look.
+ * fails so a tile/hero is never blank, matching the cinematic LUMA look.
  */
 export function TvArt({
   src,
@@ -94,7 +94,6 @@ export function TvArt({
 export interface TvCardProps {
   title: string;
   genre?: string;
-  badge?: string | null;
   /** Landscape key-art (backdrop) URL; falls back to the `colors` gradient. */
   backdrop: string | null;
   colors: [string, string];
@@ -112,7 +111,6 @@ export interface TvCardProps {
 function TvCardImpl({
   title,
   genre,
-  badge,
   backdrop,
   colors,
   progress = null,
@@ -136,11 +134,6 @@ function TvCardImpl({
         <TvArt src={backdrop} colors={colors} position="50% 28%" />
         <div className="absolute inset-0 bg-linear-to-b from-[rgba(0,0,0,0.05)] from-40% to-[rgba(0,0,0,0.75)]" />
         {watched ? <WatchedBadge /> : null}
-        {badge ? (
-          <div className="absolute right-3 top-3 rounded-md bg-[rgba(10,10,12,0.6)] px-2.25 py-1.25 font-sans text-[12px] font-bold text-accent">
-            {badge}
-          </div>
-        ) : null}
         <div className="absolute inset-x-4.5 bottom-4">
           {genre ? (
             <div className="mb-1.25 font-sans text-[12px] font-bold uppercase tracking-widest text-[rgba(255,255,255,0.65)]">
@@ -165,12 +158,13 @@ export const TvCard = memo(TvCardImpl);
 
 export interface TvPosterProps {
   title: string;
-  badge?: string | null;
   /** 2:3 poster art URL; falls back to the `colors` gradient. */
   poster: string | null;
   colors: [string, string];
   /** Show the "watched" check badge (top-left). */
   watched?: boolean;
+  /** Resume / series-completion progress bar (%), or null for none. */
+  progress?: number | null;
   onClick?: () => void;
 }
 
@@ -181,10 +175,10 @@ export interface TvPosterProps {
  */
 function TvPosterImpl({
   title,
-  badge,
   poster,
   colors,
   watched = false,
+  progress = null,
   onClick,
 }: Readonly<TvPosterProps>) {
   return (
@@ -198,14 +192,14 @@ function TvPosterImpl({
         <TvArt src={poster} colors={colors} position="50% 50%" />
         <div className="absolute inset-0 bg-[linear-gradient(170deg,rgba(0,0,0,0.05)_35%,rgba(0,0,0,0.72))]" />
         {watched ? <WatchedBadge size={26} /> : null}
-        {badge ? (
-          <div className="absolute right-2.5 top-2.5 rounded-[5px] bg-[rgba(10,10,12,0.6)] px-1.75 py-1 font-sans text-[10px] font-bold text-accent">
-            {badge}
-          </div>
-        ) : null}
         <div className="absolute inset-x-3.5 bottom-3 text-left font-display text-[18px] font-bold leading-[1.05] text-white">
           {title}
         </div>
+        {progress != null ? (
+          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[rgba(255,255,255,0.25)]">
+            <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
+          </div>
+        ) : null}
       </div>
     </button>
   );

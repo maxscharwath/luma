@@ -72,7 +72,7 @@ let lastNudge = 0;
 export async function publishPreview(client: LumaClient, movies: MediaItem[]): Promise<void> {
   const t = tizen();
   if (!t) return;
-  // Continue-watching is per-user and needs auth — best-effort, empty if absent.
+  // Continue-watching is per-user and needs auth best-effort, empty if absent.
   let continueItems: ContinueItem[] = [];
   try {
     continueItems = await client.continueWatching();

@@ -2,6 +2,6 @@
 import type { SearchHit } from "./SearchHit";
 
 /**
- * `GET /api/search?q=…` — the echoed query plus hits in descending relevance.
+ * `GET /api/search?q=…` the echoed query plus hits in descending relevance.
  */
 export type SearchResponse = { query: string, results: Array<SearchHit>, };

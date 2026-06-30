@@ -1,7 +1,7 @@
 //! Deterministic taste modelling: cluster a user's watch history in embedding
 //! space into a few coherent "taste groups", each summarized by its example
 //! titles + dominant genres/keywords. This is the *understanding* half of the
-//! smart-sections feature — it sharpens automatically as history grows. The LLM
+//! smart-sections feature it sharpens automatically as history grows. The LLM
 //! then only has to *name* each cluster (see the `sections.personalize` job),
 //! which keeps the model small and the catalog items real (no hallucination).
 
@@ -11,7 +11,7 @@ use crate::db::{self, Pool};
 use crate::services::sections::VectorCache;
 
 /// Minimum distinct watched titles (with embeddings) before clustering is worth
-/// it — below this the home falls back to the static themed bank.
+/// it below this the home falls back to the static themed bank.
 pub const MIN_WATCHED: usize = 5;
 
 /// One taste group.

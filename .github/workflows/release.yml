@@ -62,7 +62,7 @@ jobs:
           path: clients/synology/dist/*.spk
           if-no-files-found: error
 
-      # The web SPA is built as a side effect of build.sh — publish it too so it
+      # The web SPA is built as a side effect of build.sh publish it too so it
       # can be dropped behind any static host / reverse proxy.
       - name: Upload web SPA artifact
         uses: actions/upload-artifact@v4

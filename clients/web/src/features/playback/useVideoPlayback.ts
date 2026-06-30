@@ -39,7 +39,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   });
   const [hover, setHover] = useState<{ x: number; t: number } | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
-  // While dragging the scrub bar, the previewed absolute position (s) — the thumb
+  // While dragging the scrub bar, the previewed absolute position (s) the thumb
   // follows it but we only COMMIT the seek on release, so a seamless (-ss) stream
   // isn't reloaded on every mouse-move (which never settled at the drop point).
   const [scrubPreview, setScrubPreview] = useState<number | null>(null);
@@ -96,7 +96,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   }, [item, seamless, baseSec, seamless ? 0 : audioIndex]);
 
   // ----- seamless language switch: select the rendition IN PLACE --------------
-  // Runs on audioIndex change in seamless mode only — no source reload, so the
+  // Runs on audioIndex change in seamless mode only no source reload, so the
   // video keeps playing at the same position while the audio rendition swaps.
   useEffect(() => {
     if (!seamless) return;
@@ -118,9 +118,12 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     else v.pause();
   }, []);
 
-  // Seek to an ABSOLUTE position (seconds). In seamless mode this re-`-ss`-es the
-  // master at that offset (so the target is instantly available, no waiting for a
-  // from-0 remux); in direct-play it's a normal range seek.
+  // Seek to an ABSOLUTE position (seconds). Direct-play is a normal range seek.
+  // Seamless mode: the current stream is an HLS event playlist remuxed at
+  // `-ss = baseSec`, so absolute T maps to element time `T - baseSec`. When the
+  // target sits inside what this stream already covers, seek IN PLACE (instant,
+  // no ffmpeg respawn); only re-`-ss` the master when the target is BEFORE the
+  // stream's base or beyond the produced range (so it's instantly available).
   const seekTo = useCallback(
     (absSec: number) => {
       const v = videoRef.current;
@@ -130,17 +133,28 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       else if (Number.isFinite(v.duration)) total = v.duration;
       else total = 0;
       const target = Math.max(0, total ? Math.min(total - 1, absSec) : absSec);
-      if (seamless) {
-        setBaseSec(target); // reloads the master at -ss=target; currentTime → 0; cur → target
-        setCur(target);
-      } else {
+      if (!seamless) {
         v.currentTime = target; // direct-play timeline is absolute
+        return;
       }
+      const base = baseSecRef.current;
+      const rel = target - base;
+      const seekableEnd = v.seekable.length ? v.seekable.end(v.seekable.length - 1) : 0;
+      // In-place when reachable in the current stream. `rel === 0` (seek to the
+      // stream's start, incl. seek-to-0 when base is already 0) lands here too, so
+      // the cursor and picture stay aligned instead of the cursor jumping alone.
+      if (rel >= 0 && rel <= seekableEnd + 0.5) {
+        v.currentTime = rel;
+        setCur(target);
+        return;
+      }
+      setBaseSec(target); // reloads the master at -ss=target; currentTime → 0; cur → target
+      setCur(target);
     },
     [item, seamless],
   );
 
-  // Absolute current position (s), offset-aware — stable getter for progress save.
+  // Absolute current position (s), offset-aware stable getter for progress save.
   const getPosition = useCallback(
     () => baseSecRef.current + (videoRef.current?.currentTime ?? 0),
     [],

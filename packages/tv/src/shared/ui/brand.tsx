@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-/** The LUMA brand mark — concentric amber rings + the wordmark. */
+/** The LUMA brand mark concentric amber rings + the wordmark. */
 export function LumaMark({ size = 30 }: Readonly<{ size?: number }>) {
   return (
     <div className="flex items-center gap-3">
@@ -20,7 +20,7 @@ export function LumaMark({ size = 30 }: Readonly<{ size?: number }>) {
   );
 }
 
-/** Live wall clock ("20:15") — 24-hour, updated each minute. */
+/** Live wall clock ("20:15") 24-hour, updated each minute. */
 export function useClock(): string {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {

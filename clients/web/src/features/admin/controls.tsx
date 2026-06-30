@@ -5,7 +5,7 @@
 import { IconChevronDown, type TablerIcon } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 
-/** A pill segmented control — one selected option among a few, each with an
+/** A pill segmented control one selected option among a few, each with an
  * optional sub-label. Generic over the value union. */
 export function SegmentedControl<T extends string>({
   value,

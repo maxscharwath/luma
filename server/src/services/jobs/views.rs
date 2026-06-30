@@ -1,4 +1,4 @@
-//! The API read models for the job console (`list` / `detail` / `info_for`) —
+//! The API read models for the job console (`list` / `detail` / `info_for`)
 //! split out of [`super`] to keep the manager file focused. `impl JobManager` in
 //! a sibling file; same-module privacy lets it read the manager's private state.
 

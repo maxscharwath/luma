@@ -1,7 +1,7 @@
 //! Account types: users, capability permissions, the public profile-picker
 //! shape and registration invites.
 //!
-//! The JSON shape here is a public contract — web/TV clients depend on it, so
+//! The JSON shape here is a public contract web/TV clients depend on it, so
 //! field names and casing must not drift.
 
 use serde::{Deserialize, Serialize};
@@ -45,7 +45,7 @@ impl User {
 }
 
 /// A granular capability. Stored on each user as a JSON array of the string keys
-/// below. Extend this enum (and the TS mirror in `@luma/core`) to add more —
+/// below. Extend this enum (and the TS mirror in `@luma/core`) to add more
 /// e.g. a `stats.view` for the upcoming stats pages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -76,7 +76,7 @@ impl Permission {
         }
     }
 
-    /// Every permission — granted to the owner account.
+    /// Every permission granted to the owner account.
     pub fn all() -> Vec<Permission> {
         vec![
             Permission::UsersManage,

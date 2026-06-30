@@ -1,5 +1,5 @@
 //! The per-run handle (live state behind the registry) and the [`JobContext`]
-//! handed to a running job — its only interface to the outside world: structured
+//! handed to a running job its only interface to the outside world: structured
 //! logging, progress reporting and cooperative cancellation.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
@@ -46,7 +46,7 @@ impl RunHandle {
         self.cancel.load(Ordering::Relaxed)
     }
 
-    /// Current progress `(done, total)` — `total == 0` means "indeterminate".
+    /// Current progress `(done, total)` `total == 0` means "indeterminate".
     pub fn progress(&self) -> (i64, i64) {
         (self.done.load(Ordering::Relaxed), self.total.load(Ordering::Relaxed))
     }
@@ -123,7 +123,7 @@ impl JobContext {
         self.log("debug", message);
     }
 
-    /// An owned `debug`-level logger that outlives a borrow of `self` — for
+    /// An owned `debug`-level logger that outlives a borrow of `self` for
     /// helpers run within the job that log on their own (e.g. the LLM connector's
     /// per-tool-call lines). Captures cloned handles, so it writes to this same
     /// run exactly like [`debug`](Self::debug).

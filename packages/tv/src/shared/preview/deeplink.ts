@@ -15,7 +15,7 @@ function asDeepLink(obj: unknown): DeepLink | null {
 
 /** Decode a tile's PAYLOAD. The platform delivers our `action_data` either
  *  verbatim, or wrapped as `{"values": "<uri-encoded JSON>"}` (the envelope
- *  Samsung's own sample unwraps) — handle both. */
+ *  Samsung's own sample unwraps) handle both. */
 function parsePayload(raw: string): DeepLink | null {
   try {
     const first = JSON.parse(raw) as unknown;

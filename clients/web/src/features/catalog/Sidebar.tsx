@@ -77,7 +77,7 @@ export function Sidebar() {
   );
 }
 
-/** Inline language picker — two small pills (French / English) that bubble the
+/** Inline language picker two small pills (French / English) that bubble the
  * choice through `useSetLocale` (persisted + account-synced by LocaleProvider). */
 function LanguageSwitch() {
   const t = useT();
@@ -104,7 +104,7 @@ function LanguageSwitch() {
   );
 }
 
-/** "Inviter un utilisateur" — only for accounts with the `users.manage`
+/** "Inviter un utilisateur" only for accounts with the `users.manage`
  * permission (registration is invite-only). */
 function InviteLink() {
   const t = useT();
@@ -118,7 +118,7 @@ function InviteLink() {
   );
 }
 
-/** "Serveur" — links to the admin console for accounts with any management
+/** "Serveur" links to the admin console for accounts with any management
  * capability (users / library / settings). */
 function AdminLink() {
   const t = useT();
@@ -144,7 +144,7 @@ function AdminLink() {
   );
 }
 
-/** Current account chip — avatar + name; clicking signs out (back to the
+/** Current account chip avatar + name; clicking signs out (back to the
  * "Qui regarde ?" picker). Renders nothing until a session is hydrated. */
 function UserChip() {
   const t = useT();

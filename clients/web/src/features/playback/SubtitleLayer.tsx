@@ -6,7 +6,7 @@ import type { SubtitleView } from '#web/shared/lib/api';
 /**
  * Custom subtitle renderer. Fetches the track's WebVTT itself (CORS-friendly,
  * unlike cross-origin `<track>` elements), parses it once, and renders the
- * active cue synced to playback — fully styleable, no native-track quirks.
+ * active cue synced to playback fully styleable, no native-track quirks.
  *
  * Performance: cue lookup is O(1) amortised via a moving pointer (subtitles are
  * monotonic in time); a binary search re-syncs after a seek. We only re-render
@@ -33,7 +33,7 @@ function SubtitleLayerImpl({
   const [text, setText] = useState('');
   const pointer = useRef(0);
 
-  // The active track's WebVTT URL — a primitive, used as the effect dependency
+  // The active track's WebVTT URL a primitive, used as the effect dependency
   // so a fresh `rendered` array reference on every parent render (Player
   // re-renders ~4×/s from `timeupdate`) does NOT re-trigger a fetch. Depending on
   // the array identity blanked + reloaded the line each tick → flicker.
@@ -103,5 +103,5 @@ function SubtitleLayerImpl({
 }
 
 /** Memoised: with a stable `rendered` array it won't re-render on the player's
- * ~4×/s timeupdate renders — only its own cue-change state drives updates. */
+ * ~4×/s timeupdate renders only its own cue-change state drives updates. */
 export const SubtitleLayer = memo(SubtitleLayerImpl);

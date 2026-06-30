@@ -1,33 +1,27 @@
-import { audioSupport, metaLine } from '@luma/core';
+import { audioSupport, type MediaItem, metaLine } from '@luma/core';
 import { useLocale, useT } from '@luma/ui';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useClient, useNav, useParams } from '#tv/app/router';
 import { endsAtClock } from '#tv/features/catalog/detail/parts';
 import { AvPanel } from '#tv/features/playback/player/AvPanel';
-import { fmtTime } from '#tv/features/playback/player/fmt';
-import {
-  BackChevron,
-  ForwardGlyph,
-  PauseGlyph,
-  PlayGlyph,
-  RewindGlyph,
-  TracksGlyph,
-} from '#tv/features/playback/player/icons';
+import { ControlBar } from '#tv/features/playback/player/ControlBar';
+import { BackChevron } from '#tv/features/playback/player/icons';
+import { SkipIntroButton, UpNextCard } from '#tv/features/playback/player/PlayerOverlays';
 import { useDirectPlayback } from '#tv/features/playback/player/useDirectPlayback';
 import { usePlayerControls } from '#tv/features/playback/player/usePlayerControls';
 import { useSubtitleSelection } from '#tv/features/playback/player/useSubtitleSelection';
-import { useClient, useNav, useParams } from '#tv/app/router';
 import { TvSubtitles } from '#tv/features/playback/TvSubtitles';
 
-const FOCUS_RING = 'scale-[1.07] shadow-[var(--ring-focus),var(--glow-accent)]';
-const CTRL =
-  'flex items-center justify-center rounded-full text-white transition-[transform,box-shadow,background] duration-180';
-const CTRL_ON = 'bg-[rgba(255,255,255,0.22)]';
-const CTRL_OFF = 'bg-[rgba(255,255,255,0.12)]';
+/** No credits marker → assume the last `CREDITS_TAIL`s are the credits. */
+const CREDITS_TAIL = 30;
+/** Netflix-style fixed auto-advance countdown (s) once the credits zone opens. */
+const AUTO_NEXT = 12;
 
 /**
- * Fullscreen 10-foot direct-play surface. Composes three concerns: playback
- * (useDirectPlayback), subtitle tracks (useSubtitleSelection) and the remote-driven
- * control overlay (usePlayerControls). The body here is just the render.
+ * Fullscreen 10-foot direct-play surface. Composes playback (useDirectPlayback),
+ * subtitle tracks (useSubtitleSelection) and the remote-driven control overlay
+ * (usePlayerControls), plus the skip-intro / up-next chapter affordances. The
+ * chrome lives in ControlBar + PlayerOverlays; this is the orchestration.
  */
 export function TvPlayer() {
   const nav = useNav();
@@ -38,20 +32,80 @@ export function TvPlayer() {
 
   const playback = useDirectPlayback(client, item);
   const subs = useSubtitleSelection(client, item);
+  const { cur, dur, bufEnd, playing, waiting, error, terminated, verdict, seekPreview } = playback;
+
+  // "Up next" (series autoplay): the next episode + a one-shot advance guard.
+  // Reset per item so a replaced player screen starts clean.
+  const [next, setNext] = useState<MediaItem | null>(null);
+  const [upNextCancelled, setUpNextCancelled] = useState(false);
+  const advancedRef = useRef(false);
+  useEffect(() => {
+    setNext(null);
+    setUpNextCancelled(false);
+    advancedRef.current = false;
+    client
+      .nextEpisode(item.id)
+      .then(setNext)
+      .catch(() => undefined);
+  }, [client, item.id]);
+  const goNext = useCallback(() => {
+    if (advancedRef.current || !next) return;
+    advancedRef.current = true;
+    nav.replace('player', { item: next });
+  }, [next, nav]);
+  const cancelUpNext = useCallback(() => setUpNextCancelled(true), []);
+
+  // Intro / credits chapter markers (episodes only).
+  const intro = useMemo(() => (item.markers ?? []).find((m) => m.kind === 'intro'), [item.markers]);
+  const credits = useMemo(
+    () => (item.markers ?? []).find((m) => m.kind === 'credits'),
+    [item.markers],
+  );
+  // Skip-Intro window: only inside the marked intro segment.
+  const canSkipIntro = Boolean(intro && cur * 1000 >= intro.startMs && cur * 1000 < intro.endMs);
+  const skipIntro = useCallback(() => {
+    const v = playback.videoRef.current;
+    if (intro && v) v.currentTime = intro.endMs / 1000;
+  }, [intro, playback.videoRef]);
+
+  // "Up next" trigger: the credits marker, else the last CREDITS_TAIL seconds.
+  // `creditsAt > 0` guards short clips (dur <= CREDITS_TAIL) whose tail offset
+  // would otherwise collapse to 0 and show the card (+countdown) from the start.
+  const creditsAt = credits ? credits.startMs / 1000 : dur - CREDITS_TAIL;
+  const showUpNext =
+    Boolean(next) && !upNextCancelled && terminated == null && creditsAt > 0 && cur >= creditsAt;
+
   const audioOptions = useMemo(
     () => playback.audioTracks.map((a) => a.index),
     [playback.audioTracks],
   );
-  const { controls, zone, avOpen, avFocus, barFocus } = usePlayerControls({
+  const {
+    controls,
+    zone,
+    avOpen,
+    avFocus,
+    barFocusName,
+    skipFocused,
+    upNextPlayFocus,
+    upNextCancelFocus,
+  } = usePlayerControls({
     playing: playback.playing,
     togglePlay: playback.togglePlay,
     seek: playback.seek,
+    nudge: playback.nudge,
     onExit: nav.back,
     audioOptions,
     activeAudio: playback.audioIndex,
     pickAudio: playback.setAudio,
     subOptions: subs.options,
     pickSub: subs.pick,
+    hasNext: Boolean(next),
+    onNext: goNext,
+    canSkipIntro,
+    onSkipIntro: skipIntro,
+    upNext: showUpNext,
+    onUpNextPlay: goNext,
+    onUpNextCancel: cancelUpNext,
   });
 
   const audio = useMemo(() => audioSupport(item), [item]);
@@ -60,9 +114,39 @@ export function TvPlayer() {
       ? `${item.showTitle} · S${item.season}E${item.episode}`
       : metaLine(item);
 
-  const { cur, dur, bufEnd, playing, waiting, error, terminated, verdict } = playback;
-  const pct = dur ? (cur / dur) * 100 : 0;
+  // While progressively seeking, the bar + time preview the pending position.
+  const shown = seekPreview ?? cur;
+  const pct = dur ? (shown / dur) * 100 : 0;
   const bufPct = dur ? (bufEnd / dur) * 100 : 0;
+
+  // Fixed Netflix-style countdown once the credits zone opens. It only advances
+  // at 0 (never on a raw position check) and is frozen during a scrub, so
+  // seeking near the end can never teleport to the next episode.
+  const [countdown, setCountdown] = useState(AUTO_NEXT);
+  useEffect(() => {
+    if (!showUpNext) {
+      setCountdown(AUTO_NEXT);
+      return;
+    }
+    if (seekPreview != null) return; // frozen mid-scrub
+    if (countdown <= 0) {
+      goNext();
+      return;
+    }
+    const id = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [showUpNext, seekPreview, countdown, goNext]);
+
+  // Auto-advance fallback on the real `ended` event (seeking near the end must
+  // NOT teleport to the next episode the countdown above is the primary path).
+  useEffect(() => {
+    const v = playback.videoRef.current;
+    if (!v || !next || upNextCancelled) return;
+    const onEnded = () => goNext();
+    v.addEventListener('ended', onEnded);
+    return () => v.removeEventListener('ended', onEnded);
+  }, [playback.videoRef, next, upNextCancelled, goNext]);
+
   const endsAt = dur ? endsAtClock(Math.max(0, dur - cur) * 1000, locale) : '';
   const fade = controls ? 'opacity-100' : 'pointer-events-none opacity-0';
   // Warning pill text, by priority: admin stop → stream/codec load error →
@@ -95,6 +179,21 @@ export function TvPlayer() {
         </div>
       ) : null}
 
+      {/* "Up next" card at the credits, with a countdown + Play now / Cancel. */}
+      <UpNextCard
+        show={showUpNext}
+        next={next}
+        client={client}
+        countdown={countdown}
+        playFocused={upNextPlayFocus}
+        cancelFocused={upNextCancelFocus}
+        onPlay={goNext}
+        onCancel={cancelUpNext}
+      />
+
+      {/* Skip-Intro: auto-focused for the whole intro window, OK skips. */}
+      <SkipIntroButton visible={canSkipIntro} focused={skipFocused} onSkip={skipIntro} />
+
       {/* top bar */}
       <div
         className={`absolute inset-x-0 top-0 flex items-center gap-4.5 bg-[linear-gradient(180deg,rgba(0,0,0,0.65),transparent)] px-8.5 py-6.5 transition-opacity duration-350 ${fade}`}
@@ -115,72 +214,23 @@ export function TvPlayer() {
         ) : null}
       </div>
 
-      {/* bottom controls — seek bar, the focusable control ring, then the hint */}
-      <div
-        className={`absolute inset-x-0 bottom-0 bg-[linear-gradient(0deg,rgba(0,0,0,0.82),transparent)] px-8.5 pb-7 transition-opacity duration-350 ${fade}`}
-      >
-        <div className="mb-5 flex items-center gap-4">
-          <span className="w-16 font-sans text-[15px] font-semibold text-[rgba(244,243,240,0.85)] tabular-nums">
-            {fmtTime(cur)}
-          </span>
-          <div
-            className={`relative flex-1 rounded-full bg-[rgba(255,255,255,0.18)] transition-[height,box-shadow] duration-200 ${
-              zone === 'progress' && controls
-                ? 'h-2.5 shadow-[0_0_0_4px_rgba(242,180,66,0.35)]'
-                : 'h-1.5'
-            }`}
-          >
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-[rgba(255,255,255,0.14)]"
-              style={{ width: `${bufPct}%` }}
-            />
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,var(--luma-accent),var(--luma-accent-bright))] shadow-[0_0_12px_rgba(242,180,66,0.55)]"
-              style={{ width: `${pct}%` }}
-            />
-            <div
-              className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_4px_rgba(242,180,66,0.4),0_2px_6px_rgba(0,0,0,0.5)] transition-[width,height] duration-200 ${
-                zone === 'progress' && controls ? 'h-4.75 w-4.75' : 'h-3.75 w-3.75'
-              }`}
-              style={{ left: `${pct}%` }}
-            />
-          </div>
-          <span className="w-16 text-right font-sans text-[15px] font-semibold text-[rgba(244,243,240,0.55)] tabular-nums">
-            {fmtTime(dur)}
-          </span>
-          {endsAt ? (
-            <span className="whitespace-nowrap font-sans text-[13px] font-semibold text-[rgba(244,243,240,0.42)] tabular-nums">
-              {t('content.endsAtShort', { time: endsAt })}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="flex items-center justify-center gap-5.5 pt-1">
-          <div className={`${CTRL} h-17.5 w-17.5 ${barFocus(0) ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}>
-            <RewindGlyph />
-          </div>
-          <div
-            className={`${CTRL} h-21 w-21 text-accent-ink ${barFocus(1) ? `${FOCUS_RING} bg-accent-hover` : 'bg-accent'}`}
-          >
-            {playing ? <PauseGlyph /> : <PlayGlyph />}
-          </div>
-          <div className={`${CTRL} h-17.5 w-17.5 ${barFocus(2) ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}>
-            <ForwardGlyph />
-          </div>
-          <div
-            className={`flex h-16 items-center gap-2.75 rounded-full px-7 font-sans text-[18px] font-bold text-white transition-[transform,box-shadow,background] duration-180 ${
-              barFocus(3) ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF
-            }`}
-          >
-            <TracksGlyph />
-            {t('player.audioSubShort')}
-          </div>
-        </div>
-
-        <div className="mt-4 text-center font-sans text-[14px] font-semibold text-dim">
-          {t('player.hint')}
-        </div>
-      </div>
+      <ControlBar
+        fade={fade}
+        zone={zone}
+        controls={controls}
+        seekPreview={seekPreview}
+        shown={shown}
+        dur={dur}
+        pct={pct}
+        bufPct={bufPct}
+        endsAt={endsAt}
+        playing={playing}
+        hasNext={Boolean(next)}
+        showCountdown={showUpNext}
+        ringProgress={countdown / AUTO_NEXT}
+        markers={item.markers}
+        barFocusName={barFocusName}
+      />
 
       {avOpen ? (
         <AvPanel

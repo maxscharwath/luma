@@ -2,10 +2,10 @@
 //
 // Browsers / TV webviews can't browse mDNS from JavaScript. Two strategies,
 // tried in order:
-//   1. Named candidates — `http://luma.local:4040` (works where the client OS
+//   1. Named candidates `http://luma.local:4040` (works where the client OS
 //      resolves the mDNS `.local` hostname the server advertises: desktop,
 //      mobile; NOT Samsung Tizen).
-//   2. Subnet scan — get this device's own LAN IP (Tizen/webOS system API, or a
+//   2. Subnet scan get this device's own LAN IP (Tizen/webOS system API, or a
 //      WebRTC trick) and probe every host on its /24 for `/api/health`. This is
 //      what makes discovery work on a TV with no mDNS resolution.
 // The first server to answer `{ status: "ok" }` wins.
@@ -38,7 +38,7 @@ export async function discoverServer(opts: DiscoverOptions = {}): Promise<string
   const namedHit = await raceForServer(named, fetchFn, opts.timeoutMs ?? 2000);
   if (namedHit) return namedHit;
 
-  // 2) Subnet scan — needs this device's own LAN IP.
+  // 2) Subnet scan needs this device's own LAN IP.
   if (opts.scanSubnet !== false) {
     const ip = await getLocalIPv4();
     if (ip) {

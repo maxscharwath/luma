@@ -7,7 +7,7 @@ export interface LumaClientOptions {
   /** Base server origin, e.g. "http://nas.local:4040". No trailing slash. */
   baseUrl: string;
   fetch?: typeof globalThis.fetch;
-  /** Bearer token for per-user endpoints (progress, profile). Optional — the
+  /** Bearer token for per-user endpoints (progress, profile). Optional the
    * catalogue is public. Can be set later with {@link LumaClient.setAuthToken}. */
   authToken?: string;
   /** Active UI locale (`"fr"` | `"en"`), sent as `Accept-Language` so the server
@@ -69,7 +69,7 @@ export async function requestJson<T>(
   return (await res.json()) as T;
 }
 
-/** Like {@link requestJson} but returns the raw body as a `Blob` — for file
+/** Like {@link requestJson} but returns the raw body as a `Blob` for file
  * downloads (e.g. the admin backup export). Throws {@link LumaApiError} on a
  * non-2xx response, attaching the parsed JSON error body when present. */
 export async function requestBlob(
@@ -111,6 +111,6 @@ export function preconnect(baseUrl: string): void {
     link.crossOrigin = 'anonymous';
     document.head.appendChild(link);
   } catch {
-    /* invalid URL or no DOM — ignore */
+    /* invalid URL or no DOM ignore */
   }
 }

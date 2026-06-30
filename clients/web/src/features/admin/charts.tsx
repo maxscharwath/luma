@@ -265,7 +265,7 @@ export function HistoryBars({ buckets }: Readonly<{ buckets: HistoryBucket[] }>)
           ]}
         />
         <span className="text-[12.5px] text-dim">
-          Totaux : Films — {formatHours(totalFilms)} · TV — {formatHours(totalTv)}
+          Totaux : Films {formatHours(totalFilms)} · TV {formatHours(totalTv)}
         </span>
       </div>
     </div>

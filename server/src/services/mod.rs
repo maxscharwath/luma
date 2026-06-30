@@ -1,13 +1,15 @@
 //! Use-cases / orchestration: the application's domain workflows.
 //!
 //! These modules coordinate the infra adapters and the database to implement
-//! LUMA's behaviours — scanning the library, enriching it from TMDB, demo
+//! LUMA's behaviours scanning the library, enriching it from TMDB, demo
 //! seeding, live playback/quick-connect session registries, persisted settings,
 //! and the activity feed.
 
 pub mod auth;
+pub mod backup;
 pub mod jobs;
 pub mod llm;
+pub mod markers;
 pub mod scan;
 pub mod enrich;
 pub mod search;

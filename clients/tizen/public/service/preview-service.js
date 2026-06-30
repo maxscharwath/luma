@@ -1,5 +1,5 @@
 /**
- * LUMA Smart Hub preview — background service.
+ * LUMA Smart Hub preview background service.
  *
  * The Samsung TV runs this (separately from the UI, even while LUMA is closed)
  * to publish the "new movies" carousel shown on the home screen when the LUMA
@@ -8,7 +8,7 @@
  * webapis.preview.setPreviewData().
  *
  * Runtime notes: this is a Tizen JS service (a Node-like context). Node's `fs`
- * is NOT available — file access goes through tizen.filesystem. `tizen` and
+ * is NOT available file access goes through tizen.filesystem. `tizen` and
  * `webapis` are globals here, with no <script> include. Keep this file plain
  * CommonJS: it ships verbatim (Vite copies public/ as-is) and is loaded by the
  * platform, not bundled.

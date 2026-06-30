@@ -5,10 +5,10 @@ import type { CSSProperties } from 'react';
 
 export const DEFAULT_AUDIO = new URL('../../assets/luma-intro.mp3', import.meta.url).href;
 
-/** Fallback duration (ms) if the audio is blocked/unavailable — slightly longer
+/** Fallback duration (ms) if the audio is blocked/unavailable slightly longer
  * than the 4.992 s sting so a playing sting always reaches its own `ended`. */
 export const SAFETY_MS = 5400;
-/** Exit fade-to-black length (ms) — matches the `transition` below. */
+/** Exit fade-to-black length (ms) matches the `transition` below. */
 export const EXIT_MS = 850;
 
 export const KEYFRAMES = `

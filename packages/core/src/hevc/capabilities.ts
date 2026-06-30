@@ -12,7 +12,7 @@ const PROBE = {
 } as const;
 
 // Audio probe strings. AC3/EAC3/DTS/TrueHD are NOT decodable by Chrome/Firefox
-// (licensing) — only Safari (macOS) and TVs handle AC3/EAC3 — so direct-play of
+// (licensing) only Safari (macOS) and TVs handle AC3/EAC3 so direct-play of
 // those gives video-but-no-sound on most browsers.
 const AUDIO_PROBE = {
   aac: 'audio/mp4; codecs="mp4a.40.2"',
@@ -46,7 +46,7 @@ export interface PlaybackCapabilities {
   hdr: boolean;
   /** Which audio codecs this runtime can decode (no sound otherwise). */
   audio: AudioCapabilities;
-  /** How the verdict was reached — useful for diagnostics overlays. */
+  /** How the verdict was reached useful for diagnostics overlays. */
   source: 'mediaSource' | 'videoElement' | 'platform-tv' | 'unknown';
 }
 
@@ -74,7 +74,7 @@ function detectHdr(): boolean {
 /**
  * Detect what the *current runtime* can decode. On Tizen (Samsung) and webOS
  * (LG) TVs, HEVC (incl. 10-bit / HDR) is hardware-decoded and reliable even
- * when `canPlayType` is conservative — so we treat those platforms as HEVC-capable.
+ * when `canPlayType` is conservative so we treat those platforms as HEVC-capable.
  */
 export function detectCapabilities(): PlaybackCapabilities {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -134,7 +134,7 @@ export function detectCapabilities(): PlaybackCapabilities {
 }
 
 let cached: PlaybackCapabilities | null = null;
-/** Cached variant — capabilities don't change within a session. */
+/** Cached variant capabilities don't change within a session. */
 export function capabilities(): PlaybackCapabilities {
   return (cached ??= detectCapabilities());
 }

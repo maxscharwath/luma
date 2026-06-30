@@ -1,10 +1,10 @@
-//! Editorial **curated collections** — catalog-wide rows shown to everyone
+//! Editorial **curated collections** catalog-wide rows shown to everyone
 //! ("Spielberg", "Best Horror", "Top IMDb", franchises, decades, moods). Two
 //! producers, both emitting [`CuratedRow`]:
-//!  * [`director_collections`] — **deterministic**: group titles by their crew
+//!  * [`director_collections`] **deterministic**: group titles by their crew
 //!    director (accurate, no model needed), and
 //!  * the **LLM** path ([`build_curate_prompt`] → [`parse_curate`] →
-//!    [`resolve_members`]) — the model curates from the library titles we hand
+//!    [`resolve_members`]) the model curates from the library titles we hand
 //!    it; members are matched back to real ids, so nothing it invents surfaces.
 //!
 //! Pure + tested; the orchestration (load catalog, call the model, persist) is
@@ -104,7 +104,7 @@ pub fn director_collections(catalog: &[CatalogEntry]) -> Vec<CuratedRow> {
         .collect()
 }
 
-/// Sort the catalog by rating (then recency) and keep the top `max` — the slice
+/// Sort the catalog by rating (then recency) and keep the top `max` the slice
 /// of titles handed to the model so the prompt stays within a sane token budget.
 pub fn prune_for_prompt(catalog: &[CatalogEntry], max: usize) -> Vec<&CatalogEntry> {
     let mut refs: Vec<&CatalogEntry> = catalog.iter().collect();
@@ -121,23 +121,23 @@ pub fn build_curate_prompt(catalog: &[&CatalogEntry]) -> (String, String) {
     let system = format!(
         "You are the editorial curator of a personal film & TV library. From the catalog \
          below you assemble compelling themed collections a cinephile would browse.\n\
-         Reply with STRICT JSON only — no prose, no markdown, no code fences — an array shaped:\n\
+         Reply with STRICT JSON only no prose, no markdown, no code fences an array shaped:\n\
          [{{\"titleFr\":string,\"titleEn\":string,\"reasonFr\":string,\"reasonEn\":string,\"members\":[string]}}]\n\
          Rules:\n\
          - Curate a VARIED mix: genre showcases (\"Best Horror\"), acclaimed/Top-list style \
          (\"Modern Classics\", \"IMDb Top\"), franchises & sagas, a decade/era, and a mood.\n\
-         - \"members\" MUST be titles copied EXACTLY from the catalog below — never invent titles. \
+         - \"members\" MUST be titles copied EXACTLY from the catalog below never invent titles. \
          8-30 members each; only include a collection if it has at least {MIN_ITEMS} real members.\n\
          - \"titleFr\"/\"reasonFr\" in French, \"titleEn\"/\"reasonEn\" in English. Title < 5 words; \
          reason is one short clause.\n\
          - Return between 6 and {MAX_LLM} distinct collections."
     );
 
-    let mut user = String::from("Catalog (title (year) — genres):\n");
+    let mut user = String::from("Catalog (title (year) genres):\n");
     for e in catalog {
         let year = e.year.map(|y| y.to_string()).unwrap_or_default();
         let genres = e.genres.iter().take(2).cloned().collect::<Vec<_>>().join(", ");
-        user.push_str(&format!("- {} ({}) — {}\n", e.title, year, genres));
+        user.push_str(&format!("- {} ({}) {}\n", e.title, year, genres));
     }
     user.push_str("\nReturn the JSON array now.");
     (system, user)
@@ -146,7 +146,7 @@ pub fn build_curate_prompt(catalog: &[&CatalogEntry]) -> (String, String) {
 /// (system, user) for the **tool-driven** curate flow. The model explores the
 /// library with the catalog tools (`list_genres`, `list_people`, `find_titles`,
 /// `get_title`) instead of reading a fixed slice, then returns the same JSON
-/// shape as [`build_curate_prompt`] — except `members` are catalog **ids** the
+/// shape as [`build_curate_prompt`] except `members` are catalog **ids** the
 /// tools returned (resolved by [`resolve_members_by_id`]), so resolution is exact.
 pub fn tool_curate_prompt() -> (String, String) {
     let system = format!(
@@ -157,10 +157,10 @@ pub fn tool_curate_prompt() -> (String, String) {
          a cinephile would browse.\n\
          Plan: call list_genres and list_people to see what's available, then call find_titles to \
          gather the members for each collection idea.\n\
-         When done, reply with STRICT JSON only — no prose, no markdown, no code fences — an array:\n\
+         When done, reply with STRICT JSON only no prose, no markdown, no code fences an array:\n\
          [{{\"titleFr\":string,\"titleEn\":string,\"reasonFr\":string,\"reasonEn\":string,\"members\":[string]}}]\n\
          Rules:\n\
-         - \"members\" MUST be catalog **ids** returned by the tools (each title's \"id\" field) — \
+         - \"members\" MUST be catalog **ids** returned by the tools (each title's \"id\" field) \
          never titles, never invented ids.\n\
          - Curate a varied mix: genre showcases (\"Best Horror\"), acclaimed/top-list style \
          (\"Modern Classics\"), a director or actor spotlight, a franchise/saga, a decade/era, and \
@@ -222,7 +222,7 @@ fn rename_keys(v: serde_json::Value) -> serde_json::Value {
     serde_json::Value::Object(out)
 }
 
-/// Resolve each spec's member **titles** to real catalog ids (normalized match) —
+/// Resolve each spec's member **titles** to real catalog ids (normalized match)
 /// the catalog-in-prompt path, where the model echoes titles. Keeps collections
 /// with ≥ [`MIN_ITEMS`] matches. Returns `(rows, dropped)`.
 pub fn resolve_members(specs: &[CuratedSpec], catalog: &[CatalogEntry]) -> (Vec<CuratedRow>, usize) {
@@ -233,7 +233,7 @@ pub fn resolve_members(specs: &[CuratedSpec], catalog: &[CatalogEntry]) -> (Vec<
     resolve(specs, |m| index.get(&normalize_title(m)).map(|id| (*id).to_string()))
 }
 
-/// Resolve each spec's member **ids** against the catalog (exact id match) — the
+/// Resolve each spec's member **ids** against the catalog (exact id match) the
 /// tool-driven path, where members are catalog ids the tools returned, so nothing
 /// the model invents resolves. Keeps collections with ≥ [`MIN_ITEMS`] valid ids.
 /// Returns `(rows, dropped)`.
@@ -304,7 +304,7 @@ fn non_empty(s: &str) -> Option<String> {
 /// copied from the catalog listing, then lowercase and keep only alphanumerics.
 /// `"Le Parrain (1972)"` and `"Le Parrain"` both → `"leparrain"`; `"E.T. the
 /// Extra-Terrestrial"` → `"etheextraterrestrial"`. (Bare-number titles like
-/// `"1917"` keep their digits — only a *parenthesized* 4-digit year is dropped.)
+/// `"1917"` keep their digits only a *parenthesized* 4-digit year is dropped.)
 fn normalize_title(s: &str) -> String {
     strip_year(s).chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
 }

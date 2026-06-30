@@ -38,7 +38,7 @@ pub(super) fn show_key(lib_id: &str, show_title: &str) -> String {
 /// labels over resolution/source). `None` when nothing notable is present.
 pub(super) fn detect_edition(file_name: &str) -> Option<String> {
     let lower = file_name.to_ascii_lowercase();
-    // (needle, label) — cut/edition labels first, then source/quality.
+    // (needle, label) cut/edition labels first, then source/quality.
     const TABLE: &[(&str, &str)] = &[
         ("director's cut", "Director's Cut"),
         ("directors cut", "Director's Cut"),
@@ -63,7 +63,7 @@ pub(super) fn detect_edition(file_name: &str) -> Option<String> {
         .map(|(_, label)| label.to_string())
 }
 
-/// `hex(sha256(input))[..16]` — stable, short, collision-resistant enough.
+/// `hex(sha256(input))[..16]` stable, short, collision-resistant enough.
 pub fn short_hash(input: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(input.as_bytes());

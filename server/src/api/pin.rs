@@ -2,7 +2,7 @@
 //!
 //! An optional per-account PIN that locks a remembered profile on a shared TV. It
 //! is **not** the credential (the bearer token from Quick Connect already grants
-//! access) — it only gates the local switch-in UX. Hashed with the same PBKDF2 as
+//! access) it only gates the local switch-in UX. Hashed with the same PBKDF2 as
 //! passwords (its own random salt); the plaintext is never stored or logged.
 
 use std::collections::HashMap;
@@ -31,7 +31,7 @@ fn is_valid_pin(pin: &str) -> bool {
 
 /// In-memory brute-force guard for `/auth/pin/verify`, keyed by user id. After
 /// `PIN_MAX_FAILS` wrong tries we lock the account out for a fixed cooldown
-/// window. Process-local (resets on restart) — fine for a single-binary NAS
+/// window. Process-local (resets on restart) fine for a single-binary NAS
 /// deployment, and the bearer token is still the real credential, so the PIN
 /// only gates the local profile switch-in UX.
 struct PinAttempt {
@@ -149,7 +149,7 @@ pub async fn verify_pin(
 #[derive(Debug, Deserialize)]
 pub struct SetPinBody {
     pub pin: String,
-    /// The existing PIN — required (and verified) when one is already set.
+    /// The existing PIN required (and verified) when one is already set.
     #[serde(default)]
     pub current: Option<String>,
 }

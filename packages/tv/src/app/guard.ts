@@ -2,12 +2,12 @@
 // `if (status) … else if (!user) …` ladder in an effect, navigation policy is a
 // flat, ordered list of rules: "when <state>, the only allowed screens are
 // <allow>; anything else redirects to <to>". First matching rule wins. Pure and
-// trivially unit-testable — the effect just applies whatever it returns.
+// trivially unit-testable the effect just applies whatever it returns.
 //
 //   const target = resolveRedirect(RULES, state, nav.route.name);
 //   if (target) nav.replace(target);
 
-// `R` = every screen name; `T` = the screens a rule may redirect *to* (a subset —
+// `R` = every screen name; `T` = the screens a rule may redirect *to* (a subset
 // e.g. only param-less screens). Keeping them distinct lets callers redirect to a
 // narrow, safe set while still allowing any screen to "stay".
 export interface RedirectRule<S, R extends string, T extends R = R> {

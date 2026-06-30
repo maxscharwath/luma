@@ -1,15 +1,15 @@
-//! Pluggable LLM client — the small text model behind LUMA's "smart" features
+//! Pluggable LLM client the small text model behind LUMA's "smart" features
 //! (personalized, auto-named home sections; an evolving per-user taste profile).
 //!
 //! LUMA is open source and self-hosted, so the user chooses *which* model and
 //! *where* it runs. Backends sit behind one [`LlmClient`] trait, mirroring the
 //! [`crate::infra::embed`] design:
-//!   * [`http`] — any **OpenAI-compatible** server (Ollama, llama.cpp, LM Studio,
+//!   * [`http`] any **OpenAI-compatible** server (Ollama, llama.cpp, LM Studio,
 //!     vLLM, OpenRouter, …) **or** the **Anthropic** Messages API (Claude). Shells
-//!     out to `curl`, exactly like the TMDB client — no heavy HTTP dep.
+//!     out to `curl`, exactly like the TMDB client no heavy HTTP dep.
 //!
 //! The task ("name this cluster of titles" / "summarize this taste") is tiny, so
-//! a small model is enough — Qwen2.5-0.5B/1.5B on Ollama, or Claude Haiku. It runs
+//! a small model is enough Qwen2.5-0.5B/1.5B on Ollama, or Claude Haiku. It runs
 //! in the nightly `sections.personalize` job, so even slow CPU inference is fine.
 
 use std::sync::Arc;
@@ -23,7 +23,7 @@ pub use http::list_models;
 pub use tools::{ToolBox, ToolDef};
 
 /// Build a one-off HTTP client from explicit config (the admin Test / Load-models
-/// endpoints, which probe values the admin is still editing — before they're
+/// endpoints, which probe values the admin is still editing before they're
 /// saved). `None` when the config can't form a usable client.
 pub fn build_http(
     provider: &str,
@@ -44,7 +44,7 @@ pub trait LlmClient: Send + Sync {
 
     /// Run a single completion: a system instruction + a user message in, the
     /// assistant's text out. `max_tokens` caps the reply. Blocking (network /
-    /// CPU) — call from a blocking context (the job runs on `spawn_blocking`).
+    /// CPU) call from a blocking context (the job runs on `spawn_blocking`).
     fn complete(&self, system: &str, user: &str, max_tokens: u32) -> anyhow::Result<String>;
 
     /// Whether this client can run the agentic [`run_tools`](LlmClient::run_tools)
@@ -56,8 +56,8 @@ pub trait LlmClient: Send + Sync {
 
     /// Agentic tool loop: hand the model `tools`, dispatch each requested call
     /// through `toolbox`, feed results back, and repeat up to `max_steps` until
-    /// the model produces a final answer (returned as text). Errors — including
-    /// "unsupported" — so callers can fall back to a non-tool path. Blocking.
+    /// the model produces a final answer (returned as text). Errors including
+    /// "unsupported" so callers can fall back to a non-tool path. Blocking.
     fn run_tools(
         &self,
         system: &str,
@@ -78,7 +78,7 @@ pub trait LlmClient: Send + Sync {
 /// Build the configured client from settings. Returns a [`Disabled`] client when
 /// the feature is off or unconfigured, so callers can always call `complete` and
 /// just check `available()` first. With more than one configured provider it
-/// returns a [`Failover`] that tries the default first, then the rest — so a
+/// returns a [`Failover`] that tries the default first, then the rest so a
 /// primary that's out of credits / rate-limited / down degrades to a secondary
 /// (e.g. cloud Claude → local Ollama) transparently.
 pub fn from_settings(settings: &Settings) -> Arc<dyn LlmClient> {
@@ -116,7 +116,7 @@ fn ordered_providers(settings: &Settings) -> Vec<crate::services::settings::LlmP
 }
 
 /// Tries each configured provider in order (default first), falling through to
-/// the next on error — resilience against a primary that's out of credits,
+/// the next on error resilience against a primary that's out of credits,
 /// rate-limited, or down. Per-provider failures are logged (server tracing); the
 /// caller only sees the first success or, if all fail, the last error.
 struct Failover {

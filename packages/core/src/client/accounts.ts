@@ -15,7 +15,7 @@ import type { RequestContext } from './base';
 const JSON_HEADERS = { 'content-type': 'application/json' };
 
 /** Create an account and open a session. After the first (owner) account,
- * `inviteToken` is required — registration is invite-only. Does NOT set the
+ * `inviteToken` is required registration is invite-only. Does NOT set the
  * token; the caller persists it (then calls {@link setAuthToken}). */
 export function register(
   ctx: RequestContext,
@@ -48,7 +48,7 @@ export function invites(ctx: RequestContext): Promise<Invite[]> {
   return ctx.json<Invite[]>('/invites');
 }
 
-/** Check an invite token's validity (public — used by the join page). */
+/** Check an invite token's validity (public used by the join page). */
 export function checkInvite(
   ctx: RequestContext,
   token: string,
@@ -96,7 +96,7 @@ export function users(ctx: RequestContext): Promise<PublicUser[]> {
 }
 
 /** Verify a profile-lock PIN with the remembered token (TV switch-in). Resolves
- * on 204; throws `LumaApiError` on 401 (wrong) / 429 (locked out — the error's
+ * on 204; throws `LumaApiError` on 401 (wrong) / 429 (locked out the error's
  * `retryAfter` seconds are surfaced as a cooldown). */
 export function pinVerify(ctx: RequestContext, pin: string): Promise<void> {
   return ctx.json<void>('/auth/pin/verify', {

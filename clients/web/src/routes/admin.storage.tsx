@@ -17,9 +17,11 @@ function StoragePage() {
   const { client } = useAuth();
   const { data, reload } = usePoll(() => client.adminStorage(), 10000, [client]);
   const [clearing, setClearing] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
-  const pctUsed =
-    data && data.totalBytes ? Math.round((data.usedBytes / data.totalBytes) * 100) : 0;
+  const pctUsed = data?.totalBytes ? Math.round((data.usedBytes / data.totalBytes) * 100) : 0;
+  const cache = data?.cache;
+  const enriched = (cache?.enrichedItems ?? 0) + (cache?.enrichedShows ?? 0);
 
   async function clearCache() {
     setClearing(true);
@@ -28,6 +30,17 @@ function StoragePage() {
       reload();
     } finally {
       setClearing(false);
+    }
+  }
+
+  async function resetMetadata() {
+    if (!confirm(t('admin.resetMetadataConfirm'))) return;
+    setResetting(true);
+    try {
+      await client.resetMetadata();
+      reload();
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -63,6 +76,30 @@ function StoragePage() {
         </div>
       </Section>
 
+      <Section title={t('admin.cacheContent')}>
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard
+            label={t('admin.cachedImages')}
+            value={(cache?.imagesCount ?? 0).toLocaleString()}
+            unit={formatBytes(cache?.imagesBytes ?? 0)}
+            color={C.accent}
+          />
+          <StatCard
+            label={t('admin.enrichedTitles')}
+            value={enriched.toLocaleString()}
+            unit={t('admin.enrichedBreakdown', {
+              movies: cache?.enrichedItems ?? 0,
+              shows: cache?.enrichedShows ?? 0,
+            })}
+            color={C.green}
+          />
+          <StatCard
+            label={t('admin.cacheEmbeddings')}
+            value={(cache?.embeddings ?? 0).toLocaleString()}
+          />
+        </div>
+      </Section>
+
       <Section title={t('admin.cacheMaintenance')}>
         <Card className="overflow-hidden">
           <MaintRow
@@ -70,7 +107,7 @@ function StoragePage() {
             desc={t('admin.transcodeCacheFolderDesc')}
             right={
               <span className="rounded-[9px] border border-border-strong bg-surface-2 px-3 py-2 text-[13px] font-semibold text-text">
-                {data?.cache.dir ?? '—'}
+                {data?.cache.dir ?? '-'}
               </span>
             }
           />
@@ -88,7 +125,6 @@ function StoragePage() {
           <MaintRow
             title={t('admin.clearCache')}
             desc={t('admin.clearCacheDesc', { size: formatBytes(data?.cache.bytes ?? 0) })}
-            border={false}
             right={
               <button
                 type="button"
@@ -97,6 +133,21 @@ function StoragePage() {
                 className="rounded-[9px] border border-[#E8536A]/25 bg-[#E8536A]/10 px-3.75 py-2.25 text-[13px] font-semibold text-[#E8536A] disabled:opacity-50"
               >
                 {clearing ? t('admin.clearing') : t('admin.clearNow')}
+              </button>
+            }
+          />
+          <MaintRow
+            title={t('admin.resetMetadata')}
+            desc={t('admin.resetMetadataDesc')}
+            border={false}
+            right={
+              <button
+                type="button"
+                onClick={() => void resetMetadata()}
+                disabled={resetting}
+                className="rounded-[9px] border border-[#E8536A]/25 bg-[#E8536A]/10 px-3.75 py-2.25 text-[13px] font-semibold text-[#E8536A] disabled:opacity-50"
+              >
+                {resetting ? t('admin.resetting') : t('admin.resetMetadataBtn')}
               </button>
             }
           />

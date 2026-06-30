@@ -4,7 +4,7 @@
 //! while curating: *"horror titles rated ≥7, newest first"*, *"everything Nolan
 //! directed"*, *"which genres exist"*. All of it runs over the `metadata` JSON
 //! column with SQLite's JSON1 (`json_each` / `json_extract`), across **movies and
-//! shows** at once via a small `cat` CTE — so a tool query spans the whole
+//! shows** at once via a small `cat` CTE so a tool query spans the whole
 //! library without the caller stitching two tables together.
 
 use super::*;
@@ -14,8 +14,8 @@ use rusqlite::OptionalExtension;
 
 use crate::model::Metadata;
 
-/// Hard cap on rows a single `find_titles` returns (keeps tool results — which
-/// re-enter the model's context — bounded).
+/// Hard cap on rows a single `find_titles` returns (keeps tool results which
+/// re-enter the model's context bounded).
 const MAX_LIMIT: usize = 50;
 const DEFAULT_LIMIT: usize = 25;
 
@@ -41,7 +41,7 @@ pub struct TitleBrief {
     pub genres: Vec<String>,
 }
 
-/// A title in full form (`get_title`) — adds people, synopsis, tagline.
+/// A title in full form (`get_title`) adds people, synopsis, tagline.
 pub struct TitleFull {
     pub id: String,
     pub title: String,
@@ -55,7 +55,7 @@ pub struct TitleFull {
     pub tagline: Option<String>,
 }
 
-/// Composable `find_titles` filters — all optional, AND-ed together.
+/// Composable `find_titles` filters all optional, AND-ed together.
 #[derive(Default)]
 pub struct TitleFilter {
     pub genre: Option<String>,
@@ -347,7 +347,7 @@ mod tests {
     fn rating_year_sort_and_limit() {
         let pool = seeded_pool();
         let top = find_titles(&pool, &TitleFilter { min_rating: Some(8.0), ..Default::default() }).unwrap();
-        // ≥8.0: Severance 8.7, Shining 8.4, Dune 8.0 — newest sort would differ.
+        // ≥8.0: Severance 8.7, Shining 8.4, Dune 8.0 newest sort would differ.
         assert_eq!(top.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["s1", "m3", "m1"]);
 
         let newest = find_titles(&pool, &TitleFilter { sort: Some("year".into()), limit: Some(2), ..Default::default() }).unwrap();

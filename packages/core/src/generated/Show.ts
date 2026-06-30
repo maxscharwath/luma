@@ -14,4 +14,10 @@ video: VideoTrack | null, addedAt: string,
  * TMDB catalog metadata (poster/backdrop/overview/IDs). `None` until the
  * background enrichment pass resolves it.
  */
-metadata?: Metadata | null, };
+metadata?: Metadata | null, 
+/**
+ * Per-user series-completion percent (0–100), filled by the catalogue
+ * endpoints when the request is authenticated. `None` for anonymous requests
+ * or shows with no progress drives the progress bar on show cards.
+ */
+progress?: number | null, };

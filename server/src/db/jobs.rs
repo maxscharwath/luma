@@ -107,7 +107,7 @@ pub fn last_job_run(pool: &Pool, key: &str) -> Result<Option<JobRun>> {
     }
 }
 
-/// Mark every run still flagged `running` as `failed` — called once at startup
+/// Mark every run still flagged `running` as `failed` called once at startup
 /// to clean up rows stranded by a crash / kill / OOM mid-run. In-process run
 /// state doesn't survive a restart, so such a row would otherwise stay `running`
 /// (with a NULL `finished_at`/duration) forever. Returns how many were fixed.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "LUMA LG webOS TV client — thin shell over @luma/tv.",
+  "description": "LUMA LG webOS TV client thin shell over @luma/tv.",
   "scripts": {
     "dev": "vite",
     "build": "tsgo --noEmit && vite build",

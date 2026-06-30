@@ -1,4 +1,4 @@
-//! Core data model. The JSON shape here is a public contract — web/TV clients
+//! Core data model. The JSON shape here is a public contract web/TV clients
 //! depend on it, so field names and casing must not drift.
 //!
 //! The types themselves now live in per-domain modules under [`crate::domain`];

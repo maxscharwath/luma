@@ -9,10 +9,10 @@ import { useFocusNav } from '#tv/app/useFocusNav';
 
 /**
  * PIN entry. Three intents share one keypad:
- *  • `verify` — unlock a remembered, PIN-protected profile from the picker. Uses
+ *  • `verify` unlock a remembered, PIN-protected profile from the picker. Uses
  *    that account's remembered token to call `pinVerify`, then activates it.
- *  • `set` — set the active account's PIN (enter, then confirm).
- *  • `clear` — remove the active account's PIN (enter the current one).
+ *  • `set` set the active account's PIN (enter, then confirm).
+ *  • `clear` remove the active account's PIN (enter the current one).
  */
 export function TvPin() {
   const nav = useNav();

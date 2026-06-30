@@ -113,7 +113,7 @@ const SCREENS: TvScreens = {
 };
 
 // Screen groups for the navigation guard. The profile picker is the signed-out
-// home even with no servers yet — it shows just "Ajouter un profil", which opens
+// home even with no servers yet it shows just "Ajouter un profil", which opens
 // the wizard (where `connect` / "Ajouter manuellement" lives). So `connect` is an
 // auth-flow screen, never the launch screen.
 const AUTH_SCREENS = ['profiles', 'addProfile', 'connect', 'quick', 'pin'] as const; // signed out

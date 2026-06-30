@@ -5,10 +5,9 @@ import { useState } from 'react';
 export interface PosterProps {
   title: string;
   genre?: string;
-  badge?: string | null;
   /** Two-stop gradient fallback when no artwork is available. */
   colors?: [string, string];
-  /** Real poster artwork (WebP) — falls back to the gradient. */
+  /** Real poster artwork (WebP) falls back to the gradient. */
   poster?: string | null;
   progress?: number | null;
   /** When set, renders the "watched" marker/toggle: true = seen (persistent
@@ -32,7 +31,6 @@ export interface PosterProps {
 export function Poster({
   title,
   genre,
-  badge = null,
   colors = ['#3A2E5C', '#0E1430'],
   poster = null,
   progress = null,
@@ -71,11 +69,6 @@ export function Poster({
             />
           ) : null}
           <div className="absolute inset-0 bg-linear-to-b from-black/5 via-transparent to-black/70" />
-          {badge ? (
-            <span className="absolute right-2.5 top-2.5 rounded bg-[rgba(10,10,12,.6)] px-1.75 py-1 text-[10px] font-bold text-accent">
-              {badge}
-            </span>
-          ) : null}
           <div
             className={`absolute inset-x-3.5 bottom-3.5 ${
               showImg ? 'opacity-0 transition-opacity duration-200 group-hover:opacity-100' : ''

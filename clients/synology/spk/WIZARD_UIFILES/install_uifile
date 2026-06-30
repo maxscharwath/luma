@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "textfield",
-        "desc": "Media folder(s) to scan — absolute paths. Separate several with a colon or semicolon (e.g. /volume1/video/Films:/volume1/video/Séries).",
+        "desc": "Media folder(s) to scan absolute paths. Separate several with a colon or semicolon (e.g. /volume1/video/Films:/volume1/video/Séries).",
         "subitems": [
           {
             "key": "LUMA_MEDIA_DIRS",

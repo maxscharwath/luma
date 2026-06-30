@@ -3,7 +3,7 @@
 //! One row per title (movie OR show) in `item_vectors`, the embedding stored as a
 //! little-endian `f32` BLOB. Vectors are L2-normalized at write time, so cosine
 //! similarity is a plain dot product. At a few thousand titles a full in-memory
-//! scan per query is microseconds — no vector index needed. If a library ever
+//! scan per query is microseconds no vector index needed. If a library ever
 //! grows past ~50k items, swap [`load_vectors`] for an ANN index (sqlite-vec /
 //! HNSW); the public functions here stay the same.
 //!
@@ -68,7 +68,7 @@ pub fn similar(pool: &Pool, id: &str, n: usize) -> Result<Vec<(String, f32)>> {
 }
 
 /// Zero-shot themed row: the `n` titles nearest to a free-text `query` vector
-/// (embed the phrase — e.g. "christmas movie" — with the same embedder first).
+/// (embed the phrase e.g. "christmas movie" with the same embedder first).
 pub fn themed(pool: &Pool, query: &[f32], n: usize) -> Result<Vec<(String, f32)>> {
     let vectors = load_vectors(pool)?;
     Ok(rank(&vectors, query, &HashSet::new(), n))
@@ -76,7 +76,7 @@ pub fn themed(pool: &Pool, query: &[f32], n: usize) -> Result<Vec<(String, f32)>
 
 /// Personalized "For You": average the vectors of what `user_id` recently watched
 /// into a taste centroid, then return the `n` nearest *unwatched* titles. Pure
-/// content-based — no other users, no training, no cold-start beyond "watched
+/// content-based no other users, no training, no cold-start beyond "watched
 /// nothing yet" (which returns empty).
 pub fn for_you(pool: &Pool, user_id: &str, n: usize) -> Result<Vec<(String, f32)>> {
     let watched = recent_watched_ids(pool, user_id)?;
@@ -93,7 +93,7 @@ pub fn for_you(pool: &Pool, user_id: &str, n: usize) -> Result<Vec<(String, f32)
 
 // ----- internals --------------------------------------------------------------
 
-/// Most-recently-watched distinct item ids for one user (newest first, capped) —
+/// Most-recently-watched distinct item ids for one user (newest first, capped)
 /// the taste window for [`for_you`] and the section generator.
 pub fn recent_watched_ids(pool: &Pool, user_id: &str) -> Result<Vec<String>> {
     let conn = pool.get()?;

@@ -33,7 +33,7 @@ interface Row {
 const entryId = (e: SectionItem): string => (e.type === 'show' ? e.show.id : e.item.id);
 const entryMetadata = (e: SectionItem) => (e.type === 'show' ? e.show.metadata : e.item.metadata);
 
-/** The 10-foot home — a cinematic hero over a vertical stack of horizontal rails
+/** The 10-foot home a cinematic hero over a vertical stack of horizontal rails
  * (Reprendre / Films / Séries previews). Films, Séries and Search live on their
  * own screens via the shared top nav. */
 export function TvHome() {
@@ -71,10 +71,10 @@ export function TvHome() {
             key={`${key}-${s.id}`}
             title={s.title}
             genre={s.metadata?.genres?.[0] ?? t('content.series')}
-            badge={qualityBadgeForVideo(s.video)}
             backdrop={client.backdropFor(s) ?? client.showPosterFor(s)}
             colors={posterColors(s.id)}
             watched={isWatched(s.id)}
+            progress={s.progress ?? null}
             width={330}
             onClick={() => onSelectShow(s)}
           />
@@ -86,7 +86,6 @@ export function TvHome() {
           key={`${key}-${m.id}`}
           title={m.title}
           genre={m.metadata?.genres?.[0] ?? t('content.film')}
-          badge={qualityBadge(m)}
           backdrop={client.backdropFor(m) ?? client.posterFor(m)}
           colors={posterColors(m.id)}
           watched={isWatched(m.id)}
@@ -99,7 +98,7 @@ export function TvHome() {
   );
 
   // One 16:9 rail per server section: empty list in → null out, so the home drops
-  // it. `title` arrives already localized from the server — rendered as-is.
+  // it. `title` arrives already localized from the server rendered as-is.
   const mediaRow = useCallback(
     (key: string, title: string, items: SectionItem[]): Row | null =>
       items.length
@@ -132,7 +131,6 @@ export function TvHome() {
                 key={`continue-${item.id}`}
                 title={item.title}
                 genre={genre}
-                badge={qualityBadge(item)}
                 backdrop={client.backdropFor(item) ?? client.posterFor(item)}
                 colors={posterColors(item.id)}
                 progress={pct}
@@ -166,10 +164,10 @@ export function TvHome() {
                 genre={
                   s.metadata?.genres?.[0] ?? t('content.seasonCount', { count: s.seasonCount })
                 }
-                badge={qualityBadgeForVideo(s.video)}
                 backdrop={client.backdropFor(s) ?? client.showPosterFor(s)}
                 colors={posterColors(s.id)}
                 watched={isWatched(s.id)}
+                progress={s.progress ?? null}
                 width={330}
                 onClick={() => onSelectShow(s)}
               />
@@ -235,7 +233,9 @@ export function TvHome() {
                   className="inline-flex cursor-pointer items-center gap-3 rounded-[13px] bg-accent px-10 py-4.5 font-sans text-[20px] font-bold text-accent-ink transition-transform focus:scale-[1.04]"
                   data-focus=""
                   type="button"
-                  onClick={() => (hero.type === 'movie' ? onPlay(hero.item) : onSelectShow(hero.show))}
+                  onClick={() =>
+                    hero.type === 'movie' ? onPlay(hero.item) : onSelectShow(hero.show)
+                  }
                 >
                   <PlayGlyph />
                   {hero.type === 'movie' ? t('player.play') : t('content.moreInfo')}
@@ -278,7 +278,7 @@ export function TvHome() {
   );
 }
 
-/** Hero meta line — year · runtime · genre (quality lives in the badge). Shows
+/** Hero meta line year · runtime · genre (quality lives in the badge). Shows
  * have no runtime, so it's just year · genre. */
 function heroLine(e: SectionItem): string {
   if (e.type === 'show') {

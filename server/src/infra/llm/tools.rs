@@ -1,4 +1,4 @@
-//! Vendor-neutral function-calling types — the "connector" foundation.
+//! Vendor-neutral function-calling types the "connector" foundation.
 //!
 //! These let an [`LlmClient`](super::LlmClient) run an agentic loop: the model is
 //! handed a set of [`ToolDef`]s, asks to call them ([`ToolCall`]), and the loop

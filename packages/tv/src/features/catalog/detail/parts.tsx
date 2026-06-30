@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useClient, useNav } from '#tv/app/router';
 import { AVATAR_GRADS, initials } from '#tv/shared/ui';
 
-/** Wall-clock time `runtimeMs` from now, in the active locale — French 24-hour
+/** Wall-clock time `runtimeMs` from now, in the active locale French 24-hour
  * "21h32", else a localised 12/24-hour time. Empty when the runtime is unknown. */
 export function endsAtClock(runtimeMs?: number | null, locale?: string): string {
   if (!runtimeMs || runtimeMs <= 0) return '';
@@ -16,7 +16,7 @@ export function endsAtClock(runtimeMs?: number | null, locale?: string): string 
   return `${d.getHours()}h${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-/** "Se termine à 21h32 si vous lancez maintenant" — only when a runtime is known. */
+/** "Se termine à 21h32 si vous lancez maintenant" only when a runtime is known. */
 export function EndsAtHint({ runtimeMs }: Readonly<{ runtimeMs?: number | null }>) {
   const t = useT();
   const locale = useLocale();
@@ -30,7 +30,7 @@ export function EndsAtHint({ runtimeMs }: Readonly<{ runtimeMs?: number | null }
   );
 }
 
-/** "Distribution" — top-billed cast. Shows the real TMDB headshot when present,
+/** "Distribution" top-billed cast. Shows the real TMDB headshot when present,
  * else a per-position gradient with initials (varied by index so neighbours never
  * collide). Each face is focusable and opens that person's titles. */
 export function CastRow({ cast }: Readonly<{ cast?: CastMember[] | null }>) {
@@ -84,7 +84,7 @@ function CastAvatar({
   const showImg = Boolean(photo) && !failed;
   return (
     <div
-      className="cast-face__avatar relative mb-3 flex h-30 w-30 items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-white/90 shadow-card"
+      className="cast-face__avatar relative mb-3 flex h-30 w-30 items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-[rgba(255,255,255,0.9)] shadow-card"
       style={{ background: grad }}
     >
       <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_22%,rgba(255,255,255,0.2),transparent_60%)]" />
@@ -143,7 +143,7 @@ export function ListButton({
   );
 }
 
-/** Watched toggle — marks a title seen / unseen (persisted via the watched API). */
+/** Watched toggle marks a title seen / unseen (persisted via the watched API). */
 export function WatchedButton({
   watched,
   onToggle,

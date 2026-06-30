@@ -1,4 +1,4 @@
-//! Deterministic SVG placeholder posters. No real artwork in the scaffold — a
+//! Deterministic SVG placeholder posters. No real artwork in the scaffold a
 //! 2:3 two-stop gradient derived from the item id, with the title near the
 //! bottom.
 

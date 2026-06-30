@@ -1,4 +1,4 @@
-//! `search.reindex` — rebuild the in-RAM full-text search index from the database.
+//! `search.reindex` rebuild the in-RAM full-text search index from the database.
 
 use super::prelude::*;
 

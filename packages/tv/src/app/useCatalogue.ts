@@ -61,7 +61,7 @@ export interface Catalogue {
  * handles the auth provider needs (client / active server / signed-in toggle).
  */
 export function useCatalogue(platform: string): Catalogue {
-  // The session present at boot — used to point the first client at the right
+  // The session present at boot used to point the first client at the right
   // server with its token already applied (no flicker on "Reprendre").
   const bootSession = useMemo(() => loadSession(), []);
   const [servers, setServers] = useState<SavedServer[]>(() => initialServers());
@@ -136,7 +136,7 @@ export function useCatalogue(platform: string): Catalogue {
   }, [servers.length, discover]);
 
   // Fetch the catalogue. `quiet` skips the status/error toggles (used by the live
-  // refetch below — no "connecting" flicker, keep current data on a transient error).
+  // refetch below no "connecting" flicker, keep current data on a transient error).
   const fetchCatalogue = useCallback(async (c: LumaClient, quiet = false) => {
     if (!quiet) setStatus('connecting');
     try {
@@ -152,7 +152,7 @@ export function useCatalogue(platform: string): Catalogue {
     }
   }, []);
 
-  // Load the catalogue only once a profile is active — the signed-out picker
+  // Load the catalogue only once a profile is active the signed-out picker
   // stays silent (no /api/movies, /api/shows before sign-in).
   useEffect(() => {
     if (client && signedIn) void fetchCatalogue(client);
@@ -160,7 +160,7 @@ export function useCatalogue(platform: string): Catalogue {
 
   // Live sync: hold the event stream open and refetch when the catalog changes.
   // A leading+trailing throttle coalesces bursts into at most one refetch/window.
-  // Only while signed in — the picker keeps the stream (and /api/status) closed.
+  // Only while signed in the picker keeps the stream (and /api/status) closed.
   useEffect(() => {
     if (!client || !signedIn) return;
     const MIN_MS = 2500;

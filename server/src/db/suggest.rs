@@ -17,7 +17,7 @@ pub struct SuggestionRow {
 }
 
 /// The cached suggestion for one seed item, if generated. `Some` with empty
-/// `item_ids` means generation ran but found nothing — a terminal state.
+/// `item_ids` means generation ran but found nothing a terminal state.
 pub fn get_suggestion(pool: &Pool, item_id: &str) -> Result<Option<SuggestionRow>> {
     let conn = pool.get()?;
     let row = conn

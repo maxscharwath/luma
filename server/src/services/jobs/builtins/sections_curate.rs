@@ -1,4 +1,4 @@
-//! `sections.curate` — the editorial curation job: deterministic director
+//! `sections.curate` the editorial curation job: deterministic director
 //! collections (from crew metadata) + LLM-curated genre/list/franchise/decade/
 //! mood rows, tool-driven when the provider can function-call, else a
 //! catalog-in-prompt fallback. Members are grounded to the real catalog either
@@ -9,7 +9,7 @@ use super::prelude::*;
 
 /// How many catalog titles to hand the model when curating editorial collections
 /// (highest-rated/most-recent first), bounding the prompt's token budget. Only
-/// used by the catalog-in-prompt fallback — the tool-driven path queries instead.
+/// used by the catalog-in-prompt fallback the tool-driven path queries instead.
 const MAX_CURATE_CATALOG: usize = 600;
 
 /// Max model turns in the tool-driven curate loop. A model that batches tool
@@ -33,17 +33,17 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
     let director_rows = curate::director_collections(&catalog);
     ctx.debug(format!("director collections: {}", director_rows.len()));
     if director_rows.is_empty() {
-        ctx.debug("no director collections — crew metadata may be missing; re-run metadata.enrich");
+        ctx.debug("no director collections crew metadata may be missing; re-run metadata.enrich");
     }
 
-    // 2) LLM editorial collections — tool-driven when the provider supports
+    // 2) LLM editorial collections tool-driven when the provider supports
     //    function calling (the model queries the library directly), else the
     //    catalog-in-prompt fallback.
     let mut llm_rows = Vec::new();
     let llm = crate::infra::llm::from_settings(&state.settings);
     if llm.available() {
-        // Curating many collections × many members is a large reply — far bigger
-        // than the per-user naming task — so floor the budget well above the
+        // Curating many collections × many members is a large reply far bigger
+        // than the per-user naming task so floor the budget well above the
         // provider's default to avoid a truncated (unparseable) JSON array.
         let max_tokens = crate::services::settings::default_provider(&state.settings)
             .map(|p| p.max_tokens)
@@ -53,20 +53,20 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
             match curate_with_tools(ctx, &*llm, &catalog, max_tokens) {
                 Ok(rows) if !rows.is_empty() => llm_rows = rows,
                 Ok(_) => {
-                    ctx.warn("tool-driven curate returned no usable collections — falling back to catalog-in-prompt");
+                    ctx.warn("tool-driven curate returned no usable collections falling back to catalog-in-prompt");
                     llm_rows = curate_with_prompt(ctx, &*llm, &catalog, max_tokens);
                 }
                 Err(e) => {
-                    ctx.error(format!("tool-driven curate failed: {e:#} — falling back to catalog-in-prompt"));
+                    ctx.error(format!("tool-driven curate failed: {e:#} falling back to catalog-in-prompt"));
                     llm_rows = curate_with_prompt(ctx, &*llm, &catalog, max_tokens);
                 }
             }
         } else {
-            ctx.debug("LLM does not support tool calling — using catalog-in-prompt curate");
+            ctx.debug("LLM does not support tool calling using catalog-in-prompt curate");
             llm_rows = curate_with_prompt(ctx, &*llm, &catalog, max_tokens);
         }
     } else {
-        ctx.warn("no LLM configured — only deterministic director collections (enable one under Admin → IA)");
+        ctx.warn("no LLM configured only deterministic director collections (enable one under Admin → IA)");
     }
 
     // Interleave the two sources for variety, assign rank, persist (replace-all).
@@ -148,7 +148,7 @@ fn curate_with_prompt(
                 rows
             }
             Err(e) => {
-                ctx.error(format!("could not parse model reply: {e} — reply: {}", snippet(&reply)));
+                ctx.error(format!("could not parse model reply: {e} reply: {}", snippet(&reply)));
                 Vec::new()
             }
         },

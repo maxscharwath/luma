@@ -9,7 +9,7 @@ import { useClient, useNav, useParams } from '#tv/app/router';
 import { PlayGlyph, TV_PLAY_BTN } from '#tv/shared/TvMedia';
 import { useFocusNav } from '#tv/app/useFocusNav';
 
-/** Film detail — backdrop, synopsis, metadata, a Lecture button, my-list, an
+/** Film detail backdrop, synopsis, metadata, a Lecture button, my-list, an
  * "ends at" hint and the cast. The movie already carries its TMDB metadata from
  * the catalog list, so no extra fetch. */
 export function TvMovieDetail() {

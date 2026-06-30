@@ -20,7 +20,7 @@ pub fn create_user(
     let conn = pool.get()?;
     let permissions = permissions.to_vec();
     let perms_json = serde_json::to_string(&permissions).unwrap_or_else(|_| "[\"playback\"]".into());
-    // note: pre-existing — token primitive used at the db layer to salt the id.
+    // note: pre-existing token primitive used at the db layer to salt the id.
     let id = crate::services::scan::short_hash(&format!("user|{email}|{}", crate::services::auth::random_token()));
     let created_at = now_or_blank();
     conn.execute(
@@ -100,7 +100,7 @@ pub fn consume_invite(pool: &Pool, token: &str) -> Result<Option<Vec<Permission>
     // statement that stamps `used_at`, and `RETURNING` hands back the granted
     // permissions only if this call is the one that flipped the row. Two
     // concurrent invite-only registrations therefore can't both win a single-use
-    // invite — the loser's UPDATE matches no row and yields `None`. (The pool
+    // invite the loser's UPDATE matches no row and yields `None`. (The pool
     // hands each caller its own WAL connection, so the prior SELECT-then-UPDATE
     // had a real TOCTOU window.)
     let perms: Option<String> = conn

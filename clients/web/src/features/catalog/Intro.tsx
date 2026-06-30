@@ -1,4 +1,4 @@
-// The LUMA brand intro — a full-screen, audio-synced sting shown once per browser
+// The LUMA brand intro a full-screen, audio-synced sting shown once per browser
 // session before the app. It overlays everything (including the login gate) and
 // hands off to the app on completion. Client-only: Audio() and sessionStorage
 // don't exist during SSR, so it renders nothing on the server and until the first

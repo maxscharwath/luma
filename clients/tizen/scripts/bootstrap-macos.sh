@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# LUMA — one-shot macOS setup for deploying to a Samsung Tizen TV.
+# LUMA one-shot macOS setup for deploying to a Samsung Tizen TV.
 #
 #   bash clients/tizen/scripts/bootstrap-macos.sh
 #
@@ -10,7 +10,7 @@
 #   3. Mount + open it (click through; install to ~/tizen-studio)
 #   4. Verify with `make doctor`
 #
-# It CANNOT do these — they are Samsung's device security, bound to YOU:
+# It CANNOT do these they are Samsung's device security, bound to YOU:
 #   • TV Developer Mode  (toggle on the TV with the remote: Apps → 12345)
 #   • Your TV's IP address
 #   • The Samsung certificate (Certificate Manager → your Samsung account +
@@ -47,13 +47,13 @@ else
     ok "Installer already downloaded: $DEST"
   fi
 
-  say "Opening the installer — install to the default ~/tizen-studio"
+  say "Opening the installer install to the default ~/tizen-studio"
   open "$DEST"   # mounts the DMG and shows it in Finder
   cat <<'EOF'
 
   In the installer window:
     • Run the installer app, accept, keep install path  ~/tizen-studio
-  When it finishes it launches Package Manager — install BOTH:
+  When it finishes it launches Package Manager install BOTH:
     • Extension SDK → "Samsung Certificate Extension"
     • Extension SDK → "TV Extensions"  (latest)
 

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use super::*;
 
-use crate::model::{Library, LibraryKind, Metadata, Show};
+use crate::model::{CastMember, Library, LibraryKind, Metadata, Show};
 
 /// Attach resolved TMDB metadata to one item (used by the enrichment pass).
 pub fn set_item_metadata(pool: &Pool, id: &str, meta: &Metadata) -> Result<()> {
@@ -12,6 +12,56 @@ pub fn set_item_metadata(pool: &Pool, id: &str, meta: &Metadata) -> Result<()> {
     let json = serde_json::to_string(meta)?;
     conn.execute("UPDATE items SET metadata = ?2 WHERE id = ?1", params![id, json])?;
     Ok(())
+}
+
+/// Wipe all resolved TMDB metadata so the next enrichment re-fetches from
+/// scratch: clears item/show metadata JSON, season casts and title embeddings.
+/// Returns `(items_cleared, shows_cleared)`. The process-wide lookup cache must
+/// be cleared separately by the caller (see [`crate::infra::metadata::Cache`]).
+pub fn reset_all_metadata(pool: &Pool) -> Result<(usize, usize)> {
+    let conn = pool.get()?;
+    let items = conn.execute("UPDATE items SET metadata = NULL WHERE metadata IS NOT NULL", [])?;
+    let shows = conn.execute("UPDATE shows SET metadata = NULL WHERE metadata IS NOT NULL", [])?;
+    conn.execute("DELETE FROM item_vectors", [])?;
+    conn.execute("DELETE FROM season_meta", [])?;
+    Ok((items, shows))
+}
+
+/// Store a season's TMDB cast (used by the enrichment pass). Upsert.
+pub fn set_season_cast(pool: &Pool, show_id: &str, season: u32, cast: &[CastMember]) -> Result<()> {
+    let conn = pool.get()?;
+    let json = serde_json::to_string(cast)?;
+    conn.execute(
+        "INSERT INTO season_meta (show_id,season,casts) VALUES (?1,?2,?3) \
+         ON CONFLICT(show_id,season) DO UPDATE SET casts=excluded.casts",
+        params![show_id, season, json],
+    )?;
+    Ok(())
+}
+
+/// Which of a show's seasons already have a stored cast (so re-scans skip them).
+pub fn seasons_with_cast(pool: &Pool, show_id: &str) -> Result<std::collections::HashSet<u32>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare("SELECT season FROM season_meta WHERE show_id = ?1")?;
+    let rows = stmt.query_map(params![show_id], |r| r.get::<_, u32>(0))?;
+    Ok(rows.collect::<rusqlite::Result<std::collections::HashSet<_>>>()?)
+}
+
+/// A show's per-season cast, keyed by season number (for `get_show`).
+pub fn season_casts(pool: &Pool, show_id: &str) -> Result<HashMap<u32, Vec<CastMember>>> {
+    let conn = pool.get()?;
+    let mut stmt = conn.prepare("SELECT season,casts FROM season_meta WHERE show_id = ?1")?;
+    let rows = stmt.query_map(params![show_id], |r| {
+        Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?))
+    })?;
+    let mut out = HashMap::new();
+    for row in rows {
+        let (season, json) = row?;
+        if let Ok(cast) = serde_json::from_str::<Vec<CastMember>>(&json) {
+            out.insert(season, cast);
+        }
+    }
+    Ok(out)
 }
 
 /// Attach resolved TMDB metadata to one show (used by the enrichment pass).
@@ -157,11 +207,11 @@ pub fn sync_all(
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
 
-    // 1) Libraries — UPSERT by id. We must NOT `DELETE FROM libraries` wholesale:
+    // 1) Libraries UPSERT by id. We must NOT `DELETE FROM libraries` wholesale:
     //    `items`/`files` cascade-delete from libraries, which would wipe all the
     //    precious probed data and metadata we're trying to preserve. Instead
     //    upsert each library, then delete only libraries no longer scanned (whose
-    //    cascade is the correct behaviour — their items are gone too).
+    //    cascade is the correct behaviour their items are gone too).
     {
         let mut lib_stmt = tx.prepare(
             "INSERT INTO libraries (id,name,kind,path,added_at) VALUES (?1,?2,?3,?4,?5) \
@@ -188,7 +238,7 @@ pub fn sync_all(
         }
     }
 
-    // 2) Shows — upsert without ever touching `metadata`.
+    // 2) Shows upsert without ever touching `metadata`.
     {
         let mut show_stmt = tx.prepare(
             "INSERT INTO shows (id,library,title,year,added_at) VALUES (?1,?2,?3,?4,?5) \
@@ -200,7 +250,7 @@ pub fn sync_all(
         }
     }
 
-    // 3) Items — upsert without ever touching `metadata`.
+    // 3) Items upsert without ever touching `metadata`.
     {
         let mut item_stmt = tx.prepare(
             "INSERT INTO items \
@@ -241,7 +291,7 @@ pub fn sync_all(
         }
     }
 
-    // 4) Files — diff sync by abs_path. Delete files no longer on disk; upsert
+    // 4) Files diff sync by abs_path. Delete files no longer on disk; upsert
     //    scanned files, resetting `probed=0` only when size/mtime changed.
     {
         // Build the set of abs_paths we just scanned.

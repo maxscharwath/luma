@@ -1,10 +1,10 @@
-//! System metrics sampler — the data behind the dashboard's Débit / Processeur /
+//! System metrics sampler the data behind the dashboard's Débit / Processeur /
 //! RAM charts and the Stockage page.
 //!
 //! A background task samples CPU + RAM via `sysinfo` every [`SAMPLE_INTERVAL`]
 //! and keeps a rolling ring buffer (~[`HISTORY`] samples ≈ the design's 2-minute
 //! window). Bandwidth is derived from the live playback registry (sum of stream
-//! bitrates, split LAN vs WAN) rather than instrumenting the byte stream — it's
+//! bitrates, split LAN vs WAN) rather than instrumenting the byte stream it's
 //! the throughput actually being delivered. Disk usage is read on demand for the
 //! storage page.
 

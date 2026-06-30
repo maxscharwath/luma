@@ -5,12 +5,12 @@ import {
   qualityBadgeForVideo,
   type Season,
   type Translate,
+  type UpNext,
 } from '@luma/core';
 import { useT } from '@luma/ui';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { IconCheck, IconChevronDown, IconPlayerPlayFilled } from '@tabler/icons-react';
+import { IconCheck, IconPlayerPlayFilled } from '@tabler/icons-react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   audioString,
   CastRail,
@@ -22,6 +22,7 @@ import {
   subString,
 } from '#web/features/catalog/detail';
 import { lumaClient } from '#web/shared/lib/api';
+import { useAuth } from '#web/shared/lib/auth';
 import { useMyList } from '#web/shared/lib/mylist';
 import { useWatched } from '#web/shared/lib/watched';
 
@@ -66,47 +67,103 @@ function PlayGlyph() {
   return <IconPlayerPlayFilled size={18} color="#fff" />;
 }
 
-function EpisodeRow({ episode, onPlay }: Readonly<{ episode: MediaItem; onPlay: () => void }>) {
+function EpisodeRow({
+  episode,
+  watched,
+  progress,
+  onPlay,
+  onToggleWatched,
+}: Readonly<{
+  episode: MediaItem;
+  watched: boolean;
+  /** Resume progress (%) for this episode, or null. */
+  progress: number | null;
+  onPlay: () => void;
+  onToggleWatched: () => void;
+}>) {
+  const t = useT();
   const [g1, g2] = posterColors(episode.id);
   const runtime = formatRuntime(episode.durationMs);
   const synopsis = episode.metadata?.overview;
+  // Per-episode still (TMDB), resolved to the local WebP cache; gradient fallback.
+  const still = lumaClient().backdropFor(episode);
+  const [imgOk, setImgOk] = useState(true);
+  const showImg = Boolean(still) && imgOk;
   return (
-    <button
-      type="button"
-      onClick={onPlay}
-      className="flex items-center gap-5 rounded-[14px] border border-white/5 bg-white/[.025] p-3.5 text-left
-        transition-colors hover:bg-white/6"
+    <div
+      className={`group flex items-center gap-5 rounded-[14px] border bg-white/[.025] p-3.5 transition-colors hover:bg-white/6 ${
+        watched ? 'border-accent/30' : 'border-white/5'
+      }`}
     >
-      <div
-        className="relative flex aspect-video w-50 shrink-0 items-center justify-center overflow-hidden rounded-md"
-        style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}
+      <button
+        type="button"
+        onClick={onPlay}
+        className="flex min-w-0 flex-1 items-center gap-5 text-left focus:outline-none"
       >
-        <div className="absolute inset-0 bg-[linear-gradient(170deg,rgba(0,0,0,.05),rgba(0,0,0,.45))]" />
-        <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(10,10,12,.5)] backdrop-blur-xs">
-          <PlayGlyph />
-        </div>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-center gap-2.5">
-          <span className="text-[17px] font-bold">
-            {episode.episode}. {episode.episodeTitle ?? episode.title}
-          </span>
-          {runtime ? (
-            <span className="text-[13px] font-medium text-white/45">{runtime}</span>
+        <div
+          className="relative flex aspect-video w-50 shrink-0 items-center justify-center overflow-hidden rounded-md"
+          style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}
+        >
+          {showImg ? (
+            <img
+              src={still ?? undefined}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              onError={() => setImgOk(false)}
+              className={`absolute inset-0 h-full w-full object-cover ${watched ? 'opacity-60' : ''}`}
+            />
+          ) : null}
+          <div className="absolute inset-0 bg-[linear-gradient(170deg,rgba(0,0,0,.05),rgba(0,0,0,.45))]" />
+          {watched ? (
+            <div className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-black shadow-card">
+              <IconCheck size={14} stroke={3} />
+            </div>
+          ) : null}
+          <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(10,10,12,.5)] backdrop-blur-xs transition-transform group-hover:scale-110">
+            <PlayGlyph />
+          </div>
+          {progress != null && !watched ? (
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-white/25">
+              <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
+            </div>
           ) : null}
         </div>
-        {synopsis ? (
-          <p className="line-clamp-2 text-[14px] leading-[1.5] text-white/60">{synopsis}</p>
-        ) : null}
-      </div>
-    </button>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex items-center gap-2.5">
+            <span className={`text-[17px] font-bold ${watched ? 'text-white/55' : ''}`}>
+              {episode.episode}. {episode.episodeTitle ?? episode.title}
+            </span>
+            {runtime ? (
+              <span className="text-[13px] font-medium text-white/45">{runtime}</span>
+            ) : null}
+          </div>
+          {synopsis ? (
+            <p className="line-clamp-2 text-[14px] leading-[1.5] text-white/60">{synopsis}</p>
+          ) : null}
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onToggleWatched}
+        aria-pressed={watched}
+        aria-label={watched ? t('content.markUnwatched') : t('content.markWatched')}
+        title={watched ? t('content.watched') : t('content.markWatched')}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
+          watched
+            ? 'border-accent bg-accent text-black'
+            : 'border-border-strong bg-white/5 text-text opacity-60 hover:bg-white/15 hover:opacity-100 group-hover:opacity-100'
+        }`}
+      >
+        <IconCheck size={17} stroke={2.4} />
+      </button>
+    </div>
   );
 }
 
-function Chevron() {
-  return <IconChevronDown size={16} stroke={2} />;
-}
-
+/** Season selector a horizontally-scrollable pill row (no portal/Radix, so it
+ * can't be clipped or mispositioned). The active season is filled amber. */
 function SeasonSwitcher({
   seasons,
   current,
@@ -114,47 +171,26 @@ function SeasonSwitcher({
 }: Readonly<{ seasons: Season[]; current: number; onPick: (n: number) => void }>) {
   const t = useT();
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        className="flex items-center gap-2.5 rounded-md border border-border-strong bg-white/7 px-4.5 py-2.5
-          text-[15px] font-semibold text-text outline-none transition-colors hover:bg-white/12"
-      >
-        {t('content.season', { number: current })}
-        <Chevron />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="start"
-          sideOffset={8}
-          className="z-50 min-w-60 rounded-xl border border-border bg-[rgba(24,24,28,.97)] p-1.5 shadow-pop
-            backdrop-blur-[20px] data-[state=open]:animate-[pop-in_.16s_var(--ease-out)]"
-        >
-          {seasons.map((s) => {
-            const active = s.number === current;
-            return (
-              <DropdownMenu.Item
-                key={s.number}
-                onSelect={() => onPick(s.number)}
-                className="flex cursor-pointer items-center justify-between gap-3.5 rounded-[9px] px-3.5 py-2.5
-                  outline-none data-[highlighted]:bg-white/7"
-              >
-                <div>
-                  <div
-                    className={`text-[15px] font-semibold ${active ? 'text-accent' : 'text-text'}`}
-                  >
-                    {t('content.season', { number: s.number })}
-                  </div>
-                  <div className="text-[12px] font-medium text-white/40">
-                    {episodesLabel(t, s.episodes.length)}
-                  </div>
-                </div>
-                {active ? <IconCheck size={18} stroke={2.4} className="text-accent" /> : null}
-              </DropdownMenu.Item>
-            );
-          })}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <div className="scrollbar-none flex gap-2 overflow-x-auto px-(--gutter-web)">
+      {seasons.map((s) => {
+        const active = s.number === current;
+        return (
+          <button
+            key={s.number}
+            type="button"
+            onClick={() => onPick(s.number)}
+            aria-current={active}
+            className={`shrink-0 rounded-full px-4.5 py-2 text-[14px] font-semibold transition-colors ${
+              active
+                ? 'bg-accent text-black'
+                : 'border border-border-strong bg-white/7 text-text hover:bg-white/12'
+            }`}
+          >
+            {t('content.season', { number: s.number })}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -164,6 +200,7 @@ function ShowDetailPage() {
   const navigate = useNavigate();
   const { isWatched, toggleWatched } = useWatched();
   const { inList, toggle: toggleList } = useMyList();
+  const { client, user } = useAuth();
   const show = detail.show;
   const seasons = detail.seasons;
   const meta = show.metadata;
@@ -172,7 +209,57 @@ function ShowDetailPage() {
   const current = seasons.find((s) => s.number === season) ?? seasons[0];
   const firstEpisode = seasons[0]?.episodes[0] ?? null;
 
+  // "Continue the series": resume the in-progress episode, else the next unwatched
+  // (per-user, server-computed). Falls back to the first episode while loading.
+  const [upNext, setUpNext] = useState<UpNext | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    client
+      .upNext(show.id)
+      .then((r) => {
+        if (!cancelled) setUpNext(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, user, show.id]);
+
+  const playTarget = upNext?.item ?? firstEpisode;
+  const playLabel =
+    playTarget?.season != null && playTarget.episode != null
+      ? t(upNext?.resume ? 'player.resumeEpisode' : 'player.playEpisode', {
+          season: playTarget.season,
+          episode: playTarget.episode,
+        })
+      : undefined;
+
   const play = (id: string) => navigate({ to: '/watch/$id', params: { id } });
+
+  // Per-episode resume progress (one fetch for this detail page, mapped by item id).
+  const [epProgress, setEpProgress] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    client
+      .progress()
+      .then((entries) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        for (const e of entries) {
+          const dur = e.durationMs ?? 0;
+          if (dur > 0 && e.positionMs > 0) {
+            map[e.itemId] = Math.min(100, Math.round((e.positionMs / dur) * 100));
+          }
+        }
+        setEpProgress(map);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, user]);
 
   const metaParts = [
     show.year ? String(show.year) : null,
@@ -192,36 +279,45 @@ function ShowDetailPage() {
         directors={directorsOf(meta)}
         tagline={meta?.tagline}
         overview={meta?.overview}
-        audio={firstEpisode ? audioString(t, firstEpisode) : '—'}
+        audio={firstEpisode ? audioString(t, firstEpisode) : '-'}
         subtitles={firstEpisode ? subString(t, firstEpisode) : t('subtitle.none')}
-        playable={firstEpisode}
+        playable={playTarget ?? firstEpisode}
+        playLabel={playLabel}
         themeUrl={themeUrl}
         watched={isWatched(show.id)}
         onToggleWatched={() => toggleWatched(show.id)}
         inList={inList(show.id)}
         onToggleList={() => toggleList(show.id)}
         onBack={() => navigate({ to: '/series' })}
-        onPlay={() => firstEpisode && play(firstEpisode.id)}
+        onPlay={() => playTarget && play(playTarget.id)}
       />
-
-      <CastRail cast={meta?.cast ?? []} />
 
       {current ? (
         <section className="mt-10">
-          <div className="mb-2 flex flex-wrap items-center gap-3.5 px-(--gutter-web)">
-            <h2 className="font-display text-[24px] font-bold tracking-[-.02em]">
-              {t('content.episodes')}
-            </h2>
-            {seasons.length > 1 ? (
+          <h2 className="mb-4 px-(--gutter-web) font-display text-[24px] font-bold tracking-[-.02em]">
+            {t('content.episodes')}
+          </h2>
+          {seasons.length > 1 ? (
+            <div className="mb-2">
               <SeasonSwitcher seasons={seasons} current={current.number} onPick={setSeason} />
-            ) : null}
-          </div>
-          <div className="mb-5 px-(--gutter-web) text-[14px] font-medium text-white/45">
+            </div>
+          ) : null}
+          {/* Cast for the selected season (TMDB season credits), falling back to
+              the show's overall cast when the season's isn't resolved yet. */}
+          <CastRail cast={current.cast?.length ? current.cast : (meta?.cast ?? [])} />
+          <div className="mb-5 mt-4 px-(--gutter-web) text-[14px] font-medium text-white/45">
             {episodesLabel(t, current.episodes.length)}
           </div>
-          <div className="flex max-w-250 flex-col gap-3.5 px-(--gutter-web)">
+          <div className="flex flex-col gap-3.5 px-(--gutter-web)">
             {current.episodes.map((ep) => (
-              <EpisodeRow key={ep.id} episode={ep} onPlay={() => play(ep.id)} />
+              <EpisodeRow
+                key={ep.id}
+                episode={ep}
+                watched={isWatched(ep.id)}
+                progress={epProgress[ep.id] ?? null}
+                onPlay={() => play(ep.id)}
+                onToggleWatched={() => toggleWatched(ep.id)}
+              />
             ))}
           </div>
         </section>

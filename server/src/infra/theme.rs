@@ -2,7 +2,7 @@
 //!
 //! Plex plays a show's title theme under the detail page. The community
 //! "tvthemes" archive serves these as `http://tvthemes.plexapp.com/<tvdb>.mp3`,
-//! keyed by TheTVDB series id — which TMDB hands us via `external_ids`. During
+//! keyed by TheTVDB series id which TMDB hands us via `external_ids`. During
 //! enrichment we download a show's theme once and store it under `<data>/themes/`,
 //! then the catalog serves it from LUMA itself (`GET /api/themes/<tvdb>.mp3`).
 //! Movies have no archive entry, so this is a no-op for them.

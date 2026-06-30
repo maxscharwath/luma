@@ -3,7 +3,7 @@
 //!
 //! Advertises a `_luma._tcp` service and resolves the hostname `luma.local` to
 //! this machine's LAN address(es). Browsers / TV webviews can't *browse* mDNS
-//! from JavaScript, but many client OSes resolve a `.local` hostname — so a
+//! from JavaScript, but many client OSes resolve a `.local` hostname so a
 //! client can simply try `http://luma.local:<port>` and reach us with no IP
 //! entry. Best-effort: if mDNS can't start (no multicast, etc.) the server runs
 //! fine without it.
@@ -17,7 +17,7 @@ use tracing::info;
 pub const HOSTNAME: &str = "luma.local.";
 pub const SERVICE_TYPE: &str = "_luma._tcp.local.";
 
-/// Start advertising on `port`. Returns the running daemon — keep it alive for
+/// Start advertising on `port`. Returns the running daemon keep it alive for
 /// the process lifetime (dropping it unregisters the service).
 pub fn advertise(port: u16, instance: &str) -> Result<ServiceDaemon> {
     let daemon = ServiceDaemon::new()?;
@@ -43,7 +43,7 @@ pub fn advertise(port: u16, instance: &str) -> Result<ServiceDaemon> {
     Ok(daemon)
 }
 
-/// The primary outbound LAN IPv4 — the source address the OS would use to reach
+/// The primary outbound LAN IPv4 the source address the OS would use to reach
 /// the internet. Found by "connecting" a UDP socket (no packets are sent) and
 /// reading its local address.
 fn primary_lan_ip() -> Option<IpAddr> {

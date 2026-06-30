@@ -34,9 +34,11 @@ pub fn server_name(settings: &Settings) -> String {
     }
 }
 
-/// Max concurrent transcode sessions (functional cap), 1..=12.
+/// Max concurrent transcode sessions (functional cap), 1..=12. These are
+/// audio-only remuxes (video is stream-copied), so the bound is generous; the LRU
+/// eviction in [`crate::infra::transcode::Sessions::make_room`] keeps it honest.
 pub fn max_transcodes(settings: &Settings) -> usize {
-    settings.get_i64("maxConcurrent", 4).clamp(1, 12) as usize
+    settings.get_i64("maxConcurrent", 8).clamp(1, 32) as usize
 }
 
 /// Whether Plex-style theme songs are enabled: enrichment downloads a show's
@@ -45,7 +47,7 @@ pub fn theme_songs_enabled(settings: &Settings) -> bool {
     settings.get_bool("themeSongs", false)
 }
 
-/// The TMDB metadata language used when enriching the catalog (e.g. `fr-FR`) —
+/// The TMDB metadata language used when enriching the catalog (e.g. `fr-FR`)
 /// the persisted `tmdbLanguage` setting, falling back to the env-configured
 /// `config.tmdb_language` (default `en-US`) when unset. The catalog stores ONE
 /// language for everyone, so this is the household's metadata language, not a

@@ -13,12 +13,12 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const TV_CSS_TARGETS = { chrome: 99 << 16 };
 
 export default defineConfig({
-  // `tvFrame()` is dev-only (apply: 'serve') — it letterboxes the app into a
+  // `tvFrame()` is dev-only (apply: 'serve') it letterboxes the app into a
   // 1920×1080 16:9 stage in the browser; never injected into `vite build` output.
   plugins: [tailwindcss(), react(), tvFrame()],
   // `#tv/*` → the @luma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
   resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) } },
-  // Packaged TV apps load from a local path — assets must be referenced relatively.
+  // Packaged TV apps load from a local path assets must be referenced relatively.
   base: './',
   server: {
     port: 5174,
@@ -32,7 +32,7 @@ export default defineConfig({
     transformer: 'lightningcss',
     lightningcss: { targets: TV_CSS_TARGETS },
   },
-  // Tizen 8+ webview (Chromium 108+, 2024 models) — modern target, lean output.
+  // Tizen 8+ webview (Chromium 108+, 2024 models) modern target, lean output.
   build: {
     target: 'es2020',
     outDir: 'dist',

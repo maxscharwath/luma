@@ -98,22 +98,25 @@ fn defaults() -> BTreeMap<String, Value> {
     m.insert("uiLanguage".into(), json!("Français"));
     // TMDB metadata language (e.g. "fr-FR"). Empty → fall back to the
     // env-configured `LUMA_TMDB_LANGUAGE` (default "en-US"). One language for the
-    // whole catalog — the household's metadata language, not a per-user UI choice.
+    // whole catalog the household's metadata language, not a per-user UI choice.
     m.insert("tmdbLanguage".into(), json!(""));
     m.insert("timezone".into(), json!("Europe/Zurich (UTC+1)"));
     m.insert("autoUpdate".into(), json!(true));
     m.insert("updateChannel".into(), json!("Stable"));
     // Library auto-scan on folder changes (the watcher). `watchAutoScan` is the
     // master toggle; `watchIntervalSecs` is the periodic re-scan cadence (the only
-    // path that catches NAS/SMB edits, which emit no FS events) — `-1` = use the
+    // path that catches NAS/SMB edits, which emit no FS events) `-1` = use the
     // `LUMA_WATCH_INTERVAL` env or 300s default, `0` = FS events only.
     m.insert("watchAutoScan".into(), json!(true));
     m.insert("watchIntervalSecs".into(), json!(-1));
     m.insert("anonStats".into(), json!(false));
     m.insert("showRecentHome".into(), json!(true));
     // Plex-style theme songs: loop a show's title theme under its detail page.
-    // Opt-in — off until the admin enables it (and a scan downloads the themes).
+    // Opt-in off until the admin enables it (and a scan downloads the themes).
     m.insert("themeSongs".into(), json!(false));
+    // Intro/credits marker detection: off | chapters (free, from embedded
+    // chapters) | fingerprint (audio analysis job, heavy). Read by markers.detect.
+    m.insert("introDetection".into(), json!("chapters"));
     m.insert("theme".into(), json!("Sombre (Luma)"));
     m.insert("dateFormat".into(), json!("JJ/MM/AAAA"));
     // network
@@ -130,7 +133,7 @@ fn defaults() -> BTreeMap<String, Value> {
     m.insert("hevcEncode".into(), json!(false));
     m.insert("transcoderSpeed".into(), json!("Automatique"));
     m.insert("bgQuality".into(), json!("Préférer la vitesse"));
-    m.insert("maxConcurrent".into(), json!("4"));
+    m.insert("maxConcurrent".into(), json!("8"));
     m.insert("deleteAfter".into(), json!(true));
     // storage / cache
     m.insert("cacheLimit".into(), json!("80 Go"));

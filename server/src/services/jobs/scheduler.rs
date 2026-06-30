@@ -1,4 +1,4 @@
-//! The cron tick loop and due-job selection — split out of [`super`] (the job
+//! The cron tick loop and due-job selection split out of [`super`] (the job
 //! manager) to keep that file focused and to give the scheduler's boundary
 //! arithmetic its own home + tests. These are `impl JobManager` methods in a
 //! sibling file; same-module privacy lets them touch the manager's private state.
@@ -15,12 +15,12 @@ use crate::state::SharedState;
 
 /// How often the scheduler wakes to fire due jobs. Any cron time that falls in
 /// the `(previous tick, now]` window triggers, so this only bounds latency, not
-/// correctness — a minute-granularity schedule needs a tick below 60s.
+/// correctness a minute-granularity schedule needs a tick below 60s.
 const TICK: StdDuration = StdDuration::from_secs(30);
 
 impl JobManager {
     /// Spawn the cron tick loop. Fires any schedule whose time falls in the
-    /// `(last tick, now]` window — so a server that was down does **not**
+    /// `(last tick, now]` window so a server that was down does **not**
     /// retroactively run missed jobs, and the tick rate only bounds latency.
     pub fn spawn_scheduler(self: Arc<Self>, state: SharedState) {
         tokio::spawn(async move {

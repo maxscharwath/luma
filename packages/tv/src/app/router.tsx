@@ -10,7 +10,7 @@ import {
 } from 'react';
 
 /**
- * A tiny, type-safe, zero-dependency router for the 10-foot app — TanStack-grade
+ * A tiny, type-safe, zero-dependency router for the 10-foot app TanStack-grade
  * DX without the bundle. A TV has no address bar, so this is a *memory* history:
  * an in-memory stack of screens. Add a screen by adding one line to `TvRoutes`;
  * `go`, `reset` and `<TvOutlet>` all become type-checked against it.
@@ -28,7 +28,7 @@ import {
  *   }} />
  */
 export interface TvRoutes {
-  /** Add a (distant) server by address — on-screen URL keyboard. */
+  /** Add a (distant) server by address on-screen URL keyboard. */
   connect: undefined;
   /** Multi-server profile picker (signed out). */
   profiles: undefined;
@@ -56,7 +56,7 @@ export interface TvRoutes {
 export type RouteName = keyof TvRoutes;
 export type TvRoute = { [K in RouteName]: { name: K; params: TvRoutes[K] } }[RouteName];
 
-// Call signature: routes with no params omit the second arg — `go('home')` vs `go('movie', { item })`.
+// Call signature: routes with no params omit the second arg `go('home')` vs `go('movie', { item })`.
 type GoArgs<K extends RouteName> = TvRoutes[K] extends undefined
   ? [name: K]
   : [name: K, params: TvRoutes[K]];
@@ -89,7 +89,7 @@ const NavCtx = createContext<TvNav | null>(null);
  * The route → component registry (the "route tree"), declared once and handed to
  * <TvNavProvider screens={…}>. Each screen reads its own params/data from hooks
  * (useParams / useClient / useAuth / useConnection), so the components take NO
- * props and `<TvOutlet/>` renders them by name — TanStack-style.
+ * props and `<TvOutlet/>` renders them by name TanStack-style.
  */
 export type TvScreens = { [K in RouteName]: ComponentType };
 const ScreensCtx = createContext<TvScreens | null>(null);
@@ -102,7 +102,7 @@ export function TvNavProvider({
   screens,
   children,
 }: Readonly<{ screens: TvScreens; children: ReactNode }>) {
-  // Start on the profile picker — the signed-out home. Adding a server happens
+  // Start on the profile picker the signed-out home. Adding a server happens
   // inside the Add-profile wizard, never as the launch screen. The guard advances
   // to `home` once a session resolves.
   const [stack, setStack] = useState<TvRoute[]>([PROFILES]);
@@ -145,7 +145,7 @@ export function useNav(): TvNav {
   return ctx;
 }
 
-/** Typed access to the current route's params — `const { item } = useParams('movie')`. */
+/** Typed access to the current route's params `const { item } = useParams('movie')`. */
 export function useParams<K extends RouteName>(name: K): TvRoutes[K] {
   const { route } = useNav();
   if (route.name !== name) throw new Error(`useParams('${name}') called on route '${route.name}'`);
@@ -156,7 +156,7 @@ export function useParams<K extends RouteName>(name: K): TvRoutes[K] {
 const ClientCtx = createContext<LumaClient | null>(null);
 
 // Tolerates a null client (during connect, before a server is reached) so the
-// providers can wrap the whole app — the `connect` screen never calls useClient().
+// providers can wrap the whole app the `connect` screen never calls useClient().
 export function TvClientProvider({
   client,
   children,
@@ -167,7 +167,7 @@ export function TvClientProvider({
   return <ClientCtx.Provider value={client}>{children}</ClientCtx.Provider>;
 }
 
-/** The LumaClient. Throws if read before a server is reached — only the routed
+/** The LumaClient. Throws if read before a server is reached only the routed
  * screens (rendered once status is `ready`) call it, never the connect screen. */
 export function useClient(): LumaClient {
   const c = useContext(ClientCtx);

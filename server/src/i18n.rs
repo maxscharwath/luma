@@ -1,4 +1,4 @@
-//! Server-side i18n — a tiny mirror of the shared `@luma/core` i18n.
+//! Server-side i18n a tiny mirror of the shared `@luma/core` i18n.
 //!
 //! The JSON catalogs in `packages/core/src/locales` are the single source of
 //! truth for the whole stack (they are also bundled into the TS clients). We

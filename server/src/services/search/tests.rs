@@ -52,6 +52,7 @@ fn movie(id: &str, title: &str, m: Option<Metadata>) -> MediaItem {
         abs_path: None,
         files: Vec::new(),
         default_file_id: None,
+        markers: Vec::new(),
     }
 }
 
@@ -71,6 +72,7 @@ fn engine() -> SearchEngine {
         video: None,
         added_at: String::new(),
         metadata: Some(meta("Breaking Bad", "A chemistry teacher turns to crime", &["Crime", "Drama"], &["Bryan Cranston"])),
+        progress: None,
     }];
     e.rebuild(&movies, &shows, &[]).unwrap();
     e

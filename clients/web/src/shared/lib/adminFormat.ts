@@ -2,7 +2,7 @@
 // helpers baked into the `Admin Serveur` design (poster/avatar gradients, byte +
 // duration formatting, French decimal commas).
 
-/** Deterministic hue (0..359) from a string — same as the design's `_hue`. */
+/** Deterministic hue (0..359) from a string same as the design's `_hue`. */
 export function hue(s: string): number {
   let h = 0;
   for (let i = 0; i < (s || '').length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
@@ -83,7 +83,7 @@ export function formatUptime(secs: number): string {
 export function relativeSeen(iso: string | null | undefined): string {
   if (!iso) return 'jamais';
   const then = Date.parse(iso);
-  if (Number.isNaN(then)) return '—';
+  if (Number.isNaN(then)) return '-';
   const diff = Date.now() - then;
   const min = Math.floor(diff / 60000);
   if (min < 1) return "à l'instant";

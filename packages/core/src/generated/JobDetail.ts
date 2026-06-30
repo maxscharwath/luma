@@ -3,6 +3,6 @@ import type { JobInfo } from "./JobInfo";
 import type { JobRun } from "./JobRun";
 
 /**
- * `GET /api/admin/jobs/:key` — a job plus its recent run history.
+ * `GET /api/admin/jobs/:key` a job plus its recent run history.
  */
 export type JobDetail = { info: JobInfo, runs: Array<JobRun>, };

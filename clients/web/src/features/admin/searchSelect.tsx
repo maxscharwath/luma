@@ -1,4 +1,4 @@
-// A searchable Radix Select — the model picker on the IA page. Renders as the
+// A searchable Radix Select the model picker on the IA page. Renders as the
 // design's chevron value-chip; opening reveals a sticky search box that filters
 // the options (model lists from Ollama/OpenRouter get long). The current value
 // is always selectable even if it isn't in the loaded list.
@@ -89,7 +89,7 @@ export function SearchSelect({
           </div>
           <Select.Viewport className="max-h-64 overflow-y-auto p-1.5">
             {filtered.length === 0 ? (
-              <div className="px-3 py-4 text-center text-[12.5px] text-dim">—</div>
+              <div className="px-3 py-4 text-center text-[12.5px] text-dim">-</div>
             ) : (
               filtered.map((o) => (
                 <Select.Item

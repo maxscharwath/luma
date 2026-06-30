@@ -1,12 +1,12 @@
 //! In-RAM full-text search over the catalogue (movies, shows, episodes).
 //!
-//! A tantivy index living entirely in a `RamDirectory`, rebuilt from SQLite — the
-//! source of truth — on every library change (startup, watcher re-sync, manual
+//! A tantivy index living entirely in a `RamDirectory`, rebuilt from SQLite the
+//! source of truth on every library change (startup, watcher re-sync, manual
 //! rescan, and once more after TMDB enrichment lands cast/overview/genres). A
 //! rebuild constructs a brand-new index and atomically swaps it in, so searches
 //! never see a half-built index and there's nothing on disk to migrate.
 //!
-//! This is keyword/typo-tolerant title search — distinct from the semantic
+//! This is keyword/typo-tolerant title search distinct from the semantic
 //! "more like this / For You" recommender in [`crate::db`] vectors, which ranks by
 //! embedding similarity rather than matching words.
 
@@ -35,7 +35,7 @@ pub enum HitKind {
     Episode,
 }
 
-/// One match — the catalogue id and what it is. Hits are returned already sorted
+/// One match the catalogue id and what it is. Hits are returned already sorted
 /// by descending relevance, so the position is the rank.
 pub struct Hit {
     pub id: String,

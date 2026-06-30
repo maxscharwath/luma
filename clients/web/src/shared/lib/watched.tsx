@@ -2,7 +2,7 @@
 //
 // The catalogue renders hundreds of poster tiles; fetching watched status per
 // card would be N requests, so we load the whole set of watched item ids once
-// (on sign-in) and let each card check membership. Toggling is optimistic — the
+// (on sign-in) and let each card check membership. Toggling is optimistic the
 // set updates immediately and reverts if the server call fails.
 
 import {

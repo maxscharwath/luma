@@ -1,5 +1,5 @@
-//! `recommendations.reembed` — manual-only. Re-embed every title from its
-//! **stored** metadata with the active embedder — for after an embedder switch
+//! `recommendations.reembed` manual-only. Re-embed every title from its
+//! **stored** metadata with the active embedder for after an embedder switch
 //! (e.g. enabling MiniLM, 256→384-dim), WITHOUT re-hitting TMDB. Until this runs,
 //! recommendations are empty whenever the stored vector dimension no longer
 //! matches the embedder. Refreshes the in-memory vector cache when done.
@@ -31,7 +31,7 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
         done += 1;
         ctx.progress(done, total);
         if current.get(id).copied() == Some(target) {
-            skipped += 1; // already current — leave it
+            skipped += 1; // already current leave it
             return;
         }
         if let Some(meta) = meta {
@@ -45,14 +45,14 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
 
     for m in movies {
         if ctx.cancelled() {
-            ctx.warn("cancellation requested — stopping");
+            ctx.warn("cancellation requested stopping");
             return Ok(());
         }
         embed_one(&m.id, &m.title, m.year, m.metadata.as_ref());
     }
     for s in &shows {
         if ctx.cancelled() {
-            ctx.warn("cancellation requested — stopping");
+            ctx.warn("cancellation requested stopping");
             return Ok(());
         }
         embed_one(&s.id, &s.title, s.year, s.metadata.as_ref());

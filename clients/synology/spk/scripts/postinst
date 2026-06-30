@@ -6,7 +6,7 @@ VAR="/var/packages/luma/var"
 mkdir -p "${VAR}/data"
 
 # Wizard field keys arrive as environment variables. Only write on a fresh install
-# — never clobber an existing config on upgrade (the wizard doesn't run then, so the
+# never clobber an existing config on upgrade (the wizard doesn't run then, so the
 # env vars would be empty and we'd reset the user's media folders to the default).
 if [ ! -f "${VAR}/luma.conf" ]; then
     cat > "${VAR}/luma.conf" <<EOF

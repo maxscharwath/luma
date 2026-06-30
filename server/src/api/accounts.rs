@@ -32,7 +32,7 @@ pub struct RegisterBody {
     pub email: String,
     pub username: String,
     pub password: String,
-    /// Invitation token. Required for every account after the bootstrap owner —
+    /// Invitation token. Required for every account after the bootstrap owner
     /// registration is invite-only (an admin with `users.manage` mints invites).
     #[serde(rename = "inviteToken", default)]
     pub invite_token: Option<String>,
@@ -100,7 +100,7 @@ pub async fn register(
 
 #[derive(Debug, Deserialize)]
 pub struct LoginBody {
-    /// Email or username — the profile picker only knows usernames.
+    /// Email or username the profile picker only knows usernames.
     pub email: String,
     pub password: String,
 }

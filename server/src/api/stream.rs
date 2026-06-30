@@ -105,16 +105,13 @@ pub async fn hls_playlist(
     let path = std::path::Path::new(&abs);
     let key = format!("{id}:{variant}");
 
-    // Enforce the concurrent-transcode cap (Transcodage → Flux simultanés max).
-    // Reusing an existing session for this key never counts against it.
+    // Bound concurrent transcodes (Transcodage → Flux simultanés max) by evicting
+    // the most-idle session rather than rejecting playback: a client's own seeks
+    // spawn a fresh per-position session each time, so a hard 503 would block the
+    // very stream the user is trying to watch. Reusing this key never evicts.
     if !state.transcode.has(&key).await {
         let cap = crate::services::settings::max_transcodes(&state.settings);
-        if state.transcode.active_count().await >= cap {
-            return Err(json_error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "trop de transcodages simultanés",
-            ));
-        }
+        state.transcode.make_room(cap, &key).await;
     }
 
     let bytes = if let Some(spec) = master_spec(&variant) {

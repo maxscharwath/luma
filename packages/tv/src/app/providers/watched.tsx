@@ -1,7 +1,7 @@
 // Per-user "watched" state, hydrated once and shared across every tile + the
 // detail toggle. Unlike "Ma liste" (local-only), this is server-backed: the set
 // of watched item/show ids comes from `client.watched()` and toggles persist via
-// `client.markWatched` / `client.unmarkWatched`. Toggles are optimistic — the set
+// `client.markWatched` / `client.unmarkWatched`. Toggles are optimistic the set
 // updates immediately and reverts if the server call fails.
 
 import {

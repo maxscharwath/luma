@@ -24,7 +24,7 @@ export interface AuthSession {
   session: StoredSession | null;
   /** The signed-in user (null when signed out). */
   user: User | null;
-  /** Accounts already signed-in on this device — switchable without a password. */
+  /** Accounts already signed-in on this device switchable without a password. */
   accounts: StoredSession[];
   /** True once storage hydration has run (client-side). */
   ready: boolean;

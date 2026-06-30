@@ -10,7 +10,7 @@ const VEIL =
  * Shared chrome for the Film / Série detail screens: full-bleed backdrop, veil,
  * the overline + title + meta row + synopsis header, and the (deliberately
  * last-focusable) Retour button. Screen-specific actions and extras render as
- * `children` — they come before Retour in the DOM, so the first action (Lecture)
+ * `children` they come before Retour in the DOM, so the first action (Lecture)
  * stays the initial spatial-focus target on mount.
  */
 export function TvDetailScaffold({

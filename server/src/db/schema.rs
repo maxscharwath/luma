@@ -95,6 +95,19 @@ pub(crate) const SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_files_abs     ON files(abs_path);
     CREATE INDEX IF NOT EXISTS idx_files_probed  ON files(probed);
 
+    -- Segment markers per episode (skip-intro + next-up at credits). One row per
+    -- (item, kind); kind is 'intro' | 'credits' | …; bounds in ms. Populated from
+    -- embedded chapters and the audio-fingerprint job.
+    CREATE TABLE IF NOT EXISTS markers (
+        item_id    TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+        kind       TEXT NOT NULL,
+        start_ms   INTEGER NOT NULL,
+        end_ms     INTEGER NOT NULL,
+        source     TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (item_id, kind)
+    );
+
     CREATE TABLE IF NOT EXISTS users (
         id            TEXT PRIMARY KEY,
         email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -127,13 +140,21 @@ pub(crate) const SCHEMA: &str = "
         used_at     TEXT
     );
     -- `item_id` is a catalogue id: a movie item id OR a show id (shows live in
-    -- their own table, so this column is intentionally NOT an items FK — a show
+    -- their own table, so this column is intentionally NOT an items FK a show
     -- can be marked watched as a whole).
     CREATE TABLE IF NOT EXISTS watched (
         user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         item_id    TEXT NOT NULL,
         watched_at TEXT NOT NULL,
         PRIMARY KEY (user_id, item_id)
+    );
+    -- Per-season TMDB cast (the show's seasons are derived from items, so this
+    -- holds the season-level credits keyed by (show, season number)).
+    CREATE TABLE IF NOT EXISTS season_meta (
+        show_id TEXT NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+        season  INTEGER NOT NULL,
+        casts   TEXT NOT NULL,
+        PRIMARY KEY (show_id, season)
     );
     -- Ma liste: user-bookmarked titles (movie item ids OR show ids; same
     -- no-items-FK rationale as `watched`). Synced across web + TV.
@@ -242,12 +263,12 @@ pub(crate) const SCHEMA: &str = "
     );
 ";
 
-/// Explicit column list for file SELECTs — keeps [`super::row_to_file`] index-stable.
+/// Explicit column list for file SELECTs keeps [`super::row_to_file`] index-stable.
 pub(crate) const FILE_COLS: &str = "id,rel_path,container,size,edition,probed,\
     duration_ms,v_codec,v_width,v_height,v_hdr,v_bit_depth,\
     a_codec,a_channels,a_language,subtitles,abs_path,audio_tracks";
 
-/// Explicit column list for item SELECTs — keeps [`super::row_to_item`] index-stable.
+/// Explicit column list for item SELECTs keeps [`super::row_to_item`] index-stable.
 /// `metadata` is appended last (index 25).
 pub(crate) const ITEM_COLS: &str = "id,kind,title,year,duration_ms,container,\
     v_codec,v_width,v_height,v_hdr,v_bit_depth,a_codec,a_channels,a_language,subtitles,\
@@ -287,6 +308,10 @@ fn migrate(conn: &Connection) {
         "ALTER TABLE users ADD COLUMN language TEXT",
         // Optional profile-lock PIN (PBKDF2 hash, own salt). NULL = no PIN.
         "ALTER TABLE users ADD COLUMN pin_hash TEXT",
+        // `season_meta` shipped briefly with a `cast` column a reserved SQLite
+        // keyword that breaks unquoted SELECT/INSERT. Rename to `casts`. Errors
+        // ("no such column") once renamed / on fresh DBs, which we ignore.
+        "ALTER TABLE season_meta RENAME COLUMN \"cast\" TO casts",
     ] {
         let _ = conn.execute(sql, []);
     }

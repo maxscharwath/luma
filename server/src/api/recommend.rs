@@ -16,7 +16,7 @@ use crate::state::SharedState;
 /// Titles per row.
 const ROW_LEN: usize = 30;
 
-/// `GET /api/for-you` (Bearer) → `MediaItem[]` — content-based picks from the
+/// `GET /api/for-you` (Bearer) → `MediaItem[]` content-based picks from the
 /// caller's watch history. Empty until they've watched something embeddable.
 pub async fn for_you(State(state): State<SharedState>, AuthUser(user): AuthUser) -> Response {
     match query(&state.db, move |pool| db::recommended_for(&pool, &user.id, ROW_LEN)).await {
@@ -25,7 +25,7 @@ pub async fn for_you(State(state): State<SharedState>, AuthUser(user): AuthUser)
     }
 }
 
-/// `GET /api/items/:id/similar` → `MediaItem[]` — "more like this" for a title.
+/// `GET /api/items/:id/similar` → `MediaItem[]` "more like this" for a title.
 pub async fn similar(State(state): State<SharedState>, Path(id): Path<String>) -> Response {
     match query(&state.db, move |pool| db::similar_items(&pool, &id, ROW_LEN)).await {
         Ok(items) => Json(items).into_response(),
@@ -39,7 +39,7 @@ pub struct ThemedParams {
     q: String,
 }
 
-/// `GET /api/themed?q=…` → `MediaItem[]` — zero-shot themed row: embeds the
+/// `GET /api/themed?q=…` → `MediaItem[]` zero-shot themed row: embeds the
 /// free-text phrase with the process-wide embedder and returns the nearest
 /// titles. Public. Empty `q` → empty row (no implicit "everything").
 pub async fn themed(

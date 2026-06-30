@@ -1,11 +1,5 @@
 import type { Metadata, PersonInvolvement, Translate } from '@luma/core';
-import {
-  creditsPerson,
-  personInvolvement,
-  posterColors,
-  qualityBadge,
-  qualityBadgeForVideo,
-} from '@luma/core';
+import { creditsPerson, personInvolvement, posterColors } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
@@ -14,7 +8,7 @@ import { useFocusNav } from '#tv/app/useFocusNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
 import { gradFor, initials } from '#tv/shared/ui';
 
-/** Everything one cast/crew person is credited in — reached by selecting a face
+/** Everything one cast/crew person is credited in reached by selecting a face
  * in a detail page's "Distribution" rail. Filters the already-loaded catalogue
  * locally (no extra request), ranked best-known work first. */
 export function TvPerson() {
@@ -38,7 +32,6 @@ export function TvPerson() {
       card: {
         id: m.id,
         title: m.title,
-        badge: qualityBadge(m),
         poster: client.posterFor(m),
         colors: posterColors(m.id),
         onClick: () => nav.go('movie', { item: m }),
@@ -49,7 +42,6 @@ export function TvPerson() {
       card: {
         id: s.id,
         title: s.title,
-        badge: qualityBadgeForVideo(s.video),
         poster: client.showPosterFor(s),
         colors: posterColors(s.id),
         onClick: () => nav.go('show', { show: s }),
@@ -107,7 +99,7 @@ function PersonAvatar({ photo, name }: Readonly<{ photo: string | null; name: st
   const showImg = Boolean(photo) && !failed;
   return (
     <div
-      className="relative flex h-24 w-24 flex-none items-center justify-center overflow-hidden rounded-full font-display text-[32px] font-bold text-white/90 shadow-card"
+      className="relative flex h-24 w-24 flex-none items-center justify-center overflow-hidden rounded-full font-display text-[32px] font-bold text-[rgba(255,255,255,0.9)] shadow-card"
       style={{ background: gradFor(name) }}
     >
       <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_22%,rgba(255,255,255,0.2),transparent_60%)]" />

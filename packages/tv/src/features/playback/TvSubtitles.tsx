@@ -16,7 +16,7 @@ const TV_SUB_CSS: CSSProperties = {
 
 /**
  * Custom subtitle renderer for the TV player. Fetches the active track's WebVTT
- * itself (cross-origin `<track>` elements never load their cues — the app and the
+ * itself (cross-origin `<track>` elements never load their cues the app and the
  * media server are different origins), parses it (`parseVtt`), and renders the
  * active cue synced to playback (`activeCueText`). Raises above the control bar
  * when the controls are visible so subtitles are never hidden behind them.

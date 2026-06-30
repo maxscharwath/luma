@@ -1,5 +1,5 @@
 //! Derive a display-ready snapshot (title + stream labels + bitrate) from a
-//! catalog item, for a live session card. Pure formatting — no state.
+//! catalog item, for a live session card. Pure formatting no state.
 
 use crate::model::MediaItem;
 
@@ -30,7 +30,7 @@ pub(super) fn snapshot(item: &MediaItem) -> Snapshot {
                 format!("{res} · {codec}")
             }
         })
-        .unwrap_or_else(|| "—".into());
+        .unwrap_or_else(|| "-".into());
 
     let audio_label = item
         .audio
@@ -40,7 +40,7 @@ pub(super) fn snapshot(item: &MediaItem) -> Snapshot {
             let codec = a.codec.to_uppercase();
             format!("{ch} · {codec}")
         })
-        .unwrap_or_else(|| "—".into());
+        .unwrap_or_else(|| "-".into());
 
     Snapshot {
         title: item.title.clone(),
@@ -69,7 +69,7 @@ fn resolution_label(width: Option<u32>) -> &'static str {
         w if w >= 1900 => "1080p",
         w if w >= 1200 => "720p",
         w if w > 0 => "SD",
-        _ => "—",
+        _ => "-",
     }
 }
 

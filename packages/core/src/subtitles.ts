@@ -49,7 +49,7 @@ export function parseVtt(raw: string): Cue[] {
 }
 
 /**
- * The active cue's text at time `t`. `hint` is the last returned index — an O(1)
+ * The active cue's text at time `t`. `hint` is the last returned index an O(1)
  * amortised moving pointer for normal playback (cues advance by one), with a
  * binary search to re-sync after a seek. Returns the text and the new pointer to
  * remember for the next call.

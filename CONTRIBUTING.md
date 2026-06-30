@@ -1,6 +1,6 @@
 # Contributing to LUMA
 
-Thanks for your interest in LUMA! This is a self-hosted media-streaming project —
+Thanks for your interest in LUMA! This is a self-hosted media-streaming project
 a Rust server plus web and TV clients sharing one core and one design language.
 Contributions of all sizes are welcome: bug reports, fixes, docs, new platform
 shells, and design polish.
@@ -11,7 +11,7 @@ LUMA is a [Bun](https://bun.sh) workspace monorepo with a Rust server alongside 
 
 ```
 luma/
-├─ server/      Rust media server (axum) — scan, SQLite, range streaming
+├─ server/      Rust media server (axum) scan, SQLite, range streaming
 ├─ packages/    @luma/core · @luma/ui · @luma/tv  (shared logic, UI, 10-foot experience)
 ├─ clients/     @luma/web · @luma/tizen · @luma/webos  (thin platform shells)
 └─ design/      imported design source (tokens, components, guidelines)
@@ -22,8 +22,8 @@ own README for details.
 
 ## Prerequisites
 
-- **Bun** ≥ 1.3 — package manager + runner ([why Bun](README.md#prerequisites))
-- **Rust** ≥ 1.81 + **ffmpeg/ffprobe** — for the server
+- **Bun** ≥ 1.3 package manager + runner ([why Bun](README.md#prerequisites))
+- **Rust** ≥ 1.81 + **ffmpeg/ffprobe** for the server
 - Optional, only to package TV apps: **Tizen Studio** (Samsung) · **webOS TV CLI** (LG)
 
 ## Getting started
@@ -48,7 +48,7 @@ bun run build              # all frontends
 cd server && cargo build   # server (use `cargo clippy` if you have it)
 ```
 
-- Keep clients **thin** — UI belongs in `@luma/ui`, logic in `@luma/core`, and the
+- Keep clients **thin** UI belongs in `@luma/ui`, logic in `@luma/core`, and the
   shared TV experience in `@luma/tv`. Write platform code once.
 - Match the existing style: the design language (deep-charcoal + amber, French
   copy, no emoji) is documented in [`design/readme.md`](design/readme.md).

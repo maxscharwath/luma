@@ -2,7 +2,7 @@
 // Libraries pattern): collapsed header shows name + type + default badge +
 // model·host; expanded reveals the editable fields (provider type, base URL,
 // API key, searchable model picker, advanced) and per-card Test / Set default /
-// Remove. Backed by /api/admin/llm* — each card probes its own in-progress values.
+// Remove. Backed by /api/admin/llm* each card probes its own in-progress values.
 import type { LumaClient, MessageKey } from '@luma/core';
 import { useT } from '@luma/ui';
 import {
@@ -29,7 +29,7 @@ import {
 } from '#web/features/admin/ui';
 import { SearchSelect } from './searchSelect';
 
-/** Editable provider — the view fields plus a transient `apiKey` ('' = keep the
+/** Editable provider the view fields plus a transient `apiKey` ('' = keep the
  *  stored secret) and `hasApiKey` (whether one is stored server-side). */
 export type ProviderForm = {
   id: string;
@@ -59,7 +59,7 @@ const MODEL_PLACEHOLDER: Record<string, string> = {
   openrouter: 'qwen/qwen-2.5-7b-instruct',
 };
 
-/** Per-provider field layout — each provider exposes a different set of settings,
+/** Per-provider field layout each provider exposes a different set of settings,
  *  so the form adapts: where the base URL lives, whether a key is required, and
  *  which generation controls apply (temperature is OpenAI-only; reasoning is
  *  Anthropic-only). Unknown providers fall back to the openai layout. */
@@ -177,7 +177,7 @@ export function ProviderCard({
 
   return (
     <Card className="overflow-hidden">
-      {/* Collapsed header — click to expand */}
+      {/* Collapsed header click to expand */}
       <button
         type="button"
         onClick={onToggle}
@@ -202,7 +202,7 @@ export function ProviderCard({
             ) : null}
           </div>
           <div className="mt-0.5 truncate text-[12.5px] text-dim">
-            {p.model || '—'}
+            {p.model || '-'}
             {host ? ` · ${host}` : ''}
           </div>
         </div>

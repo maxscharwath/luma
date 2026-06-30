@@ -44,6 +44,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/search", get(search::search))
         .route("/people", get(people::person))
         .route("/shows/:id", get(media::get_show))
+        .route("/shows/:id/up-next", get(playback::up_next))
+        .route("/items/:id/next", get(playback::next_episode))
         .route("/shows/:id/poster", get(images::show_poster))
         .route("/shows/:id/metadata", get(metadata::show_metadata))
         .route("/items/:id", get(media::get_item))
@@ -123,6 +125,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/admin/llm/test", post(admin::test_llm))
         .route("/admin/storage", get(admin::storage))
         .route("/admin/cache/clear", post(admin::clear_cache))
+        .route("/admin/cache/reset-metadata", post(admin::reset_metadata))
         .route("/admin/users", get(admin::list_users))
         .route(
             "/admin/users/:id",
@@ -142,7 +145,10 @@ pub fn router(state: SharedState) -> Router {
             get(admin::get_settings).put(admin::put_settings),
         )
         .route("/admin/backup/export", get(admin::export_backup))
-        .route("/admin/backup/import", post(admin::import_backup))
+        .route(
+            "/admin/backup/import",
+            post(admin::import_backup).layer(DefaultBodyLimit::max(admin::MAX_BACKUP_BYTES)),
+        )
         .route("/admin/stats/top-users", get(admin::top_users))
         .route("/admin/stats/history", get(admin::history))
         .route("/admin/stats/overview", get(admin::overview))

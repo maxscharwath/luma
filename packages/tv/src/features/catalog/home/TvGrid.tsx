@@ -4,11 +4,12 @@ import { TvPoster } from '#tv/shared/TvMedia';
 export interface GridCard {
   id: string;
   title: string;
-  badge: string | null;
   poster: string;
   colors: [string, string];
   /** Whether the current user has marked this title watched. */
   watched?: boolean;
+  /** Series-completion / resume progress (%), or null. */
+  progress?: number | null;
   onClick: () => void;
 }
 
@@ -25,10 +26,10 @@ export function TvGrid({ cards }: Readonly<{ cards: GridCard[] }>) {
           <TvPoster
             key={c.id}
             title={c.title}
-            badge={c.badge}
             poster={c.poster}
             colors={c.colors}
             watched={c.watched}
+            progress={c.progress}
             onClick={c.onClick}
           />
         ))}

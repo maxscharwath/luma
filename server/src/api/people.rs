@@ -1,8 +1,8 @@
-//! `GET /api/people?name=…` — every movie + show one person is credited in
+//! `GET /api/people?name=…` every movie + show one person is credited in
 //! (cast or key crew).
 //!
 //! The match runs over the metadata JSON in SQLite (see [`db::titles_by_person`]),
-//! exact and case-insensitive — distinct from the fuzzy full-text `/search`. The
+//! exact and case-insensitive distinct from the fuzzy full-text `/search`. The
 //! ranked ids are hydrated into the same DTOs `/search` returns (so clients reuse
 //! their card UI), ordered best-known work first (rating, then newest).
 
@@ -71,7 +71,7 @@ fn collect(movies: Vec<MediaItem>, shows: Vec<Show>, library: Option<&str>) -> V
     rows.into_iter().map(|(_, hit)| hit).collect()
 }
 
-/// `(rating, year)` sort key — both default to 0 when unknown so unrated/undated
+/// `(rating, year)` sort key both default to 0 when unknown so unrated/undated
 /// titles sink to the bottom.
 fn sort_key(meta: Option<&Metadata>, year: Option<u32>) -> (f32, i32) {
     let rating = meta.and_then(|m| m.rating).unwrap_or(0.0);

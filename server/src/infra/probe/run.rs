@@ -109,6 +109,14 @@ pub fn spawn_probe_pass(pool: Pool, ffprobe_present: bool, bus: Bus, activity: A
                     &result.subtitles,
                 ) {
                     Ok(()) => {
+                        // Intro/credits markers from embedded chapters (title-based,
+                        // free since we already probed). The fingerprint job fills
+                        // the gaps for files without chapters.
+                        for (kind, start, end) in
+                            super::markers_from_chapters(&result.chapters, result.duration_ms)
+                        {
+                            let _ = db::set_marker(&pool, &job.item_id, kind, start, end, "chapters");
+                        }
                         if first_for_item {
                             bus.publish(ServerEvent::ItemUpdated { id: job.item_id.clone() });
                         }
@@ -142,7 +150,9 @@ pub fn spawn_probe_pass(pool: Pool, ffprobe_present: bool, bus: Bus, activity: A
 /// old `-v quiet`) lets ffmpeg's own diagnostic reach stderr.
 fn run_ffprobe(path: &Path) -> Option<ProbeResult> {
     let output = match Command::new("ffprobe")
-        .args(["-v", "error", "-show_format", "-show_streams", "-of", "json"])
+        .args([
+            "-v", "error", "-show_format", "-show_streams", "-show_chapters", "-of", "json",
+        ])
         .arg(path)
         .output()
     {
@@ -200,5 +210,6 @@ fn fallback_from_extension(path: &Path) -> ProbeResult {
         audio: None,
         audio_tracks: Vec::new(),
         subtitles: Vec::new(),
+        chapters: Vec::new(),
     }
 }

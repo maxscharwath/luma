@@ -27,7 +27,7 @@ clients/webos/*.ipk
 .env.local
 *.local
 
-# Local NAS serve helper — kept on disk, never tracked
+# Local NAS serve helper kept on disk, never tracked
 scripts/serve-nas.sh
 
 # Editor / OS

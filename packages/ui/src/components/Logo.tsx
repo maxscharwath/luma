@@ -5,7 +5,7 @@ export interface LogoProps {
   markOnly?: boolean;
 }
 
-/** LUMA brand lockup — a minimal amber "aperture" ring + centre dot beside the wordmark. */
+/** LUMA brand lockup a minimal amber "aperture" ring + centre dot beside the wordmark. */
 export function Logo({ size = 26, markOnly = false }: Readonly<LogoProps>) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: size * 0.42 }}>

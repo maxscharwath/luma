@@ -3,12 +3,12 @@
 //! After a scan persists the catalog, resolve poster / backdrop / overview /
 //! IDs for every movie and show and write them into the DB. It runs on a small
 //! pool of std threads so a large library (thousands of titles) never blocks
-//! startup or the `/api/scan` request — the catalog serves immediately and
+//! startup or the `/api/scan` request the catalog serves immediately and
 //! gains art as rows are updated. Reuses the process-wide [`metadata::Cache`] so
 //! duplicates and re-scans are cheap.
 
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -21,7 +21,7 @@ use crate::infra::events::{Bus, ServerEvent};
 use crate::infra::image;
 use crate::infra::metadata::{self, Cache, Target};
 use crate::infra::theme;
-use crate::model::{Kind, MediaItem, Show};
+use crate::model::{Kind, MediaItem, Metadata, Show};
 use crate::services::search::SearchEngine;
 use crate::state::SharedState;
 
@@ -38,19 +38,56 @@ struct Job {
     is_show: bool,
 }
 
-/// Spawn background enrichment for a freshly-scanned catalog, if enabled.
-/// Returns immediately; work proceeds on detached threads.
-pub fn maybe_spawn(state: &SharedState, items: &[MediaItem], shows: &[Show]) {
-    let Some(api_key) = state.config.tmdb_api_key.clone() else {
-        return;
-    };
-    if !state.config.tmdb_enrich {
-        return;
-    }
+/// The shared, cloneable bundle a worker needs to resolve one title. Cloning is
+/// cheap every field is an `Arc`/handle or small owned value.
+#[derive(Clone)]
+struct Engine {
+    pool: Pool,
+    cache: Arc<Cache>,
+    api_key: String,
+    language: String,
+    data_dir: PathBuf,
+    theme_songs: bool,
+    bus: Bus,
+    embedder: Arc<dyn Embedder>,
+}
 
+/// Live tallies shared across the worker pool. `processed` counts every attempt
+/// (resolved + missed + failed) so a progress bar can reach 100%.
+#[derive(Default)]
+struct Counters {
+    processed: AtomicUsize,
+    resolved: AtomicUsize,
+    missed: AtomicUsize,
+    failed: AtomicUsize,
+    /// Workers that have drained the queue and returned.
+    finished: AtomicUsize,
+}
+
+/// Bumps `Counters::finished` on drop, so a worker is counted done on every exit
+/// path including an unwinding panic in `process_job`. `run_tracked`'s poll loop
+/// waits for `finished == worker_count`; without this a panicking worker would
+/// never increment it and hang the job forever (uncancellable, unretriggerable).
+struct FinishGuard<'a>(&'a Counters);
+impl Drop for FinishGuard<'_> {
+    fn drop(&mut self) {
+        self.0.finished.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// Outcome of a tracked enrichment run, surfaced in the job's logs.
+pub struct EnrichSummary {
+    pub total: usize,
+    pub resolved: usize,
+    pub missed: usize,
+    pub failed: usize,
+    pub cancelled: bool,
+}
+
+/// Episodes inherit their show's metadata; enrich movies/loose videos + shows.
+fn build_jobs(items: &[MediaItem], shows: &[Show]) -> Vec<Job> {
     let mut jobs: Vec<Job> = Vec::new();
     for i in items {
-        // Episodes inherit their show's metadata; enrich movies/loose videos.
         if matches!(i.kind, Kind::Movie | Kind::Video) {
             jobs.push(Job {
                 id: i.id.clone(),
@@ -70,133 +107,310 @@ pub fn maybe_spawn(state: &SharedState, items: &[MediaItem], shows: &[Show]) {
             is_show: true,
         });
     }
+    jobs
+}
+
+fn engine_for(state: &SharedState, api_key: String) -> Engine {
+    Engine {
+        pool: state.db.clone(),
+        cache: state.metadata_cache.clone(),
+        api_key,
+        language: crate::services::settings::metadata_language(&state.settings, &state.config),
+        data_dir: state.config.data_dir.clone(),
+        theme_songs: crate::services::settings::theme_songs_enabled(&state.settings),
+        bus: state.events.clone(),
+        // Reuse the process-wide embedder (built once in AppState) across workers.
+        embedder: state.embedder.clone(),
+    }
+}
+
+/// Spawn background enrichment for a freshly-scanned catalog, if enabled.
+/// Returns immediately; work proceeds on detached threads.
+pub fn maybe_spawn(state: &SharedState, items: &[MediaItem], shows: &[Show]) {
+    let Some(api_key) = state.config.tmdb_api_key.clone() else {
+        return;
+    };
+    if !state.config.tmdb_enrich {
+        return;
+    }
+    let jobs = build_jobs(items, shows);
     if jobs.is_empty() {
         return;
     }
-
     let total = jobs.len();
     info!(titles = total, "starting background TMDB enrichment");
     activity::enrich_started(&state.activity, total);
-    // Reuse the process-wide embedder (built once in AppState) across workers.
-    let embedder = state.embedder.clone();
-    spawn(
-        state.db.clone(),
-        state.metadata_cache.clone(),
-        api_key,
-        crate::services::settings::metadata_language(&state.settings, &state.config),
-        state.config.data_dir.clone(),
-        crate::services::settings::theme_songs_enabled(&state.settings),
-        state.events.clone(),
-        state.activity.clone(),
-        embedder,
-        state.search.clone(),
-        jobs,
-    );
+    spawn(engine_for(state, api_key), state.activity.clone(), state.search.clone(), jobs);
 }
 
-#[allow(clippy::too_many_arguments)]
-fn spawn(
-    pool: Pool,
-    cache: Arc<Cache>,
-    api_key: String,
-    language: String,
-    data_dir: PathBuf,
-    theme_songs: bool,
-    bus: Bus,
-    activity: Activity,
-    embedder: Arc<dyn Embedder>,
-    search: Arc<SearchEngine>,
-    jobs: Vec<Job>,
+/// A [`Metadata`] with every field empty the base for the lightweight metadata
+/// we attach to episodes (still) and use to localize season cast photos.
+fn blank_metadata() -> Metadata {
+    Metadata {
+        provider: "tmdb",
+        tmdb_id: 0,
+        imdb_id: None,
+        title: None,
+        tagline: None,
+        overview: None,
+        release_date: None,
+        genres: Vec::new(),
+        rating: None,
+        poster_url: None,
+        backdrop_url: None,
+        logo_url: None,
+        theme_url: None,
+        cast: Vec::new(),
+        crew: Vec::new(),
+        keywords: Vec::new(),
+        tvdb_id: None,
+        tmdb_url: String::new(),
+    }
+}
+
+/// Episode-level metadata carrying just the per-episode still (in `backdrop_url`,
+/// resolved via the existing `backdropFor`), title and overview.
+fn episode_metadata(art: &metadata::EpisodeArt) -> Metadata {
+    Metadata {
+        title: art.name.clone(),
+        overview: art.overview.clone(),
+        release_date: art.air_date.clone(),
+        rating: art.rating,
+        backdrop_url: art.still_url.clone(),
+        ..blank_metadata()
+    }
+}
+
+/// Fetch + store per-episode stills AND the season cast for a show that just
+/// resolved (one TMDB call per season). Best-effort never blocks the show art.
+/// Seasons whose episodes already have a backdrop AND whose cast is stored are
+/// skipped, so re-scans don't refetch.
+fn enrich_episodes(
+    pool: &Pool,
+    api_key: &str,
+    language: &str,
+    data_dir: &Path,
+    bus: &Bus,
+    show_id: &str,
+    tv_id: u64,
 ) {
+    let Ok(Some(detail)) = db::get_show(pool, show_id) else { return };
+    let have_cast = db::seasons_with_cast(pool, show_id).unwrap_or_default();
+    for season in &detail.seasons {
+        let missing: Vec<&MediaItem> = season
+            .episodes
+            .iter()
+            .filter(|e| e.metadata.as_ref().and_then(|m| m.backdrop_url.as_ref()).is_none())
+            .collect();
+        let needs_cast = !have_cast.contains(&season.number);
+        if missing.is_empty() && !needs_cast {
+            continue;
+        }
+        let data: metadata::SeasonData =
+            metadata::season_episodes(api_key, language, tv_id, season.number);
+
+        // Per-episode stills.
+        if !missing.is_empty() && !data.episodes.is_empty() {
+            let by_num: std::collections::HashMap<u32, &metadata::EpisodeArt> =
+                data.episodes.iter().map(|a| (a.episode, a)).collect();
+            for ep in missing {
+                let Some(num) = ep.episode else { continue };
+                let Some(art) = by_num.get(&num) else { continue };
+                if art.still_url.is_none() && art.overview.is_none() {
+                    continue;
+                }
+                let meta = image::localize(data_dir, episode_metadata(art));
+                match db::set_item_metadata(pool, &ep.id, &meta) {
+                    Ok(()) => bus.publish(ServerEvent::ItemUpdated { id: ep.id.clone() }),
+                    Err(e) => warn!(id = %ep.id, error = %e, "failed to store episode metadata"),
+                }
+            }
+        }
+
+        // Season cast localize the profile photos (reusing the Metadata cache),
+        // then store keyed by (show, season).
+        if needs_cast && !data.cast.is_empty() {
+            let carrier =
+                image::localize(data_dir, Metadata { cast: data.cast.clone(), ..blank_metadata() });
+            if let Err(e) = db::set_season_cast(pool, show_id, season.number, &carrier.cast) {
+                warn!(show = %show_id, season = season.number, error = %e, "failed to store season cast");
+            }
+        }
+    }
+}
+
+/// Resolve one title against TMDB and write it back, updating `counters` and
+/// publishing a live update so clients swap in the art. With `activity` present
+/// (scan path) it also drives the global enrich indicator; tracked runs pass
+/// `None` and report progress through the job console instead.
+fn process_job(eng: &Engine, counters: &Counters, total: usize, activity: Option<&Activity>, job: Job) {
+    let Some(meta) =
+        metadata::lookup(&eng.cache, &eng.api_key, &eng.language, job.target, &job.title, job.year)
+    else {
+        counters.missed.fetch_add(1, Ordering::Relaxed);
+        bump(eng, counters, total, activity);
+        return;
+    };
+    // Download + transcode poster/backdrop to local WebP.
+    let meta = image::localize(&eng.data_dir, meta);
+    // Download the show's theme song when the feature is on (TV only; movies
+    // carry no tvdb_id, so it's a no-op for them). Disabled → theme_url stays
+    // None, so a re-scan also clears any theme cached while it was enabled.
+    let meta = if eng.theme_songs { theme::localize(&eng.data_dir, meta) } else { meta };
+    // Embed the title from its (title, year, genres, cast, overview) for
+    // similar-to / themed / "For You" rows.
+    let doc = embed::build_doc(&job.title, job.year, &meta);
+    let vector = eng.embedder.embed(&doc);
+    let write = if job.is_show {
+        db::set_show_metadata(&eng.pool, &job.id, &meta)
+    } else {
+        db::set_item_metadata(&eng.pool, &job.id, &meta)
+    };
+    match write {
+        Ok(()) => {
+            // Best-effort: a vector failure must not drop the art.
+            if let Err(e) = db::set_item_vector(&eng.pool, &job.id, &vector) {
+                warn!(id = %job.id, error = %e, "failed to store embedding");
+            }
+            // Per-episode stills (+ episode title/overview) for shows, once the
+            // show itself has resolved. Best-effort.
+            if job.is_show && meta.tmdb_id != 0 {
+                enrich_episodes(
+                    &eng.pool, &eng.api_key, &eng.language, &eng.data_dir, &eng.bus, &job.id,
+                    meta.tmdb_id,
+                );
+            }
+            counters.resolved.fetch_add(1, Ordering::Relaxed);
+            eng.bus.publish(if job.is_show {
+                ServerEvent::ShowUpdated { id: job.id.clone() }
+            } else {
+                ServerEvent::ItemUpdated { id: job.id.clone() }
+            });
+        }
+        Err(e) => {
+            counters.failed.fetch_add(1, Ordering::Relaxed);
+            warn!(id = %job.id, error = %e, "failed to store metadata");
+        }
+    }
+    bump(eng, counters, total, activity);
+}
+
+/// Advance the processed counter and, on the scan path, feed the global enrich
+/// indicator (activity panel + a periodic bus event).
+fn bump(eng: &Engine, counters: &Counters, total: usize, activity: Option<&Activity>) {
+    let done = counters.processed.fetch_add(1, Ordering::Relaxed) + 1;
+    if let Some(activity) = activity {
+        activity::enrich_progress(activity, done);
+        if done % 25 == 0 {
+            eng.bus.publish(ServerEvent::EnrichProgress { done, total });
+        }
+    }
+}
+
+/// Detached, fire-and-forget enrichment for the scan path. A coordinator thread
+/// owns the workers and rebuilds the search index on completion, so the caller
+/// never blocks.
+fn spawn(eng: Engine, activity: Activity, search: Arc<SearchEngine>, jobs: Vec<Job>) {
     let total = jobs.len();
     let queue = Arc::new(Mutex::new(jobs));
-    let resolved = Arc::new(AtomicUsize::new(0));
-
-    // A coordinator thread owns the workers and logs a summary on completion,
-    // so the caller never blocks.
+    let counters = Arc::new(Counters::default());
     thread::spawn(move || {
         let worker_count = WORKERS.min(total.max(1));
         let mut handles = Vec::with_capacity(worker_count);
         for _ in 0..worker_count {
-            let pool = pool.clone();
-            let cache = cache.clone();
-            let api_key = api_key.clone();
-            let language = language.clone();
-            let data_dir = data_dir.clone();
-            let queue = queue.clone();
-            let resolved = resolved.clone();
-            let bus = bus.clone();
-            let activity = activity.clone();
-            let embedder = embedder.clone();
-            handles.push(thread::spawn(move || {
-                loop {
-                    let job = match queue.lock().unwrap().pop() {
-                        Some(j) => j,
-                        None => break,
-                    };
-                    let Some(meta) = metadata::lookup(
-                        &cache,
-                        &api_key,
-                        &language,
-                        job.target,
-                        &job.title,
-                        job.year,
-                    ) else {
-                        continue;
-                    };
-                    // Download + transcode poster/backdrop to local WebP.
-                    let meta = image::localize(&data_dir, meta);
-                    // Download the show's theme song when the feature is on (TV
-                    // only; movies carry no tvdb_id, so it's a no-op for them).
-                    // Disabled → theme_url stays None, so a re-scan also clears
-                    // any theme cached while it was enabled.
-                    let meta = if theme_songs { theme::localize(&data_dir, meta) } else { meta };
-                    // Embed the title from its (title, year, genres, cast,
-                    // overview) for similar-to / themed / "For You" rows.
-                    let doc = embed::build_doc(&job.title, job.year, &meta);
-                    let vector = embedder.embed(&doc);
-                    let write = if job.is_show {
-                        db::set_show_metadata(&pool, &job.id, &meta)
-                    } else {
-                        db::set_item_metadata(&pool, &job.id, &meta)
-                    };
-                    match write {
-                        Ok(()) => {
-                            // Best-effort: a vector failure must not drop the art.
-                            if let Err(e) = db::set_item_vector(&pool, &job.id, &vector) {
-                                warn!(id = %job.id, error = %e, "failed to store embedding");
-                            }
-                            let done = resolved.fetch_add(1, Ordering::Relaxed) + 1;
-                            activity::enrich_progress(&activity, done);
-                            // Push a live update so clients can swap in the art.
-                            bus.publish(if job.is_show {
-                                ServerEvent::ShowUpdated { id: job.id.clone() }
-                            } else {
-                                ServerEvent::ItemUpdated { id: job.id.clone() }
-                            });
-                            // Periodic progress for a scan/refresh indicator.
-                            if done % 25 == 0 {
-                                bus.publish(ServerEvent::EnrichProgress { done, total });
-                            }
-                        }
-                        Err(e) => warn!(id = %job.id, error = %e, "failed to store metadata"),
-                    }
-                }
+            let (eng, queue, counters, activity) =
+                (eng.clone(), queue.clone(), counters.clone(), activity.clone());
+            handles.push(thread::spawn(move || loop {
+                let job = match queue.lock().unwrap().pop() {
+                    Some(j) => j,
+                    None => break,
+                };
+                process_job(&eng, &counters, total, Some(&activity), job);
             }));
         }
         for h in handles {
             let _ = h.join();
         }
-        let resolved = resolved.load(Ordering::Relaxed);
+        let resolved = counters.resolved.load(Ordering::Relaxed);
         activity::enrich_completed(&activity);
         info!(resolved, total, "TMDB enrichment complete");
-        bus.publish(ServerEvent::EnrichCompleted { resolved, total });
-
+        eng.bus.publish(ServerEvent::EnrichCompleted { resolved, total });
         // Now that cast / overview / genres / localized titles are persisted,
         // rebuild the search index so they become searchable.
-        match search.reindex_from_db(&pool) {
+        match search.reindex_from_db(&eng.pool) {
             Ok(()) => info!("search index rebuilt after enrichment"),
             Err(e) => warn!(error = %e, "search reindex after enrichment failed"),
         }
     });
+}
+
+/// Re-enrich the catalog synchronously (blocking the caller) so a job can track
+/// real progress, duration and per-run counts. Reports via `progress(done,
+/// total)` and stops early when `cancelled()` returns true. Unlike
+/// [`maybe_spawn`] this ignores the `tmdb_enrich` toggle it's an explicit
+/// admin action but no-ops without an API key or titles.
+pub fn run_tracked(
+    state: &SharedState,
+    items: &[MediaItem],
+    shows: &[Show],
+    progress: impl Fn(usize, usize),
+    cancelled: impl Fn() -> bool,
+) -> EnrichSummary {
+    let jobs = build_jobs(items, shows);
+    let total = jobs.len();
+    let Some(api_key) = state.config.tmdb_api_key.clone() else {
+        return EnrichSummary { total, resolved: 0, missed: 0, failed: 0, cancelled: false };
+    };
+    if total == 0 {
+        return EnrichSummary { total, resolved: 0, missed: 0, failed: 0, cancelled: false };
+    }
+    let eng = engine_for(state, api_key);
+    let queue = Arc::new(Mutex::new(jobs));
+    let counters = Arc::new(Counters::default());
+    let cancel = Arc::new(AtomicBool::new(false));
+    let worker_count = WORKERS.min(total.max(1));
+    let mut handles = Vec::with_capacity(worker_count);
+    for _ in 0..worker_count {
+        let (eng, queue, counters, cancel) =
+            (eng.clone(), queue.clone(), counters.clone(), cancel.clone());
+        handles.push(thread::spawn(move || {
+            // Mark this worker finished on EVERY exit path, including a panic in
+            // process_job: the poll loop below terminates on `finished ==
+            // worker_count`, so a bare `fetch_add` after the loop would be skipped
+            // by an unwinding worker and hang the (uncancellable) job forever.
+            let _done = FinishGuard(&counters);
+            loop {
+                if cancel.load(Ordering::Relaxed) {
+                    break;
+                }
+                let job = match queue.lock().unwrap().pop() {
+                    Some(j) => j,
+                    None => break,
+                };
+                process_job(&eng, &counters, total, None, job);
+            }
+        }));
+    }
+    // Poll progress + propagate cancellation from this (blocking) job thread.
+    loop {
+        thread::sleep(std::time::Duration::from_millis(250));
+        progress(counters.processed.load(Ordering::Relaxed), total);
+        if cancelled() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if counters.finished.load(Ordering::Relaxed) >= worker_count {
+            break;
+        }
+    }
+    for h in handles {
+        let _ = h.join();
+    }
+    progress(counters.processed.load(Ordering::Relaxed), total);
+    EnrichSummary {
+        total,
+        resolved: counters.resolved.load(Ordering::Relaxed),
+        missed: counters.missed.load(Ordering::Relaxed),
+        failed: counters.failed.load(Ordering::Relaxed),
+        cancelled: cancel.load(Ordering::Relaxed),
+    }
 }

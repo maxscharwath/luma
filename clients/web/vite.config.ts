@@ -7,13 +7,13 @@ import { defineConfig } from 'vite';
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 // In dev the Rust API runs on its own port; Vite reverse-proxies `/api` to it so
-// the whole app lives on a single origin (`:3000`) — same-origin as prod, no CORS,
+// the whole app lives on a single origin (`:3000`) same-origin as prod, no CORS,
 // one port to open. Override the target with LUMA_SERVER_URL if the server moved.
 const apiTarget = process.env.LUMA_SERVER_URL ?? 'http://localhost:4040';
 
 export default defineConfig({
   // Tailwind v4 + TanStack Start in SPA mode + React. The build prerenders only an
-  // app shell (index.html) and the client renders/loads at runtime — so the whole
+  // app shell (index.html) and the client renders/loads at runtime so the whole
   // app ships as static files the Rust server serves on the same origin (the
   // single-binary Synology package). No Node runtime needed in production.
   plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true } }), react()],
@@ -29,7 +29,7 @@ export default defineConfig({
       '/api': { target: apiTarget, changeOrigin: true, ws: true },
     },
   },
-  // Workspace packages ship raw TS source — bundle them for SSR (don't externalize).
+  // Workspace packages ship raw TS source bundle them for SSR (don't externalize).
   ssr: { noExternal: ['@luma/ui', '@luma/core'] },
   optimizeDeps: { exclude: ['@luma/ui', '@luma/core'] },
 });

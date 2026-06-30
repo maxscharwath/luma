@@ -102,7 +102,7 @@ const EDGES: {
   { v: 'none', labelKey: 'subtitle.none' },
 ];
 
-/** Right-side audio + subtitle drawer (non-modal — playback continues), with
+/** Right-side audio + subtitle drawer (non-modal playback continues), with
  * the live subtitle-appearance controls. */
 export function AvDrawer({
   item,
@@ -156,7 +156,7 @@ export function AvDrawer({
               return (
                 <Row
                   key={a.index}
-                  code={(a.language ?? '—').toUpperCase().slice(0, 3)}
+                  code={(a.language ?? '-').toUpperCase().slice(0, 3)}
                   label={a.title?.trim() || trackLang(t, a.language)}
                   tag={ch ? `${a.codec.toUpperCase()} · ${ch}` : a.codec.toUpperCase()}
                   active={audioIndex === a.index}

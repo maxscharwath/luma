@@ -1,6 +1,6 @@
 # @luma/web
 
-> Part of the [LUMA](../../README.md) monorepo — the desktop browser client.
+> Part of the [LUMA](../../README.md) monorepo the desktop browser client.
 
 LUMA desktop/browser client. Vite + React + TypeScript, composed from `@luma/ui`
 (design system) and `@luma/core` (API client, HEVC capability detection, direct-play).

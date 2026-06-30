@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 
-// Vivid avatar gradients — the same palette across web / TV profile pickers.
+// Vivid avatar gradients the same palette across web / TV profile pickers.
 export const AVATAR_GRADS = [
   'linear-gradient(135deg,#F4B642,#E8743B)',
   'linear-gradient(135deg,#3BC9DB,#3B82F6)',
@@ -28,7 +28,7 @@ export function initials(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-/** Rounded-square profile avatar — uploaded photo when present, else a
+/** Rounded-square profile avatar uploaded photo when present, else a
  * deterministic gradient with the user's initials. Optional amber lock badge for
  * PIN-protected profiles. */
 export function ProfileAvatar({

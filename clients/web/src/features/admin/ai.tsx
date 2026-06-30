@@ -13,11 +13,11 @@ import { useAuth } from '#web/shared/lib/auth';
 
 /** A provider row in the form. The persisted `id` is owned by the server (blank
  *  for a not-yet-saved provider); `key` is a client-only, ephemeral handle used
- *  for React keys + local identity — we never mint provider ids on the client. */
+ *  for React keys + local identity we never mint provider ids on the client. */
 type Row = ProviderForm & { key: string };
 type Config = { enabled: boolean; defaultKey: string; providers: Row[] };
 
-// Ephemeral, monotonic local key — NOT a provider id (the server assigns those).
+// Ephemeral, monotonic local key NOT a provider id (the server assigns those).
 let keySeq = 0;
 function nextKey(): string {
   keySeq += 1;
@@ -97,7 +97,7 @@ export function AiPage() {
     setBusy('save');
     setError(null);
     try {
-      // The default is identified by index (new rows have no id yet — the server
+      // The default is identified by index (new rows have no id yet the server
       // assigns one on save).
       const defaultIndex = Math.max(
         0,

@@ -1,8 +1,8 @@
 # LUMA Server
 
-> Part of the [LUMA](../README.md) monorepo — self-hosted, direct-play, HEVC-first media streaming.
+> Part of the [LUMA](../README.md) monorepo self-hosted, direct-play, HEVC-first media streaming.
 
-A self-hosted, **direct-play** media streaming server for the LUMA project —
+A self-hosted, **direct-play** media streaming server for the LUMA project
 think a minimal, Plex-like backend.
 
 It does three things:
@@ -14,13 +14,13 @@ It does three things:
 
 It **never transcodes**. Playback is always direct-play: the client (web / TV)
 decodes HEVC/H.265, AV1, H.264, etc. itself. `ffprobe` is used *only* to read
-metadata — there is no ffmpeg encode pipeline. If `ffprobe` is missing, the
+metadata there is no ffmpeg encode pipeline. If `ffprobe` is missing, the
 server still runs and infers the codec from the file extension.
 
 The library is persisted in **SQLite** (`<data>/luma.db`, WAL mode). A scan
 computes the full set of libraries/shows/items and atomically swaps it in; reads
 run on a small connection pool. The storage layer is a hand-rolled WAL pool over
-`rusqlite` (bundled SQLite) — no system libsqlite3 required.
+`rusqlite` (bundled SQLite) no system libsqlite3 required.
 
 If no media dirs are configured (or a scan finds nothing), the server seeds
 built-in **demo** content (movies + two shows) so clients render out of the box.
@@ -30,13 +30,13 @@ Demo items cannot be streamed (their `/stream` endpoint returns a JSON 404).
 
 The scanner recognises these layouts and naming cues:
 
-- **Movies** — `Movies/Blade Runner 2049 (2017)/Blade Runner 2049 (2017) 2160p BluRay x265.mkv`
+- **Movies** `Movies/Blade Runner 2049 (2017)/Blade Runner 2049 (2017) 2160p BluRay x265.mkv`
   or flat `The.Matrix.1999.1080p.x264-GROUP.mp4`. A parenthesised `(YYYY)` is the
   authoritative year, so "Blade Runner 2049 (2017)" → title *Blade Runner 2049*,
   year *2017* (not 2049). Release junk (resolution / source / codec / group) is
   stripped from titles. The `Title (Year)` folder name is used when the filename
   is generic.
-- **Episodes** — `S01E02`, `s1e2`, `S01E02-E03` (multi-episode), `1x02`. The
+- **Episodes** `S01E02`, `s1e2`, `S01E02-E03` (multi-episode), `1x02`. The
   **top-level folder under the library root** is the show identity
   (`TV Shows/The Office (2005)/Season 02/The Office - S02E01 - The Dundies.mkv`),
   with the text after the marker becoming the episode title. Episodes are grouped
@@ -47,7 +47,7 @@ A library's `kind` (`movies` / `shows` / `mixed`) is derived from what it holds.
 ## Quickstart
 
 ```bash
-# From server/ — runs with demo content (no media dirs configured):
+# From server/ runs with demo content (no media dirs configured):
 cargo run
 
 # Point it at real libraries (OS path-separator OR comma separated):
@@ -91,7 +91,7 @@ All configuration is via environment variables:
   "audio": { "codec": "truehd", "channels": 8, "language": "eng" },
   "subtitles": [ { "language": "eng", "codec": "subrip" } ],
   "library": "string",
-  // show/episode fields — null for movies:
+  // show/episode fields null for movies:
   "showId": "string", "showTitle": "The Office",
   "season": 2, "episode": 1, "episodeEnd": null, "episodeTitle": "The Dundies",
   "relPath": "The Office (2005)/Season 02/The Office - S02E01.mkv" /* or null for demo items */,
@@ -132,7 +132,7 @@ All routes are prefixed with `/api`. CORS is permissive (self-hosted LAN use).
 | GET    | `/api/shows/:id`           | One show + `seasons[]` of `{ number, episodes }`. |
 | GET    | `/api/shows/:id/poster`    | Deterministic SVG show poster.                |
 | GET    | `/api/shows/:id/metadata`  | TMDB details + IDs for the show.              |
-| GET    | `/api/items/:id`           | One item — movie or episode (404 if missing). |
+| GET    | `/api/items/:id`           | One item movie or episode (404 if missing). |
 | GET    | `/api/items/:id/stream`    | Range-streamed original file.                 |
 | GET    | `/api/items/:id/poster`    | Deterministic SVG placeholder poster.         |
 | GET    | `/api/items/:id/metadata`  | TMDB details + IDs (episode → parent show).   |
@@ -142,7 +142,7 @@ All routes are prefixed with `/api`. CORS is permissive (self-hosted LAN use).
 
 Items are enriched from [TMDB](https://www.themoviedb.org). LUMA ships a built-in
 application key (`BUILTIN_TMDB_API_KEY` in `src/config.rs`) so this works out of
-the box with no per-install token — the same approach Overseerr/Jellyseerr/Seerr
+the box with no per-install token the same approach Overseerr/Jellyseerr/Seerr
 take. Override it for your own install with `LUMA_TMDB_API_KEY`.
 
 The server resolves a movie/show by its parsed title + year, then returns the
@@ -201,10 +201,10 @@ curl -s http://localhost:4040/api/items/<id>/poster -o poster.svg
 # Metadata (needs LUMA_TMDB_API_KEY)
 curl -s http://localhost:4040/api/items/<id>/metadata | jq
 
-# Stream — full file
+# Stream full file
 curl -s http://localhost:4040/api/items/<id>/stream -o out.mkv
 
-# Stream — byte range (note the 206 + Content-Range)
+# Stream byte range (note the 206 + Content-Range)
 curl -s -D - -H "Range: bytes=0-1048575" \
   http://localhost:4040/api/items/<id>/stream -o /dev/null
 
@@ -232,7 +232,7 @@ The runtime image installs `ffmpeg` (which provides `ffprobe`).
 
 ### Synology / NAS
 
-Build or pull the image for your NAS CPU architecture — `linux/amd64` for
+Build or pull the image for your NAS CPU architecture `linux/amd64` for
 Intel/AMD models, `linux/arm64` for ARM models:
 
 ```bash

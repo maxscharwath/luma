@@ -48,7 +48,7 @@ fn row_to_admin_user(r: &Row) -> rusqlite::Result<User> {
 }
 
 /// All accounts for the admin "Membres & partage" table, oldest first (owner is
-/// account 0). `online` is left false here — the handler fills it from the live
+/// account 0). `online` is left false here the handler fills it from the live
 /// playback registry.
 pub fn admin_users(pool: &Pool) -> Result<Vec<crate::model::AdminUser>> {
     let conn = pool.get()?;
@@ -226,4 +226,17 @@ pub fn library_stats(pool: &Pool) -> Result<Vec<crate::model::LibraryStat>> {
 pub fn total_media_bytes(pool: &Pool) -> Result<i64> {
     let conn = pool.get()?;
     Ok(conn.query_row("SELECT COALESCE(SUM(size),0) FROM files", [], |r| r.get(0))?)
+}
+
+/// Counts for the cache panel: `(enriched items, enriched shows, embeddings)`
+/// how many movies/videos and shows carry resolved TMDB metadata, and how many
+/// title embeddings are stored.
+pub fn metadata_counts(pool: &Pool) -> Result<(i64, i64, i64)> {
+    let conn = pool.get()?;
+    let items: i64 =
+        conn.query_row("SELECT COUNT(*) FROM items WHERE metadata IS NOT NULL", [], |r| r.get(0))?;
+    let shows: i64 =
+        conn.query_row("SELECT COUNT(*) FROM shows WHERE metadata IS NOT NULL", [], |r| r.get(0))?;
+    let vectors: i64 = conn.query_row("SELECT COUNT(*) FROM item_vectors", [], |r| r.get(0))?;
+    Ok((items, shows, vectors))
 }

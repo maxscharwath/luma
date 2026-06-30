@@ -51,13 +51,17 @@ pub fn groups(
     let g = |key: &str| settings.get(key);
     // Localised label/hint/title shorthands. NB: select `options` are persisted
     // *values* (the stored setting equals the chosen option string), so they are
-    // intentionally NOT translated — only labels, hints, group titles & descs.
+    // intentionally NOT translated only labels, hints, group titles & descs.
     let t = |key: &str| i18n::t(locale, key, &[]);
     let group = |title: &str, desc: Option<&str>, rows: Vec<SettingRow>| SettingGroup {
         title: t(title),
         desc: desc.map(t),
         rows,
     };
+    // NB: only settings the server actually enforces are surfaced here. Stored-but-
+    // unused controls (theme, timezone, hwAccel, https, …) were removed rather than
+    // shown with a "preference saved only" badge the server is remux-only, so the
+    // hardware-encode controls have nothing to drive.
     match view {
         "general" => vec![
             group(
@@ -65,89 +69,39 @@ pub fn groups(
                 Some("admin.serverIdentityDesc"),
                 vec![
                     row("serverName", t("admin.serverName"), Some(t("admin.serverNameHint")), "text", &[], g("serverName"), true),
-                    row("uiLanguage", t("admin.uiLanguage"), None, "select", &["Français", "English"], g("uiLanguage"), false),
-                    row("timezone", t("admin.timezone"), None, "select", &["Europe/Zurich (UTC+1)", "Europe/Paris (UTC+1)", "UTC"], g("timezone"), false),
+                    row("tmdbLanguage", t("admin.tmdbLanguage"), Some(t("admin.tmdbLanguageHint")), "text", &[], g("tmdbLanguage"), true),
+                    row("version", t("admin.version"), None, "value", &[], json!(env!("CARGO_PKG_VERSION")), true),
                 ],
             ),
             group(
                 "admin.preferences",
                 None,
                 vec![
-                    row("autoUpdate", t("admin.autoUpdate"), None, "toggle", &[], g("autoUpdate"), false),
-                    row("updateChannel", t("admin.updateChannel"), Some(t("admin.updateChannelHint")), "select", &["Stable", "Bêta"], g("updateChannel"), false),
-                    row("anonStats", t("admin.anonStats"), Some(t("admin.anonStatsHint")), "toggle", &[], g("anonStats"), false),
-                    row("showRecentHome", t("admin.showRecentHome"), None, "toggle", &[], g("showRecentHome"), false),
+                    row("watchAutoScan", t("admin.watchAutoScan"), Some(t("admin.watchAutoScanHint")), "toggle", &[], g("watchAutoScan"), true),
+                    row("showRecentHome", t("admin.showRecentHome"), None, "toggle", &[], g("showRecentHome"), true),
                     row("themeSongs", t("admin.themeSongs"), Some(t("admin.themeSongsHint")), "toggle", &[], g("themeSongs"), true),
-                ],
-            ),
-            group(
-                "admin.appearance",
-                None,
-                vec![
-                    row("theme", t("admin.theme"), None, "select", &["Sombre (Luma)", "Système"], g("theme"), false),
-                    row("dateFormat", t("admin.dateFormat"), None, "select", &["JJ/MM/AAAA", "MM/JJ/AAAA", "AAAA-MM-JJ"], g("dateFormat"), false),
-                    row("version", t("admin.version"), None, "value", &[], json!(env!("CARGO_PKG_VERSION")), true),
+                    row("introDetection", t("admin.introDetection"), Some(t("admin.introDetectionHint")), "select", &["off", "chapters", "fingerprint"], g("introDetection"), true),
                 ],
             ),
         ],
-        "network" => vec![
-            group(
-                "admin.remoteAccess",
-                Some("admin.remoteAccessDesc"),
-                vec![
-                    row("remoteAccess", t("admin.enableRemoteAccess"), None, "toggle", &[], g("remoteAccess"), false),
-                    row("remoteUrl", t("admin.customUrl"), Some(t("admin.customUrlHint")), "text", &[], g("remoteUrl"), false),
-                    row("publicAddress", t("admin.publicAddress"), None, "value", &[], json!(public_address(config)), false),
-                    row("upLimit", t("admin.upLimit"), Some(t("admin.upLimitHint")), "select", &["Illimité", "10 Mb/s", "20 Mb/s", "50 Mb/s"], g("upLimit"), false),
-                ],
-            ),
-            group(
-                "admin.secureConnections",
-                None,
-                vec![
-                    row("https", t("admin.https"), None, "select", &["Préférées", "Requises", "Désactivées"], g("https"), false),
-                    row("ipv6", t("admin.ipv6"), None, "toggle", &[], g("ipv6"), false),
-                ],
-            ),
-            group(
-                "admin.portsDiscovery",
-                None,
-                vec![
-                    row("port", t("admin.port"), Some(t("admin.portHint")), "text", &[], json!(config.port.to_string()), false),
-                    row("localDiscovery", t("admin.localDiscovery"), Some(t("admin.localDiscoveryHint")), "toggle", &[], g("localDiscovery"), false),
-                    row("localNetworks", t("admin.localNetworks"), Some(t("admin.localNetworksHint")), "text", &[], g("localNetworks"), true),
-                ],
-            ),
-        ],
-        "transcoder" => vec![
-            group(
-                "admin.hwAccel",
-                Some("admin.hwAccelDesc"),
-                vec![
-                    row("hwAccel", t("admin.useHwAccel"), Some(t("admin.useHwAccelHint")), "toggle", &[], g("hwAccel"), false),
-                    row("hwDevice", t("admin.hwDevice"), None, "select", &["Auto", "Intel Quick Sync", "NVENC", "VA-API"], g("hwDevice"), false),
-                    row("hevcEncode", t("admin.hevcEncode"), None, "toggle", &[], g("hevcEncode"), false),
-                ],
-            ),
-            group(
-                "admin.qualityPerf",
-                None,
-                vec![
-                    row("transcoderSpeed", t("admin.transcoderSpeed"), None, "select", &["Automatique", "Préférer la vitesse", "Préférer la qualité"], g("transcoderSpeed"), false),
-                    row("bgQuality", t("admin.bgQuality"), Some(t("admin.bgQualityHint")), "select", &["Préférer la vitesse", "Préférer la qualité"], g("bgQuality"), false),
-                    row("maxConcurrent", t("admin.maxConcurrent"), None, "select", &["1", "2", "4", "6", "8"], g("maxConcurrent"), true),
-                    row("throttleBuffer", t("admin.throttleBuffer"), None, "value", &[], json!("120 s"), true),
-                ],
-            ),
-            group(
-                "admin.tempFolders",
-                None,
-                vec![
-                    row("transcodeDir", t("admin.transcodeDir"), None, "value", &[], json!(transcode_dir(config)), true),
-                    row("deleteAfter", t("admin.deleteAfter"), None, "toggle", &[], g("deleteAfter"), true),
-                ],
-            ),
-        ],
+        "network" => vec![group(
+            "admin.portsDiscovery",
+            None,
+            vec![
+                row("publicAddress", t("admin.publicAddress"), None, "value", &[], json!(public_address(config)), true),
+                row("port", t("admin.port"), Some(t("admin.portHint")), "value", &[], json!(config.port.to_string()), true),
+                row("localDiscovery", t("admin.localDiscovery"), Some(t("admin.localDiscoveryHint")), "toggle", &[], g("localDiscovery"), true),
+                row("localNetworks", t("admin.localNetworks"), Some(t("admin.localNetworksHint")), "text", &[], g("localNetworks"), true),
+            ],
+        )],
+        "transcoder" => vec![group(
+            "admin.qualityPerf",
+            Some("admin.qualityPerfDesc"),
+            vec![
+                row("maxConcurrent", t("admin.maxConcurrent"), Some(t("admin.maxConcurrentHint")), "select", &["2", "4", "8", "12", "16", "24", "32"], g("maxConcurrent"), true),
+                row("transcodeDir", t("admin.transcodeDir"), None, "value", &[], json!(transcode_dir(config)), true),
+            ],
+        )],
         _ => Vec::new(),
     }
 }

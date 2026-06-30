@@ -37,7 +37,7 @@ export { Denied, isAnyAdmin, useAsyncAction, useCap, usePoll } from '#web/featur
 
 interface AdminCtx {
   serverInfo: ServerInfo | null;
-  /** Bumps on every server event — depend on it to refetch live. */
+  /** Bumps on every server event depend on it to refetch live. */
   tick: number;
 }
 

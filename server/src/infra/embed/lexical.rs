@@ -2,7 +2,7 @@
 //!
 //! Pipeline: tokenize → hash each token into one of `dim` buckets (the "hashing
 //! trick", so there's no vocabulary to store) → sublinear term-frequency weight →
-//! L2-normalize. No model, no new crates — it compiles on the pinned 1.81 / musl
+//! L2-normalize. No model, no new crates it compiles on the pinned 1.81 / musl
 //! build as-is. Similarity reflects shared genres / cast / words, which is enough
 //! for "more like this"; switch on `semantic-embeddings` for free-text semantics.
 
@@ -57,7 +57,7 @@ fn tokenize(text: &str) -> impl Iterator<Item = String> + '_ {
         .map(|s| s.to_lowercase())
 }
 
-/// FNV-1a 64-bit — fast, allocation-free, good enough spread for bucketing.
+/// FNV-1a 64-bit fast, allocation-free, good enough spread for bucketing.
 fn fnv1a(s: &str) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in s.bytes() {
@@ -68,7 +68,7 @@ fn fnv1a(s: &str) -> u64 {
 }
 
 /// A tiny stop-list so the most common English/French filler doesn't dominate the
-/// overview text. Not exhaustive by design — collisions wash out the long tail.
+/// overview text. Not exhaustive by design collisions wash out the long tail.
 fn is_stopword(t: &str) -> bool {
     matches!(
         t,

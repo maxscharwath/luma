@@ -13,7 +13,7 @@ const RESTING = 'bg-[rgba(255,255,255,0.04)]';
 
 /** Right-side Audio & Sous-titres drawer. Both the audio tracks and the
  * subtitles are selectable lists; a single `focus` index walks them in order
- * (audio rows first, then subtitle rows) — see `usePlayerControls`. */
+ * (audio rows first, then subtitle rows) see `usePlayerControls`. */
 export function AvPanel({
   audioTracks,
   audioActive,
@@ -71,7 +71,7 @@ export function AvPanel({
               key={opt ?? 'off'}
               className={`${TRACK} ${focus === subOffset + i ? FOCUSED : RESTING}`}
             >
-              <span className={CODE}>{opt == null ? '—' : langCode(sv?.language ?? null)}</span>
+              <span className={CODE}>{opt == null ? '-' : langCode(sv?.language ?? null)}</span>
               <span className="flex-1 font-sans text-[15px] font-semibold text-text">{label}</span>
               {active === opt ? <CheckGlyph /> : null}
             </div>

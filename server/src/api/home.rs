@@ -1,4 +1,4 @@
-//! `GET /api/home` — the generated home screen: an ordered list of [`Section`]s
+//! `GET /api/home` the generated home screen: an ordered list of [`Section`]s
 //! (For You, "because you watched …", themed rows, trending, recently added),
 //! assembled + de-duplicated server-side so clients render them generically.
 

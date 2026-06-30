@@ -1,6 +1,6 @@
-//! `GET /api/items/:id/ai-suggest` — the per-title "Suggestions IA" rail on the
+//! `GET /api/items/:id/ai-suggest` the per-title "Suggestions IA" rail on the
 //! detail page. Cached per item; on a cache miss it kicks off **background** LLM
-//! generation and returns `null`, so the page never blocks on the (slow) model —
+//! generation and returns `null`, so the page never blocks on the (slow) model
 //! the client re-fetches until the cached row appears.
 
 use std::collections::HashSet;
@@ -17,7 +17,7 @@ use crate::i18n::{self, ReqLocale};
 use crate::model::Section;
 use crate::state::SharedState;
 
-/// Seeds currently generating — de-dupes concurrent requests for the same item
+/// Seeds currently generating de-dupes concurrent requests for the same item
 /// while the LLM runs (the client polls every few seconds).
 fn in_flight() -> &'static Mutex<HashSet<String>> {
     static IN_FLIGHT: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
@@ -25,7 +25,7 @@ fn in_flight() -> &'static Mutex<HashSet<String>> {
 }
 
 /// `GET /api/items/:id/ai-suggest` (Bearer) → `Section | null`. `null` means it's
-/// generating (the client polls); a `Section` — possibly with empty `items` —
+/// generating (the client polls); a `Section` possibly with empty `items`
 /// means ready (render it, or hide it when empty, and stop polling).
 pub async fn ai_suggest(
     State(state): State<SharedState>,

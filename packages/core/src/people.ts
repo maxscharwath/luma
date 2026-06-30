@@ -1,6 +1,6 @@
 // Shared cast/crew ("person") helpers used by every client. People have no stable
-// id in LUMA — cast/crew are embedded in each title's TMDB metadata and matched by
-// name — so all of this keys off a case-insensitive name comparison.
+// id in LUMA cast/crew are embedded in each title's TMDB metadata and matched by
+// name so all of this keys off a case-insensitive name comparison.
 
 import type { Metadata } from './generated';
 

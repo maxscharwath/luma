@@ -1,4 +1,4 @@
-/** Player control glyphs — @tabler/icons-react, sized/stroked to match the TV
+/** Player control glyphs @tabler/icons-react, sized/stroked to match the TV
  * player. Color via `currentColor` unless overridden. */
 import {
   IconCheck,

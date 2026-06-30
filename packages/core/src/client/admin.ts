@@ -60,6 +60,17 @@ export function clearCache(ctx: RequestContext): Promise<{ freedBytes: number }>
   return ctx.json<{ freedBytes: number }>('/admin/cache/clear', { method: 'POST' });
 }
 
+/**
+ * Drop every resolved TMDB metadata (DB JSON, season casts, embeddings) and the
+ * in-memory lookup cache so the next enrichment re-fetches from scratch. Returns
+ * how many movies/videos and shows were cleared (requires `settings.manage`).
+ */
+export function resetMetadata(ctx: RequestContext): Promise<{ items: number; shows: number }> {
+  return ctx.json<{ items: number; shows: number }>('/admin/cache/reset-metadata', {
+    method: 'POST',
+  });
+}
+
 /** Full member list (requires `users.manage`). */
 export function adminUsers(ctx: RequestContext): Promise<AdminUsers> {
   return ctx.json<AdminUsers>('/admin/users');
@@ -108,19 +119,44 @@ export interface BackupImportResult {
   rescanStarted: boolean;
 }
 
-/** Download a portable backup (accounts, settings, history, resume positions,
- *  invites, cron overrides) as a JSON `Blob`. Requires `settings.manage`. The
- *  file contains credentials (password hashes, API keys) — store it securely. */
-export function exportBackup(ctx: RequestContext): Promise<Blob> {
-  return ctx.blob('/admin/backup/export');
+/** Options for restoring a backup. */
+export interface BackupImportOptions {
+  /** Password for an encrypted (`.luma`) backup. */
+  password?: string;
+  /** Wipe this server's portable tables before importing (clean A→B clone). */
+  reset?: boolean;
 }
 
-/** Restore a backup file (replaces accounts/settings/history by primary key),
- *  then trigger a re-scan so the catalogue regenerates with matching item IDs. */
-export function importBackup(ctx: RequestContext, file: Blob): Promise<BackupImportResult> {
+/** Hex-encode a UTF-8 string so an arbitrary password survives an HTTP header. */
+function hexUtf8(s: string): string {
+  return Array.from(new TextEncoder().encode(s))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/** Download a portable backup (accounts, settings, history, resume positions,
+ *  invites, cron overrides, custom avatars) as a `Blob`. A `password` encrypts it
+ *  (`.luma`), else a plain `.zip`. Requires `settings.manage`. */
+export function exportBackup(ctx: RequestContext, password?: string): Promise<Blob> {
+  return ctx.blob(
+    '/admin/backup/export',
+    password ? { headers: { 'x-backup-password': hexUtf8(password) } } : undefined,
+  );
+}
+
+/** Restore a backup file (`.zip`/`.luma`/legacy `.json`), then trigger a re-scan
+ *  so the catalogue regenerates with matching item IDs. */
+export function importBackup(
+  ctx: RequestContext,
+  file: Blob,
+  opts?: BackupImportOptions,
+): Promise<BackupImportResult> {
+  const headers: Record<string, string> = { ...JSON_HEADERS };
+  if (opts?.password) headers['x-backup-password'] = hexUtf8(opts.password);
+  if (opts?.reset) headers['x-backup-reset'] = '1';
   return ctx.json<BackupImportResult>('/admin/backup/import', {
     method: 'POST',
-    headers: JSON_HEADERS,
+    headers,
     body: file,
   });
 }
@@ -202,7 +238,7 @@ export function adminLlm(ctx: RequestContext): Promise<LlmAdminConfig> {
   return ctx.json<LlmAdminConfig>('/admin/llm');
 }
 
-/** A provider as sent on save — like the view but without `hasApiKey`, plus an
+/** A provider as sent on save like the view but without `hasApiKey`, plus an
  *  optional `apiKey` (blank/omitted keeps the stored secret). */
 export interface LlmProviderInput {
   id: string;
@@ -217,7 +253,7 @@ export interface LlmProviderInput {
 }
 
 /** The full IA config to persist (PUT /admin/llm). The default is identified by
- *  **index** — a not-yet-saved provider has no id yet (the server assigns one). */
+ *  **index** a not-yet-saved provider has no id yet (the server assigns one). */
 export interface LlmSave {
   enabled: boolean;
   defaultIndex: number;

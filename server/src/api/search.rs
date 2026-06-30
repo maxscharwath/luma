@@ -1,4 +1,4 @@
-//! `GET /api/search` — full-text catalogue search (movies, shows, episodes).
+//! `GET /api/search` full-text catalogue search (movies, shows, episodes).
 //!
 //! The match + ranking happens in-memory in [`crate::services::search`]; this
 //! handler hydrates the ranked ids into full DTOs (the same shapes `/movies` and

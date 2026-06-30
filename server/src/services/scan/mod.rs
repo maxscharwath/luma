@@ -2,7 +2,7 @@
 //! items (Plex-style), and build the set of libraries/shows/items to persist.
 //!
 //! Phase 1 (this module's [`scan_all`]) is **fast**: it only `stat`s each video
-//! file (size + mtime — no read, no ffprobe). Files are grouped into logical
+//! file (size + mtime no read, no ffprobe). Files are grouped into logical
 //! items so the library is browsable in seconds. The slow per-file probing runs
 //! later in [`crate::infra::probe`]'s background pass.
 //!
@@ -35,7 +35,7 @@ pub struct ScanData {
     pub items: Vec<MediaItem>,
     /// `file_id -> mtime-secs` for every scanned file. Carried here (rather than
     /// on `MediaFile`, which is the client JSON contract) so the DB sync can
-    /// detect changed files. Owned by this scan — no shared global, so two
+    /// detect changed files. Owned by this scan no shared global, so two
     /// overlapping scans (watcher rescan + `POST /api/scan`) can't steal each
     /// other's entries.
     pub mtimes: HashMap<String, Option<i64>>,
@@ -113,13 +113,13 @@ pub fn now_iso8601() -> String {
 /// Phase-1 rescan + DB sync, demo-seeding only in demo mode (no libraries
 /// configured). Pure work (no events / no background spawns) so both the `POST
 /// /api/scan` handler and the `library.scan` job can share it and add their own
-/// notifications. Blocking (walk + SQLite) — call from a blocking context.
+/// notifications. Blocking (walk + SQLite) call from a blocking context.
 pub fn rescan_sync(state: &crate::state::SharedState) -> anyhow::Result<ScanData> {
     let defs = crate::services::settings::library_defs(&state.settings, &state.config);
     let mut data = scan_all(&defs);
     // Seed demo content only when nothing is configured (true demo mode). A
-    // configured library that momentarily reads empty — NAS/SMB unmount, slow
-    // mount, permission glitch — must NOT be clobbered with demo movies.
+    // configured library that momentarily reads empty NAS/SMB unmount, slow
+    // mount, permission glitch must NOT be clobbered with demo movies.
     if data.items.is_empty() && defs.is_empty() {
         info!("no libraries configured and scan is empty; seeding demo content");
         data = crate::services::demo::demo_data();
@@ -130,7 +130,7 @@ pub fn rescan_sync(state: &crate::state::SharedState) -> anyhow::Result<ScanData
 
 /// Publish "scan started", run phase-1 [`rescan_sync`], then announce the
 /// catalog change with the resulting counts. Blocking; returns the synced data.
-/// Shared by `POST /api/scan` and the `library.scan` job — each wraps it with
+/// Shared by `POST /api/scan` and the `library.scan` job each wraps it with
 /// its own logging / response.
 pub fn scan_and_publish(state: &crate::state::SharedState) -> anyhow::Result<ScanData> {
     use crate::infra::events::ServerEvent;
@@ -145,7 +145,7 @@ pub fn scan_and_publish(state: &crate::state::SharedState) -> anyhow::Result<Sca
     Ok(data)
 }
 
-/// Kick the phase-2 background follow-ups after a scan — media probing, search
+/// Kick the phase-2 background follow-ups after a scan media probing, search
 /// reindex and TMDB enrichment (each reports its own progress in the activity
 /// feed). Shared by `POST /api/scan` and the `library.scan` job.
 pub fn spawn_follow_ups(state: &crate::state::SharedState, data: &ScanData) {

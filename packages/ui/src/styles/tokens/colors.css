@@ -1,5 +1,5 @@
 :root {
-  /* Surfaces — deep cinematic charcoal */
+  /* Surfaces deep cinematic charcoal */
   --luma-bg: #0a0a0c;
   --luma-surface-1: #121216;
   --luma-surface-2: #1c1c22;
@@ -13,7 +13,7 @@
   --luma-text-muted: rgba(244, 243, 240, 0.62);
   --luma-text-dim: rgba(244, 243, 240, 0.45);
 
-  /* Brand accent — warm amber */
+  /* Brand accent warm amber */
   --luma-accent: #f4b642;
   --luma-accent-hover: #ffc862;
   --luma-accent-bright: #ffd262;

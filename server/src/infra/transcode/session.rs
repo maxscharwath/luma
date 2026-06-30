@@ -16,6 +16,10 @@ use super::ffmpeg::{spawn_ffmpeg, spawn_ffmpeg_master, MasterTrack};
 
 /// Tear a session down after this long without a request.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
+/// Under cap pressure we only evict a *cross-title* session this idle, long
+/// enough that an actively-buffering player (which fetches ahead, then coasts on
+/// its buffer) is never mistaken for abandoned.
+const EVICT_GRACE: Duration = Duration::from_secs(90);
 /// How often the reaper sweeps for idle sessions.
 const REAP_INTERVAL: Duration = Duration::from_secs(30);
 /// Give ffmpeg this long to emit a playlist with a first playable segment.
@@ -55,15 +59,67 @@ impl Sessions {
         }
     }
 
-    /// Number of live transcode sessions (for the concurrent-transcode cap).
-    pub async fn active_count(&self) -> usize {
-        self.inner.lock().await.len()
-    }
-
     /// Whether a session for `key` already exists (a reused session doesn't count
     /// against the cap).
     pub async fn has(&self, key: &str) -> bool {
         self.inner.lock().await.contains_key(key)
+    }
+
+    /// Make room for a new session (`new_key`) under `cap` without ever stuttering
+    /// a live viewer:
+    ///   1. Drop this *same title*'s other sessions: seeking/re-opening spawns a
+    ///      fresh `master.<…>.<startMs>` per position, and the old ones are pure
+    ///      seek-orphans the client will never fetch again. This alone fixes the
+    ///      single-user-seeking pile-up that used to 503.
+    ///   2. If still at the cap (many *different* titles in flight, e.g. lots of
+    ///      concurrent viewers), only evict a session idle beyond [`EVICT_GRACE`]
+    ///      (paused/abandoned). If every other stream is live, allow a soft
+    ///      overflow: an extra cheap audio-remux beats interrupting someone.
+    pub async fn make_room(&self, cap: usize, new_key: &str) {
+        let item = item_of(new_key);
+        let mut map = self.inner.lock().await;
+        let now = Instant::now();
+
+        // Reclaim this title's OTHER sessions, but only ones gone idle past the
+        // grace window. A same-title session keys in its `-ss` startMs, so it's
+        // EITHER this user's abandoned seek-orphan (idle, last_access frozen at
+        // creation) OR a *concurrent viewer* at a different offset (still
+        // fetching). Evicting the latter kills a live stream, and its player then
+        // re-requests its playlist -> make_room -> evicts us back: a mutual
+        // eviction ping-pong that stutters both. So gate on EVICT_GRACE like the
+        // cross-title path; true orphans are reclaimed here or by the reaper.
+        let orphans: Vec<String> = {
+            let mut out = Vec::new();
+            for (k, s) in map.iter() {
+                if k.as_str() == new_key || item_of(k) != item {
+                    continue;
+                }
+                if now.duration_since(*s.last_access.lock().await) >= EVICT_GRACE {
+                    out.push(k.clone());
+                }
+            }
+            out
+        };
+        for k in orphans {
+            evict_session(&mut map, &k).await;
+        }
+
+        while map.len() >= cap.max(1) {
+            let now = Instant::now();
+            let mut victim: Option<(String, Instant)> = None;
+            for (k, s) in map.iter() {
+                let la = *s.last_access.lock().await;
+                if now.duration_since(la) < EVICT_GRACE {
+                    continue; // actively buffering, never evict
+                }
+                match &victim {
+                    Some((_, t)) if *t <= la => {}
+                    _ => victim = Some((k.clone(), la)),
+                }
+            }
+            let Some((key, _)) = victim else { break }; // all live → soft overflow
+            evict_session(&mut map, &key).await;
+        }
     }
 
     /// Start (or reuse) a session keyed by `key` and return the live playlist
@@ -221,6 +277,20 @@ impl Sessions {
                 }
             }
         });
+    }
+}
+
+/// The item id portion of a `{id}:{variant}` session key.
+fn item_of(key: &str) -> &str {
+    key.split(':').next().unwrap_or(key)
+}
+
+/// Remove a session from `map`, kill its ffmpeg child, and delete its temp dir.
+async fn evict_session(map: &mut HashMap<String, Arc<Session>>, key: &str) {
+    if let Some(s) = map.remove(key) {
+        let _ = s.child.lock().await.start_kill();
+        let _ = std::fs::remove_dir_all(&s.dir);
+        info!(session = %key, "evicted transcode session");
     }
 }
 

@@ -31,3 +31,13 @@ pub struct ContinueItem {
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
 }
+
+/// The episode to play to continue a show (`GET /api/shows/:id/up-next`): the
+/// episode plus whether it has a saved resume position (drives the "Reprendre"
+/// vs "Lecture" button label).
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct UpNext {
+    pub item: MediaItem,
+    pub resume: bool,
+}

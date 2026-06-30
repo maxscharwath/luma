@@ -13,7 +13,7 @@ use crate::db::Pool;
 
 use super::store::Settings;
 
-/// One configured LLM endpoint. `api_key` is only ever populated server-side —
+/// One configured LLM endpoint. `api_key` is only ever populated server-side
 /// it is never returned to the client (the admin DTO exposes `has_api_key`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,7 +92,7 @@ pub fn default_provider(settings: &Settings) -> Option<LlmProvider> {
 /// Persist the full provider set + the global enable flag + default id.
 ///
 /// **Secret-merge**: any incoming provider with a blank `api_key` keeps the key
-/// already stored under the same id — the client never receives saved keys, so a
+/// already stored under the same id the client never receives saved keys, so a
 /// plain round-trip would otherwise wipe them.
 pub fn set_llm(
     settings: &Settings,

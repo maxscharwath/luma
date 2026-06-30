@@ -1,4 +1,4 @@
-//! `sections.personalize` — the LLM-powered personalization pass: for every user
+//! `sections.personalize` the LLM-powered personalization pass: for every user
 //! with enough watch history, cluster their taste, ask the configured LLM to name
 //! a few sections + refine their taste profile, and cache the result. Served on
 //! the home screen by [`crate::services::sections::build_home`]. Heavy + nightly.
@@ -15,7 +15,7 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
     let state = &ctx.state;
     let llm = crate::infra::llm::from_settings(&state.settings);
     if !llm.available() {
-        ctx.warn("no LLM configured — enable one under Admin → Général → IA; skipping");
+        ctx.warn("no LLM configured enable one under Admin → Général → IA; skipping");
         return Ok(());
     }
     ctx.info(format!("personalizing with {}", llm.describe()));
@@ -31,7 +31,7 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
     let mut generated = 0usize;
     for (i, (uid, lang)) in users.iter().enumerate() {
         if ctx.cancelled() {
-            ctx.warn("cancellation requested — stopping");
+            ctx.warn("cancellation requested stopping");
             break;
         }
         ctx.progress(i + 1, total);
@@ -41,7 +41,7 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
         if clusters.is_empty() {
             let embedded = state.vectors.vectors_for(&watched).len();
             ctx.debug(format!(
-                "{}: {} watched / {} with embeddings (< {} required) — skipping",
+                "{}: {} watched / {} with embeddings (< {} required) skipping",
                 short_id(uid), watched.len(), embedded, taste::MIN_WATCHED
             ));
             continue;
@@ -63,10 +63,10 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
                     ctx.info(format!("{}: {} sections", short_id(uid), sections.len()));
                 }
                 Ok(_) => ctx.error(format!(
-                    "{}: model returned no usable sections — reply: {}", short_id(uid), snippet(&reply)
+                    "{}: model returned no usable sections reply: {}", short_id(uid), snippet(&reply)
                 )),
                 Err(e) => ctx.error(format!(
-                    "{}: could not parse model reply: {e} — reply: {}", short_id(uid), snippet(&reply)
+                    "{}: could not parse model reply: {e} reply: {}", short_id(uid), snippet(&reply)
                 )),
             },
             Err(e) => ctx.error(format!("{}: LLM request failed: {e:#}", short_id(uid))),

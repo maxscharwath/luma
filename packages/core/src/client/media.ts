@@ -60,21 +60,21 @@ export function themed(ctx: RequestContext, query: string): Promise<MediaItem[]>
 
 /** The generated home screen (Bearer): an ordered, server-assembled list of
  * section rails (For You, "because you watched …", themed, trending, recently
- * added) — already localized + de-duplicated. Clients render it generically. */
+ * added) already localized + de-duplicated. Clients render it generically. */
 export function home(ctx: RequestContext): Promise<Section[]> {
   return ctx.json<Section[]>('/home');
 }
 
 /** AI-curated suggestions for one title's detail page ("Suggestions IA"), Bearer.
  * Generated lazily by the LLM connector and cached server-side, so the first call
- * for a title returns `null` (generating) — poll until a {@link Section} arrives
+ * for a title returns `null` (generating) poll until a {@link Section} arrives
  * (its `items` may be empty when the model found nothing worth showing). */
 export function aiSuggest(ctx: RequestContext, id: string): Promise<Section | null> {
   return ctx.json<Section | null>(`/items/${encodeURIComponent(id)}/ai-suggest`);
 }
 
 /** Full-text catalogue search (movies, shows, episodes). Server-side
- * field-weighted, typo-tolerant ranking — well suited to imperfect voice
+ * field-weighted, typo-tolerant ranking well suited to imperfect voice
  * transcripts. `limit` caps results (the server clamps to 60). */
 export function search(
   ctx: RequestContext,
@@ -88,8 +88,8 @@ export function search(
 }
 
 /** Every movie + show one person is credited in (cast or key crew). Server-side
- * exact (case-insensitive) match over the catalogue metadata — distinct from the
- * fuzzy {@link search} — ordered best-known work first. */
+ * exact (case-insensitive) match over the catalogue metadata distinct from the
+ * fuzzy {@link search} ordered best-known work first. */
 export function personCredits(
   ctx: RequestContext,
   name: string,
@@ -139,14 +139,14 @@ export function hlsAudioUrl(ctx: RequestContext, id: string, audioIndex = 0, cop
 
 /** HLS *master* playlist that carries the video once plus EVERY audio track as
  * an alternate rendition. The player switches language IN PLACE (no reload, the
- * video never moves) — the stable way to change audio. Video + audio are
+ * video never moves) the stable way to change audio. Video + audio are
  * stream-copied, so the runtime must natively decode them (see
  * {@link canSeamlessAudioSwitch}). Needs hls.js outside Safari/TV. */
 export function hlsMasterUrl(ctx: RequestContext, id: string, aac = false, startSec = 0): string {
   // `aac` transcodes every rendition to stereo AAC (for runtimes that can't
   // decode the source codec, e.g. AC3/EAC3 on Chrome); else stream-copy
   // (surround preserved, for TV/Safari). `startSec` (-ss) starts the remux at
-  // that position so resume/seek to any offset is instantly available — baked
+  // that position so resume/seek to any offset is instantly available baked
   // into the path (not a query) so the player's relative segment URLs match the
   // session. The stream's own timeline restarts at 0; callers add startSec back.
   const variant = `master.${aac ? 'aac' : 'copy'}.${Math.max(0, Math.round(startSec * 1000))}`;

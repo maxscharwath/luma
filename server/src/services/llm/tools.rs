@@ -1,9 +1,9 @@
-//! The **catalog connector** — LUMA's library exposed to an LLM as callable
+//! The **catalog connector** LUMA's library exposed to an LLM as callable
 //! tools ([`crate::infra::llm::ToolBox`]).
 //!
 //! Instead of stuffing hundreds of titles into a prompt, the model *asks* for
-//! exactly what it needs — list titles by genre / director / actor, fetch a
-//! title, enumerate genres / people — each answered by a read-only
+//! exactly what it needs list titles by genre / director / actor, fetch a
+//! title, enumerate genres / people each answered by a read-only
 //! [`db::catalog_query`](crate::db) query. Tools are registered in one [`SPECS`]
 //! table (name → JSON-Schema → handler), so adding a capability is a single
 //! entry. This is the reusable foundation any LLM feature can build on (curate
@@ -84,7 +84,7 @@ const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "list_people",
-        description: "List the most-credited people and their title counts — directors/creators \
+        description: "List the most-credited people and their title counts directors/creators \
                       (role=director, default) or actors (role=actor).",
         schema: schema_list_people,
         handler: handle_list_people,

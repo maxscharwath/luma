@@ -15,7 +15,7 @@ export function rel(ms: number): string {
 export function dur(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  // Round to whole seconds FIRST, then split — rounding the remainder separately
+  // Round to whole seconds FIRST, then split rounding the remainder separately
   // can yield a stray "X min 60 s" for sub-second tails ≥ 59.5 s.
   const total = Math.round(ms / 1000);
   const m = Math.floor(total / 60);

@@ -1,4 +1,4 @@
-//! `recommendations.refresh` — refresh the in-memory embedding snapshot that
+//! `recommendations.refresh` refresh the in-memory embedding snapshot that
 //! powers "For You" / similar / themed rows, so the home sections reflect the
 //! latest catalog + art.
 

@@ -75,11 +75,11 @@ export function AuthProvider({
 }>) {
   const [session, setSession] = useState<StoredSession | null>(() => loadSession());
   const [accounts, setAccounts] = useState<StoredSession[]>(() => loadAccounts());
-  // Profiles that have already cleared their PIN this session (ref — gating reads
+  // Profiles that have already cleared their PIN this session (ref gating reads
   // it at switch-in time, it doesn't drive rendering).
   const unlocked = useRef<Set<string>>(new Set(session ? [keyOf(session)] : []));
 
-  // Keep the active client's bearer token in sync with the active session — but
+  // Keep the active client's bearer token in sync with the active session but
   // only when the session belongs to the server the client points at (a token for
   // server A must never ride a request to server B).
   useEffect(() => {

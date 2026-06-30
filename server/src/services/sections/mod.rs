@@ -1,7 +1,7 @@
 //! The home-screen **section generator**: turns the current context (date,
 //! daypart, the viewer's recent history) + the embedding cache + a phrase bank
 //! into an ordered, de-duplicated list of [`Section`]s. The client renders the
-//! result generically — all the "what rows, in what order" logic lives here.
+//! result generically all the "what rows, in what order" logic lives here.
 //!
 //! Pipeline per request: refresh the vector cache (if stale) → build context →
 //! emit candidate sections in priority order, each resolved to items, capped,
@@ -53,7 +53,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
 
     let mut out = Builder { pool, sections: Vec::new(), seen: HashSet::new() };
 
-    // 1) For You — personalized taste centroid (no floor: it reflects your taste
+    // 1) For You personalized taste centroid (no floor: it reflects your taste
     //    even loosely, and is always wanted when you have history).
     if !ctx.watched.is_empty() {
         let ranked = state.vectors.for_you(&ctx.watched, FETCH);
@@ -63,7 +63,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
     // 2) Because you watched <the last thing>. Genre-guarded: the lexical embedder
     //    is weakly discriminative item↔item (the catalog clusters in a narrow
     //    cosine band, so a drama's "nearest" can be a horror film), and this row
-    //    makes a *specific* similarity claim about one seed — so require a shared
+    //    makes a *specific* similarity claim about one seed so require a shared
     //    genre with it. (No-op when the seed has no genres, or with a discriminative
     //    backend where the neighbours already share genres.)
     if let Some(last) = &ctx.last_played {
@@ -90,7 +90,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
         out.push(&format!("ai:{}", gs.key), gs.title, reason, ranked, floor);
     }
 
-    // 2.6) Editorial curated collections — global, same for everyone (director
+    // 2.6) Editorial curated collections global, same for everyone (director
     //      spotlights + LLM-curated genre/list/franchise/mood rows from the
     //      `sections.curate` job). Membership is explicit (resolved ids), so
     //      NO_FLOOR; a daily-rotated window keeps the home feeling fresh.
@@ -101,7 +101,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
         out.push(&format!("curated:{key}"), title, reason, unscored(ids), NO_FLOOR);
     }
 
-    // 3) Themed rows — eligible phrases, FLOORED: a phrase only becomes a row if
+    // 3) Themed rows eligible phrases, FLOORED: a phrase only becomes a row if
     //    the library actually has matches above the noise level.
     let mut themed = 0;
     for phrase in phrases::eligible(&ctx) {
@@ -115,13 +115,16 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
         }
     }
 
-    // 4) Trending in your library (recency-weighted plays) — SQL, unscored.
+    // 4) Trending in your library (recency-weighted plays) SQL, unscored.
     let trending = unscored(db::trending_ids(pool, FETCH).unwrap_or_default());
     out.push("trending", i18n::t(locale, "content.trending", &[]), None, trending, NO_FLOOR);
 
-    // 5) Recently added — SQL, unscored.
-    let recent = unscored(db::recently_added_ids(pool, FETCH).unwrap_or_default());
-    out.push("recent", i18n::t(locale, "content.recentlyAdded", &[]), None, recent, NO_FLOOR);
+    // 5) Recently added SQL, unscored. Gated by the admin "show recent on home"
+    //    preference (on by default).
+    if state.settings.get_bool("showRecentHome", true) {
+        let recent = unscored(db::recently_added_ids(pool, FETCH).unwrap_or_default());
+        out.push("recent", i18n::t(locale, "content.recentlyAdded", &[]), None, recent, NO_FLOOR);
+    }
 
     out.sections
 }

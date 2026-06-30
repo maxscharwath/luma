@@ -1,7 +1,7 @@
 //! Authentication primitives: password hashing and session tokens.
 //!
 //! Crypto is hand-rolled on top of the `sha2` crate already in the dependency
-//! tree (PBKDF2-HMAC-SHA256), keeping the build lean and 1.81-friendly — the
+//! tree (PBKDF2-HMAC-SHA256), keeping the build lean and 1.81-friendly the
 //! same reasoning that led the project to hand-roll its SQLite pool rather than
 //! pull `r2d2_sqlite` → uuid → rand. Randomness comes from `/dev/urandom`
 //! (the server only ever runs on Unix: Linux NAS / macOS dev).
@@ -9,7 +9,7 @@
 use sha2::{Digest, Sha256};
 
 /// PBKDF2 iteration count. A balance between the OWASP recommendation and the
-/// modest CPU of a NAS — login stays well under a second.
+/// modest CPU of a NAS login stays well under a second.
 const PBKDF2_ITERS: u32 = 120_000;
 /// Salt length in bytes.
 const SALT_LEN: usize = 16;
@@ -53,8 +53,9 @@ fn hmac_sha256(key: &[u8], msg: &[u8]) -> [u8; 32] {
 }
 
 /// PBKDF2-HMAC-SHA256 producing a single 32-byte derived key (dkLen == hLen, so
-/// exactly one block is needed — INT(i) is always `0x00000001`).
-fn pbkdf2_sha256(password: &[u8], salt: &[u8], iters: u32) -> [u8; 32] {
+/// exactly one block is needed INT(i) is always `0x00000001`). `pub(crate)` so
+/// the backup envelope derives its encryption key from the same KDF.
+pub(crate) fn pbkdf2_sha256(password: &[u8], salt: &[u8], iters: u32) -> [u8; 32] {
     let mut block = Vec::with_capacity(salt.len() + 4);
     block.extend_from_slice(salt);
     block.extend_from_slice(&1u32.to_be_bytes());
@@ -71,7 +72,7 @@ fn pbkdf2_sha256(password: &[u8], salt: &[u8], iters: u32) -> [u8; 32] {
 }
 
 /// Constant-time byte comparison (avoids leaking the match prefix via timing).
-fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -86,8 +87,9 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 
 /// `n` cryptographically-random bytes from `/dev/urandom`. Falls back to a
 /// time-seeded SHA-256 stream only if the device is unreadable (never on a sane
-/// Unix host) so token issuance can't hard-fail.
-fn random_bytes(n: usize) -> Vec<u8> {
+/// Unix host) so token issuance can't hard-fail. `pub(crate)` reused for backup
+/// envelope salts/nonces.
+pub(crate) fn random_bytes(n: usize) -> Vec<u8> {
     use std::io::Read;
     let mut buf = vec![0u8; n];
     if let Ok(mut f) = std::fs::File::open("/dev/urandom") {

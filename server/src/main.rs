@@ -1,4 +1,4 @@
-//! LUMA — a self-hosted, direct-play media streaming server.
+//! LUMA a self-hosted, direct-play media streaming server.
 //!
 //! Scans a media library (Plex-style movie/show detection), persists it in
 //! SQLite, exposes metadata over a JSON REST API, and range-streams the original
@@ -81,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
     // nothing, it's almost certainly a transient mount outage (NAS down). Syncing
     // an empty scan would make `sync_all` treat every real library as "vanished"
     // and cascade-delete it along with all the expensive probed metadata, so in
-    // that case we keep the existing index instead of overwriting it — the
+    // that case we keep the existing index instead of overwriting it the
     // watcher re-syncs automatically once the mount returns.
     let mount_outage = data.items.is_empty() && has_folders;
     if data.items.is_empty() && !has_folders {

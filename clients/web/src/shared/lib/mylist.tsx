@@ -1,4 +1,4 @@
-// "Ma liste" — the user's bookmarked titles, hydrated once and shared across the
+// "Ma liste" the user's bookmarked titles, hydrated once and shared across the
 // detail toggle and the "Ma liste" page. Server-backed (synced with the TV), with
 // optimistic toggles that revert if the server call fails. Mirrors the watched
 // provider ([[luma-accounts-permissions]]).
@@ -17,7 +17,7 @@ import { useAuth } from '#web/shared/lib/auth';
 interface MyListValue {
   /** True once the list has been hydrated (or there's no user). */
   ready: boolean;
-  /** Item ids in the list (newest first) — for the "Ma liste" page. */
+  /** Item ids in the list (newest first) for the "Ma liste" page. */
   ids: readonly string[];
   /** Whether a title is in the list. */
   inList: (id: string) => boolean;

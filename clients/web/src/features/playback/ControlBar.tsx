@@ -1,4 +1,4 @@
-import { formatTimecode as fmtTime } from '@luma/core';
+import { formatTimecode as fmtTime, type Marker } from '@luma/core';
 import { useT } from '@luma/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Slider from '@radix-ui/react-slider';
@@ -22,16 +22,31 @@ const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 /** Auto-hiding bottom control surface: scrub bar (with hover preview + buffered
  * track) and the transport / volume / speed / stats / tracks / PiP / fullscreen row. */
+/** Skip-to-next-episode glyph (⏭). */
+function IconNext() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M6 5l9 7-9 7V5zm11 0h2v14h-2V5z" />
+    </svg>
+  );
+}
+
 export function ControlBar({
   pb,
   statsOpen,
+  markers,
   onToggleStats,
   onOpenAv,
+  onPlayNext,
 }: Readonly<{
   pb: VideoPlayback;
   statsOpen: boolean;
+  /** Intro / credits segments to mark on the scrub track. */
+  markers?: readonly Marker[];
   onToggleStats: () => void;
   onOpenAv: () => void;
+  /** Skip to the next episode (series only); omitted = no button. */
+  onPlayNext?: () => void;
 }>) {
   const t = useT();
   const { cur, dur, bufEnd, playing, muted, volume, rate, fs, hover, scrubPreview } = pb;
@@ -81,6 +96,27 @@ export function ControlBar({
               className="absolute inset-y-0 left-0 rounded-full bg-white/15"
               style={{ width: `${bufPct}%` }}
             />
+            {/* Intro / credits segments from the markers DTO. */}
+            {dur > 0
+              ? markers?.map((m) => {
+                  const durMs = dur * 1000;
+                  const left = Math.max(0, Math.min(100, (m.startMs / durMs) * 100));
+                  const width = Math.max(0.6, ((m.endMs - m.startMs) / durMs) * 100);
+                  return (
+                    <div
+                      key={m.kind}
+                      className="absolute inset-y-0 rounded-full"
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        background:
+                          m.kind === 'intro' ? 'rgba(120,180,255,0.65)' : 'rgba(214,140,255,0.65)',
+                      }}
+                      title={m.kind === 'intro' ? t('player.skipIntro') : t('content.upNext')}
+                    />
+                  );
+                })
+              : null}
             <div
               className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-accent to-[#FFD262] shadow-[0_0_12px_rgba(242,180,66,.55)]"
               style={{ width: `${pct}%` }}
@@ -107,6 +143,11 @@ export function ControlBar({
         <CtrlButton onClick={() => pb.skip(10)} label={t('player.fwd10')}>
           <IconFwd10 />
         </CtrlButton>
+        {onPlayNext ? (
+          <CtrlButton onClick={onPlayNext} label={t('player.nextEpisode')}>
+            <IconNext />
+          </CtrlButton>
+        ) : null}
 
         {/* volume */}
         <div className="group flex items-center">

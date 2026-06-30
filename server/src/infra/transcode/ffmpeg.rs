@@ -11,7 +11,7 @@ const SEGMENT_SECONDS: &str = "6";
 
 /// One audio rendition in a master remux: which source audio track to map and
 /// how to label it. v1 stream-copies every track (so the runtime must natively
-/// decode them — gated client-side by `canSeamlessAudioSwitch`).
+/// decode them gated client-side by `canSeamlessAudioSwitch`).
 pub struct MasterTrack {
     /// Audio-relative source index (`-map 0:a:<index>`).
     pub index: u32,
@@ -37,7 +37,7 @@ pub(super) fn spawn_ffmpeg_master(input: &Path, dir: &Path, tracks: &[MasterTrac
     cmd.arg("-i").arg(input);
     // `-copyts` keeps the ORIGINAL timestamps so every rendition (the copied video
     // + each audio rendition, which are separate outputs) stays on one shared
-    // timeline and the player aligns them by PTS — without it each output is zeroed
+    // timeline and the player aligns them by PTS without it each output is zeroed
     // independently and the keyframe-snapped video drifts out of sync with the
     // audio. The player still normalises the visible start to 0, so the client's
     // baseSec offset (added back for the bar/subtitles/progress) is unaffected.
@@ -50,7 +50,7 @@ pub(super) fn spawn_ffmpeg_master(input: &Path, dir: &Path, tracks: &[MasterTrac
     }
     // Video is always stream-copied. Audio is copied (surround preserved, for
     // runtimes that decode it) or transcoded to stereo AAC (so browsers that
-    // can't decode AC3/EAC3/DTS via MSE can still play — and switch — every track).
+    // can't decode AC3/EAC3/DTS via MSE can still play and switch every track).
     cmd.args(["-c:v", "copy"]);
     if aac {
         cmd.args(["-c:a", "aac", "-ac", "2", "-b:a", "192k"]);

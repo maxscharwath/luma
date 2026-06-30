@@ -1,4 +1,4 @@
-//! Optional movie/show metadata enrichment via **TMDB** (The Movie Database) —
+//! Optional movie/show metadata enrichment via **TMDB** (The Movie Database)
 //! overview, poster, genres, rating, and the TMDB + IMDb IDs.
 //!
 //! Like [`crate::infra::probe`] (which shells out to `ffprobe`), this shells out to
@@ -19,4 +19,4 @@ mod cache;
 mod client;
 
 pub use cache::Cache;
-pub use client::{curl_available, lookup, Target};
+pub use client::{curl_available, lookup, season_episodes, EpisodeArt, SeasonData, Target};

@@ -10,7 +10,7 @@ export interface AttachOptions {
 
 /**
  * Direct-play attach: point a <video> element at the server's range-streamed
- * original file. No MSE, no transcoding — the device decodes the source codec
+ * original file. No MSE, no transcoding the device decodes the source codec
  * (HEVC included) natively. Returns the playback verdict so the caller can warn
  * when the codec is unsupported.
  */
@@ -45,18 +45,18 @@ export function attachDirectPlay(
 }
 
 /**
- * Preserve playback position (and play/pause state) across a source swap — e.g.
+ * Preserve playback position (and play/pause state) across a source swap e.g.
  * switching the audio track re-points `<video>` at a per-track HLS remux, which
  * resets `currentTime` to 0. Call it RIGHT AFTER assigning the new source,
  * passing the position/state captured from the old one (read them before the swap
- * — assigning `src` zeroes `currentTime`).
+ * assigning `src` zeroes `currentTime`).
  *
  * The per-track remux is a growing HLS *event* playlist (no finite duration,
  * segments appear from 0 over a second or two). Seeking before the target is in
  * the playlist either does nothing (→ stuck at 0) or clamps to the buffered edge
  * and, if retried, bounces around as it grows (→ "random" teleport). So we POLL
  * `video.seekable` and issue exactly ONE seek once the target is actually
- * reachable, then resume — never fighting a later manual seek. A timeout gives up
+ * reachable, then resume never fighting a later manual seek. A timeout gives up
  * gracefully (plays from wherever it is). Returns a cleanup for the effect teardown.
  */
 export function restorePlaybackAfterSwap(
@@ -94,11 +94,11 @@ export function restorePlaybackAfterSwap(
     }
     const s = video.seekable;
     const end = s.length ? s.end(s.length - 1) : 0;
-    if (end + 0.5 < resumeAt) return; // target not yet in the playlist — keep waiting
+    if (end + 0.5 < resumeAt) return; // target not yet in the playlist keep waiting
     try {
       video.currentTime = resumeAt; // one shot, now that it's reachable
     } catch {
-      return; // not ready after all — next tick retries (no clamp/bounce)
+      return; // not ready after all next tick retries (no clamp/bounce)
     }
     finish();
   };

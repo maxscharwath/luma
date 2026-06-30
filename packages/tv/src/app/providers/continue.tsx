@@ -19,7 +19,7 @@ interface Continue {
 
 const ContinueCtx = createContext<Continue | null>(null);
 
-/** "Reprendre" (continue watching) — per-user. Re-fetched on sign-in and whenever
+/** "Reprendre" (continue watching) per-user. Re-fetched on sign-in and whenever
  * the home screen asks. Mounted inside the auth + connection providers. */
 export function ContinueProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { user } = useAuth();

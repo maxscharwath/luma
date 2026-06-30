@@ -2,7 +2,7 @@
 import type { Permission } from "./Permission";
 
 /**
- * `POST /api/invites` result — the invite plus a ready-to-share join URL.
+ * `POST /api/invites` result the invite plus a ready-to-share join URL.
  */
 export type InviteCreated = { token: string, 
 /**

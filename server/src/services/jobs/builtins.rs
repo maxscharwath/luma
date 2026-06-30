@@ -1,11 +1,11 @@
-//! The built-in jobs shipped with LUMA — one handler file per job in this
+//! The built-in jobs shipped with LUMA one handler file per job in this
 //! directory, wired into the typed [`JOBS`] registry below.
 //!
 //! A job's identity is a [`JobId`] (not a string), so every reference is
 //! compiler-checked + autocompleted and the set is exported to the clients. The
 //! handler is a plain `fn` in its own file; this registry is the single typed
 //! list of what ships. Adding a job: drop a handler file, add its `mod` line +
-//! one [`JOBS`] row + a [`JobId`] variant — the compiler enforces all three line
+//! one [`JOBS`] row + a [`JobId`] variant the compiler enforces all three line
 //! up.
 
 use crate::model::{Category, JobId};
@@ -91,6 +91,15 @@ static JOBS: &[Builtin] = &[
         triggers: &[],
         run: search_reindex::run,
     },
+    Builtin {
+        id: JobId::MarkersDetect,
+        category: Category::Library,
+        // Nightly + manual only: fingerprinting decodes every episode's audio, so
+        // it must not fire on every library change.
+        schedule: Some("0 3 * * *"),
+        triggers: &[],
+        run: crate::services::markers::job::run,
+    },
 ];
 
 /// Register every built-in job on the manager (registration order = listing
@@ -101,7 +110,7 @@ pub fn register_all(m: &mut JobManager) {
     }
 }
 
-/// Shared imports for the per-job handler files — `use super::prelude::*;`.
+/// Shared imports for the per-job handler files `use super::prelude::*;`.
 pub(crate) mod prelude {
     pub(crate) use super::snippet;
     pub(crate) use crate::services::jobs::JobContext;
@@ -125,7 +134,7 @@ mod tests {
     use super::JOBS;
     use crate::model::JobId;
 
-    /// Every `JobId` variant has exactly one registry row, and ids are unique —
+    /// Every `JobId` variant has exactly one registry row, and ids are unique
     /// so the typed registry and the id enum can't drift apart.
     #[test]
     fn registry_covers_every_jobid() {

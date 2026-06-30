@@ -12,7 +12,7 @@ use crate::services::llm::CatalogTools;
 use crate::state::SharedState;
 
 /// Max model turns in the suggestion tool loop (a few `find_titles`, then the
-/// JSON reply — smaller than curate's catalog-wide pass).
+/// JSON reply smaller than curate's catalog-wide pass).
 const MAX_TOOL_STEPS: usize = 12;
 /// Minimum members for a suggestion section to be worth showing.
 const MIN_MEMBERS: usize = 4;
@@ -26,7 +26,7 @@ pub struct Suggestion {
 
 /// Generate AI suggestions for one seed item. `Ok(Some)` on success; `Ok(None)`
 /// when the LLM is unconfigured / can't tool-call, the seed is unknown, or the
-/// reply was unusable / too thin; `Err` only on a hard LLM failure — so the
+/// reply was unusable / too thin; `Err` only on a hard LLM failure so the
 /// caller can cache `None` as a terminal "nothing" but retry on `Err`.
 pub fn suggest_for(state: &SharedState, seed_id: &str, max_tokens: u32) -> Result<Option<Suggestion>> {
     let pool = &state.db;
@@ -53,7 +53,7 @@ pub fn suggest_for(state: &SharedState, seed_id: &str, max_tokens: u32) -> Resul
         .filter(|m| !m.is_empty() && m != seed_id && seen.insert(m.clone()))
         .collect();
     // Resolve against the real catalog (movies *and* shows) and gate on the
-    // resolved count — the model can echo titles or stale/invented ids, which
+    // resolved count the model can echo titles or stale/invented ids, which
     // would otherwise pass the raw-count gate, get cached as terminal, then be
     // silently dropped at hydration, leaving the rail permanently empty.
     let refs: Vec<&str> = claimed.iter().map(String::as_str).collect();
@@ -69,11 +69,11 @@ pub fn suggest_for(state: &SharedState, seed_id: &str, max_tokens: u32) -> Resul
 /// enjoy, members returned as catalog ids from the tools.
 fn build_prompt(s: &TitleFull) -> (String, String) {
     let system = "You are the resident film & TV concierge of a personal library. Given one title the viewer \
-         is looking at, suggest OTHER titles from this library a fan of it would enjoy — same director \
+         is looking at, suggest OTHER titles from this library a fan of it would enjoy same director \
          or cast, kindred genre, era or mood. You have tools: list_genres, list_people, find_titles \
          (filter by genre / director / actor / year / rating) and get_title. Use find_titles to gather \
          candidates (try the seed's director, its lead actors, and its genres).\n\
-         When done, reply with STRICT JSON only — no prose, no markdown, no fences:\n\
+         When done, reply with STRICT JSON only no prose, no markdown, no fences:\n\
          {\"reasonFr\":string,\"reasonEn\":string,\"members\":[string]}\n\
          - \"members\": 8-15 catalog **ids** returned by the tools (each title's \"id\" field), \
          excluding the seed; never invent ids.\n\
@@ -83,7 +83,7 @@ fn build_prompt(s: &TitleFull) -> (String, String) {
     let cast = s.cast.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
     let genres = s.genres.join(", ");
     let overview: String = s.overview.as_deref().unwrap_or("").chars().take(280).collect();
-    let dash = |s: &str| if s.trim().is_empty() { "—".to_string() } else { s.to_string() };
+    let dash = |s: &str| if s.trim().is_empty() { "-".to_string() } else { s.to_string() };
     let user = format!(
         "Seed (id {}): \"{}\"{}\n- genres: {}\n- director: {}\n- cast: {}\n- synopsis: {}\n\n\
          Suggest library titles a fan of this would enjoy. Return the JSON now.",

@@ -27,7 +27,7 @@ function addrOf(url: string): string {
 }
 
 /**
- * Add-profile wizard, step 1 — choose a server. One "Serveurs disponibles" list
+ * Add-profile wizard, step 1 choose a server. One "Serveurs disponibles" list
  * (LAN-discovered + saved, with a discovery spinner) followed by "Ajouter
  * manuellement". Picking any of them points the client at it and advances to
  * Quick Connect. The wizard never offers a password or registration.
@@ -49,7 +49,7 @@ export function TvAddProfile() {
 
   // A single "Serveurs disponibles" section: discovered servers first (tagged
   // "nouveau" when not yet saved), then any saved-but-not-discovered, then the
-  // manual-entry row — exactly the design's layout.
+  // manual-entry row exactly the design's layout.
   const rows = useMemo<Row[]>(() => {
     const localUrls = discovered.map(norm);
     const out: Row[] = [];

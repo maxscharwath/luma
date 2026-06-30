@@ -49,10 +49,10 @@ pub async fn get_llm(
     .into_response())
 }
 
-/// Save body — the full provider set + global enable + default provider index. A
+/// Save body the full provider set + global enable + default provider index. A
 /// provider's `apiKey` is optional: omit/blank to keep the stored secret (see
 /// `set_llm`). The default is identified by **index** (not id), because new
-/// providers carry no id yet — the server assigns one on save.
+/// providers carry no id yet the server assigns one on save.
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LlmSaveBody {
@@ -109,7 +109,7 @@ pub async fn save_llm(
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
-/// Probe body — the in-progress form values, plus the provider `id` being edited
+/// Probe body the in-progress form values, plus the provider `id` being edited
 /// so a blank field (notably the masked API key) can fall back to *that* saved
 /// provider's stored value rather than the legacy flat keys.
 #[derive(Deserialize, Default)]
@@ -123,7 +123,7 @@ pub struct ProbeBody {
 }
 
 fn resolved(settings: &Settings, body: &ProbeBody) -> (String, String, String, String) {
-    // The saved provider this probe edits (by id), else the default — its stored
+    // The saved provider this probe edits (by id), else the default its stored
     // values back-fill any blank form field. Multi-provider keys live in
     // `llmProviders[].api_key`, so reaching them by id is the only way the probe
     // can reuse a masked key (the legacy flat keys are empty on these installs).
@@ -181,7 +181,7 @@ pub async fn test_llm(
     let (provider, base_url, model, api_key) = resolved(&state.settings, &body);
     let (ok, message) = tokio::task::spawn_blocking(move || {
         match crate::infra::llm::build_http(&provider, &base_url, &model, &api_key, 0.7, false) {
-            None => (false, "not configured — set a base URL and model".to_string()),
+            None => (false, "not configured set a base URL and model".to_string()),
             Some(llm) => match llm.complete("You are a connectivity check. Reply with exactly: OK", "ping", 16) {
                 Ok(reply) => (true, format!("{} → {}", llm.describe(), reply.trim())),
                 Err(e) => (false, format!("{e:#}")),

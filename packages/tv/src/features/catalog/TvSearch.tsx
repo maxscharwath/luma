@@ -21,7 +21,7 @@ interface Hit {
 const DEBOUNCE_MS = 250;
 
 /** Search with a D-pad on-screen keyboard (left) and a live results grid (right).
- * Queries the server's full-text engine (`/api/search` — typo-tolerant, ranked
+ * Queries the server's full-text engine (`/api/search` typo-tolerant, ranked
  * across title/cast/genre/overview), falling back to the in-memory catalogue when
  * the request fails. */
 export function TvSearch() {
@@ -46,7 +46,7 @@ export function TvSearch() {
           onOpen: () => nav.go('show', { show: s }),
         };
       }
-      const m = hit.item; // movie | episode — both navigate to the item detail
+      const m = hit.item; // movie | episode both navigate to the item detail
       return {
         id: m.id,
         title: m.episodeTitle ?? m.title,
@@ -135,7 +135,6 @@ export function TvSearch() {
                 <TvPoster
                   key={h.id}
                   title={h.title}
-                  badge={h.badge}
                   poster={h.poster}
                   colors={h.colors}
                   onClick={h.onOpen}

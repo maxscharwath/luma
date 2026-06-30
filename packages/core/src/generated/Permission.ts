@@ -2,7 +2,7 @@
 
 /**
  * A granular capability. Stored on each user as a JSON array of the string keys
- * below. Extend this enum (and the TS mirror in `@luma/core`) to add more —
+ * below. Extend this enum (and the TS mirror in `@luma/core`) to add more
  * e.g. a `stats.view` for the upcoming stats pages.
  */
 export type Permission = "users.manage" | "library.manage" | "settings.manage" | "playback";

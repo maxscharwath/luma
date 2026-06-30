@@ -46,6 +46,7 @@ import type {
   ShowDetail,
   StorageInfo,
   TopUser,
+  UpNext,
   User,
 } from './types';
 
@@ -54,7 +55,7 @@ export { LumaApiError } from './client/base';
 
 /** Thin typed client over the LUMA server REST API. Shared by every client shell.
  *
- * The flat method surface is intentional — call sites use `client.listMovies()`.
+ * The flat method surface is intentional call sites use `client.listMovies()`.
  * Each method is a thin delegate to a per-domain implementation in `./client/*`
  * (media, accounts, playback, library, admin), wired through a shared
  * {@link RequestContext}. */
@@ -268,6 +269,14 @@ export class LumaClient {
   continueWatching(): Promise<ContinueItem[]> {
     return playback.continueWatching(this.ctx);
   }
+  /** The episode to play to continue a show (resume / next unwatched / first). */
+  upNext(showId: string): Promise<UpNext | null> {
+    return playback.upNext(this.ctx, showId);
+  }
+  /** The next episode after an item (player autoplay), or null. */
+  nextEpisode(itemId: string): Promise<MediaItem | null> {
+    return playback.nextEpisode(this.ctx, itemId);
+  }
   forYou(): Promise<MediaItem[]> {
     return playback.forYou(this.ctx);
   }
@@ -343,6 +352,9 @@ export class LumaClient {
   clearCache(): Promise<{ freedBytes: number }> {
     return admin.clearCache(this.ctx);
   }
+  resetMetadata(): Promise<{ items: number; shows: number }> {
+    return admin.resetMetadata(this.ctx);
+  }
   adminUsers(): Promise<AdminUsers> {
     return admin.adminUsers(this.ctx);
   }
@@ -358,13 +370,13 @@ export class LumaClient {
   updateSettings(patch: Record<string, unknown>): Promise<{ updated: string[] }> {
     return admin.updateSettings(this.ctx, patch);
   }
-  /** Download a portable backup (accounts, settings, history…) as a JSON Blob. */
-  exportBackup(): Promise<Blob> {
-    return admin.exportBackup(this.ctx);
+  /** Download a portable backup as a Blob; `password` encrypts it (`.luma`). */
+  exportBackup(password?: string): Promise<Blob> {
+    return admin.exportBackup(this.ctx, password);
   }
   /** Restore a backup file, then trigger a re-scan. Returns per-table counts. */
-  importBackup(file: Blob): Promise<admin.BackupImportResult> {
-    return admin.importBackup(this.ctx, file);
+  importBackup(file: Blob, opts?: admin.BackupImportOptions): Promise<admin.BackupImportResult> {
+    return admin.importBackup(this.ctx, file, opts);
   }
   topUsers(days = 7): Promise<{ users: TopUser[] }> {
     return admin.topUsers(this.ctx, days);

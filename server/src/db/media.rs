@@ -13,7 +13,7 @@ pub fn counts(pool: &Pool) -> Result<(usize, usize, usize)> {
     Ok((libs as usize, items as usize, shows as usize))
 }
 
-/// Movies (and loose videos) — everything that isn't an episode.
+/// Movies (and loose videos) everything that isn't an episode.
 pub fn list_movies(pool: &Pool, library: Option<&str>) -> Result<Vec<MediaItem>> {
     query_items(
         pool,
@@ -23,7 +23,7 @@ pub fn list_movies(pool: &Pool, library: Option<&str>) -> Result<Vec<MediaItem>>
     )
 }
 
-/// All playable items (movies + episodes) — backwards-compatible `/api/items`.
+/// All playable items (movies + episodes) backwards-compatible `/api/items`.
 pub fn list_items(pool: &Pool, library: Option<&str>) -> Result<Vec<MediaItem>> {
     query_items(
         pool,
@@ -73,6 +73,7 @@ pub fn list_shows(pool: &Pool, library: Option<&str>) -> Result<Vec<Show>> {
             episode_count: r.get::<_, i64>(6)? as u32,
             video: None,
             metadata: parse_metadata(r.get(7)?),
+            progress: None,
         })
     };
     let mut shows: Vec<Show> = if want_lib {
@@ -91,7 +92,7 @@ pub fn list_shows(pool: &Pool, library: Option<&str>) -> Result<Vec<Show>> {
 /// Lightweight catalogue snapshot for the search index: `(items, shows)` with
 /// only the fields the index reads (title, show/episode title, metadata) and
 /// none of the per-row file / representative-video lookups [`list_movies`] /
-/// [`list_shows`] do — so a full reindex is just two table scans.
+/// [`list_shows`] do so a full reindex is just two table scans.
 pub fn index_snapshot(pool: &Pool) -> Result<(Vec<MediaItem>, Vec<Show>)> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLS} FROM items"))?;
@@ -110,6 +111,7 @@ pub fn index_snapshot(pool: &Pool) -> Result<(Vec<MediaItem>, Vec<Show>)> {
                 episode_count: 0,
                 video: None,
                 metadata: parse_metadata(r.get(5)?),
+                progress: None,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -117,7 +119,7 @@ pub fn index_snapshot(pool: &Pool) -> Result<(Vec<MediaItem>, Vec<Show>)> {
 }
 
 /// Fetch full items for a set of ids (search-result hydration). Order is
-/// unspecified — the caller re-orders by relevance.
+/// unspecified the caller re-orders by relevance.
 pub fn get_items_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<MediaItem>> {
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -136,7 +138,7 @@ pub fn get_items_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<MediaItem>> {
 }
 
 /// Fetch full shows (with season/episode counts + representative video) for a set
-/// of ids. Order is unspecified — the caller re-orders by relevance.
+/// of ids. Order is unspecified the caller re-orders by relevance.
 pub fn get_shows_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<Show>> {
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -163,6 +165,7 @@ pub fn get_shows_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<Show>> {
                 episode_count: r.get::<_, i64>(6)? as u32,
                 video: None,
                 metadata: parse_metadata(r.get(7)?),
+                progress: None,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -175,7 +178,7 @@ pub fn get_shows_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<Show>> {
 /// Ids of every movie + show crediting `name` in its cast OR key crew, matched
 /// case-insensitively over the metadata JSON. Returns `(movie_ids, show_ids)`;
 /// episodes are excluded (they inherit a show's credits). Powers `GET /api/people`
-/// — "everything this actor/director appears in or worked on".
+/// "everything this actor/director appears in or worked on".
 pub fn titles_by_person(pool: &Pool, name: &str) -> Result<(Vec<String>, Vec<String>)> {
     let name = name.trim();
     if name.is_empty() {
@@ -228,6 +231,7 @@ pub fn get_show(pool: &Pool, id: &str) -> Result<Option<ShowDetail>> {
                     episode_count: 0,
                     video: None,
                     metadata: parse_metadata(r.get(5)?),
+                    progress: None,
                 })
             },
         )
@@ -252,10 +256,18 @@ pub fn get_show(pool: &Pool, id: &str) -> Result<Option<ShowDetail>> {
         let n = ep.season.unwrap_or(0);
         match seasons.iter_mut().find(|s| s.number == n) {
             Some(s) => s.episodes.push(ep),
-            None => seasons.push(Season { number: n, episodes: vec![ep] }),
+            None => seasons.push(Season { number: n, episodes: vec![ep], cast: Vec::new() }),
         }
     }
     seasons.sort_by_key(|s| s.number);
+
+    // Attach per-season cast (TMDB season credits), resolved during enrichment.
+    let mut casts = season_casts(pool, id)?;
+    for s in &mut seasons {
+        if let Some(cast) = casts.remove(&s.number) {
+            s.cast = cast;
+        }
+    }
 
     show.episode_count = episodes.len() as u32;
     show.season_count = seasons.len() as u32;
@@ -264,7 +276,7 @@ pub fn get_show(pool: &Pool, id: &str) -> Result<Option<ShowDetail>> {
     Ok(Some(ShowDetail { show, seasons }))
 }
 
-/// Pick a representative video stream for a show — the highest-resolution probed
+/// Pick a representative video stream for a show the highest-resolution probed
 /// file across all of the show's episodes.
 fn representative_video(conn: &rusqlite::Connection, show_id: &str) -> Result<Option<VideoStream>> {
     let mut stmt = conn.prepare(

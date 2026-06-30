@@ -2,7 +2,7 @@
 //!
 //! These modules shell out to external tools (`ffprobe`, `ffmpeg`, `curl`),
 //! touch the filesystem, advertise over mDNS, sample system metrics, and bridge
-//! live events — the edges where LUMA talks to the world outside the process.
+//! live events the edges where LUMA talks to the world outside the process.
 
 pub mod probe;
 pub mod transcode;

@@ -3,7 +3,7 @@ import type { MediaItem } from "./MediaItem";
 import type { Show } from "./Show";
 
 /**
- * One ranked result of `GET /api/search` — a `type`-tagged union so the client
+ * One ranked result of `GET /api/search` a `type`-tagged union so the client
  * can switch on it (`movie`/`episode` carry a `MediaItem`, `show` a `Show`).
  */
 export type SearchHit = { "type": "movie", item: MediaItem, } | { "type": "show", show: Show, } | { "type": "episode", item: MediaItem, };

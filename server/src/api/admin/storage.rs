@@ -21,17 +21,21 @@ pub async fn storage(
 ) -> Result<Response, Response> {
     super::require_any_admin(&user)?;
     let data_dir = state.config.data_dir.clone();
-    let (volumes, media_bytes, cache_bytes) = query(&state.db, move |pool| {
+    let (volumes, media_bytes, transcode, images, counts) = query(&state.db, move |pool| {
         let volumes = crate::infra::metrics::read_disks();
         let media = db::total_media_bytes(&pool).unwrap_or(0).max(0) as u64;
-        let cache =
-            dir_size(&data_dir.join("transcode")) + dir_size(&data_dir.join("images"));
-        Ok((volumes, media, cache))
+        let transcode = dir_stats(&data_dir.join("transcode"));
+        let images = dir_stats(&data_dir.join("images"));
+        let counts = db::metadata_counts(&pool).unwrap_or((0, 0, 0));
+        Ok((volumes, media, transcode, images, counts))
     })
     .await?;
 
     let total: u64 = volumes.iter().map(|v| v.total_bytes).sum();
     let used: u64 = volumes.iter().map(|v| v.used_bytes).sum();
+    let (transcode_bytes, _) = transcode;
+    let (images_bytes, images_count) = images;
+    let (enriched_items, enriched_shows, embeddings) = counts;
     Ok(Json(crate::api::dto::StorageInfo {
         volumes,
         total_bytes: total,
@@ -40,8 +44,14 @@ pub async fn storage(
         media_bytes,
         cache: crate::api::dto::CacheInfo {
             dir: state.config.data_dir.join("transcode").to_string_lossy().into_owned(),
-            bytes: cache_bytes,
+            bytes: transcode_bytes + images_bytes,
             limit: state.settings.get_str("cacheLimit", "80 Go"),
+            transcode_bytes,
+            images_bytes,
+            images_count,
+            enriched_items: enriched_items.max(0) as u64,
+            enriched_shows: enriched_shows.max(0) as u64,
+            embeddings: embeddings.max(0) as u64,
         },
     })
     .into_response())
@@ -64,6 +74,30 @@ pub async fn clear_cache(
     })
     .await?;
     Ok(Json(json!({ "freedBytes": freed })).into_response())
+}
+
+/// `POST /api/admin/cache/reset-metadata` → drop every resolved TMDB metadata
+/// (DB JSON, season casts and title embeddings) and the in-memory lookup cache,
+/// forcing a full re-fetch on the next enrichment run. Does NOT delete on-disk
+/// images use `clear_cache` for that. Returns how many rows were cleared.
+pub async fn reset_metadata(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    super::require(&user, Permission::SettingsManage)?;
+    let (items, shows) = query(&state.db, move |pool| db::reset_all_metadata(&pool)).await?;
+    state.metadata_cache.clear();
+    Ok(Json(json!({ "items": items, "shows": shows })).into_response())
+}
+
+/// Recursive `(bytes, file_count)` of a directory tree (zero if missing).
+fn dir_stats(path: &Path) -> (u64, u64) {
+    walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok())
+        .fold((0u64, 0u64), |(bytes, count), m| (bytes + m.len(), count + 1))
 }
 
 /// Recursive byte size of a directory tree (0 if missing).

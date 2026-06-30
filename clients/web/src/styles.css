@@ -1,4 +1,4 @@
-/* LUMA web — Tailwind v4, themed with the LUMA design tokens.
+/* LUMA web Tailwind v4, themed with the LUMA design tokens.
    @luma/ui/styles.css provides the raw `--luma-*` custom properties + fonts;
    the @theme block below maps them onto Tailwind utilities so classes like
    `bg-accent` / `text-muted` / `rounded-lg` / `shadow-card` render the exact
@@ -27,7 +27,7 @@
   --color-info: var(--luma-info);
   --color-danger: var(--luma-danger);
 
-  /* Fonts (literal — Tailwind's --font-* namespace collides with the LUMA
+  /* Fonts (literal Tailwind's --font-* namespace collides with the LUMA
      token names, so we can't self-reference). */
   --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;

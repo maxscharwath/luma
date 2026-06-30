@@ -20,7 +20,7 @@ export interface PosterCardProps {
  *
  * Performance: the artwork is a real `<img loading="lazy" decoding="async">`, so
  * off-screen posters in long rails are never fetched or decoded until they
- * approach the viewport — the key to staying smooth with hundreds of tiles
+ * approach the viewport the key to staying smooth with hundreds of tiles
  * (Netflix/Disney+ style). The component is memoised so re-rendering a rail
  * doesn't re-render unaffected tiles.
  */

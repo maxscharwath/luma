@@ -3,7 +3,7 @@ import { DEFAULT_AUDIO, EXIT_MS, KEYFRAMES, SAFETY_MS } from './constants';
 import { IntroScene } from './IntroScene';
 
 /**
- * LUMA cinematic brand intro — ported from the Claude Design source
+ * LUMA cinematic brand intro ported from the Claude Design source
  * ("LUMA Intro.dc.html"): a total-black open, an amber glow that ignites an
  * aperture mark (ring draw → orbit glint → centre-dot ignite → shockwave), an
  * impact flash + scale punch synced to the 1.30 s bass hit, the "LUMA" wordmark
@@ -15,18 +15,18 @@ import { IntroScene } from './IntroScene';
  * gesture, the visual timeline only *starts* once `audio.play()` resolves (or is
  * rejected) so picture and sound stay locked together; a pointer/key fallback
  * unblocks the sound on the first interaction, and a safety timer guarantees the
- * intro still ends even if audio never plays. There are no on-screen controls —
+ * intro still ends even if audio never plays. There are no on-screen controls
  * it auto-ends with the sting, and any key / remote button (OK, Back, Space) skips.
  *
- * It is intentionally framework-free — plain inline styles + an injected
- * `<style>` of @keyframes, no Tailwind — so it renders identically on the web
+ * It is intentionally framework-free plain inline styles + an injected
+ * `<style>` of @keyframes, no Tailwind so it renders identically on the web
  * SSR shell and on old TV webviews. Mount it as a full-screen overlay and call
  * `onDone` to hand off to the app.
  *
  * `lite` (set by the TV shells) trades a little polish for a smooth frame rate on
  * weak TV GPUs: it drops the per-frame raster work desktop can absorb but a TV
- * can't — animated `filter: blur()`, the `mix-blend-mode` grain, the
- * `background-position` sheen — and keeps animation on the compositor (opacity +
+ * can't animated `filter: blur()`, the `mix-blend-mode` grain, the
+ * `background-position` sheen and keeps animation on the compositor (opacity +
  * transform only, big layers promoted with `translateZ`).
  */
 export interface LumaIntroProps {
@@ -40,7 +40,7 @@ export interface LumaIntroProps {
   showTagline?: boolean;
   /** Override the tagline copy. */
   tagline?: string;
-  /** Performance mode for weak TV GPUs — compositor-only animation, no blur/blend
+  /** Performance mode for weak TV GPUs compositor-only animation, no blur/blend
    * raster. Visually near-identical; much smoother on a TV webview. */
   lite?: boolean;
 }
@@ -91,7 +91,7 @@ export function LumaIntro({
       try {
         a.currentTime = 0;
       } catch {
-        /* not yet seekable — harmless */
+        /* not yet seekable harmless */
       }
       const p = a.play();
       if (p && typeof p.then === 'function') p.then(begin).catch(begin);

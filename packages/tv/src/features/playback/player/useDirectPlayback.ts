@@ -17,7 +17,7 @@ import { useResumeAndPersist } from '#tv/features/playback/player/useResumeAndPe
 export interface Playback {
   videoRef: React.RefObject<HTMLVideoElement>;
   verdict: DirectPlayVerdict | null;
-  /** Codec/stream load failure, as an i18n key — translated at the render site. */
+  /** Codec/stream load failure, as an i18n key translated at the render site. */
   error: MessageKey | null;
   /** Admin-terminated message: a custom string, or '' for the default (the render
    * site supplies the localized fallback). Null while the session is live. */
@@ -34,8 +34,14 @@ export interface Playback {
   /** Switch to the audio track with this audio-relative index. */
   setAudio: (index: number) => void;
   togglePlay: () => void;
-  /** Seek by `delta` seconds, clamped to [0, duration]. */
+  /** Seek by `delta` seconds immediately, clamped to [0, duration]. */
   seek: (delta: number) => void;
+  /** Progressive seek: accumulate an offset in direction `dir` (the step grows on
+   * rapid successive calls hold to go faster) and commit one real seek once the
+   * user stops. `seekPreview` is the pending absolute position while seeking. */
+  nudge: (dir: -1 | 1) => void;
+  /** Pending absolute position (s) during a progressive seek, else `null`. */
+  seekPreview: number | null;
 }
 
 /**
@@ -62,7 +68,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   const audioTracks = audioTracksOf(item);
   // NOTE: Tizen/webOS HTML5 <video> can't switch HLS alternate-audio renditions
   // in place (that needs Samsung's AVPlay API), and the master stream also broke
-  // the subtitle overlay on-device — so the TV stays on the per-track remux path
+  // the subtitle overlay on-device so the TV stays on the per-track remux path
   // (reload on switch). The seamless HLS-master path is web-only (see the web
   // useVideoPlayback). Keeping this flag false until an AVPlay track-switch lands.
   const seamless = false;
@@ -77,7 +83,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     // Resilient autoplay: a single play() can reject when it races ahead of the
     // stream being ready (or a transient autoplay block), leaving the video paused
     // until the user presses Play. Keep retrying on the media-ready events until
-    // playback actually starts, then stop — so we never fight a real pause (these
+    // playback actually starts, then stop so we never fight a real pause (these
     // events only fire during initial load / seeks, not on a user-initiated pause).
     let started = false;
     const tryAutoplay = () => {
@@ -172,7 +178,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   }, [client, item, seamless, seamless ? 0 : audioIndex]);
 
   // Seamless language switch: select the rendition IN PLACE via the native audio
-  // track list — no source reload, so the video keeps playing at the same spot.
+  // track list no source reload, so the video keeps playing at the same spot.
   useEffect(() => {
     if (!seamless) return;
     const order = audioTracksOf(item);
@@ -233,22 +239,74 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     else v.pause();
   }, []);
 
+  // Catalogue runtime (s), preferred over v.duration (Infinity for a growing HLS
+  // remux → would never clamp / desyncs the bar).
+  const runtime = useCallback(() => {
+    const v = videoRef.current;
+    if (item.durationMs) return item.durationMs / 1000;
+    if (v && Number.isFinite(v.duration)) return v.duration;
+    return 0;
+  }, [item]);
+
   const seek = useCallback(
     (delta: number) => {
       const v = videoRef.current;
       if (!v) return;
+      const total = runtime();
       const target = v.currentTime + delta;
-      // Clamp to the catalogue runtime, not v.duration (Infinity for the growing
-      // HLS remux → would never clamp / desyncs the bar).
-      let total: number;
-      if (item.durationMs) total = item.durationMs / 1000;
-      else if (Number.isFinite(v.duration)) total = v.duration;
-      else total = 0;
-      const max = total || target;
-      v.currentTime = Math.max(0, Math.min(max, target));
+      v.currentTime = Math.max(0, total ? Math.min(total, target) : target);
     },
-    [item],
+    [runtime],
   );
+
+  // ----- progressive (accelerating) seek --------------------------------------
+  // Repeated/held direction keys would otherwise fire a real seek each press
+  // each one re-buffers on direct play, so fast-seeking stutters. Instead we
+  // accumulate a preview offset (the step grows the longer you hold) and commit a
+  // single seek ~450 ms after the last press.
+  const [seekPreview, setSeekPreview] = useState<number | null>(null);
+  const seekRef = useRef<{ target: number; step: number; last: number } | null>(null);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const commitSeek = useCallback(() => {
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    const s = seekRef.current;
+    seekRef.current = null;
+    setSeekPreview(null);
+    const v = videoRef.current;
+    if (s && v) v.currentTime = s.target;
+  }, []);
+
+  const nudge = useCallback(
+    (dir: -1 | 1) => {
+      const v = videoRef.current;
+      if (!v) return;
+      const total = runtime();
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      let s = seekRef.current;
+      if (!s || now - s.last > 700) {
+        // Fresh session start at the live position, base step.
+        s = { target: v.currentTime, step: 5, last: now };
+      } else {
+        // Held / rapid presses → accelerate gently (5 → 7 → 9.8 → … → 120 s).
+        s.step = Math.min(s.step * 1.4, 120);
+      }
+      const raw = s.target + dir * s.step;
+      s.target = Math.max(0, total > 0 ? Math.min(total - 1, raw) : raw);
+      s.last = now;
+      seekRef.current = s;
+      setSeekPreview(s.target);
+      if (commitTimer.current) clearTimeout(commitTimer.current);
+      commitTimer.current = setTimeout(commitSeek, 450);
+    },
+    [runtime, commitSeek],
+  );
+
+  // Flush a pending seek if the player unmounts mid-gesture.
+  useEffect(() => () => commitSeek(), [commitSeek]);
 
   const setAudio = useCallback(
     (index: number) => setAudioIndex((cur) => (cur === index ? cur : index)),
@@ -270,5 +328,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     setAudio,
     togglePlay,
     seek,
+    nudge,
+    seekPreview,
   };
 }

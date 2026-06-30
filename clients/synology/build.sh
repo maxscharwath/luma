@@ -2,12 +2,12 @@
 # Build a single self-contained LUMA Synology package (.spk) for x86_64 DSM 7.
 #
 # Produces ONE installable package containing:
-#   • luma-server      — Rust API + streaming, AND serves the web SPA (one process)
-#   • web/             — the built static web SPA (served on the same origin)
-#   • ffmpeg/          — static ffmpeg + ffprobe (scan + audio HLS remux)
+#   • luma-server Rust API + streaming, AND serves the web SPA (one process)
+#   • web/ the built static web SPA (served on the same origin)
+#   • ffmpeg/ static ffmpeg + ffprobe (scan + audio HLS remux)
 #
 # The Rust binary is cross-compiled to x86_64-unknown-linux-musl (fully static,
-# runs on every x86_64 DSM 7 model) inside a Docker musl image — no host Rust
+# runs on every x86_64 DSM 7 model) inside a Docker musl image no host Rust
 # cross-toolchain needed. Run this on your Mac/Linux dev machine; install the
 # resulting .spk on the NAS via Package Center → Manual Install.
 #

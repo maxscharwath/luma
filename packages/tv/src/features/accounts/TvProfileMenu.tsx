@@ -18,7 +18,7 @@ import { useFocusNav } from '#tv/app/useFocusNav';
 const MENU_ROW =
   'flex w-full items-center gap-4 rounded-[15px] border border-border bg-[rgba(255,255,255,0.03)] px-5 py-4 text-left outline-none transition-transform focus:scale-[1.02] focus:border-accent';
 
-/** Profile menu (route `profileMenu`): the signed-in account's settings —
+/** Profile menu (route `profileMenu`): the signed-in account's settings
  * language, PIN, switch profile, sign out, and forget-this-server. */
 export function TvProfileMenu() {
   const nav = useNav();

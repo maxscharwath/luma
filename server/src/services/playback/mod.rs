@@ -1,4 +1,4 @@
-//! Live playback-session registry — the data behind the admin dashboard's
+//! Live playback-session registry the data behind the admin dashboard's
 //! "En cours de lecture" panel.
 //!
 //! Direct-play streams are plain range requests with no server-side session, so

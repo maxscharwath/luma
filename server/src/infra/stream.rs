@@ -1,4 +1,4 @@
-//! HTTP range streaming of original media files. The server never transcodes —
+//! HTTP range streaming of original media files. The server never transcodes
 //! it just serves bytes, honouring the `Range` header so clients can seek.
 
 use std::io::SeekFrom;

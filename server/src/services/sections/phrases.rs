@@ -1,10 +1,10 @@
-//! The themed-section "phrase bank" — the breadth + creativity source. Each entry
+//! The themed-section "phrase bank" the breadth + creativity source. Each entry
 //! is a free-text vibe the embedding model matches against the library; a phrase
 //! only becomes a visible section when it actually has enough strong hits (the
 //! generator's quality gate). Seasonal/daypart gates decide *eligibility*; the
 //! embeddings decide *which* of the eligible ones resonate with this library.
 //!
-//! Grow this list to add sections — no code changes. (A future LLM step could
+//! Grow this list to add sections no code changes. (A future LLM step could
 //! author new phrases straight into this bank.)
 
 use super::context::Context;

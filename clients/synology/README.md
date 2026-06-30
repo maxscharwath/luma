@@ -1,4 +1,4 @@
-# LUMA — Synology package (`.spk`)
+# LUMA Synology package (`.spk`)
 
 One self-contained package for **x86_64 DSM 7**. It installs a single process that
 serves the **API + streaming _and_ the web UI** on one port, plus a bundled static
@@ -14,7 +14,7 @@ luma-<version>-x86_64.spk
 
 ## Build the package (on your Mac/Linux)
 
-Prereqs: **Docker** (used to cross-compile a static `x86_64-musl` binary — no host
+Prereqs: **Docker** (used to cross-compile a static `x86_64-musl` binary no host
 Rust cross-toolchain needed), **bun**, and `curl`.
 
 ```bash
@@ -43,12 +43,12 @@ set the system user **`luma`** (or `sc-luma`) to **Read-only**, then restart the
 package.
 
 > Prefer zero setup over least-privilege? Change `conf/privilege` to
-> `{ "defaults": { "run-as": "root" } }` and rebuild — it then reads everything
+> `{ "defaults": { "run-as": "root" } }` and rebuild it then reads everything
 > without granting permissions (less safe; your call for a personal NAS).
 
 ## Notes
 - **x86_64 only** for now (covers DS2xx+/DS9xx+/DS16xx+ etc.). ARM models need an
-  `aarch64-musl` build — ask and I'll add the target.
+  `aarch64-musl` build ask and I'll add the target.
 - Data (SQLite DB, image cache, logs) lives in `/var/packages/luma/var/data` and
   survives upgrades.
 - The TV apps (Tizen/webOS) connect to this server over the LAN via mDNS, unchanged.

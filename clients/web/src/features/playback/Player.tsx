@@ -1,14 +1,17 @@
-import { audioSupport, formatTimecode as fmtTime, metaLine } from '@luma/core';
+import { audioSupport, formatTimecode as fmtTime, type MediaItem, metaLine } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AvDrawer } from '#web/features/playback/AvDrawer';
 import { ControlBar } from '#web/features/playback/ControlBar';
 import { IconBack, IconStopped } from '#web/features/playback/icons';
 import { Toast } from '#web/features/playback/PlayerToast';
+import { SkipIntroButton } from '#web/features/playback/SkipIntroButton';
 import { StatsOverlay } from '#web/features/playback/StatsOverlay';
 import { SubtitleLayer } from '#web/features/playback/SubtitleLayer';
 import { useSubtitleStyle } from '#web/features/playback/subtitleStyle';
+import { UpNextOverlay } from '#web/features/playback/UpNextOverlay';
 import { usePlaybackSession } from '#web/features/playback/usePlaybackSession';
+import { useUpNext } from '#web/features/playback/useUpNext';
 import { usePlayerHotkeys } from '#web/features/playback/usePlayerHotkeys';
 import { useResumeProgress } from '#web/features/playback/useResumeProgress';
 import { useVideoPlayback } from '#web/features/playback/useVideoPlayback';
@@ -18,7 +21,18 @@ import type { MovieView } from '#web/shared/lib/api';
  * PiP, fullscreen, auto-hiding controls, full keyboard control, an audio/
  * subtitle drawer and a stats-for-nerds overlay. Mechanics live in
  * `useVideoPlayback` / `useResumeProgress`; this file is composition + chrome. */
-export function Player({ item, onClose }: Readonly<{ item: MovieView; onClose: () => void }>) {
+export function Player({
+  item,
+  next,
+  onPlayNext,
+  onClose,
+}: Readonly<{
+  item: MovieView;
+  /** Next episode for the Netflix-style "up next" autoplay (null for movies / last ep). */
+  next?: MediaItem | null;
+  onPlayNext?: () => void;
+  onClose: () => void;
+}>) {
   const t = useT();
   const pb = useVideoPlayback(item);
   const {
@@ -118,6 +132,23 @@ export function Player({ item, onClose }: Readonly<{ item: MovieView; onClose: (
     poke,
   });
 
+  // ----- skip intro -----------------------------------------------------------
+  const intro = (item.markers ?? []).find((m) => m.kind === 'intro');
+  const showSkipIntro =
+    intro != null && pb.cur * 1000 >= intro.startMs && pb.cur * 1000 < intro.endMs;
+
+  // ----- up next (credits-aware series autoplay) ------------------------------
+  const up = useUpNext({
+    item,
+    next,
+    onPlayNext,
+    cur: pb.cur,
+    dur: pb.dur,
+    scrubbing: pb.scrubbing,
+    terminated: terminated != null,
+    videoRef,
+  });
+
   return (
     <div
       ref={containerRef}
@@ -194,7 +225,9 @@ export function Player({ item, onClose }: Readonly<{ item: MovieView; onClose: (
           action={
             <button
               onClick={() => {
-                if (videoRef.current) videoRef.current.currentTime = 0;
+                // seekTo(0) restarts from absolute zero in seamless mode too
+                // (currentTime=0 would only rewind to the current -ss base).
+                pb.seekTo(0);
                 setShowResume(false);
               }}
               className="rounded-md bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-white/20"
@@ -205,6 +238,20 @@ export function Player({ item, onClose }: Readonly<{ item: MovieView; onClose: (
         >
           ⏵ {t('player.resumeAt', { time: fmtTime(resumeAt) })}
         </Toast>
+      ) : null}
+
+      {showSkipIntro && intro ? (
+        <SkipIntroButton onSkip={() => pb.seekTo(intro.endMs / 1000)} />
+      ) : null}
+
+      {up.showUpNext && next ? (
+        <UpNextOverlay
+          next={next}
+          seconds={up.countdown}
+          total={up.total}
+          onPlayNow={up.advance}
+          onCancel={up.cancel}
+        />
       ) : null}
 
       {statsOpen ? (
@@ -244,8 +291,10 @@ export function Player({ item, onClose }: Readonly<{ item: MovieView; onClose: (
         <ControlBar
           pb={pb}
           statsOpen={statsOpen}
+          markers={item.markers}
           onToggleStats={() => setStatsOpen((s) => !s)}
           onOpenAv={() => setAvOpen(true)}
+          onPlayNext={up.canAdvance ? up.advance : undefined}
         />
       </div>
 

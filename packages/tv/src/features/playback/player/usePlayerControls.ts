@@ -1,14 +1,18 @@
 import { dispatchRemoteKey, type RemoteKeyMap, resolveRemoteKey } from '@luma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useOverlayFocus } from '#tv/features/playback/player/useOverlayFocus';
 
 export type Zone = 'progress' | 'bar';
-/** Bottom control row, left → right. */
+/** Bottom control row, left → right (a `next` control is inserted for series). */
 export const BAR = ['rewind', 'play', 'forward', 'av'] as const;
+const BAR_NEXT = ['rewind', 'play', 'forward', 'next', 'av'] as const;
 
 interface Args {
   playing: boolean;
   togglePlay: () => void;
   seek: (delta: number) => void;
+  /** Progressive (accelerating) seek in a direction for held direction keys. */
+  nudge: (dir: -1 | 1) => void;
   onExit: () => void;
   /** Audio-track indices, in panel order. */
   audioOptions: number[];
@@ -16,10 +20,20 @@ interface Args {
   pickAudio: (index: number) => void;
   subOptions: (number | null)[];
   pickSub: (index: number | null) => void;
+  /** Series only: show a "next episode" control + handler. */
+  hasNext?: boolean;
+  onNext?: () => void;
+  /** Intro window is open: auto-focus the floating "skip intro" button so OK skips. */
+  canSkipIntro?: boolean;
+  onSkipIntro?: () => void;
+  /** Up-next card is showing (credits): captures nav onto its Play/Cancel buttons. */
+  upNext?: boolean;
+  onUpNextPlay?: () => void;
+  onUpNextCancel?: () => void;
 }
 
-/** One selectable row in the Audio & Subtitles panel — audio rows first, then
- * subtitle rows — so a single focus index walks both sections. */
+/** One selectable row in the Audio & Subtitles panel audio rows first, then
+ * subtitle rows so a single focus index walks both sections. */
 type AvRow = { kind: 'audio'; value: number } | { kind: 'sub'; value: number | null };
 
 export interface PlayerControls {
@@ -30,6 +44,13 @@ export interface PlayerControls {
   avFocus: number;
   /** Is bottom-bar control `i` the focused one (and controls visible)? */
   barFocus: (i: number) => boolean;
+  /** Is the named bottom-bar control focused (robust to the dynamic layout)? */
+  barFocusName: (name: string) => boolean;
+  /** Floating "skip intro" button is the active focus (OK skips). */
+  skipFocused: boolean;
+  /** Up-next card's "Play now" / "Cancel" buttons are focused. */
+  upNextPlayFocus: boolean;
+  upNextCancelFocus: boolean;
 }
 
 /**
@@ -41,13 +62,23 @@ export function usePlayerControls({
   playing,
   togglePlay,
   seek,
+  nudge,
   onExit,
   audioOptions,
   activeAudio,
   pickAudio,
   subOptions,
   pickSub,
+  hasNext = false,
+  onNext,
+  canSkipIntro = false,
+  onSkipIntro,
+  upNext = false,
+  onUpNextPlay,
+  onUpNextCancel,
 }: Args): PlayerControls {
+  // Active bottom-bar layout (a `next` control is inserted for series).
+  const bar: readonly string[] = hasNext ? BAR_NEXT : BAR;
   // Combined, ordered row list the ▲/▼ focus walks: audio rows then subtitle rows.
   const avRows = useMemo<AvRow[]>(
     () => [
@@ -61,6 +92,10 @@ export function usePlayerControls({
   const [barIndex, setBarIndex] = useState(1); // start on Play
   const [avOpen, setAvOpen] = useState(false);
   const [avFocus, setAvFocus] = useState(0);
+  // Interrupt-overlay focus (skip-intro button + up-next card), independent of
+  // the auto-hiding control bar.
+  const { skipFocused, setSkipFocused, cardFocused, setCardFocused, upNextFocus, setUpNextFocus } =
+    useOverlayFocus(canSkipIntro, upNext);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const poke = useCallback(() => {
@@ -89,7 +124,7 @@ export function usePlayerControls({
 
   const activate = useCallback(
     (i: number) => {
-      switch (BAR[i]) {
+      switch (bar[i]) {
         case 'rewind':
           seek(-10);
           break;
@@ -99,12 +134,15 @@ export function usePlayerControls({
         case 'forward':
           seek(10);
           break;
+        case 'next':
+          onNext?.();
+          break;
         case 'av':
           openAv();
           break;
       }
     },
-    [seek, togglePlay, openAv],
+    [bar, seek, togglePlay, openAv, onNext],
   );
 
   useEffect(() => {
@@ -117,8 +155,9 @@ export function usePlayerControls({
     // While the overlay is hidden, the first key only reveals it (no action).
     const move = (reveal: boolean, dir: -1 | 1) => {
       if (reveal) return;
-      if (zone === 'progress') seek(dir * 10);
-      else setBarIndex((i) => Math.max(0, Math.min(BAR.length - 1, i + dir)));
+      if (zone === 'progress')
+        nudge(dir); // accelerating seek (hold to go faster)
+      else setBarIndex((i) => Math.max(0, Math.min(bar.length - 1, i + dir)));
     };
     const confirm = (reveal: boolean) => {
       if (reveal) return;
@@ -136,11 +175,28 @@ export function usePlayerControls({
       Stop: () => setAvOpen(false),
     };
 
+    // Up-next card captures nav onto its two buttons; Down drops back to the bar.
+    const activateCard = () => {
+      if (upNextFocus === 0) onUpNextPlay?.();
+      else {
+        onUpNextCancel?.();
+        setCardFocused(false);
+      }
+    };
+    const cardMap: RemoteKeyMap = {
+      Left: () => setUpNextFocus(0),
+      Right: () => setUpNextFocus(1),
+      Enter: activateCard,
+      PlayPause: activateCard,
+      Down: () => setCardFocused(false),
+      Back: onExit,
+      Stop: onExit,
+    };
+
     const onKey = (e: KeyboardEvent) => {
       const key = resolveRemoteKey(e);
       if (!key) return;
-      // Ignore auto-repeat for discrete OK actions — a held OK that entered the
-      // player must not immediately toggle playback or re-trigger a control.
+      // Ignore auto-repeat for discrete OK so a held OK never re-fires a control.
       if (e.repeat && (key === 'Enter' || key === 'PlayPause')) {
         e.preventDefault();
         return;
@@ -149,6 +205,24 @@ export function usePlayerControls({
       if (avOpen) {
         dispatchRemoteKey(e, avMap);
         return;
+      }
+
+      // Up-next card owns the remote while focused.
+      if (cardFocused) {
+        e.preventDefault();
+        dispatchRemoteKey(e, cardMap);
+        return;
+      }
+
+      // Skip-intro is auto-focused: OK skips; any direction hands focus to the bar.
+      if (skipFocused) {
+        if (key === 'Enter' || key === 'PlayPause') {
+          e.preventDefault();
+          onSkipIntro?.();
+          setSkipFocused(false);
+          return;
+        }
+        setSkipFocused(false);
       }
 
       // Back/Stop exits before the reveal/poke, so quitting never just wakes the bar.
@@ -173,8 +247,8 @@ export function usePlayerControls({
         Pause: () => {
           if (playing) togglePlay();
         },
-        FastForward: () => seek(30),
-        Rewind: () => seek(-10),
+        FastForward: () => nudge(1),
+        Rewind: () => nudge(-1),
       });
       e.preventDefault(); // the visible overlay swallows every key
     };
@@ -184,19 +258,41 @@ export function usePlayerControls({
     avOpen,
     avFocus,
     avRows,
+    bar,
     controls,
     zone,
     barIndex,
     playing,
     onExit,
     poke,
-    seek,
+    nudge,
     togglePlay,
     activate,
     pickAudio,
     pickSub,
+    skipFocused,
+    setSkipFocused,
+    onSkipIntro,
+    cardFocused,
+    setCardFocused,
+    upNextFocus,
+    setUpNextFocus,
+    onUpNextPlay,
+    onUpNextCancel,
   ]);
 
   const barFocus = (i: number) => controls && zone === 'bar' && barIndex === i;
-  return { controls, zone, barIndex, avOpen, avFocus, barFocus };
+  const barFocusName = (name: string) => controls && zone === 'bar' && bar[barIndex] === name;
+  return {
+    controls,
+    zone,
+    barIndex,
+    avOpen,
+    avFocus,
+    barFocus,
+    barFocusName,
+    skipFocused,
+    upNextPlayFocus: cardFocused && upNextFocus === 0,
+    upNextCancelFocus: cardFocused && upNextFocus === 1,
+  };
 }

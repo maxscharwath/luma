@@ -5,7 +5,7 @@ export interface ChipProps extends HTMLAttributes<HTMLSpanElement> {
   children?: ReactNode;
 }
 
-/** Pill chip — language codes, audio formats, filters. */
+/** Pill chip language codes, audio formats, filters. */
 export function Chip({ active = false, children, style, ...rest }: Readonly<ChipProps>) {
   return (
     <span

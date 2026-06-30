@@ -1,6 +1,6 @@
 // The per-title "Suggestions IA" rail on a detail page. The server generates
 // these lazily with the LLM connector and caches them, so the first view returns
-// `null` (generating) — we poll until a section arrives (its items may be empty
+// `null` (generating) we poll until a section arrives (its items may be empty
 // when the model found nothing, in which case we render nothing). Reuses the same
 // Poster/Rail as the home + similar rails, and handles movies *and* shows.
 

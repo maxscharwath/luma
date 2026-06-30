@@ -5,7 +5,7 @@ export interface AvatarProps {
   radius?: string | number;
 }
 
-/** Profile / cast avatar — gradient disc with initials (no photo needed). */
+/** Profile / cast avatar gradient disc with initials (no photo needed). */
 export function Avatar({ name = '', size = 64, gradient, radius = '50%' }: Readonly<AvatarProps>) {
   const initials = name
     .split(/\s+/)

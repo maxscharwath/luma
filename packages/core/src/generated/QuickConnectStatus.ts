@@ -2,6 +2,6 @@
 import type { User } from "./User";
 
 /**
- * `GET /api/auth/quickconnect/poll` result — a status-tagged union.
+ * `GET /api/auth/quickconnect/poll` result a status-tagged union.
  */
 export type QuickConnectStatus = { "status": "pending" } | { "status": "expired" } | { "status": "authorized", token: string, user: User, };

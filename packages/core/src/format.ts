@@ -54,7 +54,7 @@ export function metaLine(item: MediaItem): string {
   return parts.join(' · ');
 }
 
-/** Player scrub-bar timecode — "1:04:07" / "4:07" (no leading hours when < 1h). */
+/** Player scrub-bar timecode "1:04:07" / "4:07" (no leading hours when < 1h). */
 export function formatTimecode(s: number): string {
   if (!Number.isFinite(s) || s < 0) s = 0;
   const h = Math.floor(s / 3600);

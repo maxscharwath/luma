@@ -7,7 +7,7 @@
 //! survive a restart.
 //!
 //! Values are stored as JSON (`serde_json::Value`) keyed by a stable string. A
-//! small set of keys are **functional** — the server reads them to change real
+//! small set of keys are **functional** the server reads them to change real
 //! behaviour (LAN classification, server name, transcode limits, …). The rest
 //! are persisted preferences the admin UI renders but the server does not (yet)
 //! enforce; those are marked `applied: false` in the schema so the UI can be

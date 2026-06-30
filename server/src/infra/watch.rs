@@ -1,8 +1,8 @@
-//! Library watcher — keeps the catalog in sync with the filesystem.
+//! Library watcher keeps the catalog in sync with the filesystem.
 //!
 //! Two mechanisms feed one debounced worker thread:
 //!   * a **periodic re-scan** (`LUMA_WATCH_INTERVAL` seconds, default 300, `0`
-//!     disables) — the reliable path for **network mounts** (SMB/NFS), where the
+//!     disables) the reliable path for **network mounts** (SMB/NFS), where the
 //!     OS delivers no change events for edits made on the NAS itself;
 //!   * a best-effort **`notify` filesystem watcher** for instant pickup of local
 //!     changes (e.g. when the server runs on the NAS / a local disk).
@@ -31,7 +31,7 @@ const DEBOUNCE: Duration = Duration::from_secs(2);
 /// startup scan (already persisted), so we don't re-emit until something changes.
 pub fn spawn(state: SharedState, baseline: u64) {
     if state.config.media_dirs.is_empty() {
-        return; // demo mode — nothing on disk to watch
+        return; // demo mode nothing on disk to watch
     }
     // Captured from the (tokio) main thread so the watcher's std::thread can hand
     // re-scans to the tracked job manager, which spawns work onto the runtime.
@@ -67,8 +67,8 @@ pub fn spawn(state: SharedState, baseline: u64) {
     });
 }
 
-/// The periodic re-scan cadence (seconds): the `watchIntervalSecs` setting, or —
-/// when it's `-1` (unset) — the `LUMA_WATCH_INTERVAL` env / 300s default. `0`
+/// The periodic re-scan cadence (seconds): the `watchIntervalSecs` setting, or
+/// when it's `-1` (unset) the `LUMA_WATCH_INTERVAL` env / 300s default. `0`
 /// disables the periodic tick (FS events still fire).
 fn watch_interval(state: &SharedState) -> u64 {
     match state.settings.get_i64("watchIntervalSecs", -1) {
@@ -99,7 +99,7 @@ fn make_watcher(state: &SharedState, tx: mpsc::Sender<()>) -> Option<notify::Rec
 
 /// Cheap change-detection (fast phase-1 scan + signature compare); on an actual
 /// change, hand off to the **tracked** jobs that opted into [`Trigger::LibraryChange`]
-/// (i.e. `library.scan`) — so an auto-scan shows in the Tâches console with logs +
+/// (i.e. `library.scan`) so an auto-scan shows in the Tâches console with logs +
 /// progress, unified with manual scans, and the full sync / probe / enrich /
 /// reindex lives in one place. An idle library triggers nothing (no DB writes, no
 /// client churn).
@@ -113,13 +113,13 @@ fn trigger_if_changed(state: &SharedState, handle: &Handle, last: &mut u64) {
     if sig == *last {
         return; // nothing changed
     }
-    info!("watcher: filesystem change detected — triggering library-change jobs");
+    info!("watcher: filesystem change detected triggering library-change jobs");
 
     // The job manager spawns blocking work, so run the trigger on the runtime.
     // Only advance `last` once the change is actually owned by a run (or nothing
     // opted in): if a scan is already in flight the trigger returns
     // `AlreadyRunning`, and advancing would consume this change without syncing it
-    // (the running scan may predate the new file) — so we keep `last` and retry
+    // (the running scan may predate the new file) so we keep `last` and retry
     // next tick instead of losing it.
     let jobs = state.jobs.clone();
     let st = state.clone();

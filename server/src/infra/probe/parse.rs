@@ -5,12 +5,12 @@ use serde::Deserialize;
 
 use crate::model::{AudioStream, SubtitleTrack, VideoStream};
 
-use super::ProbeResult;
+use super::{Chapter, ProbeResult};
 
 /// Build our model from raw ffprobe output.
 pub(super) fn build_result(raw: FfprobeOutput) -> ProbeResult {
     // Every audio stream, in container order. The audio-relative index (0-based
-    // among audio streams) is the position here — exactly ffmpeg's `0:a:<n>`.
+    // among audio streams) is the position here exactly ffmpeg's `0:a:<n>`.
     let audio_tracks: Vec<AudioStream> = raw
         .streams
         .iter()
@@ -46,7 +46,23 @@ pub(super) fn build_result(raw: FfprobeOutput) -> ProbeResult {
                 codec: normalize_codec(s.codec_name.as_deref()),
             })
             .collect(),
+        chapters: raw.chapters.iter().filter_map(build_chapter).collect(),
     }
+}
+
+/// Map a raw ffprobe chapter (start/end in seconds as strings) to a [`Chapter`].
+/// Dropped if the times are unparseable or zero-length.
+fn build_chapter(c: &FfChapter) -> Option<Chapter> {
+    let start = c.start_time.as_deref().and_then(|s| s.parse::<f64>().ok())?;
+    let end = c.end_time.as_deref().and_then(|s| s.parse::<f64>().ok())?;
+    if end <= start {
+        return None;
+    }
+    Some(Chapter {
+        start_ms: (start * 1000.0) as u64,
+        end_ms: (end * 1000.0) as u64,
+        title: c.tags.as_ref().and_then(|t| t.title.clone()).filter(|t| !t.trim().is_empty()),
+    })
 }
 
 fn is_probably_cover_art(stream: &FfStream) -> bool {
@@ -134,7 +150,7 @@ pub fn normalize_codec(name: Option<&str>) -> String {
         "ass" | "ssa" => "ass",
         "hdmv_pgs_subtitle" | "pgs" => "pgs",
         "mov_text" => "mov_text",
-        // Unknown codec — hand back the owned, already-lowercased string rather
+        // Unknown codec hand back the owned, already-lowercased string rather
         // than re-allocating a copy of it.
         _ => return raw,
     }
@@ -149,6 +165,22 @@ pub(super) struct FfprobeOutput {
     streams: Vec<FfStream>,
     #[serde(default)]
     format: Option<FfFormat>,
+    #[serde(default)]
+    chapters: Vec<FfChapter>,
+}
+
+/// ffprobe `-show_chapters` entry: `start_time`/`end_time` are seconds as strings.
+#[derive(Debug, Deserialize)]
+struct FfChapter {
+    start_time: Option<String>,
+    end_time: Option<String>,
+    #[serde(default)]
+    tags: Option<FfChapterTags>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FfChapterTags {
+    title: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -179,7 +211,7 @@ struct FfTags {
     title: Option<String>,
 }
 
-/// ffprobe stream `disposition` flags — we only read `default`.
+/// ffprobe stream `disposition` flags we only read `default`.
 #[derive(Debug, Deserialize)]
 struct FfDisposition {
     default: Option<u8>,

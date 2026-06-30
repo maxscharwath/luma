@@ -12,7 +12,7 @@ interface ConnLike {
 }
 
 /** YouTube-style "stats for nerds": codec, decoded vs display resolution, buffer
- * health, dropped frames, average bitrate, connection — refreshed live. */
+ * health, dropped frames, average bitrate, connection refreshed live. */
 export function StatsOverlay({
   videoRef,
   item,
@@ -69,8 +69,8 @@ export function StatsOverlay({
     (typeof navigator !== 'undefined'
       ? (navigator as Navigator & { connection?: ConnLike }).connection
       : undefined) ?? {};
-  const vcodec = item.video?.codec?.toUpperCase() ?? '—';
-  const acodec = item.audio?.codec?.toUpperCase() ?? '—';
+  const vcodec = item.video?.codec?.toUpperCase() ?? '-';
+  const acodec = item.audio?.codec?.toUpperCase() ?? '-';
 
   const rows: [string, string][] = [
     [t('stats.title2'), item.title],
@@ -84,8 +84,8 @@ export function StatsOverlay({
       t('stats.audio'),
       `${acodec}${item.audio?.channels ? ` ${item.audio.channels}.0` : ''}${item.audio?.language ? ` (${item.audio.language})` : ''}`,
     ],
-    [t('stats.resolution'), vw && vh ? `${vw}×${vh}` : '—'],
-    [t('stats.display'), dw && dh ? `${dw}×${dh} @${dpr}x` : '—'],
+    [t('stats.resolution'), vw && vh ? `${vw}×${vh}` : '-'],
+    [t('stats.display'), dw && dh ? `${dw}×${dh} @${dpr}x` : '-'],
     [t('stats.avgBitrate'), avgMbps ? `${avgMbps.toFixed(2)} Mb/s` : '…'],
     [t('stats.size'), bytes ? `${(bytes / 1e9).toFixed(2)} Go` : '…'],
     [t('stats.buffer'), t('stats.bufferAhead', { seconds: bufferAhead.toFixed(1) })],
@@ -98,7 +98,7 @@ export function StatsOverlay({
     [t('stats.state'), `${READY[v?.readyState ?? 0]} · NET_${NETWORK[v?.networkState ?? 0]}`],
     [
       t('stats.connection'),
-      conn.downlink ? `${conn.downlink} Mb/s · ${conn.effectiveType ?? ''}` : '—',
+      conn.downlink ? `${conn.downlink} Mb/s · ${conn.effectiveType ?? ''}` : '-',
     ],
   ];
 

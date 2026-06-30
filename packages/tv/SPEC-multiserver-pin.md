@@ -1,7 +1,7 @@
-# Spec — TV multi-server profiles, Quick-Connect-only sign-in, server PIN
+# Spec TV multi-server profiles, Quick-Connect-only sign-in, server PIN
 
 > Status: **Draft / for review** · Scope: `@luma/tv`, `@luma/core`, Rust `server`
-> Deliverable of this document: design only — no code is changed yet.
+> Deliverable of this document: design only no code is changed yet.
 
 ## 1. Summary
 
@@ -9,13 +9,13 @@ Turn the living-room app into a **pair-and-PIN** device. Today a TV install is
 locked to a single server and lets you type credentials or create an account on
 the remote. This spec changes four things:
 
-1. **Multi-server profiles** — the TV remembers many servers, each with its own
+1. **Multi-server profiles** the TV remembers many servers, each with its own
    set of profiles, and lets you switch between them from the picker.
-2. **Quick-Connect-only sign-in** — the *only* way to add a profile to the TV is
+2. **Quick-Connect-only sign-in** the *only* way to add a profile to the TV is
    Quick Connect ("quick link"). Password entry on the remote is removed.
-3. **No account creation on the TV** — the registration flow is removed from the
+3. **No account creation on the TV** the registration flow is removed from the
    TV entirely. Accounts are created on web/mobile.
-4. **Server-side account PIN** — an optional per-account PIN, stored and verified
+4. **Server-side account PIN** an optional per-account PIN, stored and verified
    by the server, that locks a remembered profile on a shared TV.
 
 The guiding principle: **you never type a password or create an account on a
@@ -37,7 +37,7 @@ thing you ever key in, and only to *re-enter* a profile that has one.
 **Non-goals**
 
 - No account creation, password entry, or password reset on the TV. A brand-new
-  user with no other signed-in device cannot onboard from the TV alone — this is
+  user with no other signed-in device cannot onboard from the TV alone this is
   an accepted consequence of Quick-Connect-only.
 - PIN is a **profile lock on a shared device**, not the primary auth. Quick
   Connect is the auth; the bearer token is the credential. PIN raises the bar for
@@ -94,7 +94,7 @@ Storage keys:
 
 | Key | Was | Now |
 | --- | --- | --- |
-| `luma.servers` | — | `SavedServer[]` |
+| `luma.servers` | | `SavedServer[]` |
 | `luma.session` | `{token,user}` | `ActiveSession` (`+ serverUrl`) |
 | `luma.accounts` | `StoredSession[]` | `StoredAccount[]` (`+ serverUrl`) |
 | `luma.serverUrl` | single URL | **removed** (folded into `luma.servers`) |
@@ -103,14 +103,14 @@ Storage keys:
 New/changed functions (names kept close to today's so call sites move cleanly):
 
 - `loadServers(): SavedServer[]` / `saveServer(s)` / `forgetServer(url)`
-- `loadAccounts(serverUrl?): StoredAccount[]` — all, or filtered to one server
-- `saveSession(s: ActiveSession)` — also upserts the account **and** touches the
+- `loadAccounts(serverUrl?): StoredAccount[]` all, or filtered to one server
+- `saveSession(s: ActiveSession)` also upserts the account **and** touches the
   server's `lastUsedAt`
-- `loadSession()` / `clearSession()` — unchanged contract, new shape
-- `forgetAccount(serverUrl, userId)` — now needs the server to disambiguate
+- `loadSession()` / `clearSession()` unchanged contract, new shape
+- `forgetAccount(serverUrl, userId)` now needs the server to disambiguate
 
 > **Note:** today `saveSession` de-dupes accounts by `user.id` only
-> (`session.ts:54`). The new key is the **pair** `(serverUrl, user.id)` — the
+> (`session.ts:54`). The new key is the **pair** `(serverUrl, user.id)` the
 > same user id on two servers is two distinct profiles.
 
 ### 4.2 `PublicUser` (`@luma/core/src/types.ts`)
@@ -137,11 +137,11 @@ ALTER TABLE users ADD COLUMN pin_hash TEXT;   -- null = no PIN
 
 PIN is hashed with the same PBKDF2 routine as passwords (`server/src/auth.rs`),
 its own salt. A PIN is short (4–6 digits) so it is **not** a password substitute
-— see Security (§7).
+see Security (§7).
 
 ## 5. Backend changes (`server/src`)
 
-### 5.1 Quick Connect — unchanged contract, carries the server
+### 5.1 Quick Connect unchanged contract, carries the server
 
 Quick Connect already does exactly the pairing we need
 (`/auth/quickconnect/{initiate,authorize,poll}`, `server/src/api/users.rs:315+`):
@@ -163,16 +163,16 @@ poll. No protocol change is required for per-server pairing.
 | `PATCH` | `/api/auth/me/pin` | Bearer | `{ pin, current? }` | `{ user }` |
 | `DELETE` | `/api/auth/me/pin` | Bearer | `{ current }` | `{ user }` |
 
-- **verify** — the TV holds the paired token; before switching into a locked
+- **verify** the TV holds the paired token; before switching into a locked
   profile it posts the typed PIN. Server compares against `pin_hash`. Rate-limit
   per user/session (§7).
-- **set/change** (`PATCH`) — sets or rotates the caller's own PIN. `current` is
+- **set/change** (`PATCH`) sets or rotates the caller's own PIN. `current` is
   the existing PIN (required when one is already set). Self-service, so it works
   from web/mobile with no admin capability.
-- **clear** (`DELETE`) — removes the PIN; `current` required.
+- **clear** (`DELETE`) removes the PIN; `current` required.
 
 `GET /api/users` (`list_users`, `users.rs:197`) now includes `hasPin` per user
-(`pin_hash IS NOT NULL`). No emails leak — same public projection as today.
+(`pin_hash IS NOT NULL`). No emails leak same public projection as today.
 
 > Admin override (set/clear another user's PIN) can reuse the existing
 > `/admin/users/:id` surface; **out of scope for phase 1**, listed in §8.
@@ -219,7 +219,7 @@ poll. No protocol change is required for per-server pairing.
 
 The picker is the multi-server home. Proposed layout (primary):
 
-- Profiles **grouped by server** — one section per saved server, each profile
+- Profiles **grouped by server** one section per saved server, each profile
   badged with its server name. `client.users()` is fetched per server.
 - Each profile avatar:
   - **remembered, no PIN** → tap signs in instantly (`activate`, today's path).
@@ -233,19 +233,19 @@ The picker is the multi-server home. Proposed layout (primary):
 
 ### 6.4 Add-profile wizard (`TvAddProfile` → server choice → Quick Connect)
 
-The ➕ on the picker starts a short wizard. **Step 1 — choose a server:**
+The ➕ on the picker starts a short wizard. **Step 1 choose a server:**
 
-- **Local server(s)** — run LAN discovery (`discoverServer`, `discover.ts`:
+- **Local server(s)** run LAN discovery (`discoverServer`, `discover.ts`:
   mDNS + subnet scan) and list every server that answers `/api/health`. Each is a
   focusable row.
-- **Existing distant server(s)** — every server already in `luma.servers` that is
+- **Existing distant server(s)** every server already in `luma.servers` that is
   not in the local results (remote/manually-added), so you can add another profile
   to a server you already use.
-- **Add manually** — routes to `connect` (the repurposed `TvConnect` URL-entry
+- **Add manually** routes to `connect` (the repurposed `TvConnect` URL-entry
   screen) to register a new distant server by address; on a successful
   `/api/health` probe it is upserted into `luma.servers` and the wizard advances.
 
-**Step 2 — Quick Connect:** once a server is chosen, point the `LumaClient` at it
+**Step 2 Quick Connect:** once a server is chosen, point the `LumaClient` at it
 and go to `quick`. The existing `TvQuickConnect` screen
 (`TvProfiles.tsx:355`) initiates against that server and renders the **QR + numeric
 code**; the user approves from another signed-in device, and the TV pairs the
@@ -261,7 +261,7 @@ profile on its next poll → `login(res)` → remembered for that server → `ho
 Notes:
 - Discovery is best-effort and can be slow on a TV; show a spinner and a
   "Search again" affordance (mirrors today's `TvConnect` discovering state).
-- The wizard never offers password entry or registration — server choice always
+- The wizard never offers password entry or registration server choice always
   terminates in Quick Connect.
 - Back from `quick`/`connect` returns to `addProfile`; Back from `addProfile`
   returns to the picker.
@@ -291,7 +291,7 @@ setPin(pin: string, current?: string): Promise<{ user: User }>   // PATCH /auth/
 clearPin(current: string): Promise<{ user: User }>               // DELETE /auth/me/pin
 ```
 
-Remove no existing methods — `register()`/`login()` stay in core (web still uses
+Remove no existing methods `register()`/`login()` stay in core (web still uses
 them); they are simply no longer wired into any TV screen.
 
 ## 7. Security considerations
@@ -302,7 +302,7 @@ them); they are simply no longer wired into any TV screen.
   show a cooldown. Without this a 4-digit PIN is trivially brute-forced.
 - **PIN is not the credential.** The bearer token (from Quick Connect) already
   grants access; the PIN only gates the *local* switch-in UX on a shared device.
-  A determined user with filesystem access to the TV could read the token — PIN
+  A determined user with filesystem access to the TV could read the token PIN
   does not defend against that, and we should not claim it does.
 - **`locked` is device state, verification is server state.** Clearing
   `localStorage` drops the remembered token entirely (you must re-pair), so the
@@ -325,7 +325,7 @@ On first launch of the new client, a one-time `migrateStorage()` in
 
 (`Date.now()` is injected by the caller, not read inside core, to stay testable.)
 
-Server migration is the additive `ALTER TABLE` (§4.3) — existing rows get
+Server migration is the additive `ALTER TABLE` (§4.3) existing rows get
 `pin_hash = NULL` (no PIN), fully backward compatible. Older clients ignore the
 new `hasPin` field and the PIN routes.
 
@@ -333,7 +333,7 @@ new `hasPin` field and the PIN routes.
 
 - **Account has a PIN but the TV never paired it** → still Quick Connect to pair;
   after pairing it becomes locked and asks for the PIN on the *next* switch-in
-  (first pair goes straight in — the pairer is physically present).
+  (first pair goes straight in the pairer is physically present).
 - **PIN set on web after the TV remembered the profile** → next `client.users()`
   refresh flips `hasPin`; the profile gains a lock badge and starts prompting.
 - **PIN cleared on web** → `hasPin` flips false; lock badge disappears; taps go
@@ -361,11 +361,11 @@ new `hasPin` field and the PIN routes.
 
 ## 11. Open questions
 
-- **O1** — Should the quick link also carry the server URL (one-QR onboarding)?
+- **O1** Should the quick link also carry the server URL (one-QR onboarding)?
   Proposed: phase 2.
-- **O2** — Picker layout: group-by-server vs two-step. Proposed: group-by-server.
-- **O3** — Should pairing a *new* profile via Quick Connect immediately require a
+- **O2** Picker layout: group-by-server vs two-step. Proposed: group-by-server.
+- **O3** Should pairing a *new* profile via Quick Connect immediately require a
   PIN if the account has one, or only on subsequent switch-ins? Proposed: only on
   subsequent switch-ins (first pair = present pairer).
-- **O4** — PIN length and lockout policy (digits, max attempts, cooldown) —
+- **O4** PIN length and lockout policy (digits, max attempts, cooldown)
   needs a product decision before implementation.

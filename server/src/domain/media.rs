@@ -1,12 +1,12 @@
 //! Media catalog types: kinds, stream descriptions, files, items and shows.
 //!
-//! The JSON shape here is a public contract — web/TV clients depend on it, so
+//! The JSON shape here is a public contract web/TV clients depend on it, so
 //! field names and casing must not drift.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::domain::metadata::Metadata;
+use crate::domain::metadata::{CastMember, Metadata};
 
 /// What sort of thing a media item is.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
@@ -67,7 +67,7 @@ pub struct SubtitleTrack {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct MediaFile {
-    /// `short_hash(abs_path)` — stable per physical file.
+    /// `short_hash(abs_path)` stable per physical file.
     pub id: String,
     #[serde(rename = "relPath")]
     pub rel_path: Option<String>,
@@ -75,7 +75,7 @@ pub struct MediaFile {
     #[serde(rename = "durationMs")]
     pub duration_ms: Option<u64>,
     pub video: Option<VideoStream>,
-    /// Representative (first/default) audio track — kept for codec badges and
+    /// Representative (first/default) audio track kept for codec badges and
     /// backward compatibility with clients that read `audio.codec` directly.
     pub audio: Option<AudioStream>,
     /// Every audio track on this file, in container order. Drives the player's
@@ -91,7 +91,7 @@ pub struct MediaFile {
     /// Whether ffprobe has run on this file yet (phase 2). Until then the stream
     /// fields above are null.
     pub probed: bool,
-    /// Absolute path on disk. Internal only — never serialized to clients.
+    /// Absolute path on disk. Internal only never serialized to clients.
     #[serde(skip)]
     pub abs_path: Option<String>,
 }
@@ -116,7 +116,7 @@ pub struct MediaItem {
     pub duration_ms: Option<u64>,
     pub container: String,
     pub video: Option<VideoStream>,
-    /// Representative (first/default) audio track — kept for badges and
+    /// Representative (first/default) audio track kept for badges and
     /// backward compatibility. The full list is `audio_tracks`.
     pub audio: Option<AudioStream>,
     /// Every audio track of the representative file, for the audio-track picker.
@@ -145,18 +145,43 @@ pub struct MediaItem {
     /// their show's metadata.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
-    /// Absolute path on disk. Internal only — never serialized to clients.
+    /// Absolute path on disk. Internal only never serialized to clients.
     /// Mirrors the default/representative file's path so `/stream` keeps working.
     #[serde(skip)]
     pub abs_path: Option<String>,
     /// Every physical file backing this logical item.
     #[serde(default)]
     pub files: Vec<MediaFile>,
-    /// Id of the representative ("default") file — the one `/stream` serves and
+    /// Id of the representative ("default") file the one `/stream` serves and
     /// whose stream info populates the top-level fields. `None` until at least
     /// one file exists.
     #[serde(rename = "defaultFileId", default, skip_serializing_if = "Option::is_none")]
     pub default_file_id: Option<String>,
+    /// Intro / credits segment markers (episodes only). Drives the "skip intro"
+    /// button and the credits-triggered "next episode" card. Empty until resolved
+    /// from chapters or the audio-fingerprint job.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markers: Vec<Marker>,
+}
+
+/// What a [`Marker`] segment is. Serialized lowercase (`"intro"` / `"credits"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum MarkerKind {
+    Intro,
+    Credits,
+}
+
+/// One timed segment of an episode (intro / credits), in milliseconds.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Marker {
+    pub kind: MarkerKind,
+    #[serde(rename = "startMs")]
+    pub start_ms: u64,
+    #[serde(rename = "endMs")]
+    pub end_ms: u64,
 }
 
 /// A TV show aggregate (not a file). Built by grouping episodes during a scan.
@@ -179,6 +204,11 @@ pub struct Show {
     /// background enrichment pass resolves it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
+    /// Per-user series-completion percent (0–100), filled by the catalogue
+    /// endpoints when the request is authenticated. `None` for anonymous requests
+    /// or shows with no progress drives the progress bar on show cards.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<u8>,
 }
 
 /// One season's worth of episodes, sorted by episode number.
@@ -187,6 +217,10 @@ pub struct Show {
 pub struct Season {
     pub number: u32,
     pub episodes: Vec<MediaItem>,
+    /// Season-specific cast (TMDB season credits), resolved during enrichment.
+    /// Empty until enriched or when the provider returned none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cast: Vec<CastMember>,
 }
 
 /// `GET /api/shows/:id` payload: a show plus its seasons.

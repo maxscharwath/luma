@@ -21,7 +21,7 @@ export const Route = createFileRoute('/movie/$id')({
   loader: async ({ params }) => {
     const c = lumaClient();
     // "Titres similaires" prefers the content-embedding neighbours (ranked by the
-    // embedder — semantic once MiniLM is enabled, genre-guarded server-side). Fall
+    // embedder semantic once MiniLM is enabled, genre-guarded server-side). Fall
     // back to a plain genre-overlap when the title isn't embedded / too few match.
     const [item, movies, embed] = await Promise.all([
       c.item(params.id),
@@ -47,7 +47,7 @@ export const Route = createFileRoute('/movie/$id')({
   component: MovieDetailPage,
 });
 
-/** "2024 · 2h08 · Français" — year, runtime, primary audio language. */
+/** "2024 · 2h08 · Français" year, runtime, primary audio language. */
 function metaLong(t: Translate, movie: MovieView): string {
   const parts: string[] = [];
   if (movie.year) parts.push(String(movie.year));

@@ -27,6 +27,7 @@ use crate::model::{
 mod media;
 mod catalog_query;
 mod ingest;
+mod markers;
 mod accounts;
 mod playback;
 mod library;
@@ -43,6 +44,7 @@ mod backup;
 pub use media::*;
 pub use catalog_query::*;
 pub use ingest::*;
+pub use markers::*;
 pub use vectors::*;
 pub use home::*;
 pub use accounts::*;
@@ -131,7 +133,7 @@ pub(crate) fn parse_metadata(json: Option<String>) -> Option<Metadata> {
 
 /// Map a row of
 /// `id,email,username,avatar_url,created_at,permissions,language,has_pin` to a
-/// [`User`]. Column 7 is a boolean (`pin_hash IS NOT NULL`) — every SELECT that
+/// [`User`]. Column 7 is a boolean (`pin_hash IS NOT NULL`) every SELECT that
 /// feeds this must project it (the password-hash lookups carry it before their
 /// trailing `password_hash`). Column 6 is read as `language`; the admin members
 /// query repurposes it for `last_seen` (which the caller re-reads itself).
@@ -249,6 +251,10 @@ pub(crate) fn attach_files(conn: &Connection, item: &mut MediaItem) -> rusqlite:
         }
     }
     item.files = files;
+    // Episodes carry intro/credits markers (skip-intro + next-up-at-credits).
+    if item.kind == Kind::Episode {
+        item.markers = markers::markers_for_item(conn, &item.id)?;
+    }
     Ok(())
 }
 
@@ -286,6 +292,7 @@ pub(crate) fn row_to_item(r: &Row) -> rusqlite::Result<MediaItem> {
         metadata,
         files: Vec::new(),
         default_file_id: None,
+        markers: Vec::new(),
     })
 }
 

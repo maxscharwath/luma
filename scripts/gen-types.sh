@@ -13,8 +13,8 @@ mkdir -p "$GEN_DIR"
 ( cd server && TS_RS_EXPORT_DIR="../$GEN_DIR" cargo test export_bindings )
 
 # ts-rs maps Rust 64-bit ints (u64/i64) to `bigint`. Every such field in this API
-# is a millisecond timestamp, byte count, count, or external id — all safely
-# within Number.MAX_SAFE_INTEGER — and the whole client treats them as `number`.
+# is a millisecond timestamp, byte count, count, or external id all safely
+# within Number.MAX_SAFE_INTEGER and the whole client treats them as `number`.
 # Normalize them back so client arithmetic keeps working. (Portable sed.)
 for f in "$GEN_DIR"/*.ts; do
   sed -i.bak 's/bigint/number/g' "$f" && rm -f "$f.bak"
@@ -22,7 +22,7 @@ done
 
 # Barrel: re-export every generated type so `@luma/core` can `export * from './generated'`.
 {
-  echo "// Auto-generated barrel for the ts-rs bindings. Do not edit — run scripts/gen-types.sh."
+  echo "// Auto-generated barrel for the ts-rs bindings. Do not edit run scripts/gen-types.sh."
   for f in "$GEN_DIR"/*.ts; do
     name="$(basename "$f" .ts)"
     [ "$name" = "index" ] && continue

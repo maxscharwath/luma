@@ -1,13 +1,13 @@
-//! HTTP LLM backend over `curl` (no heavy HTTP dependency — same approach as the
+//! HTTP LLM backend over `curl` (no heavy HTTP dependency same approach as the
 //! TMDB client). The wire differences between vendors live behind one
 //! [`Provider`] trait, so [`HttpLlm`] is provider-agnostic and adding a new
 //! vendor is a single self-contained `impl` + one line in [`provider_for`].
 //!
 //! Shipped providers:
-//!   * **OpenAI-compatible** `POST {base}/chat/completions` — Ollama (base
+//!   * **OpenAI-compatible** `POST {base}/chat/completions` Ollama (base
 //!     `http://host:11434/v1`), llama.cpp, LM Studio, vLLM, OpenRouter, OpenAI.
 //!   * **Anthropic** `POST {base}/v1/messages` (`x-api-key` +
-//!     `anthropic-version`) — Claude.
+//!     `anthropic-version`) Claude.
 
 use std::process::Command;
 
@@ -22,11 +22,11 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 const MAX_TIME_SECS: &str = "180";
 
 /// A chat-completion wire protocol. Implement this + add a line to
-/// [`provider_for`] to support a new vendor — nothing else changes.
+/// [`provider_for`] to support a new vendor nothing else changes.
 trait Provider: Send + Sync {
     fn id(&self) -> &'static str;
     /// Base URL used when the admin leaves it blank; `None` means a base URL is
-    /// required (the OpenAI-compatible case — there's no single default host).
+    /// required (the OpenAI-compatible case there's no single default host).
     fn default_base(&self) -> Option<&'static str>;
     fn chat_url(&self, base: &str) -> String;
     fn models_url(&self, base: &str) -> String;
@@ -46,7 +46,7 @@ trait Provider: Send + Sync {
         false
     }
     /// Build a tool-enabled chat request from a running `messages` array (the
-    /// conversation so far — user/assistant/tool turns; `system` is applied by
+    /// conversation so far user/assistant/tool turns; `system` is applied by
     /// the provider as it sees fit). Mirrors the vendor request shape, hence the
     /// arg count.
     #[allow(clippy::too_many_arguments)]
@@ -103,11 +103,11 @@ fn provider_for(name: &str) -> Box<dyn Provider> {
 
 // ----- OpenAI-compatible ------------------------------------------------------
 
-/// The OpenAI chat-completions wire protocol — also serves every compatible
+/// The OpenAI chat-completions wire protocol also serves every compatible
 /// server (Ollama, llama.cpp, LM Studio, vLLM) and **OpenRouter**. OpenRouter is
 /// the *same* wire format; only its default base URL and an optional `X-Title`
 /// ranking header differ, so it's a config of this one `impl` rather than a
-/// near-duplicate — new trait methods can't silently regress on it.
+/// near-duplicate new trait methods can't silently regress on it.
 struct OpenAi {
     id: &'static str,
     default_base: Option<&'static str>,
@@ -122,7 +122,7 @@ impl OpenAi {
     const fn openai() -> Self {
         Self { id: "openai", default_base: None, extra_header: None }
     }
-    /// OpenRouter (<https://openrouter.ai>) — an aggregator giving one key access
+    /// OpenRouter (<https://openrouter.ai>) an aggregator giving one key access
     /// to hundreds of models; identifies LUMA on its usage dashboard via `X-Title`.
     const fn openrouter() -> Self {
         Self { id: "openrouter", default_base: Some("https://openrouter.ai/api/v1"), extra_header: Some(("x-title", "LUMA")) }
@@ -213,7 +213,7 @@ impl Provider for OpenAi {
                 let name = f.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
                 // Spec says `arguments` is a JSON-encoded string, but several
                 // OpenAI-compatible servers (Ollama, llama.cpp, LM Studio) hand
-                // back an object instead — accept both; empty/garbage → `{}`.
+                // back an object instead accept both; empty/garbage → `{}`.
                 let args = match f.get("arguments") {
                     Some(Value::String(s)) if !s.trim().is_empty() => serde_json::from_str(s).unwrap_or_else(|_| json!({})),
                     Some(obj @ Value::Object(_)) => obj.clone(),
@@ -456,7 +456,7 @@ impl LlmClient for HttpLlm {
         match self.run(system, user, max_tokens, self.reasoning) {
             Ok(text) => Ok(text),
             // Reasoning is unsupported on some models (e.g. Claude Haiku) and 400s
-            // there — retry once without it so enabling it degrades gracefully.
+            // there retry once without it so enabling it degrades gracefully.
             Err(e) if self.reasoning && self.provider.reasoning_applies() => {
                 tracing::warn!(error = %e, "LLM reasoning request failed; retrying without it");
                 self.run(system, user, max_tokens, false)
@@ -480,7 +480,7 @@ impl LlmClient for HttpLlm {
     ) -> Result<String> {
         match self.run_tools_loop(system, user, tools, toolbox, max_tokens, max_steps, self.reasoning) {
             Ok(s) => Ok(s),
-            // Some models 400 on `thinking` (e.g. Claude Haiku) — retry the whole
+            // Some models 400 on `thinking` (e.g. Claude Haiku) retry the whole
             // loop without it. Catalog tools are read-only, so a replay is safe.
             Err(e) if self.reasoning && self.provider.reasoning_applies() => {
                 tracing::warn!(error = %e, "LLM tool run failed; retrying without reasoning");
@@ -642,7 +642,7 @@ mod tests {
     #[test]
     fn openai_parse_turn_accepts_object_form_arguments() {
         // Ollama / llama.cpp / LM Studio hand back `arguments` as an object, not
-        // a JSON string — must still parse, not silently drop the args.
+        // a JSON string must still parse, not silently drop the args.
         let resp = json!({ "choices": [{ "message": {
             "role": "assistant",
             "tool_calls": [{ "id": "c1", "type": "function",
@@ -698,7 +698,7 @@ mod tests {
     }
 
     /// One loop step end-to-end against a stand-in tool: parse a tool call, run it
-    /// through the `ToolBox`, and shape the result messages — the inner round-trip
+    /// through the `ToolBox`, and shape the result messages the inner round-trip
     /// `run_tools_loop` performs (minus the HTTP call).
     #[test]
     fn simulated_round_trip_dispatches_through_toolbox() {

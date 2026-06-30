@@ -23,7 +23,7 @@ interface AuthValue {
   ready: boolean;
   /** Authed API client (token attached while logged in). */
   client: LumaClient;
-  /** Accounts already signed-in on this device — switchable without a password. */
+  /** Accounts already signed-in on this device switchable without a password. */
   accounts: StoredSession[];
   login: (email: string, password: string) => Promise<void>;
   register: (
@@ -71,13 +71,13 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     ) => {
       const res = await client.register(email, username, password, inviteToken);
       auth.apply(res);
-      // Optional avatar upload — uses the just-issued token, then patches the user.
+      // Optional avatar upload uses the just-issued token, then patches the user.
       if (avatar) {
         try {
           const { avatarUrl } = await client.uploadAvatar(avatar);
           auth.updateUser({ avatarUrl });
         } catch {
-          /* avatar is optional — keep the account without it */
+          /* avatar is optional keep the account without it */
         }
       }
     },

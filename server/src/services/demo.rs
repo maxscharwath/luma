@@ -89,9 +89,9 @@ pub fn demo_data() -> ScanData {
 
     let shows = vec![
         Show { id: planet_earth, title: "Planet Earth II".into(), year: Some(2016), library: shows_lib.clone(),
-            season_count: 1, episode_count: 2, video: None, added_at: added.clone(), metadata: None },
+            season_count: 1, episode_count: 2, video: None, added_at: added.clone(), metadata: None, progress: None },
         Show { id: the_office, title: "The Office".into(), year: Some(2005), library: shows_lib.clone(),
-            season_count: 1, episode_count: 2, video: None, added_at: added.clone(), metadata: None },
+            season_count: 1, episode_count: 2, video: None, added_at: added.clone(), metadata: None, progress: None },
     ];
 
     let libraries = vec![
@@ -122,7 +122,7 @@ fn movie(
         subtitles, library: library.into(),
         show_id: None, show_title: None, season: None, episode: None, episode_end: None,
         episode_title: None, rel_path: None, added_at: added_at.into(), metadata: None, abs_path: None,
-        files: Vec::new(), default_file_id: None,
+        files: Vec::new(), default_file_id: None, markers: Vec::new(),
     })
 }
 
@@ -140,7 +140,7 @@ fn episode(
         library: library.into(), show_id: Some(show.into()), show_title: Some(show_title.into()),
         season: Some(season), episode: Some(episode), episode_end: None,
         episode_title: Some(episode_title.into()), rel_path: None, added_at: added_at.into(),
-        metadata: None, abs_path: None, files: Vec::new(), default_file_id: None,
+        metadata: None, abs_path: None, files: Vec::new(), default_file_id: None, markers: Vec::new(),
     })
 }
 

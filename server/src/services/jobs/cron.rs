@@ -5,7 +5,7 @@
 //! deps: keep the musl single-binary lean. Calendar math is done with the
 //! already-present [`time`] crate.
 //!
-//! Supported syntax — standard Vixie-style 5-field cron, with an optional
+//! Supported syntax standard Vixie-style 5-field cron, with an optional
 //! leading seconds field (6 fields):
 //!
 //! ```text
@@ -44,7 +44,7 @@ pub struct Cron {
 }
 
 /// How far ahead [`Cron::next_after`] will search before giving up (≈4 years of
-/// field-skipping steps — far more than enough for any real schedule, but a hard
+/// field-skipping steps far more than enough for any real schedule, but a hard
 /// stop for an unsatisfiable spec like `0 0 30 2 *`, Feb 30th).
 const MAX_STEPS: usize = 100_000;
 

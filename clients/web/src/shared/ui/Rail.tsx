@@ -5,7 +5,7 @@ export interface RailProps {
   children: ReactNode;
   /** Gap between slides, in px. */
   gap?: number;
-  /** Inset the track by the page gutter (`--gutter-web`) — for full-bleed
+  /** Inset the track by the page gutter (`--gutter-web`) for full-bleed
    * sections (detail rails) where the heading is gutter-padded. */
   padded?: boolean;
   label?: string;
@@ -40,7 +40,7 @@ function Arrow({
 }
 
 /**
- * Horizontal scroller — **native** overflow scrolling (GPU-composited, off the
+ * Horizontal scroller **native** overflow scrolling (GPU-composited, off the
  * main thread, so it never janks) with modern JS niceties layered on: the mouse
  * wheel scrolls it horizontally (with edge-release back to the page), hover
  * prev/next arrows page smoothly, and the scrollbar is hidden. `py-3` gives the
@@ -98,8 +98,12 @@ export function Rail({ children, gap = 18, padded = false, label }: Readonly<Rai
       <div
         ref={ref}
         aria-label={label}
-        className={`flex overflow-x-auto py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
-          ${padded ? 'px-(--gutter-web)' : ''}`}
+        // `py-4` + the horizontal inset give the cards' hover-lift + amber focus
+        // ring room before the overflow clips them. Non-padded (home) rails inset
+        // with `px-4 -mx-4` so the first/last card's ring isn't cropped at the
+        // scroll edge while the cards stay aligned with the section heading.
+        className={`flex overflow-x-auto py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+          ${padded ? 'px-(--gutter-web)' : 'px-4 -mx-4'}`}
         style={{ gap: `${gap}px` }}
       >
         {children}

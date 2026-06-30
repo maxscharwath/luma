@@ -17,7 +17,7 @@ title: string,
  */
 reason: string | null, 
 /**
- * The rail's entries — movies *or* shows — already capped and de-duplicated
+ * The rail's entries movies *or* shows already capped and de-duplicated
  * against earlier rows. A `type`-tagged union so the client switches on it
  * (mirrors `SearchHit`): a movie carries a [`MediaItem`], a show a [`Show`].
  */

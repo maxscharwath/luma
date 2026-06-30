@@ -1,9 +1,9 @@
-//! Quick Connect — device pairing (Plex/Jellyfin-style).
+//! Quick Connect device pairing (Plex/Jellyfin-style).
 //!
 //! A device that's painful to type on (the TV) calls [`initiate`] and shows the
 //! returned short numeric **code**. An already-signed-in user approves that code
 //! from the web app ([`authorize`]). The device meanwhile polls with its private
-//! **secret** ([`poll`]) and, once approved, receives a real session token — so
+//! **secret** ([`poll`]) and, once approved, receives a real session token so
 //! it logs in without anyone typing a password on the remote.
 //!
 //! State is in-memory (entries are short-lived) behind a `Mutex`, mirroring the

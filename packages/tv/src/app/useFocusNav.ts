@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 // navigates here (card → detail) would otherwise also fire the control the new
 // screen auto-focuses (detail → Play → player), via the remote's key repeat or a
 // keyup/keydown bounce. So we ignore OK for a short window after every screen
-// mounts (see the effect) — long enough to swallow the stray repeat, short enough
+// mounts (see the effect) long enough to swallow the stray repeat, short enough
 // that a deliberate second press still lands. Module-scope so it survives the
 // transition's unmount/mount.
 let okGuardUntil = 0;
@@ -110,7 +110,7 @@ export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers)
       // only ▲ ▼ leave the field. Otherwise typing a server URL is impossible.
       const active = document.activeElement;
       const inText = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement;
-      // Media keys keep their native default (no preventDefault) — handlers that
+      // Media keys keep their native default (no preventDefault) handlers that
       // return `false` are treated as "not handled" by dispatchRemoteKey.
       const media = () => {
         onPlayPause?.();

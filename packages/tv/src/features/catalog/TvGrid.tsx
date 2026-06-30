@@ -29,7 +29,6 @@ export function TvGrid() {
     const movieCard = (m: (typeof movies)[number]): GridCard => ({
       id: m.id,
       title: m.title,
-      badge: qualityBadge(m),
       poster: client.posterFor(m),
       colors: posterColors(m.id),
       watched: watched.has(m.id),
@@ -38,10 +37,10 @@ export function TvGrid() {
     const showCard = (s: (typeof shows)[number]): GridCard => ({
       id: s.id,
       title: s.title,
-      badge: qualityBadgeForVideo(s.video),
       poster: client.showPosterFor(s),
       colors: posterColors(s.id),
       watched: watched.has(s.id),
+      progress: s.progress ?? null,
       onClick: () => nav.go('show', { show: s }),
     });
     if (isFilms) return movies.map(movieCard);
@@ -52,8 +51,16 @@ export function TvGrid() {
     ];
   }, [isFilms, isSeries, movies, shows, client, nav, myList, watched]);
 
-  const heroMovie = isFilms ? movies[0] : isSeries ? undefined : movies.find((m) => myList.has(m.id));
-  const heroShow = isSeries ? shows[0] : heroMovie ? undefined : shows.find((s) => myList.has(s.id));
+  const heroMovie = isFilms
+    ? movies[0]
+    : isSeries
+      ? undefined
+      : movies.find((m) => myList.has(m.id));
+  const heroShow = isSeries
+    ? shows[0]
+    : heroMovie
+      ? undefined
+      : shows.find((s) => myList.has(s.id));
   const hero = heroMovie ?? heroShow ?? null;
   const heroBackdrop = hero ? (client.backdropFor(hero) ?? client.posterFor(hero)) : null;
   const heroBadge = heroMovie

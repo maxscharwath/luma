@@ -1,4 +1,10 @@
-import { formatRuntime, posterColors, qualityBadgeForVideo, type ShowDetail } from '@luma/core';
+import {
+  formatRuntime,
+  posterColors,
+  qualityBadgeForVideo,
+  type ShowDetail,
+  type UpNext,
+} from '@luma/core';
 import { useLocale, useT, useThemeAudio } from '@luma/ui';
 import { IconClock } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,7 +21,7 @@ import {
   ThemeButton,
   WatchedButton,
 } from '#tv/features/catalog/detail/parts';
-import { PlayGlyph, TV_PLAY_BTN, TvArt } from '#tv/shared/TvMedia';
+import { PlayGlyph, TV_PLAY_BTN, TvArt, WatchedBadge } from '#tv/shared/TvMedia';
 
 export function TvShowDetail() {
   const nav = useNav();
@@ -28,6 +34,29 @@ export function TvShowDetail() {
   const [error, setError] = useState<string | null>(null);
   const myList = useMyList();
   const watched = useWatched();
+
+  // Per-episode resume progress (mapped by item id) for the episode thumbnails.
+  const [epProgress, setEpProgress] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    client
+      .progress()
+      .then((entries) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        for (const e of entries) {
+          const dur = e.durationMs ?? 0;
+          if (dur > 0 && e.positionMs > 0) {
+            map[e.itemId] = Math.min(100, Math.round((e.positionMs / dur) * 100));
+          }
+        }
+        setEpProgress(map);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   useFocusNav({ onBack: nav.back, resetKey: detail });
 
@@ -61,6 +90,23 @@ export function TvShowDetail() {
   );
   const firstEpisode = activeSeason?.episodes[0] ?? null;
 
+  // "Continue the series": resume in-progress, else next unwatched (per-user,
+  // server-computed). Falls back to the first episode while loading.
+  const [upNext, setUpNext] = useState<UpNext | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    client
+      .upNext(show.id)
+      .then((r) => {
+        if (!cancelled) setUpNext(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, show.id]);
+  const playTarget = upNext?.item ?? firstEpisode;
+
   const metaLong = [
     show.year ? String(show.year) : null,
     t('content.seasonCount', { count: show.seasonCount }),
@@ -84,14 +130,14 @@ export function TvShowDetail() {
         <button
           className={TV_PLAY_BTN}
           data-focus=""
-          disabled={!firstEpisode}
-          onClick={() => firstEpisode && nav.go('player', { item: firstEpisode })}
+          disabled={!playTarget}
+          onClick={() => playTarget && nav.go('player', { item: playTarget })}
         >
           <PlayGlyph />
-          {firstEpisode
-            ? t('player.playEpisode', {
-                season: firstEpisode.season ?? 0,
-                episode: firstEpisode.episode ?? 0,
+          {playTarget
+            ? t(upNext?.resume ? 'player.resumeEpisode' : 'player.playEpisode', {
+                season: playTarget.season ?? 0,
+                episode: playTarget.episode ?? 0,
               })
             : t('player.play')}
         </button>
@@ -133,7 +179,9 @@ export function TvShowDetail() {
         </div>
       ) : null}
 
-      <CastRow cast={meta?.cast} />
+      {/* Cast for the selected season (TMDB season credits), falling back to the
+          show's overall cast until the season is enriched. */}
+      <CastRow cast={activeSeason?.cast?.length ? activeSeason.cast : meta?.cast} />
 
       {activeSeason ? (
         <div className="mt-8">
@@ -142,7 +190,7 @@ export function TvShowDetail() {
           </div>
           <div className="scrollbar-none -mx-6 flex gap-4.5 overflow-x-auto px-6 py-5">
             {activeSeason.episodes.map((ep) => (
-              // The focus ring belongs to the thumbnail only (design) — title +
+              // The focus ring belongs to the thumbnail only (design) title +
               // meta sit below it, outside the amber border.
               <div key={ep.id} className="w-65 shrink-0">
                 <button
@@ -157,9 +205,18 @@ export function TvShowDetail() {
                       colors={posterColors(ep.id)}
                       position="50% 30%"
                     />
+                    {watched.has(ep.id) ? <WatchedBadge size={26} /> : null}
                     <div className="relative flex h-11.5 w-11.5 items-center justify-center rounded-full bg-[rgba(10,10,12,0.5)] text-white">
                       <PlayGlyph size={18} />
                     </div>
+                    {epProgress[ep.id] != null && !watched.has(ep.id) ? (
+                      <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[rgba(255,255,255,0.25)]">
+                        <div
+                          className="h-full bg-accent"
+                          style={{ width: `${epProgress[ep.id]}%` }}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </button>
                 <div className="mt-2.25 text-left font-sans text-[15px] font-semibold text-text">

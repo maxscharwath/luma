@@ -11,7 +11,7 @@ make deploy TV_IP=192.168.1.50    # build, sign, install, launch on the TV
 make logs                         # watch the app's console output
 ```
 
-## Fast path — one command for the toolchain
+## Fast path one command for the toolchain
 
 ```bash
 bash clients/tizen/scripts/bootstrap-macos.sh
@@ -19,7 +19,7 @@ bash clients/tizen/scripts/bootstrap-macos.sh
 
 Installs Rosetta, downloads + opens the Tizen Studio installer, and verifies the
 toolchain. You still do the click-through install and the three Samsung-bound
-steps below (Developer Mode, the certificate, your TV's IP) — nothing can
+steps below (Developer Mode, the certificate, your TV's IP) nothing can
 automate those.
 
 ---
@@ -70,12 +70,12 @@ once:
    - Sign in with your **Samsung account**.
    - Create/ös pick an **Author** certificate.
    - For the **Distributor** certificate, the wizard reads the **DUID of the
-     connected TV** — make sure the TV is connected (step 1) and select it.
+     connected TV** make sure the TV is connected (step 1) and select it.
 4. Name the **profile** `LUMA` (or set `PROFILE` in `.tizen.env` to whatever you
    name it). This profile is what `make package` signs with.
 
 > A self-signed Tizen cert (`make cert-selfsigned`) only works on the **emulator**,
-> not a retail TV — that's why the Samsung wizard is required here.
+> not a retail TV that's why the Samsung wizard is required here.
 
 ## 4. Configure + deploy
 
@@ -90,7 +90,7 @@ and watch logs with `make logs`.
 
 ## 5. Point the app at your media server
 
-On first launch the app shows a connection screen — enter
+On first launch the app shows a connection screen enter
 `http://<server-ip>:4040`. It persists in `localStorage`, so subsequent launches
 go straight to the library. Make sure the server is running and reachable from
 the TV's network (`bun run server` on the host, or the Docker image on your NAS).

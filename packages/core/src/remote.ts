@@ -68,14 +68,14 @@ export function resolveRemoteKey(e: KeyboardEvent): RemoteKey | null {
 }
 
 /** A remote-key handler. Return `false` to mark the key *unhandled* (so the event
- * keeps its default — e.g. let a text field own ◀ ▶ / Enter); anything else
+ * keeps its default e.g. let a text field own ◀ ▶ / Enter); anything else
  * (incl. `undefined`) counts as handled and the event is `preventDefault`-ed. */
 export type RemoteKeyHandler = (e: KeyboardEvent) => void | boolean;
 /** Declarative key → action table: `{ Enter: () => …, Back: () => … }`. */
 export type RemoteKeyMap = Partial<Record<RemoteKey, RemoteKeyHandler>>;
 
 /**
- * Resolve a keydown and dispatch it through a {@link RemoteKeyMap} — so screens
+ * Resolve a keydown and dispatch it through a {@link RemoteKeyMap} so screens
  * declare *what* each key does instead of hand-rolling a `switch` with the same
  * resolve / auto-repeat / `preventDefault` plumbing every time. Returns the
  * resolved key (or null), so callers can fall through on unbound keys.
@@ -125,7 +125,7 @@ export function registerTvMediaKeys(): void {
     try {
       dev.registerKey(k);
     } catch {
-      /* key unavailable on this model — ignore */
+      /* key unavailable on this model ignore */
     }
   }
 }

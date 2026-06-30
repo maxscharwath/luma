@@ -1,6 +1,6 @@
 // Playback progress / resume + live-session heartbeats.
 
-import type { ContinueItem, MediaItem, PlaybackPing, ProgressEntry } from '../types';
+import type { ContinueItem, MediaItem, PlaybackPing, ProgressEntry, UpNext } from '../types';
 import type { RequestContext } from './base';
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -8,6 +8,19 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 /** All of the user's saved positions. */
 export function progress(ctx: RequestContext): Promise<ProgressEntry[]> {
   return ctx.json<ProgressEntry[]>('/progress');
+}
+
+/** The episode to play to CONTINUE a show (resume in-progress, else next
+ * unwatched, else first) + a `resume` flag for the button label. `null` when the
+ * show has no episodes. */
+export function upNext(ctx: RequestContext, showId: string): Promise<UpNext | null> {
+  return ctx.json<UpNext | null>(`/shows/${encodeURIComponent(showId)}/up-next`);
+}
+
+/** The next episode after `itemId` in its show (sequence order), or `null` for a
+ * movie / the last episode. Drives player autoplay. */
+export function nextEpisode(ctx: RequestContext, itemId: string): Promise<MediaItem | null> {
+  return ctx.json<MediaItem | null>(`/items/${encodeURIComponent(itemId)}/next`);
 }
 
 /** Saved position for a single item, or null if none. */

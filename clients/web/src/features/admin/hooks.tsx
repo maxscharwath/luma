@@ -42,7 +42,7 @@ export function usePoll<T>(
 
 /** A busy-tracked async action for modal save/delete handlers. `run(fn, onError?)`
  * flips `busy` while `fn` runs and, on failure, sets `error` to `onError(e)` (when
- * provided) — collapsing the repeated setBusy/try/catch/finally boilerplate. */
+ * provided) collapsing the repeated setBusy/try/catch/finally boilerplate. */
 export function useAsyncAction(): {
   busy: boolean;
   error: string | null;

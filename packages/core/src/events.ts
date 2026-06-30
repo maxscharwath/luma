@@ -1,5 +1,5 @@
 // Live server events over WebSocket (`/api/events`). The client holds this open
-// and updates its UI in place — no relaunch/refresh — when the library changes
+// and updates its UI in place no relaunch/refresh when the library changes
 // (scan finished, metadata/art resolved). Auto-reconnects with backoff.
 
 export type ServerEvent =

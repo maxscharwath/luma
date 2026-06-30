@@ -7,6 +7,6 @@
  */
 export type CrewMember = { name: string, job: string, 
 /**
- * Profile photo (optional; not yet localized — directors render as text).
+ * Profile photo (optional; not yet localized directors render as text).
  */
 profileUrl?: string | null, };

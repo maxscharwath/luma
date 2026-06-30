@@ -62,7 +62,7 @@ pub async fn ping(
     headers: HeaderMap,
     Json(body): Json<PingBody>,
 ) -> Response {
-    // An admin just terminated this session — refuse the heartbeat (410) instead
+    // An admin just terminated this session refuse the heartbeat (410) instead
     // of recreating it. The client treats 410 as "stop now".
     if state.playback.is_recently_terminated(&body.session_id) {
         return StatusCode::GONE.into_response();
@@ -223,6 +223,29 @@ pub async fn continue_watching(
 ) -> Response {
     match query(&state.db, move |pool| db::continue_watching(&pool, &user.id)).await {
         Ok(items) => Json(items).into_response(),
+        Err(resp) => resp,
+    }
+}
+
+/// `GET /api/shows/:id/up-next` (Bearer) → `UpNext | null`. The episode to play to
+/// continue this show (resume in-progress, else next unwatched, else first).
+pub async fn up_next(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+    Path(show_id): Path<String>,
+) -> Response {
+    match query(&state.db, move |pool| db::up_next_episode(&pool, &user.id, &show_id)).await {
+        Ok(Some((item, resume))) => Json(crate::model::UpNext { item, resume }).into_response(),
+        Ok(None) => Json(Option::<crate::model::UpNext>::None).into_response(),
+        Err(resp) => resp,
+    }
+}
+
+/// `GET /api/items/:id/next` → `MediaItem | null`. The next episode in the show
+/// (sequence-based; public, drives player autoplay).
+pub async fn next_episode(State(state): State<SharedState>, Path(item_id): Path<String>) -> Response {
+    match query(&state.db, move |pool| db::next_episode(&pool, &item_id)).await {
+        Ok(item) => Json(item).into_response(),
         Err(resp) => resp,
     }
 }

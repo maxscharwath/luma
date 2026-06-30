@@ -2,9 +2,9 @@ import { useT } from '@luma/ui';
 import { IconAlertTriangle, IconDownload, IconUpload } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
+import { ExportModal, ImportModal, isEncryptedFile } from '#web/features/admin/backupModals';
 import { Denied, PageHeader, useCap } from '#web/features/admin/shell';
 import { C, Card, Section } from '#web/features/admin/ui';
-import { useAuth } from '#web/shared/lib/auth';
 
 export const Route = createFileRoute('/admin/backup')({
   component: BackupPage,
@@ -12,48 +12,22 @@ export const Route = createFileRoute('/admin/backup')({
 
 function BackupPage() {
   const t = useT();
-  const { client } = useAuth();
   const canManage = useCap('settings.manage');
   const fileRef = useRef<HTMLInputElement>(null);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [showExport, setShowExport] = useState(false);
+  const [importTarget, setImportTarget] = useState<{ file: File; encrypted: boolean } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (!canManage) return <Denied />;
 
-  async function exportBackup() {
-    setExporting(true);
+  async function onFilePicked(file: File) {
     setNotice(null);
-    try {
-      const blob = await client.exportBackup();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `luma-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } finally {
-      setExporting(false);
-    }
+    setImportTarget({ file, encrypted: await isEncryptedFile(file) });
   }
 
-  async function importBackup(file: File) {
-    setImporting(true);
-    setNotice(null);
-    try {
-      const res = await client.importBackup(file);
-      setNotice({
-        kind: 'ok',
-        text: t('admin.backupImported', { users: res.imported.users ?? 0 }),
-      });
-    } catch {
-      setNotice({ kind: 'err', text: t('admin.backupImportFailed') });
-    } finally {
-      setImporting(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+  function closeImport() {
+    setImportTarget(null);
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   return (
@@ -69,12 +43,8 @@ function BackupPage() {
         <ActionRow
           desc={t('admin.backupExportDesc')}
           action={
-            <PrimaryButton
-              onClick={() => void exportBackup()}
-              disabled={exporting}
-              icon={IconDownload}
-            >
-              {exporting ? t('admin.backupExporting') : t('admin.backupExport')}
+            <PrimaryButton onClick={() => setShowExport(true)} icon={IconDownload}>
+              {t('admin.backupExport')}
             </PrimaryButton>
           }
         />
@@ -88,32 +58,38 @@ function BackupPage() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".json,application/json"
+                accept=".zip,.luma,.json,application/zip,application/json"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) void importBackup(file);
+                  if (file) void onFilePicked(file);
                 }}
               />
-              <PrimaryButton
-                onClick={() => fileRef.current?.click()}
-                disabled={importing}
-                icon={IconUpload}
-              >
-                {importing ? t('admin.backupImporting') : t('admin.backupImport')}
+              <PrimaryButton onClick={() => fileRef.current?.click()} icon={IconUpload}>
+                {t('admin.backupImport')}
               </PrimaryButton>
             </>
           }
         />
         {notice ? (
-          <p
-            className="mt-3 text-[13px] font-semibold"
-            style={{ color: notice.kind === 'ok' ? C.green : C.red }}
-          >
-            {notice.text}
+          <p className="mt-3 text-[13px] font-semibold" style={{ color: C.green }}>
+            {notice}
           </p>
         ) : null}
       </Section>
+
+      {showExport ? <ExportModal onClose={() => setShowExport(false)} /> : null}
+      {importTarget ? (
+        <ImportModal
+          file={importTarget.file}
+          encrypted={importTarget.encrypted}
+          onClose={closeImport}
+          onDone={(msg) => {
+            closeImport();
+            setNotice(msg);
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -129,21 +105,14 @@ function ActionRow({ desc, action }: Readonly<{ desc: string; action: React.Reac
 
 function PrimaryButton({
   onClick,
-  disabled,
   icon: Icon,
   children,
-}: Readonly<{
-  onClick: () => void;
-  disabled?: boolean;
-  icon: typeof IconDownload;
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ onClick: () => void; icon: typeof IconDownload; children: React.ReactNode }>) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-[9px] border border-[#F4B642]/25 bg-[#F4B642]/12 px-3.75 py-2.25 text-[13px] font-semibold text-[#F4B642] disabled:opacity-50"
+      className="inline-flex items-center gap-2 rounded-[9px] border border-[#F4B642]/25 bg-[#F4B642]/12 px-3.75 py-2.25 text-[13px] font-semibold text-[#F4B642]"
     >
       <Icon size={16} stroke={1.9} />
       {children}

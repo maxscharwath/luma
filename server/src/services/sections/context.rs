@@ -20,7 +20,7 @@ pub struct Context {
     pub part_of_day: PartOfDay,
     /// The viewer's most recent finished item, if any ("Because you watched …").
     pub last_played: Option<String>,
-    /// Recent distinct watched ids — the taste window for the "For You" centroid.
+    /// Recent distinct watched ids the taste window for the "For You" centroid.
     pub watched: Vec<String>,
 }
 

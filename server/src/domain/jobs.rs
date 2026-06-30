@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// Typed identity of a built-in job — the single source of truth for "what jobs
+/// Typed identity of a built-in job the single source of truth for "what jobs
 /// exist". Used everywhere instead of magic strings (so references are
 /// compiler-checked + autocompleted), and exported to the clients so the UI keys
 /// its job actions to this union rather than free strings. Serializes as the
@@ -33,11 +33,13 @@ pub enum JobId {
     MetadataEnrich,
     #[serde(rename = "search.reindex")]
     SearchReindex,
+    #[serde(rename = "markers.detect")]
+    MarkersDetect,
 }
 
 impl JobId {
     /// Every variant, in admin-listing order. Adding a job? add it here too.
-    pub const ALL: [JobId; 8] = [
+    pub const ALL: [JobId; 9] = [
         JobId::CacheCleanup,
         JobId::RecommendationsRefresh,
         JobId::RecommendationsReembed,
@@ -46,10 +48,11 @@ impl JobId {
         JobId::LibraryScan,
         JobId::MetadataEnrich,
         JobId::SearchReindex,
+        JobId::MarkersDetect,
     ];
 
     /// The stable string key (DB / URL / i18n base). Must match the `serde`
-    /// rename above — guarded by a test.
+    /// rename above guarded by a test.
     pub const fn key(self) -> &'static str {
         match self {
             JobId::CacheCleanup => "cache.cleanup",
@@ -60,11 +63,12 @@ impl JobId {
             JobId::LibraryScan => "library.scan",
             JobId::MetadataEnrich => "metadata.enrich",
             JobId::SearchReindex => "search.reindex",
+            JobId::MarkersDetect => "markers.detect",
         }
     }
 
     /// Parse a stored/requested key back into a typed id (`None` if it names a job
-    /// that no longer exists — stale DB rows are simply ignored).
+    /// that no longer exists stale DB rows are simply ignored).
     pub fn from_key(key: &str) -> Option<JobId> {
         JobId::ALL.into_iter().find(|id| id.key() == key)
     }
@@ -148,7 +152,7 @@ pub struct JobsView {
     pub jobs: Vec<JobInfo>,
 }
 
-/// `GET /api/admin/jobs/:key` — a job plus its recent run history.
+/// `GET /api/admin/jobs/:key` a job plus its recent run history.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]
 pub struct JobDetail {

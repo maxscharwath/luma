@@ -1,5 +1,5 @@
 // This shared helper lives at `clients/`, where the `vite` package isn't
-// resolvable — vite is a per-shell dependency (clients/tizen, clients/webos),
+// resolvable vite is a per-shell dependency (clients/tizen, clients/webos),
 // not hoisted to the workspace root. So instead of importing vite's own `Plugin`
 // type we describe just the slice we use; it stays structurally assignable to
 // Vite's `PluginOption`, so `plugins: [tvFrame()]` type-checks in each config.
@@ -20,7 +20,7 @@ export interface TvFrameOptions {
 
 /**
  * Dev-only **TV frame**. In `vite dev` it letterboxes the mounted app into a
- * fixed 16:9 stage (1920×1080 by default), scaled to fit the browser window —
+ * fixed 16:9 stage (1920×1080 by default), scaled to fit the browser window
  * the way a real TV renders a 1080p canvas onto its panel. The shells ship a
  * `<meta name="viewport" width=1920 height=1080>` so a TV webview gets that exact
  * canvas, but desktop Chrome ignores that tag, so without this the TV UI just
@@ -38,8 +38,8 @@ export interface TvFrameOptions {
  *
  * Caveat: a handful of `vh`-based `clamp()`s in the TV CSS still resolve against
  * the real window (CSS can't remap viewport units under a `transform`), so they
- * drift slightly on heavy up/down-scale. The fixed-px bulk of the layout — which
- * is nearly all of it — stays pixel-faithful.
+ * drift slightly on heavy up/down-scale. The fixed-px bulk of the layout which
+ * is nearly all of it stays pixel-faithful.
  */
 export function tvFrame(options: TvFrameOptions = {}): DevOnlyHtmlPlugin {
   const width = options.width ?? 1920;
@@ -47,7 +47,7 @@ export function tvFrame(options: TvFrameOptions = {}): DevOnlyHtmlPlugin {
   const enabled = options.enabled ?? true;
   return {
     name: 'luma:tv-frame',
-    apply: 'serve', // dev server only — no effect on `vite build`
+    apply: 'serve', // dev server only no effect on `vite build`
     transformIndexHtml() {
       if (!enabled) return [];
       return [
@@ -60,7 +60,7 @@ export function tvFrame(options: TvFrameOptions = {}): DevOnlyHtmlPlugin {
 
 function stageCss(w: number, h: number): string {
   return `
-/* LUMA dev TV frame — injected by vite dev only (see clients/tv-frame.vite.ts) */
+/* LUMA dev TV frame injected by vite dev only (see clients/tv-frame.vite.ts) */
 html[data-tv-frame="on"], html[data-tv-frame="on"] body {
   height: 100%; margin: 0; overflow: hidden;
   background: #0b0b0d; /* letterbox bars */

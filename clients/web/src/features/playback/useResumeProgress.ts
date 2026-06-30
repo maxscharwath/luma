@@ -14,7 +14,7 @@ export interface ResumeProgress {
 /**
  * Per-user resume + progress persistence for the player. Fetches the saved
  * position, seeks to it once the media is ready (flashing a toast), and writes
- * progress every 10 s / on pause / on close — clearing it once ~finished.
+ * progress every 10 s / on pause / on close clearing it once ~finished.
  */
 export function useResumeProgress(
   videoRef: React.RefObject<HTMLVideoElement>,
@@ -69,7 +69,7 @@ export function useResumeProgress(
       clearTimeout(hide);
       v.removeEventListener('loadedmetadata', apply);
     };
-    // `position` is read once when resumeAt resolves — excluded so a new
+    // `position` is read once when resumeAt resolves excluded so a new
     // position identity can't retrigger the resume seek.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoRef, resumeAt]);
@@ -79,7 +79,7 @@ export function useResumeProgress(
   const saveProgress = useCallback(() => {
     const v = videoRef.current;
     if (!v || !user) return;
-    // ABSOLUTE position + catalogue runtime — the seamless stream's own
+    // ABSOLUTE position + catalogue runtime the seamless stream's own
     // currentTime/duration is relative to the -ss offset, so never use them here.
     const pos = position ? position.getPosition() : v.currentTime;
     const durSec = item.durationMs ? item.durationMs / 1000 : v.duration;

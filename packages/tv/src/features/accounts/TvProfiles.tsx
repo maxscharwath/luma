@@ -23,7 +23,7 @@ interface Tile {
 }
 
 /**
- * Profile picker — the signed-out home. It shows ONLY the profiles paired on this
+ * Profile picker the signed-out home. It shows ONLY the profiles paired on this
  * device (remembered accounts); it never lists the server's other accounts and
  * makes no request on open. A PIN-protected profile routes to the PIN screen, the
  * rest sign in instantly. "Ajouter un profil" opens the wizard to pair a new one.
@@ -66,7 +66,7 @@ export function TvProfiles() {
         {t('profiles.subtitle')}
       </p>
 
-      {/* No own scroll/clip — the page (AuthScreen) scrolls, so focus zoom + the
+      {/* No own scroll/clip the page (AuthScreen) scrolls, so focus zoom + the
           amber ring/glow are never cropped. Gutters keep edge tiles' rings clear. */}
       <div className="flex w-full max-w-[1100px] flex-wrap content-start items-start justify-center gap-x-7 gap-y-9 px-6 py-4">
         {tiles.map(({ key, account, serverName }) => (

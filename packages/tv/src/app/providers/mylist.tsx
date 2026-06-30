@@ -1,4 +1,4 @@
-// "Ma liste" — the user's bookmarked titles. Server-backed (synced with the web
+// "Ma liste" the user's bookmarked titles. Server-backed (synced with the web
 // client) via the my-list API, hydrated once into a set; toggles are optimistic
 // and revert if the server call fails. Mirrors the watched provider.
 

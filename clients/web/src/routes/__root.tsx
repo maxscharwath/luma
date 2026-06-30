@@ -11,7 +11,7 @@ import appCss from '#web/styles.css?url';
 
 export const Route = createRootRoute({
   // No apiBase injection: the SPA resolves the API origin at runtime (same origin
-  // in the packaged build, VITE_LUMA_SERVER in dev — see lib/api `apiBase`).
+  // in the packaged build, VITE_LUMA_SERVER in dev see lib/api `apiBase`).
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -53,7 +53,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
             </MyListProvider>
           </WatchedProvider>
         </AuthProvider>
-        {/* Brand intro overlay — sits above everything, plays once per session. */}
+        {/* Brand intro overlay sits above everything, plays once per session. */}
         <Intro />
         <Scripts />
       </body>

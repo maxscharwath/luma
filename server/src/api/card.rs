@@ -1,7 +1,7 @@
 //! Smart Hub preview "cards": a 640×360 (16:9) landscape tile composited from a
 //! backdrop + dark scrims + a category **badge** (NOUVEAUTÉ / REPRENDRE), the
 //! **LUMA** brand lockup (top-right), and the title's **logo** artwork
-//! (transparent PNG, drawn only when one exists — no text fallback), plus an
+//! (transparent PNG, drawn only when one exists no text fallback), plus an
 //! optional resume progress bar. Encoded as JPEG.
 //!
 //! The film/series title and meta line are shown by the carousel itself (the
@@ -47,7 +47,7 @@ pub struct Card<'a> {
     /// Category badge text, e.g. "Nouveauté" / "Reprendre".
     pub label: &'a str,
     /// Title-treatment logo PNG (alpha), pre-scaled to fit. Drawn only when
-    /// present — there is deliberately no text fallback.
+    /// present there is deliberately no text fallback.
     pub logo_png: Option<&'a [u8]>,
     /// Resume fraction 0.0–1.0 → draws a progress bar.
     pub progress: Option<f32>,
@@ -59,7 +59,7 @@ pub fn render(card: &Card) -> Option<Vec<u8>> {
 
     paint_scrims(&mut pm);
 
-    // Title-treatment artwork (bottom-left). Drawn only when present — no text
+    // Title-treatment artwork (bottom-left). Drawn only when present no text
     // fallback, by design: a card with no logo simply shows the bare backdrop.
     if let Some(logo) = card.logo_png.and_then(|b| Pixmap::decode_png(b).ok()) {
         let y = H as f32 - MARGIN - logo.height() as f32;

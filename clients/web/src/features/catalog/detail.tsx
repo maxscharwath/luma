@@ -40,12 +40,12 @@ export function qualityBadges(video: VideoTrack | null | undefined): QualityTone
 // their `#web/features/catalog/detail` path; the implementation now lives in @luma/core.
 export { langName };
 
-/** "Français · AAC 5.1" — language then codec/channels. */
+/** "Français · AAC 5.1" language then codec/channels. */
 export function audioString(t: Translate, item: Pick<MediaItem, 'audio'>): string {
   const a = item.audio;
-  if (!a) return '—';
+  if (!a) return '-';
   const tech = [codecLabel(a.codec), channelLabel(a.channels)].filter(Boolean).join(' ');
-  return [langName(t, a.language), tech].filter(Boolean).join(' · ') || '—';
+  return [langName(t, a.language), tech].filter(Boolean).join(' · ') || '-';
 }
 
 /** Distinct subtitle languages, or "Aucun". */
@@ -142,7 +142,7 @@ export function DetailHero({
   const theme = useThemeAudio(themeUrl);
 
   // Direct-play depends on the runtime's codecs (navigator/MediaSource), so it
-  // must stay client-only — computing it during SSR would mismatch on hydration.
+  // must stay client-only computing it during SSR would mismatch on hydration.
   const [unsupported, setUnsupported] = useState<string | null>(null);
   useEffect(() => {
     if (!playable) return setUnsupported(null);
@@ -297,7 +297,7 @@ export interface SimilarItem {
   id: string;
   title: string;
   genre: string;
-  /** When set, the show's season count — the genre line is localized at render. */
+  /** When set, the show's season count the genre line is localized at render. */
   seasonCount?: number;
   badge: string | null;
   poster: string;
@@ -312,7 +312,7 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-/** "Distribution" — horizontal rail of initials avatars (matches the design;
+/** "Distribution" horizontal rail of initials avatars (matches the design;
  * the reference uses gradient initials, not photos). */
 export function CastRail({ cast }: Readonly<{ cast: CastMember[] }>) {
   const t = useT();
@@ -385,7 +385,6 @@ export function SimilarRail({
             key={m.id}
             title={m.title}
             genre={m.genre}
-            badge={m.badge}
             colors={posterColors(m.id)}
             poster={m.poster}
             width={200}

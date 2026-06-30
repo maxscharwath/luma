@@ -1,12 +1,12 @@
 //! Content embeddings: turn a title's metadata into a dense, L2-normalized
-//! vector so we can rank by "feels like this" — powering similar-to, themed rows
+//! vector so we can rank by "feels like this" powering similar-to, themed rows
 //! and a personalized "For You" centroid (see [`crate::db::vectors`]).
 //!
 //! Two backends sit behind one [`Embedder`] trait:
-//!   * [`LexicalEmbedder`] — dependency-free hashed term vector. The DEFAULT:
+//!   * [`LexicalEmbedder`] dependency-free hashed term vector. The DEFAULT:
 //!     compiles on the pinned rustc 1.81 / musl build with zero new crates.
 //!     Similarity reflects shared genres/cast/words. Good for "more like this".
-//!   * `MiniLmEmbedder` — a real `all-MiniLM-L6-v2` sentence-transformer via
+//!   * `MiniLmEmbedder` a real `all-MiniLM-L6-v2` sentence-transformer via
 //!     `candle` (Cargo feature `semantic-embeddings`). Gives free-text *semantic*
 //!     matches (e.g. embed the phrase "cozy christmas movie" and retrieve titles
 //!     whose overview never says "christmas"). Heavier dep graph; opt-in.
@@ -34,7 +34,7 @@ pub trait Embedder: Send + Sync {
     fn dim(&self) -> usize;
     /// Embed `text` into a unit-length vector of length [`dim`](Self::dim).
     fn embed(&self, text: &str) -> Vec<f32>;
-    /// Minimum cosine for a hit to count as "really about" a themed query —
+    /// Minimum cosine for a hit to count as "really about" a themed query
     /// below this a row is just noise and the generator drops it. Backend-
     /// specific: lexical (sparse hashed TF) scores run lower than MiniLM's dense
     /// embeddings. Tunable against live probes.
@@ -78,7 +78,7 @@ pub fn build_doc(title: &str, year: Option<u32>, meta: &Metadata) -> String {
         parts.push(genres);
     }
     // Keyword tags ("road movie", "dystopia", "heist") are the strongest signal
-    // for themed rows — they carry the vibe the overview rarely states outright.
+    // for themed rows they carry the vibe the overview rarely states outright.
     if !meta.keywords.is_empty() {
         parts.push(meta.keywords.join(" "));
     }

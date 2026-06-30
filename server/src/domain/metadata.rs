@@ -1,4 +1,4 @@
-//! Resolved provider metadata entities (TMDB) — part of the public wire
+//! Resolved provider metadata entities (TMDB) part of the public wire
 //! contract shared with web/TV clients.
 //!
 //! These are pure data types (serde + ts-rs derives) with no I/O. The TMDB HTTP
@@ -52,7 +52,7 @@ pub struct Metadata {
     /// collections. Empty when the lookup predates this field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub crew: Vec<CrewMember>,
-    /// TMDB keyword tags (e.g. "road movie", "dystopia", "heist") — a strong
+    /// TMDB keyword tags (e.g. "road movie", "dystopia", "heist") a strong
     /// thematic signal for the recommendation embedding. Internal: consumed
     /// in-memory by `infra::embed::build_doc` during enrichment; deliberately not
     /// persisted to the metadata JSON nor sent to clients.
@@ -61,7 +61,7 @@ pub struct Metadata {
     pub keywords: Vec<String>,
     /// TheTVDB series id, from TMDB's `external_ids`. Internal: used during
     /// enrichment to look up the theme song (the tvthemes archive is TVDB-keyed),
-    /// then dropped — not persisted to the metadata JSON nor sent to clients.
+    /// then dropped not persisted to the metadata JSON nor sent to clients.
     #[serde(default, skip_serializing)]
     #[ts(skip)]
     pub tvdb_id: Option<u64>,
@@ -90,7 +90,7 @@ pub struct CastMember {
 pub struct CrewMember {
     pub name: String,
     pub job: String,
-    /// Profile photo (optional; not yet localized — directors render as text).
+    /// Profile photo (optional; not yet localized directors render as text).
     #[serde(rename = "profileUrl", default, skip_serializing_if = "Option::is_none")]
     pub profile_url: Option<String>,
 }

@@ -15,7 +15,7 @@ import { useFocusNav } from '#tv/app/useFocusNav';
 /**
  * Quick Connect (route `quick`) against the active server: shows a code + QR; an
  * already-signed-in user approves it from the web/mobile app and the TV pairs the
- * profile on its next poll — no password typed on the remote.
+ * profile on its next poll no password typed on the remote.
  */
 export function TvQuickConnect() {
   const nav = useNav();
@@ -49,7 +49,7 @@ export function TvQuickConnect() {
           return;
         }
       } catch {
-        /* transient — keep polling */
+        /* transient keep polling */
       }
       timer = setTimeout(poll, 2500);
     };

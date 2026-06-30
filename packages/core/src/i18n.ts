@@ -1,5 +1,5 @@
 // Shared, framework-agnostic i18n core. The JSON catalogs in ./locales are the
-// single source of truth for every LUMA surface — they are bundled into the TS
+// single source of truth for every LUMA surface they are bundled into the TS
 // clients here AND `include_str!`'d by the Rust server (see server/src/i18n.rs),
 // so message keys stay in lockstep across the whole stack.
 //
@@ -79,7 +79,7 @@ function hasKey(locale: Locale, key: string): boolean {
 /**
  * i18next-style plural resolution. When a translation is called with a numeric
  * `count`, the catalog can carry CLDR plural variants suffixed with the category
- * name — `key_one`, `key_other` (and `_zero`/`_two`/`_few`/`_many` where a locale
+ * name `key_one`, `key_other` (and `_zero`/`_two`/`_few`/`_many` where a locale
  * needs them, e.g. Russian/Arabic). `Intl.PluralRules` picks the category for the
  * locale + count; we use the matching variant, else `key_other`, else the base
  * key. `{count}` is available as an interpolation token in every variant.

@@ -9,6 +9,7 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::api::error::json_error;
+use crate::api::extract::OptionalAuthUser;
 use crate::api::util::{blocking, query};
 use crate::db;
 use crate::state::SharedState;
@@ -56,23 +57,44 @@ pub async fn list_movies(
     Ok(Json(items).into_response())
 }
 
-/// `GET /api/shows` (optional `?library=`) → `Show[]`
+/// `GET /api/shows` (optional `?library=`) → `Show[]`. Personalises each show's
+/// `progress` (series completion) when the request carries a valid Bearer token.
 pub async fn list_shows(
     State(state): State<SharedState>,
+    OptionalAuthUser(user): OptionalAuthUser,
     Query(q): Query<LibraryQuery>,
 ) -> Result<Response, Response> {
-    let shows = query(&state.db, move |pool| db::list_shows(&pool, q.library.as_deref())).await?;
+    let uid = user.map(|u| u.id);
+    let shows = query(&state.db, move |pool| {
+        let mut shows = db::list_shows(&pool, q.library.as_deref())?;
+        if let Some(uid) = &uid {
+            let prog = db::show_progress(&pool, uid).unwrap_or_default();
+            for s in &mut shows {
+                s.progress = prog.get(&s.id).copied();
+            }
+        }
+        Ok(shows)
+    })
+    .await?;
     Ok(Json(shows).into_response())
 }
 
-/// `GET /api/shows/:id` → `{ show, seasons[] }`
+/// `GET /api/shows/:id` → `{ show, seasons[] }`. Fills `show.progress` when authed.
 pub async fn get_show(
     State(state): State<SharedState>,
+    OptionalAuthUser(user): OptionalAuthUser,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    let detail = query(&state.db, move |pool| db::get_show(&pool, &id))
-        .await?
-        .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "show not found"))?;
+    let uid = user.map(|u| u.id);
+    let detail = query(&state.db, move |pool| {
+        let Some(mut detail) = db::get_show(&pool, &id)? else { return Ok(None) };
+        if let Some(uid) = &uid {
+            detail.show.progress = db::show_progress_one(&pool, uid, &detail.show.id).unwrap_or(None);
+        }
+        Ok(Some(detail))
+    })
+    .await?
+    .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "show not found"))?;
     Ok(Json(detail).into_response())
 }
 
@@ -96,7 +118,7 @@ pub async fn rescan(State(state): State<SharedState>) -> Result<Response, Respon
     use crate::services::jobs::TriggerError;
     match state.jobs.trigger(state.clone(), JobId::LibraryScan, "manual") {
         Ok(run_id) => Ok(Json(serde_json::json!({ "runId": run_id })).into_response()),
-        // A scan is already in progress (manual or watch-triggered) — report it
+        // A scan is already in progress (manual or watch-triggered) report it
         // rather than starting a second, racing pass.
         Err(TriggerError::AlreadyRunning) => {
             Err(json_error(StatusCode::CONFLICT, "a scan is already running"))

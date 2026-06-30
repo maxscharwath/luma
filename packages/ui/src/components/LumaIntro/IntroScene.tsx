@@ -1,7 +1,7 @@
 import { EMBERS, GRAIN, WORDMARK } from './constants';
 
 export interface IntroSceneProps {
-  /** React key bump — restarts every CSS animation from frame 0 on replay. */
+  /** React key bump restarts every CSS animation from frame 0 on replay. */
   runId: number;
   /** Performance mode for weak TV GPUs (see {@link LumaIntroProps.lite}). */
   lite: boolean;
@@ -12,7 +12,7 @@ export interface IntroSceneProps {
 /**
  * The animated visual layers of the intro (glow → aperture mark → impact flash +
  * scale punch → wordmark + sheen → tagline, plus embers / vignette / grain).
- * Pure presentation: it owns no timers or audio — the parent {@link LumaIntro}
+ * Pure presentation: it owns no timers or audio the parent {@link LumaIntro}
  * mounts it only once the synced timeline has started.
  *
  * `lite` keeps everything on the compositor (opacity + transform), drops the
@@ -74,7 +74,7 @@ export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<Intro
           animation: glowAnim,
         }}
       />
-      {/* impact flash (synced to 1.30s bass hit) — opacity-only, own layer */}
+      {/* impact flash (synced to 1.30s bass hit) opacity-only, own layer */}
       <div
         style={{
           position: 'absolute',
@@ -205,7 +205,7 @@ export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<Intro
               LUMA
             </span>
           </div>
-          {/* metal sheen — repaints clipped text each frame, so high-fidelity only */}
+          {/* metal sheen repaints clipped text each frame, so high-fidelity only */}
           {lite ? null : (
             <div
               style={{

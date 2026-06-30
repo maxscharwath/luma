@@ -5,7 +5,7 @@
 // there's nothing to configure. Dev: the web (vite :3000) and API (:4040) are
 // separate origins, so a build-time `VITE_LUMA_SERVER` points at the API.
 // `window.__LUMA_API__` (if injected) still wins, for embedding flexibility.
-import { isTextSubtitle, LumaClient, type MediaItem, type Show } from '@luma/core';
+import { isTextSubtitle, loadSession, LumaClient, type MediaItem, type Show } from '@luma/core';
 
 declare global {
   interface Window {
@@ -21,10 +21,10 @@ export function apiBase(): string {
   if (typeof window !== 'undefined' && window.__LUMA_API__) {
     return window.__LUMA_API__.replace(/\/+$/, '');
   }
-  // 2) Build-time override — set in dev/staging to point at a specific API.
+  // 2) Build-time override set in dev/staging to point at a specific API.
   const envBase = import.meta.env?.VITE_LUMA_SERVER;
   if (envBase) return envBase.replace(/\/+$/, '');
-  // 3) Dev (vite): same-origin — the Vite dev server reverse-proxies `/api`
+  // 3) Dev (vite): same-origin the Vite dev server reverse-proxies `/api`
   //    (incl. the events WebSocket) to the Rust server, so the whole app lives
   //    on one port (`:3000`). Just call the page origin, like production. SSR /
   //    prerender (no window) falls back to the conventional local API.
@@ -41,7 +41,11 @@ export function apiBase(): string {
 }
 
 export function lumaClient(): LumaClient {
-  return new LumaClient({ baseUrl: apiBase() });
+  // Carry the active session token (if any) so route loaders which now run on
+  // the client (SPA, no SSR) get per-user personalised catalogue DTOs, e.g. the
+  // per-show progress on cards. `loadSession()` is storage-guarded (null on the
+  // server), so this stays safe during the shell prerender.
+  return new LumaClient({ baseUrl: apiBase(), authToken: loadSession()?.token });
 }
 
 /** Resolve a metadata image path (relative `/api/…` cached art, or an absolute
@@ -57,7 +61,7 @@ export interface SubtitleView {
   language: string | null;
   codec: string;
   /** Text-based subs (subrip/ass/mov_text) can be served as WebVTT; image subs
-   * (PGS/VobSub) cannot — `url` is null then. */
+   * (PGS/VobSub) cannot `url` is null then. */
   url: string | null;
 }
 

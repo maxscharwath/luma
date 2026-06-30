@@ -5,14 +5,24 @@ import { lumaClient, toMovieView } from '#web/shared/lib/api';
 export const Route = createFileRoute('/watch/$id')({
   loader: async ({ params }) => {
     const c = lumaClient();
-    const item = await c.item(params.id);
-    return { item: toMovieView(c, item) };
+    // The next episode (for the Netflix-style "up next" autoplay) is sequence-based
+    // and public, so it loads alongside the item.
+    const [item, next] = await Promise.all([c.item(params.id), c.nextEpisode(params.id)]);
+    return { item: toMovieView(c, item), next };
   },
   component: WatchPage,
 });
 
 function WatchPage() {
-  const { item } = Route.useLoaderData();
+  const { item, next } = Route.useLoaderData();
   const navigate = useNavigate();
-  return <Player item={item} onClose={() => navigate({ to: '/' })} />;
+  return (
+    <Player
+      key={item.id}
+      item={item}
+      next={next}
+      onPlayNext={next ? () => navigate({ to: '/watch/$id', params: { id: next.id } }) : undefined}
+      onClose={() => navigate({ to: '/' })}
+    />
+  );
 }

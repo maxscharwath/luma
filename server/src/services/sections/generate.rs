@@ -45,7 +45,7 @@ pub fn build_prompt(locale: &str, prev_profile: Option<&str>, clusters: &[Cluste
         "You are the personalization curator for a home-media library. From a viewer's \
          taste groups you write a short taste profile and name a few personalized rows for \
          their home screen.\n\
-         Reply with STRICT JSON only — no prose, no markdown, no code fences — shaped exactly:\n\
+         Reply with STRICT JSON only no prose, no markdown, no code fences shaped exactly:\n\
          {{\"profile\": string, \"sections\": [{{\"title\": string, \"query\": string, \"reason\": string}}]}}\n\
          Rules:\n\
          - Write \"profile\" (2-3 sentences) and every \"title\" and \"reason\" in {lang}.\n\

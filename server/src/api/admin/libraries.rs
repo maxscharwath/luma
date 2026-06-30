@@ -173,7 +173,7 @@ fn clean_folders(folders: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-/// Background rescan triggered by library edits — mirrors the `/api/scan`
+/// Background rescan triggered by library edits mirrors the `/api/scan`
 /// handler but spawned so the admin request returns immediately.
 fn spawn_rescan(state: SharedState) {
     tokio::spawn(async move {

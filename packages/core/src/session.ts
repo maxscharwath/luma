@@ -2,8 +2,8 @@
 //   • the ACTIVE session (token + user, and on TV the server it belongs to) so a
 //     reload / relaunch stays signed in;
 //   • the list of accounts that have signed in on THIS device, so switching back
-//     to one is instant (no password) — Netflix-style;
-//   • the list of saved servers (TV is multi-server — it remembers several LUMA
+//     to one is instant (no password) Netflix-style;
+//   • the list of saved servers (TV is multi-server it remembers several LUMA
 //     servers, each with its own set of profiles).
 //
 // Multi-server is opt-in per record: a `StoredSession.serverUrl` scopes an
@@ -61,7 +61,7 @@ function writeJson(key: string, value: unknown): void {
   try {
     storage()?.setItem(key, JSON.stringify(value));
   } catch {
-    /* quota / disabled storage — non-fatal */
+    /* quota / disabled storage non-fatal */
   }
 }
 
@@ -238,6 +238,6 @@ export function saveLocalePref(locale: string | null): void {
     if (locale) storage()?.setItem(LOCALE_KEY, locale);
     else storage()?.removeItem(LOCALE_KEY);
   } catch {
-    /* quota / disabled storage — non-fatal */
+    /* quota / disabled storage non-fatal */
   }
 }

@@ -4,12 +4,7 @@
 // `useVideoPlayback` owns the React state/effects and drives these helpers.
 
 import type { AudioTrack } from '@luma/core';
-import {
-  audioTracksOf,
-  masterNeedsAac,
-  planAudio,
-  restorePlaybackAfterSwap,
-} from '@luma/core';
+import { audioTracksOf, masterNeedsAac, planAudio, restorePlaybackAfterSwap } from '@luma/core';
 import { lumaClient, type MovieView } from '#web/shared/lib/api';
 
 type HlsInstance = import('hls.js').default;
@@ -143,8 +138,8 @@ export interface AttachSourceOptions {
 
 /**
  * Point the media element at the right source. Seamless mode attaches the HLS
- * master ONCE (audio switches happen in place — see {@link applySeamlessRendition}
- * — so the source is NOT re-pointed and the picture never moves). Otherwise the
+ * master ONCE (audio switches happen in place see {@link applySeamlessRendition}
+ * so the source is NOT re-pointed and the picture never moves). Otherwise the
  * source re-attaches per chosen track (direct-play, or a per-track AAC remux for
  * audio this runtime can't decode → reloads on switch). Returns the teardown
  * cleanup and flips `setUseHls`.
@@ -213,7 +208,7 @@ export function attachMediaSource(opts: AttachSourceOptions): () => void {
 
   // Per-track remux: copy video, copy-or-AAC the chosen audio, delivered as HLS.
   // Built here (not in the loader) so the route's loader data stays a plain,
-  // SSR-serializable object — a function on it breaks Seroval dehydration.
+  // SSR-serializable object a function on it breaks Seroval dehydration.
   const url = lumaClient().hlsAudioUrl(item.id, plan.index, plan.copy);
   let destroyed = false;
   let hls: HlsInstance | null = null;
@@ -253,7 +248,7 @@ export interface SeamlessRenditionOptions {
 }
 
 /**
- * Seamless language switch: select the matching audio rendition IN PLACE — no
+ * Seamless language switch: select the matching audio rendition IN PLACE no
  * source reload, so the video keeps playing at the same position while the audio
  * rendition swaps.
  */
@@ -269,7 +264,7 @@ export function applySeamlessRendition(opts: SeamlessRenditionOptions): void {
     try {
       hls.audioTrack = rendition; // hls.js renditions are in playlist order
     } catch {
-      /* manifest not parsed yet — the default rendition is already correct */
+      /* manifest not parsed yet the default rendition is already correct */
     }
     return;
   }

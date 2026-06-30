@@ -17,13 +17,13 @@ mod stats;
 mod storage;
 mod users;
 
-pub use backup::{export_backup, import_backup};
+pub use backup::{export_backup, import_backup, MAX_BACKUP_BYTES};
 pub use jobs::{cancel_job, job_detail, list_jobs, run_job, run_logs, update_job};
 pub use llm::{get_llm, llm_models, save_llm, test_llm};
 pub use libraries::{create_library, delete_library, list_libraries, scan_library, update_library};
 pub use settings::{get_settings, put_settings};
 pub use stats::{history, overview, top_users};
-pub use storage::{clear_cache, storage};
+pub use storage::{clear_cache, reset_metadata, storage};
 pub use users::{delete_user, list_users, update_user};
 
 use axum::extract::{Path as AxPath, State};
@@ -44,7 +44,7 @@ use crate::state::SharedState;
 // ----- guards -----------------------------------------------------------------
 
 /// The admin's account locale. Admin endpoints are always authenticated, so the
-/// (account-synced) preference is the right source for server-rendered strings —
+/// (account-synced) preference is the right source for server-rendered strings
 /// no `Accept-Language` needed. Falls back to the default for an unset/unknown
 /// preference.
 fn user_locale(user: &User) -> &'static str {

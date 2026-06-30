@@ -3,7 +3,7 @@
 //! Each query token is matched fuzzily (typo tolerance) and by prefix (matches
 //! while you're still typing/dictating) across every weighted text field. The
 //! per-field matches are OR'd together; the per-token clauses are AND'd, so every
-//! word must land somewhere — "tom hardy" only matches a title whose cast (or
+//! word must land somewhere "tom hardy" only matches a title whose cast (or
 //! title) covers both words.
 
 use tantivy::query::{BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, Query};
@@ -26,7 +26,7 @@ fn weights(f: &Fields) -> [(Field, f32); 6] {
 }
 
 /// Edit-distance budget for a token. Short tokens get none (a single edit is a
-/// different word); longer tokens tolerate more — voice/typing noise grows with
+/// different word); longer tokens tolerate more voice/typing noise grows with
 /// length. tantivy caps fuzzy distance at 2.
 fn distance(token: &str) -> u8 {
     match token.chars().count() {

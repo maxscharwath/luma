@@ -1,4 +1,4 @@
-/* LUMA global stylesheet — import once per app: `import '@luma/ui/styles.css'`. */
+/* LUMA global stylesheet import once per app: `import '@luma/ui/styles.css'`. */
 @import "./styles/fonts.css";
 @import "./styles/tokens/colors.css";
 @import "./styles/tokens/typography.css";
@@ -41,7 +41,7 @@ button {
   font-family: var(--font-ui);
 }
 
-/* Amber focus ring — visible everywhere, essential for 10-foot TV navigation. */
+/* Amber focus ring visible everywhere, essential for 10-foot TV navigation. */
 :focus-visible {
   outline: none;
   box-shadow: var(--ring-focus-sm);
@@ -59,7 +59,7 @@ button {
  * Off-screen poster tiles skip layout + paint until they approach the viewport
  * (Netflix/Disney+-style efficiency for long rails) while remaining in the DOM,
  * so TV remote focus navigation can still reach and scroll to them. Progressive
- * enhancement — older TV browsers without content-visibility simply render all.
+ * enhancement older TV browsers without content-visibility simply render all.
  */
 .luma-poster {
   content-visibility: auto;

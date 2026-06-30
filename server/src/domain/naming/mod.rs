@@ -1,7 +1,7 @@
 //! Plex-style filename / folder parsing.
 //!
 //! Decides whether a file is a movie or a TV episode, and pulls out the show
-//! name, season, episode (incl. multi-episode files), titles and year — using
+//! name, season, episode (incl. multi-episode files), titles and year using
 //! the same cues Plex/Jellyfin rely on:
 //!   * `S01E02`, `s1e2`, `S01E02-E03`, `1x02` season/episode markers
 //!   * the top-level folder under a library root as the *show* identity

@@ -17,7 +17,7 @@ const MAP: Record<BadgeTone, [string, string]> = {
   neutral: ['rgba(244,243,240,.85)', 'rgba(255,255,255,.08)'],
 };
 
-/** Small quality / status pill. Text only — never emoji (FR/EN/4K/HDR/H.265). */
+/** Small quality / status pill. Text only never emoji (FR/EN/4K/HDR/H.265). */
 export function Badge({ tone = '4K', children }: Readonly<BadgeProps>) {
   const [color, background] = MAP[tone] ?? MAP.neutral;
   return (

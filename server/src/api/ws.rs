@@ -1,4 +1,4 @@
-//! `GET /api/events` — a WebSocket that streams live [`ServerEvent`]s to a client
+//! `GET /api/events` a WebSocket that streams live [`ServerEvent`]s to a client
 //! (scan progress, library/metadata updates). Clients hold it open and update
 //! their UI in place; the connection survives the lifetime of the app.
 

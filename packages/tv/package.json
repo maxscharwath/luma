@@ -2,7 +2,7 @@
   "name": "@luma/tv",
   "version": "0.1.0",
   "type": "module",
-  "description": "LUMA shared 10-foot TV experience — spatial remote navigation, home, player. Mounted by the Tizen and webOS shells.",
+  "description": "LUMA shared 10-foot TV experience spatial remote navigation, home, player. Mounted by the Tizen and webOS shells.",
   "exports": {
     ".": "./src/index.tsx",
     "./tv.css": "./src/tv.css"

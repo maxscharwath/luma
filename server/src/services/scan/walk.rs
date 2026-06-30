@@ -76,7 +76,7 @@ pub(super) fn scan_root(
             .to_string_lossy()
             .replace('\\', "/");
         // Build the absolute path by joining the resolved root with the relative
-        // path — no extra stat / symlink resolution per file.
+        // path no extra stat / symlink resolution per file.
         let abs = abs_root.join(&rel);
 
         // size + mtime were fetched during the parallel walk (above).
@@ -141,6 +141,7 @@ pub(super) fn scan_root(
                     abs_path: None,
                     files: Vec::new(),
                     default_file_id: None,
+                    markers: Vec::new(),
                 });
                 mtimes.insert(file.id.clone(), mtime);
                 item.files.push(file);
@@ -172,6 +173,7 @@ pub(super) fn scan_root(
                         video: None,
                         added_at: added_at.clone(),
                         metadata: None,
+                        progress: None,
                     });
 
                 let logical = episode_logical_id(&show_id, season, episode);
@@ -203,6 +205,7 @@ pub(super) fn scan_root(
                     abs_path: None,
                     files: Vec::new(),
                     default_file_id: None,
+                    markers: Vec::new(),
                 });
                 mtimes.insert(file.id.clone(), mtime);
                 item.files.push(file);

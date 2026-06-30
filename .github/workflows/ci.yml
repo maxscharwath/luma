@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   web:
-    name: Web / TS — typecheck + lint
+    name: Web / TS typecheck + lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -38,7 +38,7 @@ jobs:
         continue-on-error: true
 
   server:
-    name: Server (Rust) — clippy + test
+    name: Server (Rust) clippy + test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -73,7 +73,7 @@ jobs:
       - name: Domain purity (no I/O in src/domain)
         run: |
           if [ -d src/domain ] && grep -rEn 'use (axum|rusqlite|reqwest|tokio::process|std::process::Command)' src/domain; then
-            echo "::error::server/src/domain must stay pure — no axum/rusqlite/reqwest/process imports."
+            echo "::error::server/src/domain must stay pure no axum/rusqlite/reqwest/process imports."
             exit 1
           fi
           echo "✓ domain layer is I/O-free"
@@ -87,4 +87,4 @@ jobs:
           ./scripts/gen-types.sh
           git add -A packages/core/src/generated
           git diff --cached --exit-code -- packages/core/src/generated \
-            || { echo "::error::Generated TS types are stale — run 'bun gen:types' and commit packages/core/src/generated."; exit 1; }
+            || { echo "::error::Generated TS types are stale run 'bun gen:types' and commit packages/core/src/generated."; exit 1; }

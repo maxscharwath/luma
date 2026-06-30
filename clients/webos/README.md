@@ -1,6 +1,6 @@
-# @luma/webos — LG TV (webOS)
+# @luma/webos LG TV (webOS)
 
-> Part of the [LUMA](../../README.md) monorepo — the LG TV shell.
+> Part of the [LUMA](../../README.md) monorepo the LG TV shell.
 
 Thin shell over **`@luma/tv`** (the shared 10-foot experience). webOS TVs decode
 HEVC/H.265 (incl. HDR) in hardware, so playback is direct-play.
@@ -10,7 +10,7 @@ HEVC/H.265 (incl. HDR) in hardware, so playback is direct-play.
 ```bash
 bun install
 bun run server          # Rust media server :4040
-bun run dev:webos       # Vite dev server :5175 — use arrow keys + Enter as a remote
+bun run dev:webos       # Vite dev server :5175 use arrow keys + Enter as a remote
 ```
 
 ## Build the web bundle

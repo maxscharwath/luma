@@ -2,7 +2,7 @@
 //!
 //! Each poster/backdrop is downloaded once and transcoded to WebP via `ffmpeg`
 //! (already required for `ffprobe`), stored under `<data>/images/`. The catalog
-//! then serves art from LUMA itself — smaller files, faster loads, and
+//! then serves art from LUMA itself smaller files, faster loads, and
 //! resilient to TMDB outages. If caching fails (no ffmpeg / no network) the
 //! original remote URL is kept, so nothing breaks.
 
@@ -44,13 +44,13 @@ pub fn localize(data_dir: &Path, mut meta: Metadata) -> Metadata {
             meta.backdrop_url = Some(local);
         }
     }
-    // Logo: keep as PNG (transparency must survive — WebP transcode is skipped).
+    // Logo: keep as PNG (transparency must survive WebP transcode is skipped).
     if let Some(url) = meta.logo_url.as_deref() {
         if let Some(local) = cache_verbatim(data_dir, url, "png") {
             meta.logo_url = Some(local);
         }
     }
-    // Cast profile photos — same WebP cache, so the rail serves local art too.
+    // Cast profile photos same WebP cache, so the rail serves local art too.
     for member in &mut meta.cast {
         if let Some(url) = member.profile_url.as_deref() {
             if let Some(local) = cache(data_dir, url) {
@@ -62,7 +62,7 @@ pub fn localize(data_dir: &Path, mut meta: Metadata) -> Metadata {
 }
 
 /// Download a remote image and cache it verbatim (no transcode) as
-/// `<hash>.<ext>`, so transparency survives — used for title logos. Returns the
+/// `<hash>.<ext>`, so transparency survives used for title logos. Returns the
 /// public `/api/images/<hash>.<ext>` path, or `None` on failure.
 fn cache_verbatim(data_dir: &Path, remote_url: &str, ext: &str) -> Option<String> {
     if !remote_url.starts_with("http") {
@@ -116,7 +116,7 @@ pub fn card_base_png(data_dir: &Path, webp_name: &str) -> Option<PathBuf> {
     )
 }
 
-/// JPEG rendition of a cached WebP, for Samsung TV Smart Hub preview tiles —
+/// JPEG rendition of a cached WebP, for Samsung TV Smart Hub preview tiles
 /// the carousel accepts only PNG/JPG (not WebP), max 360 KB, height ≤360 px.
 /// Produced on demand from `<hash>.webp` → cached as `<hash>.webp.jpg`, scaled
 /// to 360 px tall. `webp_name` is a bare cache filename (already path-checked by
@@ -235,7 +235,7 @@ pub fn store_upload(data_dir: &Path, bytes: &[u8]) -> Option<String> {
     Some(format!("{PUBLIC_PREFIX}{name}"))
 }
 
-/// `hex(sha256(bytes))[..16]` — content address for an uploaded image, so
+/// `hex(sha256(bytes))[..16]` content address for an uploaded image, so
 /// identical uploads dedupe and the immutable cache header stays correct.
 fn content_hash(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};

@@ -1,5 +1,5 @@
 //! Season/episode marker detection (`S01E02`, `s1e2`, `S01E02-E03`, `1x02`) and
-//! season-folder recognition — the cues that classify a file as a TV episode.
+//! season-folder recognition the cues that classify a file as a TV episode.
 
 /// A season/episode marker found in a filename stem, plus the byte span it
 /// occupies (so the caller can split the stem into show-vs-episode-title parts).

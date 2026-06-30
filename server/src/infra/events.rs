@@ -2,8 +2,8 @@
 //!
 //! A [`tokio::sync::broadcast`] channel fans server events out to every
 //! connected WebSocket client (`GET /api/events`). The server publishes when the
-//! library changes — a scan starts/finishes, or background TMDB enrichment
-//! resolves art for a title — so clients update live instead of needing a
+//! library changes a scan starts/finishes, or background TMDB enrichment
+//! resolves art for a title so clients update live instead of needing a
 //! refresh/relaunch. Publishing is cheap and non-blocking; with no subscribers
 //! it's a no-op.
 
@@ -25,7 +25,7 @@ pub enum ServerEvent {
         shows: usize,
         libraries: usize,
     },
-    /// The catalog changed wholesale — clients should refetch lists.
+    /// The catalog changed wholesale clients should refetch lists.
     #[serde(rename = "library.updated")]
     LibraryUpdated,
     /// One movie/episode gained metadata (e.g. poster resolved).
@@ -44,7 +44,7 @@ pub enum ServerEvent {
     ProbeProgress { done: usize, total: usize },
     #[serde(rename = "probe.completed")]
     ProbeCompleted { total: usize },
-    /// A playback session started — `count` is the new active-session total.
+    /// A playback session started `count` is the new active-session total.
     #[serde(rename = "playback.started")]
     PlaybackStarted { count: usize },
     /// A live playback session updated (state/position changed).

@@ -135,7 +135,7 @@ export function RegisterForm({
     >
       <h1 className="font-display text-[28px] font-semibold">{t('auth.newAccount')}</h1>
 
-      {/* Avatar upload — click the tile to choose an image. */}
+      {/* Avatar upload click the tile to choose an image. */}
       <button
         type="button"
         onClick={() => fileRef.current?.click()}

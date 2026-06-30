@@ -24,11 +24,11 @@ navigate the UI by knowing the server, and vice-versa.
 Split by **role**, not by accident of history:
 
 ```
-apps/        deployables — have an entry point, ship
+apps/        deployables have an entry point, ship
   server/      Rust binary (embeds the web build)
   web/         Web SPA
   tv/          10-foot TV app
-packages/    shared libraries — imported by ≥2 apps
+packages/    shared libraries imported by ≥2 apps
   core/        @luma/core: pure rules + ts-rs wire types + outbound adapters
   ui/          @luma/ui: presentational primitives + shared hooks/providers
 clients/     platform shells / packaging that wrap an app for a host
@@ -38,7 +38,7 @@ clients/     platform shells / packaging that wrap an app for a host
 Rule of thumb: has a `main()`/entry and ships → `apps/`. Imported by two apps → `packages/`.
 Only adapts/packages an app for a device → `clients/`.
 
-## Server (Rust) — layered, domain as the column
+## Server (Rust) layered, domain as the column
 
 ```
 server/src/
@@ -52,13 +52,13 @@ server/src/
 
 **Dependency rule (inward only):** `api → services → {db, infra} → domain`.
 
-- `domain/` may use std/serde/ts-rs only — **never** axum/rusqlite/reqwest/process. (CI-guarded.)
+- `domain/` may use std/serde/ts-rs only **never** axum/rusqlite/reqwest/process. (CI-guarded.)
 - `services/` may use db/infra/domain; never api. `api/` translates HTTP↔services, holds no business logic.
 - `main.rs` + `state.rs` are the only composition points.
 - **Cross-cutting joins** are owned by the consuming domain (e.g. `continue_watching` in `db/playback.rs`, admin history in `db/admin.rs`). One Pool; "a domain owns its tables" is a convention, not a wall.
-- **Thin domains** (discovery, quickconnect) may collapse the layer spread to a single file — don't force the full ladder on tiny domains.
+- **Thin domains** (discovery, quickconnect) may collapse the layer spread to a single file don't force the full ladder on tiny domains.
 
-## Frontend (React) — feature slices
+## Frontend (React) feature slices
 
 ```
 apps/tv/src/   app/(shell + providers + router)  features/{catalog,playback,accounts}/  shared/
@@ -67,13 +67,13 @@ apps/web/src/  features/{catalog,playback,admin}/  routes/ = thin re-exports
 
 **Dependency rule:** `features/* → shared/* → @luma/ui → @luma/core`.
 
-- A feature **must not import a sibling feature** — shared code moves to `shared/` or up into `@luma/ui`. (Biome-guarded.)
+- A feature **must not import a sibling feature** shared code moves to `shared/` or up into `@luma/ui`. (Biome-guarded.)
 - Wire types come only from `@luma/core` (the generated barrel); never hand-redefined.
 
 ## File-size policy
 
 Hard-split files **> 300 LOC**; split **200–300** only at a natural seam; aim for ~150.
-The **domain seam is the cut line** — split a god-file where a domain/layer boundary already
+The **domain seam is the cut line** split a god-file where a domain/layer boundary already
 runs through it, never at an arbitrary line. Exempt: `generated/`, vendored, data/locale JSON,
 lockfiles, `*.gen.ts`, irreducible adapters (ffmpeg flag-builders).
 

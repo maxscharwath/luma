@@ -1,4 +1,4 @@
-// Auto-generated barrel for the ts-rs bindings. Do not edit — run scripts/gen-types.sh.
+// Auto-generated barrel for the ts-rs bindings. Do not edit run scripts/gen-types.sh.
 export type { Activity } from './Activity';
 export type { AdminLibrary } from './AdminLibrary';
 export type { AdminOverview } from './AdminOverview';
@@ -26,6 +26,8 @@ export type { Library } from './Library';
 export type { LibraryKind } from './LibraryKind';
 export type { LlmAdminConfig } from './LlmAdminConfig';
 export type { LlmProviderView } from './LlmProviderView';
+export type { Marker } from './Marker';
+export type { MarkerKind } from './MarkerKind';
 export type { MediaFile } from './MediaFile';
 export type { MediaItem } from './MediaItem';
 export type { MediaKind } from './MediaKind';
@@ -54,6 +56,7 @@ export type { ShowDetail } from './ShowDetail';
 export type { StorageInfo } from './StorageInfo';
 export type { SubtitleTrack } from './SubtitleTrack';
 export type { TopUser } from './TopUser';
+export type { UpNext } from './UpNext';
 export type { User } from './User';
 export type { VideoTrack } from './VideoTrack';
 export type { Volume } from './Volume';

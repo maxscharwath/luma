@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
 
-// "Connecter un appareil" — the approver side of Quick Connect. A TV shows a
+// "Connecter un appareil" the approver side of Quick Connect. A TV shows a
 // short code (or a QR pointing here with `?code=`); a signed-in user enters it
 // to grant that device a session for their account. The global AuthGate already
 // ensures the user is logged in before this page is usable.

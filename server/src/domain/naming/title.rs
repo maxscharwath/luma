@@ -26,7 +26,7 @@ const SOFT_TOKENS: &[&str] = &[
 /// normalise separators, collapse whitespace.
 ///
 /// A parenthesised `(YYYY)` is treated as the authoritative year cut, so a title
-/// that legitimately contains a number — "Blade Runner 2049 (2017)" — keeps the
+/// that legitimately contains a number "Blade Runner 2049 (2017)" keeps the
 /// number and loses only the real year.
 pub fn clean_title(raw: &str) -> String {
     // normalize_separators preserves byte length (ASCII punctuation → space), so
@@ -70,7 +70,7 @@ fn paren_year(raw: &str) -> Option<(usize, u32)> {
     let mut i = 0;
     while i + 6 <= b.len() {
         if b[i] == b'(' && b[i + 5] == b')' && b[i + 1..i + 5].iter().all(u8::is_ascii_digit) {
-            // Digits are verified ASCII above, so fold them directly — no UTF-8
+            // Digits are verified ASCII above, so fold them directly no UTF-8
             // decode / parse / unreachable fallback.
             let y = (b[i + 1] - b'0') as u32 * 1000
                 + (b[i + 2] - b'0') as u32 * 100
@@ -85,8 +85,8 @@ fn paren_year(raw: &str) -> Option<(usize, u32)> {
     None
 }
 
-/// Clean an episode title (text after the marker). No year-cut — episode names
-/// can legitimately contain numbers — but release junk is still stripped.
+/// Clean an episode title (text after the marker). No year-cut episode names
+/// can legitimately contain numbers but release junk is still stripped.
 pub(super) fn clean_episode_title(raw: &str) -> String {
     let spaced = normalize_separators(raw);
     let end = release_cut_index(&spaced).unwrap_or(spaced.len());

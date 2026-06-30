@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 /** The shared centred backdrop for the auth / connect / pin screens. Scrolling
  * lives on the outer element and the content centres in an inner `min-h-full`
- * wrapper — so it sits centred when it fits but scrolls from the top (never
+ * wrapper so it sits centred when it fits but scrolls from the top (never
  * clipping the title) when the content is taller than the screen. */
 export function AuthScreen({ children }: Readonly<{ children: ReactNode }>) {
   return (

@@ -1,4 +1,4 @@
-//! Multilingual semantic-embedding backend — Cargo feature `semantic-embeddings`.
+//! Multilingual semantic-embedding backend Cargo feature `semantic-embeddings`.
 //!
 //! Loads a BERT-architecture sentence model (config.json + tokenizer.json +
 //! model.safetensors) from `$LUMA_EMBED_MODEL_DIR` (default `./models/ml-minilm`)
@@ -6,14 +6,14 @@
 //!
 //! Chosen model: **`paraphrase-multilingual-MiniLM-L12-v2`** (384-d, 12 layers,
 //! ~470 MB). Libraries are often non-English (ours has French overviews), and an
-//! English-only model (`all-MiniLM-L6-v2`) collapsed — every query returned the
+//! English-only model (`all-MiniLM-L6-v2`) collapsed every query returned the
 //! same handful of items. A *multilingual* model maps FR docs + EN/FR queries into
 //! one space; verified on the live library (christmas → Nightmare Before Christmas
 //! / Elf / Krampus; heist → Heat / Le Cercle rouge). Keep the phrase bank in
-//! ENGLISH — English queries outperform French against this model.
+//! ENGLISH English queries outperform French against this model.
 //!
 //! Build notes (musl / Synology): keep candle on its pure-Rust `gemm` backend (no
-//! mkl/accelerate/cuda) and `tokenizers` with `onig` (Oniguruma C — cross-compiles
+//! mkl/accelerate/cuda) and `tokenizers` with `onig` (Oniguruma C cross-compiles
 //! like the bundled SQLite/zstd C). Requires rustc ≥ 1.85 (edition2024); see the
 //! `semantic-embeddings` feature comment in Cargo.toml. Any BERT-arch sentence
 //! model in the dir works, but `dim()` assumes 384-d output.
@@ -67,7 +67,7 @@ impl MiniLmEmbedder {
             .map_err(|e| anyhow::anyhow!("tokenize: {e}"))?;
         let ids = enc.get_ids();
 
-        // [1, seq_len] — a single, unpadded sequence.
+        // [1, seq_len] a single, unpadded sequence.
         let tokens = Tensor::new(ids, &self.device)?.unsqueeze(0)?;
         let token_type = tokens.zeros_like()?;
         let mask = tokens.ones_like()?;
@@ -112,7 +112,7 @@ mod tests {
     use crate::infra::embed::Embedder;
 
     /// End-to-end runtime check: loads the real model and verifies the output is a
-    /// 384-d unit vector AND that it ranks *meaning*, not words — the whole reason
+    /// 384-d unit vector AND that it ranks *meaning*, not words the whole reason
     /// for this backend. Needs the model files on disk, so it's ignored by default:
     ///   LUMA_EMBED_MODEL_DIR=models/minilm \
     ///     cargo test --features semantic-embeddings minilm -- --ignored --nocapture
@@ -140,7 +140,7 @@ mod tests {
 
     /// Non-destructive A/B on the LIVE library: embeds every enriched title with
     /// MiniLM **in memory** (no DB writes, no re-scan, no server restart) and
-    /// prints the top hits per themed query, with scores — so we can compare to
+    /// prints the top hits per themed query, with scores so we can compare to
     /// the lexical `/themed` probes and calibrate the MiniLM relevance floor.
     ///   LUMA_EMBED_MODEL_DIR=models/minilm cargo test --features semantic-embeddings \
     ///     minilm_library_probe -- --ignored --nocapture
@@ -174,7 +174,7 @@ mod tests {
 
         let dot = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| x * y).sum::<f32>();
 
-        // Corpus mean embedding — the anisotropy "common direction" we subtract.
+        // Corpus mean embedding the anisotropy "common direction" we subtract.
         let dim = lib[0].1.len();
         let mut mean = vec![0f32; dim];
         for (_, v) in &lib {

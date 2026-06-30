@@ -2,7 +2,7 @@
 import type { LlmProviderView } from "./LlmProviderView";
 
 /**
- * `GET /api/admin/llm` — the multi-provider LLM configuration for the IA admin
+ * `GET /api/admin/llm` the multi-provider LLM configuration for the IA admin
  * page: the global enable flag, the id of the default provider used for
  * generation, and every configured provider (API keys never returned).
  */

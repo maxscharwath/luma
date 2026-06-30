@@ -45,7 +45,7 @@ fn weekday_names_and_or_rule() {
 
 #[test]
 fn sunday_as_7_equals_0() {
-    // Day-of-week 7 must normalize to Sunday (0) — both fire on the same instant.
+    // Day-of-week 7 must normalize to Sunday (0) both fire on the same instant.
     let from = datetime!(2026-06-29 12:00:00 UTC); // Monday
     assert_eq!(next("0 0 * * 7", from), next("0 0 * * 0", from));
     assert_eq!(next("0 0 * * 7", from), datetime!(2026-07-05 00:00:00 UTC)); // next Sunday
@@ -63,7 +63,7 @@ fn month_rollover_and_names() {
 
 #[test]
 fn satisfiable_leap_day_skips_non_leap_years() {
-    // Feb 29 exists only in leap years — from 2026 the next is 2028-02-29 (the
+    // Feb 29 exists only in leap years from 2026 the next is 2028-02-29 (the
     // month-skipping search must step over 2026/2027's missing Feb 29).
     let from = datetime!(2026-01-01 00:00:00 UTC);
     assert_eq!(next("0 0 29 2 *", from), datetime!(2028-02-29 00:00:00 UTC));

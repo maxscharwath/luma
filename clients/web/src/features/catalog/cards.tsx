@@ -1,4 +1,4 @@
-import { metaLine, posterColors, qualityBadge, qualityBadgeForVideo } from '@luma/core';
+import { metaLine, posterColors } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useNavigate } from '@tanstack/react-router';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
@@ -19,7 +19,7 @@ function heroBadges(movie: MovieView): HeroBadge[] {
 
 const SECTION_TITLE = 'mb-5 mt-10 font-display text-[22px] font-bold tracking-[-.02em] text-text';
 
-/** Full-bleed featured banner — TMDB backdrop as cinematic art, bled to the
+/** Full-bleed featured banner TMDB backdrop as cinematic art, bled to the
  * content edges (cancels the page gutter) and faded into the rails below. */
 export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
   const t = useT();
@@ -86,7 +86,6 @@ function MoviePoster({ item }: Readonly<{ item: MovieView }>) {
     <Poster
       title={item.title}
       genre={t('content.film')}
-      badge={qualityBadge(item)}
       colors={posterColors(item.id)}
       poster={item.poster}
       watched={isWatched(item.id)}
@@ -104,9 +103,9 @@ function ShowPoster({ show }: Readonly<{ show: ShowView }>) {
     <Poster
       title={show.title}
       genre={t('content.seasonCount', { count: show.seasonCount })}
-      badge={qualityBadgeForVideo(show.video)}
       colors={posterColors(show.id)}
       poster={show.poster}
+      progress={show.progress ?? null}
       watched={isWatched(show.id)}
       onToggleWatched={() => toggleWatched(show.id)}
       onClick={() => navigate({ to: '/show/$id', params: { id: show.id } })}

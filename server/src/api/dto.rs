@@ -1,7 +1,7 @@
 //! Typed response DTOs for endpoints whose JSON was previously assembled ad-hoc
 //! with `serde_json::json!`. Modeling them as structs (a) makes the wire contract
 //! a single source of truth shared with the TS clients via `#[derive(TS)]`, and
-//! (b) removes a whole class of bug — a mistyped JSON key that silently breaks a
+//! (b) removes a whole class of bug a mistyped JSON key that silently breaks a
 //! client. `#[serde(rename_all = "camelCase")]` maps the snake_case Rust fields to
 //! the camelCase the clients expect.
 
@@ -43,7 +43,7 @@ pub struct AuthResult {
     pub user: User,
 }
 
-/// `POST /api/invites` result — the invite plus a ready-to-share join URL.
+/// `POST /api/invites` result the invite plus a ready-to-share join URL.
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -55,7 +55,7 @@ pub struct InviteCreated {
     pub expires_at: i64,
 }
 
-/// `POST /api/auth/quickconnect/initiate` — a device-pairing request.
+/// `POST /api/auth/quickconnect/initiate` a device-pairing request.
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, rename = "QuickConnectInit")]
@@ -69,7 +69,7 @@ pub struct QuickConnectInit {
     pub authorize_url: Option<String>,
 }
 
-/// `GET /api/auth/quickconnect/poll` result — a status-tagged union.
+/// `GET /api/auth/quickconnect/poll` result a status-tagged union.
 #[derive(Serialize, TS)]
 #[serde(tag = "status", rename_all = "lowercase")]
 #[ts(export, rename = "QuickConnectStatus")]
@@ -93,13 +93,27 @@ pub struct ServerInfo {
     pub sessions: usize,
 }
 
-/// Cache directory usage, nested in [`StorageInfo`].
+/// Cache directory usage + counts, nested in [`StorageInfo`].
 #[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct CacheInfo {
     pub dir: String,
+    /// Total on-disk cache (transcode + images).
     pub bytes: u64,
     pub limit: String,
+    /// On-disk size of the transcode segment cache.
+    pub transcode_bytes: u64,
+    /// On-disk size of the downloaded poster/backdrop/logo cache.
+    pub images_bytes: u64,
+    /// Number of cached image files (posters, backdrops, logos, stills).
+    pub images_count: u64,
+    /// Movies/loose videos that carry resolved TMDB metadata.
+    pub enriched_items: u64,
+    /// Shows that carry resolved TMDB metadata.
+    pub enriched_shows: u64,
+    /// Title embeddings stored for similar / themed / "For You" rows.
+    pub embeddings: u64,
 }
 
 /// `GET /api/admin/storage`.
@@ -180,7 +194,7 @@ pub struct SettingsView {
     pub groups: Vec<SettingGroup>,
 }
 
-/// `GET /api/admin/llm` — the multi-provider LLM configuration for the IA admin
+/// `GET /api/admin/llm` the multi-provider LLM configuration for the IA admin
 /// page: the global enable flag, the id of the default provider used for
 /// generation, and every configured provider (API keys never returned).
 #[derive(Serialize, TS)]
@@ -193,7 +207,7 @@ pub struct LlmAdminConfig {
     pub providers: Vec<LlmProviderView>,
 }
 
-/// One configured provider as shown to the admin — the API key itself is never
+/// One configured provider as shown to the admin the API key itself is never
 /// returned, only whether one is set (`has_api_key`).
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -212,7 +226,7 @@ pub struct LlmProviderView {
     pub reasoning: bool,
 }
 
-/// One ranked result of `GET /api/search` — a `type`-tagged union so the client
+/// One ranked result of `GET /api/search` a `type`-tagged union so the client
 /// can switch on it (`movie`/`episode` carry a `MediaItem`, `show` a `Show`).
 #[derive(Serialize, TS)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -223,7 +237,7 @@ pub enum SearchHit {
     Episode { item: MediaItem },
 }
 
-/// `GET /api/search?q=…` — the echoed query plus hits in descending relevance.
+/// `GET /api/search?q=…` the echoed query plus hits in descending relevance.
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct SearchResponse {
@@ -231,7 +245,7 @@ pub struct SearchResponse {
     pub results: Vec<SearchHit>,
 }
 
-/// `GET /api/people?name=…` — every movie + show one person is credited in (cast
+/// `GET /api/people?name=…` every movie + show one person is credited in (cast
 /// or key crew), best-known work first. Reuses [`SearchHit`] so clients render the
 /// results with their existing card UI.
 #[derive(Serialize, TS)]

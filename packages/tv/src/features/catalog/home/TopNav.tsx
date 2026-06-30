@@ -7,7 +7,7 @@ import { LumaMark, ProfileAvatar, useClock } from '#tv/shared/ui';
 
 export type NavKey = 'home' | 'films' | 'series' | 'mylist' | 'search';
 
-/** The shared 10-foot top bar — brand mark, a centred nav pill (Accueil / Films /
+/** The shared 10-foot top bar brand mark, a centred nav pill (Accueil / Films /
  * Séries / Ma liste / Rechercher), the clock and the account avatar (opens the
  * profile menu). Used by Home and the catalogue Grid so the chrome persists. */
 export function TvTopNav({ active }: Readonly<{ active: NavKey }>) {
@@ -28,7 +28,7 @@ export function TvTopNav({ active }: Readonly<{ active: NavKey }>) {
   return (
     <div className="absolute inset-x-0 top-0 z-10 px-16 py-8">
       {/* Top scrim so the logo / clock / avatar stay readable over bright hero
-          art (a sky, a snowy shot…) — the hero veil only darkens left + bottom. */}
+          art (a sky, a snowy shot…) the hero veil only darkens left + bottom. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[linear-gradient(180deg,rgba(10,10,12,0.72),rgba(10,10,12,0.25)_45%,transparent)]" />
       <div className="relative flex items-center justify-between">
         <LumaMark size={28} />

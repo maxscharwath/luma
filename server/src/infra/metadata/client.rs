@@ -52,7 +52,7 @@ const MAX_CAST: usize = 12;
 
 /// How many key crew to keep (directors first, then writers/creators).
 const MAX_CREW: usize = 8;
-/// TMDB crew jobs we surface — the authorship roles, ranked. Anything else
+/// TMDB crew jobs we surface the authorship roles, ranked. Anything else
 /// (gaffer, editor, …) is dropped.
 const KEY_CREW_JOBS: &[&str] = &["Director", "Creator", "Writer", "Screenplay", "Story"];
 
@@ -89,7 +89,7 @@ pub fn lookup(
         return cached;
     }
     match fetch(api_key, language, target, title, year) {
-        // Genuine "looked up, no match" — cache it so we don't retry every request.
+        // Genuine "looked up, no match" cache it so we don't retry every request.
         Ok(Some(meta)) => {
             cache.put(key, Some(meta.clone()));
             Some(meta)
@@ -108,7 +108,7 @@ pub fn lookup(
 /// Search TMDB for the best match, then fetch its details + external IDs.
 ///
 /// `Ok(Some)` = resolved, `Ok(None)` = searched fine but no match (cacheable),
-/// `Err(())` = a request failed (transient — caller must not cache it). Keeping
+/// `Err(())` = a request failed (transient caller must not cache it). Keeping
 /// the no-match/failure split out of `Option` is what stops [`lookup`] from
 /// poisoning a title on a transient blip.
 fn fetch(
@@ -149,7 +149,7 @@ fn fetch(
         .imdb_id
         .or_else(|| ext.as_ref().and_then(|e| e.imdb_id.clone()))
         .filter(|s| !s.is_empty());
-    // TVDB series id (TV only) — keys the theme-song lookup during enrichment.
+    // TVDB series id (TV only) keys the theme-song lookup during enrichment.
     let tvdb_id = ext.as_ref().and_then(|e| e.tvdb_id).filter(|&id| id > 0);
 
     // Cast + crew share the appended `credits` block. Keep the top-billed faces
@@ -198,7 +198,90 @@ fn fetch(
     }))
 }
 
-/// Emit one WARN the first time a TMDB request fails — so a wrong
+/// Per-episode artwork + text resolved from a TMDB season fetch. `still_url` is
+/// an absolute TMDB URL (localized to WebP by the enrichment pass, mirroring
+/// poster/backdrop).
+#[derive(Debug, Clone)]
+pub struct EpisodeArt {
+    pub episode: u32,
+    pub still_url: Option<String>,
+    pub name: Option<String>,
+    pub overview: Option<String>,
+    pub air_date: Option<String>,
+    pub rating: Option<f32>,
+}
+
+/// One season's episode stills + its season-level cast, from a single TMDB call.
+#[derive(Debug, Clone, Default)]
+pub struct SeasonData {
+    pub episodes: Vec<EpisodeArt>,
+    pub cast: Vec<CastMember>,
+}
+
+/// Fetch one season's episodes (with their stills) and cast for a resolved TV show
+/// in a single TMDB call. Returns empty data on any failure season enrichment is
+/// best-effort and must never break show enrichment.
+pub fn season_episodes(api_key: &str, language: &str, tv_id: u64, season: u32) -> SeasonData {
+    let params = vec![
+        ("language", language.to_string()),
+        ("append_to_response", "credits".to_string()),
+    ];
+    let resp: SeasonResp =
+        match curl_json(&format!("{API}/tv/{tv_id}/season/{season}"), api_key, &params) {
+            Ok(r) => r,
+            Err(()) => return SeasonData::default(),
+        };
+    let episodes = resp
+        .episodes
+        .into_iter()
+        .map(|e| EpisodeArt {
+            episode: e.episode_number,
+            still_url: e.still_path.map(|p| format!("{IMG}/w300{p}")),
+            name: e.name.filter(|s| !s.is_empty()),
+            overview: e.overview.filter(|s| !s.is_empty()),
+            air_date: e.air_date.filter(|s| !s.is_empty()),
+            rating: e.vote_average.filter(|v| *v > 0.0),
+        })
+        .collect();
+    let mut cast_members = resp.credits.map(|c| c.cast).unwrap_or_default();
+    cast_members.sort_by_key(|m| m.order.unwrap_or(u32::MAX));
+    let cast = cast_members
+        .into_iter()
+        .take(MAX_CAST)
+        .map(|m| CastMember {
+            name: m.name,
+            character: m.character.filter(|s| !s.is_empty()),
+            profile_url: m.profile_path.map(|p| format!("{IMG}/w185{p}")),
+        })
+        .collect();
+    SeasonData { episodes, cast }
+}
+
+#[derive(Debug, Deserialize)]
+struct SeasonResp {
+    #[serde(default)]
+    episodes: Vec<RawEpisode>,
+    #[serde(default)]
+    credits: Option<Credits>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawEpisode {
+    #[serde(default)]
+    episode_number: u32,
+    #[serde(default)]
+    still_path: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    overview: Option<String>,
+    #[serde(default)]
+    air_date: Option<String>,
+    #[serde(default)]
+    vote_average: Option<f32>,
+}
+
+/// Emit one WARN the first time a TMDB request fails so a wrong
 /// `LUMA_TMDB_API_KEY` or a dead network is visible at the default log level
 /// instead of silently yielding `resolved=0`. Subsequent failures drop to DEBUG
 /// to avoid spamming a bulk enrichment pass.
@@ -212,7 +295,7 @@ fn note_curl_failure(reason: &str, detail: &str) {
         warn!(
             reason,
             detail,
-            "TMDB enrichment request failed — check LUMA_TMDB_API_KEY and network connectivity; \
+            "TMDB enrichment request failed check LUMA_TMDB_API_KEY and network connectivity; \
              further failures are logged at debug level"
         );
     }
@@ -321,7 +404,7 @@ struct Details {
 }
 
 /// Appended `keywords` block. Movies nest the list under `keywords`, TV under
-/// `results` — only one is ever populated, so flattening both is safe.
+/// `results` only one is ever populated, so flattening both is safe.
 #[derive(Debug, Deserialize)]
 struct Keywords {
     #[serde(default)]
@@ -430,7 +513,7 @@ struct RawCrew {
     job: String,
 }
 
-/// TV `created_by` block (top-level on series details) — the show's creators.
+/// TV `created_by` block (top-level on series details) the show's creators.
 #[derive(Debug, Deserialize)]
 struct CreatedBy {
     #[serde(default)]
@@ -538,6 +621,21 @@ mod tests {
     fn empty_search_results_deserialize() {
         let s: SearchResp = serde_json::from_str(r#"{"results": []}"#).unwrap();
         assert!(s.results.is_empty());
+    }
+
+    #[test]
+    fn parses_season_episode_stills() {
+        let raw = r#"{
+            "episodes": [
+                {"episode_number": 1, "still_path": "/s1.jpg", "name": "Pilot", "overview": "It begins.", "air_date": "2022-02-18", "vote_average": 8.1},
+                {"episode_number": 2, "name": "Half Loop", "overview": ""}
+            ]
+        }"#;
+        let s: SeasonResp = serde_json::from_str(raw).unwrap();
+        assert_eq!(s.episodes.len(), 2);
+        assert_eq!(s.episodes[0].episode_number, 1);
+        assert_eq!(s.episodes[0].still_path.as_deref(), Some("/s1.jpg"));
+        assert!(s.episodes[1].still_path.is_none());
     }
 
     #[test]

@@ -5,7 +5,7 @@
 </div>
 
 > Part of the [LUMA](../../README.md) monorepo. The presentation layer shared by
-> every client — components and CSS tokens ported from the
+> every client components and CSS tokens ported from the
 > [design source](../../design/readme.md) (deep-charcoal + amber, Bricolage
 > Grotesque / Hanken Grotesk, no emoji).
 
@@ -22,18 +22,18 @@ import { Button, Badge, Chip, Avatar, PosterCard, Logo } from '@luma/ui';
 ```
 
 `react` / `react-dom` are **peer dependencies** (≥ 18). Components are consumed as
-source through the workspace — no build step.
+source through the workspace no build step.
 
 ## Components
 
 | Component | Notes |
 | --------- | ----- |
 | `Button` | `variant` (`primary` / `ghost` / …) × `size`; amber primary, springy press. |
-| `Badge` | Status & quality pills (`tone`: quality / status / accent…). Text codes — `4K`, `HDR`, `H.265`, `5.1` — never icons. |
+| `Badge` | Status & quality pills (`tone`: quality / status / accent…). Text codes `4K`, `HDR`, `H.265`, `5.1` never icons. |
 | `Chip` | Compact metadata / filter pill (999px radius). |
 | `Avatar` | Profile avatar (initials or image). |
-| `PosterCard` | The workhorse poster tile — lazy `<img loading="lazy" decoding="async">`, `content-visibility`, `React.memo`'d, bottom scrim for legible titles, hover-lift + amber ring. |
-| `Logo` | The LUMA brand lockup — an amber "aperture" ring + centre dot beside the wordmark (`markOnly` for just the mark). |
+| `PosterCard` | The workhorse poster tile lazy `<img loading="lazy" decoding="async">`, `content-visibility`, `React.memo`'d, bottom scrim for legible titles, hover-lift + amber ring. |
+| `Logo` | The LUMA brand lockup an amber "aperture" ring + centre dot beside the wordmark (`markOnly` for just the mark). |
 
 ## Design tokens
 
@@ -46,7 +46,7 @@ TV/web shells stay on-brand without re-declaring values:
 --luma-accent: #F4B642;    /* the single warm amber accent */
 --font-display: 'Bricolage Grotesque', …;   /* cinematic titles */
 --font-body:    'Hanken Grotesk', …;        /* UI / body */
-/* + radius, shadow, easing tokens — see design/tokens/ */
+/* + radius, shadow, easing tokens see design/tokens/ */
 ```
 
 ## Performance
@@ -58,6 +58,6 @@ smooth 60 fps highlight.
 
 ## See also
 
-- [`@luma/core`](../core/README.md) — the types & logic these components render
-- [`@luma/tv`](../tv/README.md) — the 10-foot experience composed from these
-- [design/readme.md](../../design/readme.md) — the full design language
+- [`@luma/core`](../core/README.md) the types & logic these components render
+- [`@luma/tv`](../tv/README.md) the 10-foot experience composed from these
+- [design/readme.md](../../design/readme.md) the full design language

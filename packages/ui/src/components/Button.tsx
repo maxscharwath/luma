@@ -26,7 +26,7 @@ const VARIANTS: Record<ButtonVariant, CSSProperties> = {
   ghost: { background: 'transparent', color: 'var(--luma-text)', border: 'none' },
 };
 
-/** LUMA action button — amber primary / translucent glass / borderless ghost. */
+/** LUMA action button amber primary / translucent glass / borderless ghost. */
 export function Button({
   variant = 'primary',
   size = 'md',

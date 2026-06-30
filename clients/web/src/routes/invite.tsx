@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
 
-// Admin page to invite users. Gated by the `users.manage` permission — the only
+// Admin page to invite users. Gated by the `users.manage` permission the only
 // way (besides the bootstrap owner) to create accounts is via these invites.
 export const Route = createFileRoute('/invite')({
   component: InvitePage,
@@ -79,7 +79,7 @@ function InvitePage() {
       await navigator.clipboard.writeText(link);
       setCopied(true);
     } catch {
-      /* clipboard blocked — the field is selectable */
+      /* clipboard blocked the field is selectable */
     }
   }
 

@@ -1,7 +1,7 @@
 // Wire types shared by every LUMA client.
 //
 // Almost everything is GENERATED from the Rust server's `#[derive(TS)]` structs
-// (the single source of truth) — see `./generated` and `scripts/gen-types.sh` —
+// (the single source of truth) see `./generated` and `scripts/gen-types.sh`
 // and re-exported below so consumers keep importing from `@luma/core`. What
 // remains here is the handful of things codegen can't express: a request body the
 // client *sends*, two open-union `codec` aliases, and a runtime helper.

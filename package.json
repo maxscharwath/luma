@@ -2,7 +2,7 @@
   "name": "luma",
   "version": "0.1.0",
   "private": true,
-  "description": "LUMA — self-hosted, multi-platform video streaming (Rust server + web / Tizen / webOS clients). Direct-play HEVC everywhere.",
+  "description": "LUMA self-hosted, multi-platform video streaming (Rust server + web / Tizen / webOS clients). Direct-play HEVC everywhere.",
   "workspaces": [
     "packages/*",
     "clients/*"

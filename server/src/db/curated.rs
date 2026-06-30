@@ -50,7 +50,7 @@ pub fn set_curated(pool: &Pool, rows: &[CuratedRow]) -> Result<()> {
     // Skip duplicate keys: the director + LLM producers can independently emit the
     // same slug (e.g. two spellings of a director's name normalize alike). `key`
     // is the PRIMARY KEY, so a plain INSERT of a dup would abort the whole
-    // transaction and wipe out every curated row — keep the first, drop the rest.
+    // transaction and wipe out every curated row keep the first, drop the rest.
     let mut seen = std::collections::HashSet::new();
     for row in rows {
         if !seen.insert(row.key.as_str()) {

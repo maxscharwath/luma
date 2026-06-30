@@ -80,7 +80,7 @@ pub async fn cancel_job(
     Ok(Json(json!({ "cancelled": cancelled })).into_response())
 }
 
-/// PATCH body — tri-state `schedule` (absent = unchanged, null = clear to
+/// PATCH body tri-state `schedule` (absent = unchanged, null = clear to
 /// manual-only, string = set cron) plus an optional `enabled` flag.
 #[derive(Deserialize)]
 pub struct UpdateJobBody {

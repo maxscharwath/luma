@@ -89,7 +89,7 @@ export function NowPlayingCard({ s, onStop }: Readonly<{ s: PlaybackSession; onS
             <ProgressBar pct={pct} />
           </div>
           <span className="text-[12px] font-semibold tabular-nums text-text/40">
-            {s.durationMs ? timecode(s.durationMs) : '—'}
+            {s.durationMs ? timecode(s.durationMs) : '-'}
           </span>
         </div>
 
