@@ -10,6 +10,7 @@ import {
 import * as library from './client/library';
 import * as media from './client/media';
 import * as playback from './client/playback';
+import * as subtitlesClient from './client/subtitles';
 import type {
   Activity,
   AdminLibrary,
@@ -51,7 +52,8 @@ import type {
 } from './types';
 
 export type { LumaClientOptions } from './client/base';
-export { LumaApiError } from './client/base';
+export { apiErrorText, LumaApiError } from './client/base';
+export type { DownloadedSub, RemoteSub, SubCapabilities } from './client/subtitles';
 
 /** Thin typed client over the LUMA server REST API. Shared by every client shell.
  *
@@ -165,11 +167,8 @@ export class LumaClient {
   streamUrl(id: string): string {
     return media.streamUrl(this.ctx, id);
   }
-  hlsAudioUrl(id: string, audioIndex = 0, copy = false): string {
-    return media.hlsAudioUrl(this.ctx, id, audioIndex, copy);
-  }
-  hlsMasterUrl(id: string, aac = false, startSec = 0): string {
-    return media.hlsMasterUrl(this.ctx, id, aac, startSec);
+  hlsMasterUrl(id: string, aac = false, startSec = 0, audio = 0): string {
+    return media.hlsMasterUrl(this.ctx, id, aac, startSec, audio);
   }
   posterUrl(id: string): string {
     return media.posterUrl(this.ctx, id);
@@ -194,6 +193,36 @@ export class LumaClient {
   }
   subtitleUrl(id: string, index: number): string {
     return media.subtitleUrl(this.ctx, id, index);
+  }
+  searchSubtitles(id: string, langs: string[] = []): Promise<subtitlesClient.RemoteSub[]> {
+    return subtitlesClient.searchSubtitles(this.ctx, id, langs);
+  }
+  downloadSubtitle(
+    id: string,
+    hit: { provider: string; remoteId: string; language: string | null; label: string },
+  ): Promise<subtitlesClient.DownloadedSub> {
+    return subtitlesClient.downloadSubtitle(this.ctx, id, hit);
+  }
+  downloadedSubtitles(id: string): Promise<subtitlesClient.DownloadedSub[]> {
+    return subtitlesClient.downloadedSubtitles(this.ctx, id);
+  }
+  subtitleCapabilities(id: string): Promise<subtitlesClient.SubCapabilities> {
+    return subtitlesClient.subtitleCapabilities(this.ctx, id);
+  }
+  generateSubtitle(
+    id: string,
+    req: { providerId?: string; lang: string; sourceVtt?: string; audioTrack?: number },
+  ): Promise<subtitlesClient.DownloadedSub> {
+    return subtitlesClient.generateSubtitle(this.ctx, id, req);
+  }
+  adminSubtitles(): Promise<import('./types').SubtitleProvidersConfig> {
+    return admin.adminSubtitles(this.ctx);
+  }
+  saveSubtitleProviders(body: admin.SubtitleSave): Promise<void> {
+    return admin.saveSubtitles(this.ctx, body);
+  }
+  testSubtitleProvider(probe: { id?: string; apiKey?: string }): Promise<{ ok: boolean; message: string }> {
+    return admin.testSubtitles(this.ctx, probe);
   }
 
   // ----- accounts / sessions / invites / quick connect ------------------------

@@ -64,9 +64,8 @@ export function TvPlayer() {
   // Skip-Intro window: only inside the marked intro segment.
   const canSkipIntro = Boolean(intro && cur * 1000 >= intro.startMs && cur * 1000 < intro.endMs);
   const skipIntro = useCallback(() => {
-    const v = playback.videoRef.current;
-    if (intro && v) v.currentTime = intro.endMs / 1000;
-  }, [intro, playback.videoRef]);
+    if (intro) playback.seekTo(intro.endMs / 1000);
+  }, [intro, playback.seekTo]);
 
   // "Up next" trigger: the credits marker, else the last CREDITS_TAIL seconds.
   // `creditsAt > 0` guards short clips (dur <= CREDITS_TAIL) whose tail offset
@@ -137,15 +136,12 @@ export function TvPlayer() {
     return () => clearTimeout(id);
   }, [showUpNext, seekPreview, countdown, goNext]);
 
-  // Auto-advance fallback on the real `ended` event (seeking near the end must
-  // NOT teleport to the next episode the countdown above is the primary path).
+  // Auto-advance fallback when playback actually reaches the end (seeking near the
+  // end must NOT teleport to the next episode the countdown above is the primary
+  // path). Driven by the engine's ended signal so it works for AVPlay too.
   useEffect(() => {
-    const v = playback.videoRef.current;
-    if (!v || !next || upNextCancelled) return;
-    const onEnded = () => goNext();
-    v.addEventListener('ended', onEnded);
-    return () => v.removeEventListener('ended', onEnded);
-  }, [playback.videoRef, next, upNextCancelled, goNext]);
+    if (playback.endedNonce > 0 && next && !upNextCancelled) goNext();
+  }, [playback.endedNonce, next, upNextCancelled, goNext]);
 
   const endsAt = dur ? endsAtClock(Math.max(0, dur - cur) * 1000, locale) : '';
   const fade = controls ? 'opacity-100' : 'pointer-events-none opacity-0';
@@ -158,16 +154,31 @@ export function TvPlayer() {
   else if (!audio.canPlay && audio.messageKey) warn = t(audio.messageKey, audio.messageVars);
 
   return (
-    <div className={`fixed inset-0 z-60 bg-black ${controls ? '' : 'cursor-none'}`}>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={playback.videoRef}
-        className="h-full w-full bg-black object-contain"
-        autoPlay
-        playsInline
-      />
+    <div
+      className={`fixed inset-0 z-60 ${playback.surface === 'avplay' ? 'bg-transparent' : 'bg-black'} ${controls ? '' : 'cursor-none'}`}
+    >
+      {playback.surface === 'avplay' ? (
+        // Native AVPlay renders to a hardware video plane BEHIND the page; this
+        // <object> is the placeholder surface and the page is transparent here so
+        // the plane shows through. The HTML chrome + subtitles sit on top.
+        <object
+          ref={playback.objectRef}
+          type="application/avplayer"
+          className="h-full w-full"
+          aria-label={item.title}
+        />
+      ) : (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video
+          ref={playback.videoRef}
+          className="h-full w-full bg-black object-contain"
+          autoPlay
+          playsInline
+        />
+      )}
       <TvSubtitles
-        videoRef={playback.videoRef}
+        positionSec={cur}
+        seekNonce={playback.seekNonce}
         rendered={subs.rendered}
         activeIndex={subs.active}
         raised={controls}

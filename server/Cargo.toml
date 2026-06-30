@@ -30,6 +30,19 @@ semantic-embeddings = [
     "dep:tokenizers",
 ]
 
+# In-process Whisper transcription (infra::whisper) for the `whisperLocal` /
+# `whisperCandle` subtitle provider NO external whisper.cpp binary, fully
+# self-contained. Reuses the candle stack (CPU pure-Rust gemm, so the musl single
+# binary still links). OFF by default (build size/time, like semantic-embeddings).
+# The model (safetensors + config + tokenizer) is a local dir, or a HF repo id
+# (e.g. `openai/whisper-base`) auto-downloaded into <data>/whisper/ on first use.
+whisper-local = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+]
+
 [dependencies]
 # --- Optional: semantic embeddings (feature `semantic-embeddings`) ---
 # CPU-only, pure-Rust backends so the musl single-binary keeps linking.

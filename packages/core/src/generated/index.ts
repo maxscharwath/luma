@@ -54,6 +54,8 @@ export type { SettingsView } from './SettingsView';
 export type { Show } from './Show';
 export type { ShowDetail } from './ShowDetail';
 export type { StorageInfo } from './StorageInfo';
+export type { SubtitleProviderView } from './SubtitleProviderView';
+export type { SubtitleProvidersConfig } from './SubtitleProvidersConfig';
 export type { SubtitleTrack } from './SubtitleTrack';
 export type { TopUser } from './TopUser';
 export type { UpNext } from './UpNext';

@@ -63,6 +63,10 @@ export interface SubtitleView {
   /** Text-based subs (subrip/ass/mov_text) can be served as WebVTT; image subs
    * (PGS/VobSub) cannot `url` is null then. */
   url: string | null;
+  /** True for a subtitle fetched from an online provider (vs embedded). */
+  downloaded?: boolean;
+  /** Display label for a downloaded sub (the provider release name). */
+  label?: string;
 }
 
 /** A movie/episode with art + stream + subtitle URLs pre-resolved to absolute LUMA URLs. */
@@ -70,9 +74,6 @@ export interface MovieView extends MediaItem {
   poster: string;
   backdrop: string | null;
   stream: string;
-  /** HLS URL that copies the video and re-encodes audio to stereo AAC, for
-   * browsers that can't decode the source audio codec (AC3/EAC3/DTS/TrueHD). */
-  hlsAudio: string;
   subs: SubtitleView[];
 }
 
@@ -94,7 +95,6 @@ export function toMovieView(c: LumaClient, item: MediaItem): MovieView {
     poster: c.posterFor(item),
     backdrop: c.backdropFor(item),
     stream: c.streamUrl(item.id),
-    hlsAudio: c.hlsAudioUrl(item.id),
     subs,
   };
 }

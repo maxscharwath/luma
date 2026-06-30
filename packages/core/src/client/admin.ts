@@ -9,6 +9,7 @@ import type {
   JobLog,
   JobsView,
   LlmAdminConfig,
+  SubtitleProvidersConfig,
   MetricsSnapshot,
   Permission,
   PlaybackSession,
@@ -291,4 +292,42 @@ export function testLlm(
     headers: JSON_HEADERS,
     body: JSON.stringify(probe),
   });
+}
+
+// ----- Subtitle providers (mirrors the LLM provider admin) --------------------
+
+/** Current subtitle-provider config: providers + default id (secrets masked). */
+export function adminSubtitles(ctx: RequestContext): Promise<SubtitleProvidersConfig> {
+  return ctx.json<SubtitleProvidersConfig>('/admin/subtitles');
+}
+
+/** A provider as sent on save; blank `apiKey`/`password` keep the stored secrets. */
+export interface SubtitleProviderInput {
+  id: string;
+  name: string;
+  /** `opensubtitles` | `whisper` | `whisperLocal` | `translate`. */
+  kind: string;
+  baseUrl: string;
+  model: string;
+  username: string;
+  apiKey?: string;
+  password?: string;
+}
+
+/** Full subtitle-provider config to persist. Default identified by **index**. */
+export interface SubtitleSave {
+  defaultIndex: number;
+  providers: SubtitleProviderInput[];
+}
+
+export function saveSubtitles(ctx: RequestContext, body: SubtitleSave): Promise<void> {
+  return ctx.json<void>('/admin/subtitles', { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(body) });
+}
+
+/** Probe a provider (trivial search). Always resolves `{ ok, message }`. */
+export function testSubtitles(
+  ctx: RequestContext,
+  probe: { id?: string; apiKey?: string },
+): Promise<{ ok: boolean; message: string }> {
+  return ctx.json('/admin/subtitles/test', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(probe) });
 }

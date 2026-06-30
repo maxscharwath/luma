@@ -57,8 +57,16 @@ BIN="$ROOT/server/target/$TARGET/release/luma-server"
 if [ "${SKIP_RUST:-}" != "1" ]; then
   command -v docker >/dev/null || { echo "Docker required for the musl cross-build (or set SKIP_RUST=1 after a manual build)"; exit 1; }
   say "Cross-compiling luma-server → $TARGET (Docker: $RUST_IMAGE)"
-  docker run --rm -v "$ROOT/server":/home/rust/src -v "$CACHE/cargo":/root/.cargo/registry \
-    "$RUST_IMAGE" cargo build --release --target "$TARGET"
+  # `whisper-local`: bundle in-process Whisper (candle) so the .spk transcribes
+  # subtitles with no external binary. Pure-Rust CPU backend → still links on
+  # musl. The model is downloaded at runtime (not baked into the .spk), so the
+  # package stays lean. Adds candle to the build (slower first compile).
+  # Mount `packages/` too: i18n.rs `include_str!`s the shared locale catalogs at
+  # `../../packages/core/src/locales/*.json` (outside server/), so they must exist
+  # at /home/rust/packages for the compile to find them.
+  docker run --rm -v "$ROOT/server":/home/rust/src -v "$ROOT/packages":/home/rust/packages \
+    -v "$CACHE/cargo":/root/.cargo/registry \
+    "$RUST_IMAGE" cargo build --release --target "$TARGET" --features whisper-local
 fi
 [ -f "$BIN" ] || { echo "musl binary missing: $BIN"; exit 1; }
 

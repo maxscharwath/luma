@@ -127,7 +127,7 @@ fn row(
 }
 
 fn transcode_dir(config: &crate::config::Config) -> String {
-    config.data_dir.join("transcode").to_string_lossy().to_string()
+    config.data_dir.join("hls").to_string_lossy().to_string()
 }
 
 fn public_address(config: &crate::config::Config) -> String {

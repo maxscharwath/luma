@@ -18,7 +18,6 @@ const MAX_POLLS = 12;
 export function AiSuggestRail({ id }: Readonly<{ id: string }>) {
   const t = useT();
   const { ready, user, client } = useAuth();
-  const navigate = useNavigate();
   const [section, setSection] = useState<Section | null>(null);
   const [pending, setPending] = useState(true);
 

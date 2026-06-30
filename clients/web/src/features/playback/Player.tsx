@@ -11,11 +11,12 @@ import { SubtitleLayer } from '#web/features/playback/SubtitleLayer';
 import { useSubtitleStyle } from '#web/features/playback/subtitleStyle';
 import { UpNextOverlay } from '#web/features/playback/UpNextOverlay';
 import { usePlaybackSession } from '#web/features/playback/usePlaybackSession';
-import { useUpNext } from '#web/features/playback/useUpNext';
 import { usePlayerHotkeys } from '#web/features/playback/usePlayerHotkeys';
 import { useResumeProgress } from '#web/features/playback/useResumeProgress';
+import { useUpNext } from '#web/features/playback/useUpNext';
 import { useVideoPlayback } from '#web/features/playback/useVideoPlayback';
-import type { MovieView } from '#web/shared/lib/api';
+import { lumaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
+import type { DownloadedSub } from '@luma/core';
 
 /** Custom fullscreen player: scrub bar with hover preview, ±10s, volume, speed,
  * PiP, fullscreen, auto-hiding controls, full keyboard control, an audio/
@@ -46,8 +47,8 @@ export function Player({
     toggleMute,
     toggleFullscreen,
   } = pb;
-  // Offset-aware position control so resume + progress-save use the REAL time
-  // (the seamless stream's own timeline is relative to the server -ss offset).
+  // Absolute-timeline position control for resume + progress-save (the VOD master
+  // and direct-play share one absolute timeline no offset).
   const position = useMemo(
     () => ({ seekTo: pb.seekTo, getPosition: pb.getPosition }),
     [pb.seekTo, pb.getPosition],
@@ -81,8 +82,43 @@ export function Player({
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const audio = audioSupport(item);
+
+  // Online-downloaded subtitles, merged with the embedded tracks. Fetched on open
+  // and after each download. They get high indices (1000+) so they never collide
+  // with embedded ones; the URL is the cached WebVTT.
+  const [downloaded, setDownloaded] = useState<DownloadedSub[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    lumaClient()
+      .downloadedSubtitles(item.id)
+      .then((d) => !cancelled && setDownloaded(d))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
+  const onDownloaded = useCallback((sub: DownloadedSub) => {
+    setDownloaded((prev) => {
+      if (prev.some((p) => p.id === sub.id)) return prev;
+      const next = [...prev, sub];
+      queueMicrotask(() => setActiveSub(1000 + next.length - 1)); // auto-enable it
+      return next;
+    });
+  }, []);
+  const allSubs = useMemo<SubtitleView[]>(() => {
+    const dl: SubtitleView[] = downloaded.map((d, i) => ({
+      index: 1000 + i,
+      language: d.language,
+      codec: 'SRT',
+      url: lumaClient().resolveArt(d.url) ?? d.url,
+      downloaded: true,
+      label: d.label,
+    }));
+    return [...item.subs, ...dl];
+  }, [item.subs, downloaded]);
+
   // Stable identity so the subtitle layer doesn't re-run effects on every timeupdate.
-  const renderedSubs = useMemo(() => item.subs.filter((s) => s.url), [item.subs]);
+  const renderedSubs = useMemo(() => allSubs.filter((s) => s.url), [allSubs]);
   const subtitle =
     item.kind === 'episode' && item.showTitle
       ? `${item.showTitle} · ${item.title}`
@@ -124,7 +160,7 @@ export function Player({
     dur: pb.dur,
     pickSub,
     activeSub,
-    subs: item.subs,
+    subs: allSubs,
     avOpen,
     setAvOpen,
     setStatsOpen,
@@ -156,8 +192,13 @@ export function Player({
       className="fixed inset-0 z-60 flex items-center justify-center overflow-hidden bg-black"
       style={{ cursor: controls ? 'default' : 'none' }}
     >
+      {/* `key` REMOUNTS the element when the remux is re-anchored (resume / seek)
+          OR the audio language changes, so hls.js always does a clean fresh attach
+          (a re-attach on a reused element is flaky and the chosen audio is muxed
+          per-stream). */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
+        key={`${pb.anchor}:${pb.audioIndex}`}
         ref={videoRef}
         autoPlay
         playsInline
@@ -173,7 +214,7 @@ export function Player({
         activeIndex={activeSub}
         style={subStyle}
         raised={controls}
-        offset={pb.baseSec}
+        baseSec={pb.baseSec}
       />
 
       {pb.waiting && !terminated ? (
@@ -225,9 +266,7 @@ export function Player({
           action={
             <button
               onClick={() => {
-                // seekTo(0) restarts from absolute zero in seamless mode too
-                // (currentTime=0 would only rewind to the current -ss base).
-                pb.seekTo(0);
+                pb.seekTo(0); // restart from the beginning
                 setShowResume(false);
               }}
               className="rounded-md bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-white/20"
@@ -261,6 +300,13 @@ export function Player({
           cur={pb.cur}
           dur={pb.dur}
           bufEnd={pb.bufEnd}
+          anchor={pb.anchor}
+          baseSec={pb.baseSec}
+          useHls={pb.useHls}
+          aac={pb.aac}
+          audioTracks={pb.audioTracks}
+          audioIndex={pb.audioIndex}
+          hlsRef={pb.hlsRef}
           onClose={() => setStatsOpen(false)}
         />
       ) : null}
@@ -301,11 +347,13 @@ export function Player({
       {avOpen ? (
         <AvDrawer
           item={item}
+          subs={allSubs}
           audioTracks={pb.audioTracks}
           audioIndex={pb.audioIndex}
           onPickAudio={pb.setAudio}
           activeSub={activeSub}
           onPickSub={pickSub}
+          onDownloaded={onDownloaded}
           subStyle={subStyle}
           onStyleChange={setSubStyle}
           onClose={() => setAvOpen(false)}

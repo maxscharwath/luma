@@ -21,20 +21,23 @@
     "deploy:tizen": "bun run --filter '@luma/tizen' deploy",
     "tizen:prepare": "bun run build:tizen && echo \"✓ Tizen app ready → clients/tizen/dist  (package: cd clients/tizen && tizen build-web && tizen package -t wgt -s <cert-profile> -- dist)\"",
     "typecheck": "bun run --filter '*' typecheck",
+    "test": "vitest run",
     "gen:types": "./scripts/gen-types.sh",
     "format": "biome format --write .",
     "lint": "biome lint .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "server": "cd server && cargo run --features semantic-embeddings",
-    "server:watch": "cd server && cargo watch -x 'run --features semantic-embeddings'",
+    "server": "cd server && cargo run --features semantic-embeddings,whisper-local",
+    "server:watch": "cd server && cargo watch -x 'run --features semantic-embeddings,whisper-local'",
     "server:watch:lexical": "cd server && cargo watch -x run",
     "server:build": "cd server && cargo build --release"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
     "@typescript/native-preview": "^7.0.0-dev.20260628.1",
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "jsdom": "^25.0.1",
+    "vitest": "^3.0.0"
   },
   "engines": {
     "bun": ">=1.3.0"

@@ -1,7 +1,8 @@
-//! `cache.cleanup` wipe the on-demand HLS transcode cache (disposable;
-//! regenerated on playback), then enforce the `cacheLimit` budget on the
-//! poster/backdrop image cache (never auto-wiped expensive to refetch so it
-//! grows unbounded without this; trimmed oldest-first when over the limit).
+//! `cache.cleanup` report the on-demand HLS segment cache size (a self-trimming
+//! on-disk LRU bounded by its own byte budget no manual wipe needed), then
+//! enforce the `cacheLimit` budget on the poster/backdrop image cache (never
+//! auto-wiped expensive to refetch so it grows unbounded without this; trimmed
+//! oldest-first when over the limit).
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -11,40 +12,10 @@ use super::prelude::*;
 pub(super) fn run(ctx: &JobContext) -> Result<()> {
     let data_dir = &ctx.state.config.data_dir;
 
-    // 1) Wipe the disposable HLS transcode cache, but never a dir backing a live
-    // session: evicted/reaped sessions already delete their own dirs, so anything
-    // still present here is in active playback and removing it stalls the stream.
-    let live = tokio::runtime::Handle::current().block_on(ctx.state.transcode.live_dir_names());
-    let transcode = data_dir.join("transcode");
-    ctx.info(format!("clearing transcode cache at {}", transcode.display()));
-    let before = dir_size(&transcode);
-    let entries: Vec<_> = std::fs::read_dir(&transcode)
-        .map(|rd| rd.flatten().collect())
-        .unwrap_or_default();
-    let total = entries.len();
-    for (i, entry) in entries.iter().enumerate() {
-        if ctx.cancelled() {
-            ctx.warn("cancellation requested stopping cache cleanup");
-            break;
-        }
-        let p = entry.path();
-        let live_session = p
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| live.contains(n));
-        if live_session {
-            ctx.progress(i + 1, total);
-            continue; // still playing leave it for the reaper
-        }
-        if p.is_dir() {
-            let _ = std::fs::remove_dir_all(&p);
-        } else {
-            let _ = std::fs::remove_file(&p);
-        }
-        ctx.progress(i + 1, total);
-    }
-    let freed = before.saturating_sub(dir_size(&transcode));
-    ctx.info(format!("freed {} across {total} transcode entries", human_bytes(freed)));
+    // 1) The HLS segment cache trims itself (in-process LRU, see infra::hls); we
+    // just report its current footprint. Every segment is regenerable, so there
+    // is nothing to protect or wipe here.
+    ctx.info(format!("HLS segment cache: {} (self-trimming LRU)", human_bytes(ctx.state.hls.cache_bytes())));
 
     // 2) Enforce the image-cache budget (`cacheLimit`).
     enforce_image_limit(ctx, &data_dir.join("images"));

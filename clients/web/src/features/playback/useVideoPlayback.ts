@@ -1,22 +1,32 @@
-import { audioTracksOf, canSeamlessAudioSwitch } from '@luma/core';
+import { type PlayEnv, selectEngine } from '@luma/core';
+import { audioTracksOf } from '@luma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  applySeamlessRendition,
-  attachMediaSource,
-  bindMediaEvents,
-  type VideoPlayback,
-} from '#web/features/playback/videoEngine';
-import type { MovieView } from '#web/shared/lib/api';
+import { attachMediaSource, bindMediaEvents, type VideoPlayback } from '#web/features/playback/videoEngine';
+import { lumaClient, type MovieView } from '#web/shared/lib/api';
+import { useAuth } from '#web/shared/lib/auth';
 
 // The media-element / hls / track-wiring engine lives in `./videoEngine`; the
 // `VideoPlayback` shape is re-exported so call sites keep importing it here.
 export type { VideoPlayback } from '#web/features/playback/videoEngine';
 
+/** Detect the browser environment for engine selection. Safari (and iOS) use
+ * native HLS (and decode AC3/EAC3), so they get the stream-copy master; other
+ * browsers go through hls.js (MSE) with the AAC master when needed. */
+function detectWebEnv(): PlayEnv {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const safari =
+    /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(ua) || /iP(ad|hone|od)/i.test(ua);
+  return { platform: 'web', safari };
+}
+
 /**
  * Owns the `<video>` element: playback state (time/duration/buffer/volume/rate),
- * the source decision (direct-play `<video src>` vs an HLS audio-transcode for
- * codecs the browser can't decode), fullscreen tracking, and every transport
- * action. Capability detection needs the DOM, so the source is resolved post-mount.
+ * the source decision (direct-play `<video src>` vs the continuous HLS remux
+ * master), fullscreen tracking, and every transport action. The HLS stream is
+ * anchored at `anchor` (input -ss) and its clock is relative, so the hook reports
+ * the absolute position as `baseSec + currentTime`; a seek inside the produced
+ * range is native, otherwise it re-anchors (remounts at the target). Capability
+ * detection needs the DOM, so the source is resolved post-mount.
  */
 export function useVideoPlayback(item: MovieView): VideoPlayback {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -25,6 +35,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
 
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [ready, setReady] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(item.durationMs ? item.durationMs / 1000 : 0);
   const [bufEnd, setBufEnd] = useState(0);
@@ -37,72 +48,142 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     const tracks = audioTracksOf(item);
     return (tracks.find((t) => t.default) ?? tracks[0])?.index ?? 0;
   });
+  // The HLS remux anchor (s): the master is started at `?t=anchor` (input -ss).
+  // hls.js reports time RELATIVE to the anchor, so the absolute position is
+  // `anchor + currentTime` (see `baseSec`). A resume / far seek / backward seek
+  // changes the anchor, which REMOUNTS the <video> (keyed by anchor) for a clean
+  // fresh attach. `bootAnchor === null` means "resume not resolved yet": the
+  // source effect waits so the FIRST attach is already at the resume position
+  // (instead of attaching at 0 then re-anchoring).
+  const { client, user } = useAuth();
+  const [anchor, setAnchor] = useState(0);
+  const [bootAnchor, setBootAnchor] = useState<number | null>(null);
+  useEffect(() => {
+    setBootAnchor(null);
+    if (!user) {
+      setAnchor(0);
+      setBootAnchor(0);
+      return;
+    }
+    let cancelled = false;
+    client
+      .itemProgress(item.id)
+      .then((p) => {
+        if (cancelled) return;
+        const durMs = p?.durationMs ?? item.durationMs ?? 0;
+        const posSec = (p?.positionMs ?? 0) / 1000;
+        const resume = p && posSec > 15 && (!durMs || p.positionMs < durMs * 0.95) ? posSec : 0;
+        setAnchor(resume);
+        setBootAnchor(resume);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAnchor(0);
+          setBootAnchor(0);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, user, item.id, item.durationMs]);
   const [hover, setHover] = useState<{ x: number; t: number } | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
-  // While dragging the scrub bar, the previewed absolute position (s) the thumb
-  // follows it but we only COMMIT the seek on release, so a seamless (-ss) stream
-  // isn't reloaded on every mouse-move (which never settled at the drop point).
+  // While dragging the scrub bar, the previewed absolute position (s): the thumb
+  // follows it but we only COMMIT the seek on release.
   const [scrubPreview, setScrubPreview] = useState<number | null>(null);
   const scrubPreviewRef = useRef<number | null>(null);
   scrubPreviewRef.current = scrubPreview;
-  // Absolute position (s) where the current seamless stream starts. The server
-  // `-ss` remux restarts the timeline at 0, so the REAL position is
-  // baseSec + video.currentTime. Always 0 in direct-play (timeline is absolute).
-  const [baseSec, setBaseSec] = useState(0);
-  const baseSecRef = useRef(0);
-  baseSecRef.current = baseSec;
-  // Latest selected audio index, for the manifest-parsed re-select after a reload.
   const audioIndexRef = useRef(0);
   audioIndexRef.current = audioIndex;
 
   const audioTracks = audioTracksOf(item);
-  // Seamless multi-language: one HLS master with every track as a rendition →
-  // language switches happen in place (no reload, the picture never moves).
-  const seamless = useMemo(() => canSeamlessAudioSwitch(item), [item]);
+  const env = useMemo(detectWebEnv, []);
+  const decision = useMemo(() => selectEngine(item, env), [item, env]);
   const hlsRef = useRef<import('hls.js').default | null>(null);
 
+  // The absolute-position offset: `absolute = baseSec + video.currentTime`. For
+  // HLS, `-noaccurate_seek` starts the stream at the keyframe AT-OR-BEFORE the
+  // anchor (so video + audio begin together), which is usually a bit before the
+  // requested anchor. The SERVER reports that real start via the `X-Hls-Start`
+  // header; we read it BEFORE attaching so the clock + subtitles line up with the
+  // A/V. Direct-play is already absolute (0). `srcReady` gates the attach until
+  // the offset is known.
+  const [baseSec, setBaseSec] = useState(0);
+  const [srcReady, setSrcReady] = useState(false);
+  useEffect(() => {
+    if (bootAnchor === null) return; // wait until resume has picked the anchor
+    setSrcReady(false);
+    if (decision.kind === 'direct') {
+      setBaseSec(0);
+      setSrcReady(true);
+      return;
+    }
+    let cancelled = false;
+    const url = lumaClient().hlsMasterUrl(item.id, decision.aacMaster, anchor, audioIndex);
+    fetch(url)
+      .then((r) => {
+        const k = Number(r.headers.get('X-Hls-Start'));
+        if (!cancelled) {
+          setBaseSec(Number.isFinite(k) ? k : anchor);
+          setSrcReady(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBaseSec(anchor);
+          setSrcReady(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, decision, anchor, audioIndex, bootAnchor]);
+
   // ----- video element wiring -------------------------------------------------
+  // Re-binds on anchor/audio change too: those REMOUNT the <video> (keyed by
+  // anchor+audio in the parent), so this must rebind to the fresh element.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rebind on remount.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    return bindMediaEvents(v, item, baseSecRef, {
-      setCur,
-      setDur,
-      setBufEnd,
-      setPlaying,
-      setWaiting,
-      setVolume,
-      setMuted,
-      setRate,
-    });
-  }, []);
+    return bindMediaEvents(
+      v,
+      item,
+      {
+        setCur,
+        setDur,
+        setBufEnd,
+        setPlaying,
+        setWaiting,
+        setVolume,
+        setMuted,
+        setRate,
+        setReady,
+      },
+      baseSec,
+    );
+  }, [item, anchor, audioIndex, baseSec]);
 
   // ----- source wiring --------------------------------------------------------
-  // The deps gate `audioIndex` out in seamless mode so switching never re-attaches.
+  // Attaches the source. The chosen audio (`audioIndex`) is MUXED into the stream
+  // (in the URL), so a language change remounts the element with the new audio -
+  // there is no in-place rendition switch.
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
+    // Wait until resume picked the anchor AND the real start (baseSec) is known.
+    if (!v || bootAnchor === null || !srcReady) return;
     return attachMediaSource({
       v,
       item,
-      seamless,
-      audioIndex,
-      baseSecRef,
-      audioIndexRef,
+      decision,
+      useNativeHls: env.safari,
+      startSec: anchor,
+      audioRel: audioIndex,
       hlsRef,
       setUseHls,
+      setReady,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, seamless, baseSec, seamless ? 0 : audioIndex]);
-
-  // ----- seamless language switch: select the rendition IN PLACE --------------
-  // Runs on audioIndex change in seamless mode only no source reload, so the
-  // video keeps playing at the same position while the audio rendition swaps.
-  useEffect(() => {
-    if (!seamless) return;
-    applySeamlessRendition({ item, audioIndex, hlsRef, videoEl: videoRef.current });
-    // baseSec in deps: after a seek reloads the master, re-apply the chosen track.
-  }, [item, seamless, audioIndex, baseSec]);
+  }, [item, decision, env.safari, anchor, audioIndex, bootAnchor, srcReady]);
 
   useEffect(() => {
     const onFs = () => setFs(Boolean(document.fullscreenElement));
@@ -114,63 +195,61 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) void v.play();
-    else v.pause();
+    if (v.paused) {
+      const p = v.play();
+      if (p && typeof p.then === 'function') p.catch(() => undefined);
+    } else v.pause();
   }, []);
 
-  // Seek to an ABSOLUTE position (seconds). Direct-play is a normal range seek.
-  // Seamless mode: the current stream is an HLS event playlist remuxed at
-  // `-ss = baseSec`, so absolute T maps to element time `T - baseSec`. When the
-  // target sits inside what this stream already covers, seek IN PLACE (instant,
-  // no ffmpeg respawn); only re-`-ss` the master when the target is BEFORE the
-  // stream's base or beyond the produced range (so it's instantly available).
+  // Seek to an ABSOLUTE position (seconds). If the target lies inside what the
+  // current anchored stream has produced (its relative seekable range), it is an
+  // instant native seek. Otherwise (seeking BEFORE the anchor, or PAST the
+  // produced edge) we re-anchor: `setAnchor(target)` remounts the <video> with a
+  // fresh remux started at `target`, available in ~1s. Either way the slider is
+  // correct (absolute = anchor + relative).
   const seekTo = useCallback(
     (absSec: number) => {
       const v = videoRef.current;
       if (!v) return;
-      let total: number;
-      if (item.durationMs) total = item.durationMs / 1000;
-      else if (Number.isFinite(v.duration)) total = v.duration;
-      else total = 0;
+      const total = item.durationMs ? item.durationMs / 1000 : 0;
       const target = Math.max(0, total ? Math.min(total - 1, absSec) : absSec);
-      if (!seamless) {
-        v.currentTime = target; // direct-play timeline is absolute
+
+      if (decision.kind === 'direct') {
+        v.currentTime = target; // direct-play is fully seekable
         return;
       }
-      const base = baseSecRef.current;
-      const rel = target - base;
-      const seekableEnd = v.seekable.length ? v.seekable.end(v.seekable.length - 1) : 0;
-      // In-place when reachable in the current stream. `rel === 0` (seek to the
-      // stream's start, incl. seek-to-0 when base is already 0) lands here too, so
-      // the cursor and picture stay aligned instead of the cursor jumping alone.
-      if (rel >= 0 && rel <= seekableEnd + 0.5) {
-        v.currentTime = rel;
-        setCur(target);
-        return;
+      const rel = target - anchor; // position within the anchored stream
+      // Native ONLY if the target is actually BUFFERED (downloaded) - `seekable`
+      // over-reports the full duration before it is produced, which would seek
+      // into a hole. Otherwise re-anchor: a fresh session remuxed at `target`.
+      let buffered = false;
+      for (let i = 0; i < v.buffered.length; i += 1) {
+        if (rel >= v.buffered.start(i) - 0.5 && rel <= v.buffered.end(i) + 0.5) {
+          buffered = true;
+          break;
+        }
       }
-      setBaseSec(target); // reloads the master at -ss=target; currentTime → 0; cur → target
-      setCur(target);
+      if (buffered) {
+        v.currentTime = Math.max(0, rel);
+      } else {
+        setAnchor(target);
+      }
     },
-    [item, seamless],
+    [item, decision.kind, anchor],
   );
 
-  // Absolute current position (s), offset-aware stable getter for progress save.
-  const getPosition = useCallback(
-    () => baseSecRef.current + (videoRef.current?.currentTime ?? 0),
-    [],
-  );
+  const getPosition = useCallback(() => baseSec + (videoRef.current?.currentTime ?? 0), [baseSec]);
 
   const skip = useCallback(
     (delta: number) => {
-      const v = videoRef.current;
-      if (!v) return;
-      seekTo(baseSecRef.current + v.currentTime + delta);
+      // `seekTo` is absolute, and the element clock is relative to the anchor, so
+      // skip from the ABSOLUTE position (getPosition), not raw currentTime.
+      if (!videoRef.current) return;
+      seekTo(getPosition() + delta);
     },
-    [seekTo],
+    [seekTo, getPosition],
   );
 
-  // Map a client X on the scrub bar → absolute seconds. Catalogue runtime, not
-  // v.duration (Infinity for the growing HLS remux → NaN/∞).
   const clientXToSec = useCallback(
     (clientX: number): number | null => {
       const v = videoRef.current;
@@ -187,7 +266,6 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     [item],
   );
 
-  // Drag start / move: preview only (thumb follows; no reload). Release: commit.
   const scrubToClientX = useCallback(
     (clientX: number) => {
       const s = clientXToSec(clientX);
@@ -200,7 +278,6 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     setScrubPreview(null);
     if (s != null) seekTo(s);
   }, [seekTo]);
-  // Back-compat: a single click on the bar (no drag) jumps immediately.
   const seekToClientX = useCallback(
     (clientX: number) => {
       const s = clientXToSec(clientX);
@@ -216,7 +293,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       const rect = bar.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       setHover({ x: pct * rect.width, t: pct * dur });
-      if (scrubbing) setScrubPreview(pct * dur); // preview; committed on release
+      if (scrubbing) setScrubPreview(pct * dur);
     },
     [dur, scrubbing],
   );
@@ -255,11 +332,21 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     else void v.requestPictureInPicture?.();
   }, []);
 
-  // Switching tracks re-runs the source effect, which re-attaches the stream and
-  // restores the current position. No-op when the track is already selected.
+  // Switch audio language. For HLS, RE-ANCHOR at the current position rather than
+  // hls.js's in-place `audioTrack` swap: the in-place swap can leave the new audio
+  // out of sync with the picture, whereas a re-anchor is a clean fresh attach that
+  // loads the chosen rendition correctly (a brief reload, like a seek). Direct-play
+  // has a single audio track, so nothing to switch.
   const setAudio = useCallback(
-    (index: number) => setAudioIndex((cur) => (cur === index ? cur : index)),
-    [],
+    (index: number) => {
+      if (index === audioIndexRef.current) return;
+      setAudioIndex(index);
+      if (decision.kind !== 'direct') {
+        const pos = baseSec + (videoRef.current?.currentTime ?? 0);
+        setAnchor(Math.max(0, Math.floor(pos)));
+      }
+    },
+    [decision.kind, baseSec],
   );
 
   return {
@@ -268,6 +355,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     barRef,
     playing,
     waiting,
+    ready,
     cur,
     dur,
     bufEnd,
@@ -279,6 +367,10 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     audioTracks,
     audioIndex,
     setAudio,
+    anchor,
+    baseSec,
+    aac: decision.kind === 'direct' ? false : Boolean(decision.aacMaster),
+    hlsRef,
     scrubbing,
     setScrubbing,
     scrubPreview,
@@ -290,7 +382,6 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     skip,
     seekTo,
     getPosition,
-    baseSec,
     setVol,
     toggleMute,
     applyRate,

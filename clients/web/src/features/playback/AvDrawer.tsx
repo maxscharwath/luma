@@ -1,8 +1,12 @@
-import type { AudioTrack, Translate } from '@luma/core';
+import type { AudioTrack, DownloadedSub, SubCapabilities, Translate } from '@luma/core';
 import { channelLabel } from '@luma/core';
 import { useT } from '@luma/ui';
+import { useEffect, useState } from 'react';
 import { langName } from '#web/features/catalog/detail';
 import { IconCheck, IconClose } from '#web/features/playback/icons';
+import { SubtitleGenerate } from '#web/features/playback/SubtitleGenerate';
+import { SubtitleSearch } from '#web/features/playback/SubtitleSearch';
+import { lumaClient } from '#web/shared/lib/api';
 import {
   SUB_COLORS,
   type SubEdge,
@@ -10,7 +14,7 @@ import {
   type SubtitleStyle,
   subtitleCss,
 } from '#web/features/playback/subtitleStyle';
-import type { MovieView } from '#web/shared/lib/api';
+import type { MovieView, SubtitleView } from '#web/shared/lib/api';
 
 /** Track language name, or the localized "Unknown" when no code is present. */
 function trackLang(t: Translate, code: string | null): string {
@@ -106,26 +110,47 @@ const EDGES: {
  * the live subtitle-appearance controls. */
 export function AvDrawer({
   item,
+  subs,
   audioTracks,
   audioIndex,
   onPickAudio,
   activeSub,
   onPickSub,
+  onDownloaded,
   subStyle,
   onStyleChange,
   onClose,
 }: Readonly<{
   item: MovieView;
+  /** Embedded + already-downloaded subtitle tracks. */
+  subs: SubtitleView[];
   audioTracks: AudioTrack[];
   audioIndex: number;
   onPickAudio: (index: number) => void;
   activeSub: number | null;
   onPickSub: (index: number | null) => void;
+  /** Called when an online subtitle is downloaded (so the parent merges it in). */
+  onDownloaded: (sub: DownloadedSub) => void;
   subStyle: SubtitleStyle;
   onStyleChange: (next: Partial<SubtitleStyle>) => void;
   onClose: () => void;
 }>) {
   const t = useT();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  // Which subtitle actions the server's providers enable (hide empty buttons).
+  const [caps, setCaps] = useState<SubCapabilities | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    lumaClient()
+      .subtitleCapabilities(item.id)
+      .then((c) => !cancelled && setCaps(c))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
+  const canAi = Boolean(caps?.transcribe || caps?.translate);
   const edgeOptions = EDGES.map((e) => ({ v: e.v, label: t(e.labelKey) }));
   return (
     <>
@@ -170,25 +195,26 @@ export function AvDrawer({
         </div>
 
         <div className={SECTION}>{t('player.subtitles')}</div>
-        <div className="mb-8 flex flex-col gap-2">
+        <div className="mb-3 flex flex-col gap-2">
           <Row
             code="OFF"
             label={t('player.subtitlesOff')}
             active={activeSub == null}
             onClick={() => onPickSub(null)}
           />
-          {item.subs.map((s) => {
+          {subs.map((s) => {
             const selectable = Boolean(s.url);
+            const tag = s.downloaded
+              ? t('player.subDownloaded')
+              : selectable
+                ? s.codec.toUpperCase()
+                : `${s.codec.toUpperCase()} · ${t('player.pictureSub')}`;
             return (
               <Row
                 key={s.index}
                 code={(s.language ?? 'ST').toUpperCase().slice(0, 3)}
-                label={trackLang(t, s.language)}
-                tag={
-                  selectable
-                    ? s.codec.toUpperCase()
-                    : `${s.codec.toUpperCase()} · ${t('player.pictureSub')}`
-                }
+                label={s.downloaded && s.label ? s.label : trackLang(t, s.language)}
+                tag={tag}
                 active={activeSub === s.index}
                 disabled={!selectable}
                 onClick={selectable ? () => onPickSub(s.index) : undefined}
@@ -196,6 +222,33 @@ export function AvDrawer({
             );
           })}
         </div>
+        {/* ---- online subtitle search (only if an OpenSubtitles provider is set) ---- */}
+        {caps?.search ? (
+          <>
+            <button
+              onClick={() => setSearchOpen((v) => !v)}
+              className="mb-3 w-full rounded-xl border border-dashed border-white/15 px-4 py-3 text-[14px] font-semibold text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              {searchOpen ? t('player.subSearchClose') : t('player.subSearchOnline')}
+            </button>
+            {searchOpen ? <SubtitleSearch item={item} onDownloaded={onDownloaded} /> : null}
+          </>
+        ) : null}
+        {/* ---- AI generation (only if a Whisper/translate provider is set) ---- */}
+        {canAi ? (
+          <>
+            <button
+              onClick={() => setAiOpen((v) => !v)}
+              className="mb-3 w-full rounded-xl border border-dashed border-accent/30 px-4 py-3 text-[14px] font-semibold text-accent/90 transition-colors hover:bg-accent/8"
+            >
+              {aiOpen ? t('player.subAiClose') : t('player.subAiGenerate')}
+            </button>
+            {aiOpen ? <SubtitleGenerate item={item} subs={subs} caps={caps} onDownloaded={onDownloaded} /> : null}
+          </>
+        ) : null}
+        {caps && !caps.search && !canAi ? (
+          <p className="mb-3 px-1 text-[12.5px] text-white/40">{t('player.subNoProviders')}</p>
+        ) : null}
 
         {/* ---- subtitle appearance ---- */}
         <div className={SECTION}>{t('player.subAppearance')}</div>

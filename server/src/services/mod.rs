@@ -17,5 +17,6 @@ pub mod sections;
 pub mod quickconnect;
 pub mod playback;
 pub mod settings;
+pub mod subtitles;
 pub mod activity;
 pub mod demo;

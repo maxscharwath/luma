@@ -16,7 +16,7 @@ use crate::services::quickconnect::{self, QuickConnect};
 use crate::services::search::SearchEngine;
 use crate::services::sections::VectorCache;
 use crate::services::settings::Settings;
-use crate::infra::transcode;
+use crate::infra::hls;
 
 pub struct AppState {
     pub config: Config,
@@ -32,9 +32,10 @@ pub struct AppState {
     pub events: Bus,
     /// Live scan/enrichment status snapshot (served at `/api/status`).
     pub activity: activity::Shared,
-    /// On-demand HLS audio-transcode sessions (video copy + AAC) for browsers
-    /// that can't decode the source audio codec.
-    pub transcode: transcode::Sessions,
+    /// On-demand HLS engine: keyframe-indexed complete-VOD playlists + cached
+    /// stream-copy fMP4 segments (video copy, audio copy or AAC) for browsers
+    /// that can't direct-play the container/audio, and seamless language switch.
+    pub hls: hls::HlsEngine,
     /// In-flight Quick Connect device-pairing requests.
     pub quickconnect: QuickConnect,
     /// Live playback sessions (the dashboard's "En cours de lecture" panel).
@@ -61,7 +62,7 @@ pub type SharedState = Arc<AppState>;
 
 impl AppState {
     pub fn new(config: Config, ffprobe_available: bool, db: Pool, settings: Settings) -> SharedState {
-        let transcode = transcode::Sessions::new(&config.data_dir);
+        let hls = hls::HlsEngine::new(&config.data_dir, crate::services::settings::max_transcodes(&settings));
         // Build the job registry: register the built-ins, then overlay any
         // persisted schedule overrides. The cron loop is spawned in `main`.
         let mut jobs = JobManager::new();
@@ -78,7 +79,7 @@ impl AppState {
             metadata_cache: Arc::new(metadata::Cache::new()),
             events: Bus::new(),
             activity: activity::new(),
-            transcode,
+            hls,
             quickconnect: quickconnect::new(),
             playback: Registry::new(),
             metrics: Metrics::new(),

@@ -126,31 +126,27 @@ export function streamUrl(ctx: RequestContext, id: string): string {
   return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/stream`;
 }
 
-/** HLS playlist URL for a per-track audio remux. The server always copies the
- * video stream untouched and either stream-copies the selected audio track
- * (`copy`, preserving surround) or re-encodes it to stereo AAC (`copy=false`,
- * for runtimes that can't decode the source codec). `audioIndex` is the
- * audio-relative track index. The default `a0c0` reproduces the legacy
- * audio-transcode fallback. See {@link planAudio}. Needs hls.js outside Safari. */
-export function hlsAudioUrl(ctx: RequestContext, id: string, audioIndex = 0, copy = false): string {
-  const variant = `a${audioIndex}c${copy ? 1 : 0}`;
-  return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${variant}/index.m3u8`;
-}
-
-/** HLS *master* playlist that carries the video once plus EVERY audio track as
- * an alternate rendition. The player switches language IN PLACE (no reload, the
- * video never moves) the stable way to change audio. Video + audio are
- * stream-copied, so the runtime must natively decode them (see
- * {@link canSeamlessAudioSwitch}). Needs hls.js outside Safari/TV. */
-export function hlsMasterUrl(ctx: RequestContext, id: string, aac = false, startSec = 0): string {
-  // `aac` transcodes every rendition to stereo AAC (for runtimes that can't
-  // decode the source codec, e.g. AC3/EAC3 on Chrome); else stream-copy
-  // (surround preserved, for TV/Safari). `startSec` (-ss) starts the remux at
-  // that position so resume/seek to any offset is instantly available baked
-  // into the path (not a query) so the player's relative segment URLs match the
-  // session. The stream's own timeline restarts at 0; callers add startSec back.
-  const variant = `master.${aac ? 'aac' : 'copy'}.${Math.max(0, Math.round(startSec * 1000))}`;
-  return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${variant}/index.m3u8`;
+/** HLS *master* playlist for one continuous remux: the video once plus EVERY
+ * audio track as an alternate rendition (one per `item.audioTracks` entry, so
+ * rendition T maps to audio-relative index T), so language switches happen IN
+ * PLACE (no reload, the picture never moves). `startSec` (input `-ss`) anchors
+ * the remux at a resume / far seek so it is available in ~1s even over a network
+ * mount; hls.js reports time relative to that anchor, so the client adds it back
+ * for the absolute position. `aac=true` transcodes every rendition to stereo AAC
+ * for runtimes that can't decode the source codec via MSE (AC3/EAC3/DTS on
+ * Chrome/webOS); `aac=false` stream-copies them (surround preserved, for
+ * native-decode clients). Needs hls.js outside Safari/TV. */
+export function hlsMasterUrl(ctx: RequestContext, id: string, aac = false, startSec = 0, audio = 0): string {
+  // One muxed program per (item, mode, ANCHOR, AUDIO). The anchor (input `-ss`)
+  // and the audio-relative track index are both in the PATH, so each seek
+  // position and each language gets its own session with its own child URLs - no
+  // collision, no stale-cache replay. The chosen audio is MUXED into the stream
+  // (hls.js alternate-audio switching was unreliable), so language switch reloads
+  // with a different `audio`. hls.js reports time relative to the anchor; the
+  // client adds it back via the X-Hls-Start header.
+  const anchor = Math.max(0, Math.round(startSec));
+  const a = Math.max(0, Math.round(audio));
+  return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${aac ? 'aac' : 'copy'}/${anchor}/${a}/index.m3u8`;
 }
 
 /** Generated SVG poster URL for a movie/episode. */

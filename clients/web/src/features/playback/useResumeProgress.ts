@@ -48,31 +48,15 @@ export function useResumeProgress(
     };
   }, [client, user, item.id, item.durationMs]);
 
-  // Seek to the saved position once the media is ready, and flash a toast.
+  // Flash the "resumed at …" toast. The actual resume is NOT a seek here: the
+  // player attaches the source already anchored at the saved position (a fresh
+  // attach), so there is no re-anchor that could leave the clock at 0:00.
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v || resumeAt == null) return;
-    let applied = false;
-    const apply = () => {
-      if (applied) return;
-      applied = true;
-      // Seamless: re-`-ss` the stream at resumeAt (instantly available). Direct:
-      // a normal range seek. Either way we land at the real saved position.
-      if (position) position.seekTo(resumeAt);
-      else if (v.currentTime < resumeAt - 2) v.currentTime = resumeAt;
-      setShowResume(true);
-    };
-    if (v.readyState >= 1) apply();
-    else v.addEventListener('loadedmetadata', apply, { once: true });
+    if (resumeAt == null) return;
+    setShowResume(true);
     const hide = setTimeout(() => setShowResume(false), 6000);
-    return () => {
-      clearTimeout(hide);
-      v.removeEventListener('loadedmetadata', apply);
-    };
-    // `position` is read once when resumeAt resolves excluded so a new
-    // position identity can't retrigger the resume seek.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoRef, resumeAt]);
+    return () => clearTimeout(hide);
+  }, [resumeAt]);
 
   // Persist progress: every 10 s while watching, on pause, on close/unmount, and
   // clear it once the item is ~finished (drops it from "Reprendre").

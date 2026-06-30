@@ -1,3 +1,4 @@
+import type { AudioTrack } from '@luma/core';
 import { useT } from '@luma/ui';
 import { type RefObject, useEffect, useState } from 'react';
 import { IconClose } from '#web/features/playback/icons';
@@ -11,14 +12,33 @@ interface ConnLike {
   effectiveType?: string;
 }
 
+/** Format seconds as `H:MM:SS` (or `M:SS`). */
+function clock(s: number): string {
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  const mm = h ? String(m).padStart(2, '0') : String(m);
+  return `${h ? `${h}:` : ''}${mm}:${String(sec).padStart(2, '0')}`;
+}
+
 /** YouTube-style "stats for nerds": codec, decoded vs display resolution, buffer
- * health, dropped frames, average bitrate, connection refreshed live. */
+ * health, dropped frames, average bitrate, connection refreshed live. Plus the
+ * HLS transport state (mode, remux anchor, relative element clock, seekable +
+ * buffered ranges) to diagnose seek / re-anchor behaviour. */
 export function StatsOverlay({
   videoRef,
   item,
   cur,
   dur,
   bufEnd,
+  anchor,
+  baseSec,
+  useHls,
+  aac,
+  audioTracks,
+  audioIndex,
+  hlsRef,
   onClose,
 }: Readonly<{
   videoRef: RefObject<HTMLVideoElement>;
@@ -26,6 +46,19 @@ export function StatsOverlay({
   cur: number;
   dur: number;
   bufEnd: number;
+  /** HLS remux anchor (s, absolute) the stream is started from. */
+  anchor: number;
+  /** Absolute-position offset (= anchor for HLS, 0 for direct). */
+  baseSec: number;
+  /** Playing via the HLS remux (vs direct-play). */
+  useHls: boolean;
+  /** HLS audio is re-encoded to AAC (vs stream-copied). */
+  aac: boolean;
+  /** All audio tracks + the selected one (audio-relative index). */
+  audioTracks: AudioTrack[];
+  audioIndex: number;
+  /** The live hls.js instance, to read the ACTUALLY-playing audio rendition. */
+  hlsRef: { current: import('hls.js').default | null };
   onClose: () => void;
 }>) {
   const t = useT();
@@ -70,20 +103,58 @@ export function StatsOverlay({
       ? (navigator as Navigator & { connection?: ConnLike }).connection
       : undefined) ?? {};
   const vcodec = item.video?.codec?.toUpperCase() ?? '-';
-  const acodec = item.audio?.codec?.toUpperCase() ?? '-';
+  // The SELECTED audio track (matches the menu), not the item default.
+  const selAudio = audioTracks.find((a) => a.index === audioIndex) ?? audioTracks[0];
+  const acodec = selAudio?.codec?.toUpperCase() ?? item.audio?.codec?.toUpperCase() ?? '-';
+  // What hls.js is ACTUALLY playing (its active rendition's language), to catch a
+  // selection ≠ playback mismatch.
+  const hls = hlsRef.current;
+  const hlsTracks = hls?.audioTracks as Array<{ lang?: string; name?: string }> | undefined;
+  const activeAudio =
+    hls && hlsTracks && hls.audioTrack >= 0
+      ? (hlsTracks[hls.audioTrack]?.lang ?? hlsTracks[hls.audioTrack]?.name ?? `#${hls.audioTrack}`)
+      : null;
+
+  // HLS transport: the element clock is RELATIVE to the remux anchor, so show
+  // both the absolute position and the raw relative time + the seekable/buffered
+  // RELATIVE ranges (a gap between ranges = a stall/hole).
+  const rel = v?.currentTime ?? 0;
+  const seekRel = v?.seekable.length ? v.seekable.end(v.seekable.length - 1) : 0;
+  const nRanges = v?.buffered.length ?? 0;
+  let rangeStr = '-';
+  if (v && nRanges > 0) {
+    const parts: string[] = [];
+    for (let i = 0; i < nRanges; i += 1) {
+      parts.push(`${v.buffered.start(i).toFixed(0)}–${v.buffered.end(i).toFixed(0)}`);
+    }
+    rangeStr = parts.join(' ');
+  }
+  const playbackMode = useHls ? `HLS · ${aac ? 'AAC' : 'copy'}` : 'Direct';
 
   const rows: [string, string][] = [
     [t('stats.title2'), item.title],
     [t('stats.id'), item.id],
     [t('stats.container'), item.container.toUpperCase()],
+    [t('stats.playback'), playbackMode],
+    [t('stats.position'), useHls ? `${clock(cur)} · rel ${rel.toFixed(0)}s` : clock(cur)],
+    ...(useHls
+      ? ([
+          [t('stats.anchor'), `${clock(anchor)} (${baseSec.toFixed(0)}s)`],
+          [t('stats.seekable'), `0–${seekRel.toFixed(0)}s`],
+          [t('stats.ranges'), `${nRanges} · ${rangeStr}`],
+        ] as [string, string][])
+      : []),
     [
       t('stats.video'),
       `${vcodec}${item.video?.bitDepth ? ` ${item.video.bitDepth}-bit` : ''}${item.video?.hdr ? ' HDR' : ''}`,
     ],
     [
       t('stats.audio'),
-      `${acodec}${item.audio?.channels ? ` ${item.audio.channels}.0` : ''}${item.audio?.language ? ` (${item.audio.language})` : ''}`,
+      `${acodec}${selAudio?.channels ? ` ${selAudio.channels}.0` : ''}${selAudio?.language ? ` (${selAudio.language})` : ''}`,
     ],
+    ...(useHls && activeAudio
+      ? ([[t('stats.audioActive'), `#${hls?.audioTrack} · ${activeAudio}`]] as [string, string][])
+      : []),
     [t('stats.resolution'), vw && vh ? `${vw}×${vh}` : '-'],
     [t('stats.display'), dw && dh ? `${dw}×${dh} @${dpr}x` : '-'],
     [t('stats.avgBitrate'), avgMbps ? `${avgMbps.toFixed(2)} Mb/s` : '…'],

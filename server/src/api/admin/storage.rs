@@ -24,7 +24,7 @@ pub async fn storage(
     let (volumes, media_bytes, transcode, images, counts) = query(&state.db, move |pool| {
         let volumes = crate::infra::metrics::read_disks();
         let media = db::total_media_bytes(&pool).unwrap_or(0).max(0) as u64;
-        let transcode = dir_stats(&data_dir.join("transcode"));
+        let transcode = dir_stats(&data_dir.join("hls"));
         let images = dir_stats(&data_dir.join("images"));
         let counts = db::metadata_counts(&pool).unwrap_or((0, 0, 0));
         Ok((volumes, media, transcode, images, counts))
@@ -43,7 +43,7 @@ pub async fn storage(
         available_bytes: total.saturating_sub(used),
         media_bytes,
         cache: crate::api::dto::CacheInfo {
-            dir: state.config.data_dir.join("transcode").to_string_lossy().into_owned(),
+            dir: state.config.data_dir.join("hls").to_string_lossy().into_owned(),
             bytes: transcode_bytes + images_bytes,
             limit: state.settings.get_str("cacheLimit", "80 Go"),
             transcode_bytes,
@@ -65,7 +65,7 @@ pub async fn clear_cache(
     super::require(&user, Permission::SettingsManage)?;
     let data_dir = state.config.data_dir.clone();
     let freed = blocking(move || {
-        let transcode = data_dir.join("transcode");
+        let transcode = data_dir.join("hls");
         let images = data_dir.join("images");
         let freed = dir_size(&transcode) + dir_size(&images);
         clear_dir(&transcode);

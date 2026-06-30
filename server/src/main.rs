@@ -137,8 +137,8 @@ async fn main() -> anyhow::Result<()> {
     // applied, so it stays quiet until something actually changes.
     infra::watch::spawn(state.clone(), infra::watch::signature(&data.items, &data.mtimes));
 
-    // Reap idle HLS audio-transcode sessions (ffmpeg children + temp dirs).
-    state.transcode.spawn_reaper();
+    // Reap idle HLS remux sessions (ffmpeg children + temp dirs).
+    state.hls.spawn_reaper();
 
     // Live playback sessions: reap stale heartbeats → append to play history.
     state

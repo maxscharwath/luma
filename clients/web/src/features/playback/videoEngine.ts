@@ -1,10 +1,16 @@
 // The imperative playback engine for the player: the `<video>` element event
-// wiring and the source decision (direct-play vs an HLS audio-transcode / a
-// seamless multi-track master, including hls.js attach + rendition selection).
+// wiring and the source decision (direct-play vs the HLS remux master).
 // `useVideoPlayback` owns the React state/effects and drives these helpers.
+//
+// The HLS master is ONE continuous ffmpeg remux (video copied once, every audio
+// track an alternate rendition), started at an anchor (input `-ss`). hls.js plays
+// it from RELATIVE 0, so the hook reports the absolute position as
+// `anchor + currentTime` (see `baseSec`). Language switches happen IN PLACE (no
+// reload). A seek inside the produced range is native; a seek before the anchor
+// or past the produced edge re-anchors (the parent remounts the <video> with a
+// fresh remux at the target, ready in ~1s).
 
-import type { AudioTrack } from '@luma/core';
-import { audioTracksOf, masterNeedsAac, planAudio, restorePlaybackAfterSwap } from '@luma/core';
+import type { AudioTrack, EngineDecision } from '@luma/core';
 import { lumaClient, type MovieView } from '#web/shared/lib/api';
 
 type HlsInstance = import('hls.js').default;
@@ -15,6 +21,8 @@ export interface VideoPlayback {
   barRef: React.RefObject<HTMLDivElement>;
   playing: boolean;
   waiting: boolean;
+  /** True once the element can play (canplay/loadedmetadata). */
+  ready: boolean;
   cur: number;
   dur: number;
   bufEnd: number;
@@ -22,15 +30,28 @@ export interface VideoPlayback {
   muted: boolean;
   rate: number;
   fs: boolean;
-  /** True when audio is delivered via an HLS remux variant (track switch or
-   * the AAC fallback) rather than plain direct-play. */
+  /** True when audio/video is delivered via the HLS master (hls.js / native HLS)
+   * rather than a plain direct-play `<video src>`. */
   useHls: boolean;
   /** Every audio track, for the picker. */
   audioTracks: AudioTrack[];
-  /** Index of the currently-selected audio track. */
+  /** Index of the currently-selected audio track (audio-relative). */
   audioIndex: number;
   /** Switch to the audio track with this audio-relative index. */
   setAudio: (index: number) => void;
+  /** The HLS remux anchor (s). Used as the `<video>` React key so a resume / far
+   * seek REMOUNTS the element (a guaranteed-fresh hls.js attach, not a flaky
+   * re-attach). 0 = from the start. */
+  anchor: number;
+  /** Absolute-position offset: `absolute = baseSec + video.currentTime`. Equals
+   * the anchor for HLS (hls.js reports relative time), 0 for direct-play. Needed
+   * by overlays that read the raw element clock (e.g. subtitles). */
+  baseSec: number;
+  /** HLS audio is re-encoded to stereo AAC (vs stream-copied). For the stats panel. */
+  aac: boolean;
+  /** The live hls.js instance (or null), so the stats panel can read the actually
+   * -playing audio rendition to diagnose selection-vs-playback mismatches. */
+  hlsRef: { current: HlsInstance | null };
   scrubbing: boolean;
   setScrubbing: (v: boolean) => void;
   /** Previewed absolute position (s) while dragging the bar, else null. */
@@ -43,12 +64,10 @@ export interface VideoPlayback {
   setHover: (h: { x: number; t: number } | null) => void;
   togglePlay: () => void;
   skip: (delta: number) => void;
-  /** Seek to an absolute position in seconds (offset-aware in seamless mode). */
+  /** Seek to an absolute position in seconds. */
   seekTo: (absSec: number) => void;
-  /** Read the absolute current position in seconds (offset-aware). */
+  /** Read the absolute current position in seconds. */
   getPosition: () => number;
-  /** Absolute position where the current stream starts (server -ss offset). */
-  baseSec: number;
   setVol: (val: number) => void;
   toggleMute: () => void;
   applyRate: (r: number) => void;
@@ -68,32 +87,34 @@ export interface MediaEventSetters {
   setVolume: (n: number) => void;
   setMuted: (b: boolean) => void;
   setRate: (n: number) => void;
+  /** Flipped true once the element can actually play (canplay/loadedmetadata),
+   * gating autoplay so we never `play()` an unready/unplayable source. */
+  setReady: (b: boolean) => void;
 }
 
 /**
- * Subscribe the media element's events to the hook's state setters (time /
- * duration / buffer / play-pause / waiting / volume / rate). Returns the
- * unsubscribe cleanup.
+ * Subscribe the media element's events to the hook's state setters and drive a
+ * resilient, ready-gated autoplay. Returns the unsubscribe cleanup.
+ *
+ * `baseSec` is the remux anchor: the HLS session is started with input `-ss
+ * baseSec`, and hls.js NORMALIZES that anchored stream's `currentTime` to start
+ * at 0, so the real (absolute) position is `baseSec + currentTime`. Direct-play
+ * passes 0 (its timeline is already absolute).
  */
 export function bindMediaEvents(
   v: HTMLVideoElement,
   item: MovieView,
-  baseSecRef: { readonly current: number },
   setters: MediaEventSetters,
+  baseSec = 0,
 ): () => void {
-  const { setCur, setDur, setBufEnd, setPlaying, setWaiting, setVolume, setMuted, setRate } =
-    setters;
-  // Real position = stream offset (server -ss base) + element time.
-  const onTime = () => setCur(baseSecRef.current + v.currentTime);
-  // Prefer the catalogue runtime: a per-track HLS remux is a growing event
-  // playlist whose `video.duration` is Infinity/growing, which desyncs the bar.
+  const { setCur, setDur, setBufEnd, setPlaying, setWaiting, setVolume, setMuted, setRate, setReady } = setters;
+  const onTime = () => setCur(baseSec + v.currentTime);
   const onDur = () => {
     const total = item.durationMs ? item.durationMs / 1000 : 0;
     if (total > 0) setDur(total);
-    else if (Number.isFinite(v.duration)) setDur(v.duration);
+    else if (Number.isFinite(v.duration)) setDur(baseSec + v.duration);
   };
-  const onProg = () => setBufEnd(v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0);
-  const onPlay = () => setPlaying(true);
+  const onProg = () => setBufEnd(v.buffered.length ? baseSec + v.buffered.end(v.buffered.length - 1) : 0);
   const onPause = () => setPlaying(false);
   const onWaiting = () => setWaiting(true);
   const onPlaying = () => setWaiting(false);
@@ -102,25 +123,46 @@ export function bindMediaEvents(
     setMuted(v.muted);
   };
   const onRate = () => setRate(v.playbackRate);
+
+  // Ready-gated, resilient autoplay: retry on the media-ready events until
+  // playback actually starts, then stop so we never fight a real user pause.
+  let started = false;
+  const onReady = () => {
+    setReady(true);
+    if (started || !v.paused) return;
+    const p = v.play();
+    if (p && typeof p.then === 'function') p.catch(() => undefined);
+  };
+  const onStarted = () => {
+    started = true;
+    setPlaying(true);
+  };
+
   v.addEventListener('timeupdate', onTime);
   v.addEventListener('durationchange', onDur);
   v.addEventListener('progress', onProg);
-  v.addEventListener('play', onPlay);
+  v.addEventListener('play', onStarted);
   v.addEventListener('pause', onPause);
   v.addEventListener('waiting', onWaiting);
   v.addEventListener('playing', onPlaying);
   v.addEventListener('volumechange', onVol);
   v.addEventListener('ratechange', onRate);
+  v.addEventListener('loadedmetadata', onReady);
+  v.addEventListener('loadeddata', onReady);
+  v.addEventListener('canplay', onReady);
   return () => {
     v.removeEventListener('timeupdate', onTime);
     v.removeEventListener('durationchange', onDur);
     v.removeEventListener('progress', onProg);
-    v.removeEventListener('play', onPlay);
+    v.removeEventListener('play', onStarted);
     v.removeEventListener('pause', onPause);
     v.removeEventListener('waiting', onWaiting);
     v.removeEventListener('playing', onPlaying);
     v.removeEventListener('volumechange', onVol);
     v.removeEventListener('ratechange', onRate);
+    v.removeEventListener('loadedmetadata', onReady);
+    v.removeEventListener('loadeddata', onReady);
+    v.removeEventListener('canplay', onReady);
   };
 }
 
@@ -128,150 +170,93 @@ export function bindMediaEvents(
 export interface AttachSourceOptions {
   v: HTMLVideoElement;
   item: MovieView;
-  seamless: boolean;
-  audioIndex: number;
-  baseSecRef: { readonly current: number };
-  audioIndexRef: { readonly current: number };
+  decision: EngineDecision;
+  /** Use the browser's native HLS (Safari/iOS) instead of hls.js. */
+  useNativeHls: boolean;
+  /** Anchor position (s): the HLS stream is remuxed from here (input `-ss`); the
+   * hook adds it back for the absolute position. For direct-play it is a plain
+   * absolute start seek. 0 = from the start. */
+  startSec: number;
+  /** Audio-relative track index to MUX into the stream (the chosen language). */
+  audioRel: number;
   hlsRef: { current: HlsInstance | null };
   setUseHls: (b: boolean) => void;
+  setReady: (b: boolean) => void;
+}
+
+/** Direct-play resume: seek to the absolute `startSec` once the element has
+ * metadata (direct-play is one continuous, fully-seekable file). */
+function seekToAnchor(v: HTMLVideoElement, startSec: number): void {
+  if (startSec <= 0.5) return;
+  const apply = () => {
+    if (Math.abs(v.currentTime - startSec) > 1) {
+      try {
+        v.currentTime = startSec;
+      } catch {
+        /* not ready yet retried below */
+      }
+    }
+  };
+  if (v.readyState >= 1) apply();
+  else v.addEventListener('loadedmetadata', apply, { once: true });
 }
 
 /**
- * Point the media element at the right source. Seamless mode attaches the HLS
- * master ONCE (audio switches happen in place see {@link applySeamlessRendition}
- * so the source is NOT re-pointed and the picture never moves). Otherwise the
- * source re-attaches per chosen track (direct-play, or a per-track AAC remux for
- * audio this runtime can't decode → reloads on switch). Returns the teardown
- * cleanup and flips `setUseHls`.
+ * Point the media element at the right source: plain direct-play for a compatible
+ * single-audio MP4, otherwise the HLS stream anchored at `startSec` with the
+ * chosen audio (`audioRel`) muxed in. A resume / seek / language change re-attaches
+ * (the parent remounts the element); there is no in-place audio switch.
  */
 export function attachMediaSource(opts: AttachSourceOptions): () => void {
-  const { v, item, seamless, audioIndex, baseSecRef, audioIndexRef, hlsRef, setUseHls } = opts;
+  const { v, item, decision, useNativeHls, startSec, audioRel, hlsRef, setUseHls, setReady } = opts;
+  setReady(false);
 
-  if (seamless) {
-    setUseHls(true);
-    // -ss the master at baseSec so resume/seek to any position is available
-    // immediately (the stream restarts at 0; baseSec is added back for display).
-    const url = lumaClient().hlsMasterUrl(item.id, masterNeedsAac(item), baseSecRef.current);
-    let destroyed = false;
-    if (v.canPlayType('application/vnd.apple.mpegurl')) {
-      v.src = url; // Safari/iOS: native HLS exposes renditions on video.audioTracks
-    } else {
-      void import('hls.js').then(({ default: Hls }) => {
-        if (destroyed) return;
-        if (!Hls.isSupported()) {
-          v.src = url;
-          return;
-        }
-        const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-        hlsRef.current = hls;
-        // A reload (seek/-ss change) recreates hls → it would revert to the
-        // master's default audio. Re-select the user's track once the manifest
-        // is parsed so the chosen language survives seeks. (Live switches are
-        // handled by the in-place effect below.)
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          const order = audioTracksOf(item);
-          const rendition = order.findIndex((t) => t.index === audioIndexRef.current);
-          if (rendition > 0) {
-            try {
-              hls.audioTrack = rendition;
-            } catch {
-              /* ignore */
-            }
-          }
-        });
-        hls.loadSource(url);
-        hls.attachMedia(v);
-      });
-    }
+  if (decision.kind === 'direct') {
+    setUseHls(false);
+    v.src = item.stream;
+    v.preload = 'auto';
+    seekToAnchor(v, startSec);
     return () => {
-      destroyed = true;
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
       v.removeAttribute('src');
       v.load();
     };
   }
 
-  // Non-seamless: per-track remux / direct-play. Re-attaches on track change.
-  const plan = planAudio(item, audioIndex);
-  setUseHls(plan.mode === 'hls');
-
-  // Capture position + play state BEFORE re-pointing the source (assigning the
-  // new src resets currentTime to 0).
-  const resumeAt = v.currentTime || 0;
-  const wasPlaying = !v.paused;
-
-  if (plan.mode === 'direct') {
-    v.src = item.stream; // direct-play: server range-streams the original file
-    return restorePlaybackAfterSwap(v, resumeAt, wasPlaying);
-  }
-
-  // Per-track remux: copy video, copy-or-AAC the chosen audio, delivered as HLS.
-  // Built here (not in the loader) so the route's loader data stays a plain,
-  // SSR-serializable object a function on it breaks Seroval dehydration.
-  const url = lumaClient().hlsAudioUrl(item.id, plan.index, plan.copy);
+  setUseHls(true);
+  // The HLS session is remuxed from `startSec` (server input -ss) with `audioRel`
+  // muxed in. hls.js plays it from RELATIVE 0, and the hook adds `startSec` back
+  // to report the absolute position (bindMediaEvents `baseSec`). No client seek.
+  const url = lumaClient().hlsMasterUrl(item.id, decision.aacMaster, startSec, audioRel);
   let destroyed = false;
-  let hls: HlsInstance | null = null;
 
-  if (v.canPlayType('application/vnd.apple.mpegurl')) {
-    v.src = url;
-  } else {
-    void import('hls.js').then(({ default: Hls }) => {
-      if (destroyed) return;
-      if (!Hls.isSupported()) {
-        v.src = url; // last resort
-        return;
-      }
-      hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-      hls.loadSource(url);
-      hls.attachMedia(v);
-    });
+  if (useNativeHls) {
+    v.src = url; // Safari/iOS: native HLS plays the muxed program
+    v.preload = 'auto';
+    return () => {
+      v.removeAttribute('src');
+      v.load();
+    };
   }
 
-  // Restore the old position once the new source makes it seekable.
-  const restore = restorePlaybackAfterSwap(v, resumeAt, wasPlaying);
+  void import('hls.js').then(({ default: Hls }) => {
+    if (destroyed) return;
+    if (!Hls.isSupported()) {
+      v.src = url;
+      return;
+    }
+    // startPosition 0 = the start of the (relative) anchored stream.
+    const hls = new Hls({ enableWorker: true, lowLatencyMode: false, startPosition: 0 });
+    hlsRef.current = hls;
+    hls.loadSource(url);
+    hls.attachMedia(v);
+  });
+
   return () => {
     destroyed = true;
-    hls?.destroy();
-    restore();
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
     v.removeAttribute('src');
     v.load();
   };
 }
 
-/** Inputs for {@link applySeamlessRendition}. */
-export interface SeamlessRenditionOptions {
-  item: MovieView;
-  audioIndex: number;
-  hlsRef: { current: HlsInstance | null };
-  videoEl: HTMLVideoElement | null;
-}
-
-/**
- * Seamless language switch: select the matching audio rendition IN PLACE no
- * source reload, so the video keeps playing at the same position while the audio
- * rendition swaps.
- */
-export function applySeamlessRendition(opts: SeamlessRenditionOptions): void {
-  const { item, audioIndex, hlsRef, videoEl } = opts;
-  const order = audioTracksOf(item);
-  const rendition = Math.max(
-    0,
-    order.findIndex((t) => t.index === audioIndex),
-  );
-  const hls = hlsRef.current;
-  if (hls) {
-    try {
-      hls.audioTrack = rendition; // hls.js renditions are in playlist order
-    } catch {
-      /* manifest not parsed yet the default rendition is already correct */
-    }
-    return;
-  }
-  // Native HLS (Safari/iOS): toggle the matching audioTracks entry.
-  type NativeAudioTracks = { length: number; [i: number]: { enabled: boolean } };
-  const tracks = (videoEl as unknown as { audioTracks?: NativeAudioTracks } | null)?.audioTracks;
-  if (tracks?.length) {
-    for (let i = 0; i < tracks.length; i += 1) tracks[i]!.enabled = i === rendition;
-  }
-}

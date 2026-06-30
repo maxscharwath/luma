@@ -1,5 +1,5 @@
 import { activeCueText, type Cue, parseVtt } from '@luma/core';
-import { type CSSProperties, memo, type RefObject, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, memo, useEffect, useRef, useState } from 'react';
 
 // 10-foot subtitle styling: large, white, heavy drop-shadow for legibility over
 // any artwork. Fixed (no per-user controls on TV).
@@ -22,12 +22,16 @@ const TV_SUB_CSS: CSSProperties = {
  * when the controls are visible so subtitles are never hidden behind them.
  */
 function TvSubtitlesImpl({
-  videoRef,
+  positionSec,
+  seekNonce,
   rendered,
   activeIndex,
   raised,
 }: Readonly<{
-  videoRef: RefObject<HTMLVideoElement>;
+  /** Absolute playback position (s), from the engine no element coupling. */
+  positionSec: number;
+  /** Bumps on every committed seek so the cue pointer re-anchors. */
+  seekNonce: number;
   rendered: { index: number; url: string | null }[];
   activeIndex: number | null;
   raised: boolean;
@@ -61,33 +65,24 @@ function TvSubtitlesImpl({
     };
   }, [activeUrl]);
 
-  // Sync the active cue to the video clock.
+  // Re-anchor the moving cue pointer after a seek so captions match the new
+  // position immediately (`activeCueText` binary-searches from a reset hint).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-anchor only on the seek signal.
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v || cues.length === 0) {
+    pointer.current = 0;
+  }, [seekNonce]);
+
+  // Sync the active cue to the absolute playback clock (driven by the engine's
+  // position, updated ~4x/s no `<video>` element needed, so AVPlay works too).
+  useEffect(() => {
+    if (cues.length === 0) {
       setText('');
       return;
     }
-
-    let last = '';
-    const update = () => {
-      const { text: t, index } = activeCueText(cues, v.currentTime, pointer.current);
-      pointer.current = index;
-      if (t !== last) {
-        last = t;
-        setText(t);
-      }
-    };
-    v.addEventListener('timeupdate', update);
-    v.addEventListener('seeking', update);
-    v.addEventListener('seeked', update);
-    update();
-    return () => {
-      v.removeEventListener('timeupdate', update);
-      v.removeEventListener('seeking', update);
-      v.removeEventListener('seeked', update);
-    };
-  }, [videoRef, cues]);
+    const { text: t, index } = activeCueText(cues, positionSec, pointer.current);
+    pointer.current = index;
+    setText(t);
+  }, [cues, positionSec]);
 
   if (!text) return null;
 

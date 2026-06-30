@@ -18,16 +18,16 @@ function SubtitleLayerImpl({
   activeIndex,
   style,
   raised,
-  offset = 0,
+  baseSec,
 }: Readonly<{
   videoRef: RefObject<HTMLVideoElement>;
   rendered: SubtitleView[];
   activeIndex: number | null;
   style: SubtitleStyle;
   raised: boolean;
-  /** Absolute-time offset (server -ss base): cues are absolute, the seamless
-   * stream's currentTime is relative, so look up at currentTime + offset. */
-  offset?: number;
+  /** Absolute-position offset: cues are at absolute times but the HLS element
+   * clock is relative to the remux anchor, so look up at `baseSec + currentTime`. */
+  baseSec: number;
 }>) {
   const [cues, setCues] = useState<Cue[]>([]);
   const [text, setText] = useState('');
@@ -72,23 +72,32 @@ function SubtitleLayerImpl({
 
     let last = '';
     const update = () => {
-      const { text: t, index } = activeCueText(cues, v.currentTime + offset, pointer.current);
+      const { text: t, index } = activeCueText(cues, baseSec + v.currentTime, pointer.current);
       pointer.current = index;
       if (t !== last) {
         last = t;
         setText(t);
       }
     };
+    // Re-anchor the moving cue pointer after a seek so captions are correct
+    // immediately at the new position (`activeCueText` binary-searches when the
+    // hint is stale). `seeking` (cancel the now-wrong line) + `seeked` (resync).
+    const reanchor = () => {
+      pointer.current = 0;
+      update();
+    };
     v.addEventListener('timeupdate', update);
-    v.addEventListener('seeking', update);
-    v.addEventListener('seeked', update);
+    v.addEventListener('seeking', reanchor);
+    v.addEventListener('seeked', reanchor);
     update();
     return () => {
       v.removeEventListener('timeupdate', update);
-      v.removeEventListener('seeking', update);
-      v.removeEventListener('seeked', update);
+      v.removeEventListener('seeking', reanchor);
+      v.removeEventListener('seeked', reanchor);
     };
-  }, [videoRef, cues, offset]);
+    // `baseSec` changes on a re-anchor, which REMOUNTS the <video>; re-run so the
+    // listeners bind to the fresh element and use the new offset.
+  }, [videoRef, cues, baseSec]);
 
   if (!text) return null;
 

@@ -24,6 +24,7 @@ import { Route as PersonNameRouteImport } from './routes/person.$name'
 import { Route as MovieIdRouteImport } from './routes/movie.$id'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder'
+import { Route as AdminSubtitlesRouteImport } from './routes/admin.subtitles'
 import { Route as AdminStorageRouteImport } from './routes/admin.storage'
 import { Route as AdminNetworkRouteImport } from './routes/admin.network'
 import { Route as AdminLibrariesRouteImport } from './routes/admin.libraries'
@@ -107,6 +108,11 @@ const AdminTranscoderRoute = AdminTranscoderRouteImport.update({
   path: '/transcoder',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSubtitlesRoute = AdminSubtitlesRouteImport.update({
+  id: '/subtitles',
+  path: '/subtitles',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminStorageRoute = AdminStorageRouteImport.update({
   id: '/storage',
   path: '/storage',
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/admin/libraries': typeof AdminLibrariesRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/storage': typeof AdminStorageRoute
+  '/admin/subtitles': typeof AdminSubtitlesRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
   '/movie/$id': typeof MovieIdRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/admin/libraries': typeof AdminLibrariesRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/storage': typeof AdminStorageRoute
+  '/admin/subtitles': typeof AdminSubtitlesRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
   '/movie/$id': typeof MovieIdRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/admin/libraries': typeof AdminLibrariesRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/storage': typeof AdminStorageRoute
+  '/admin/subtitles': typeof AdminSubtitlesRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
   '/movie/$id': typeof MovieIdRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/network'
     | '/admin/storage'
+    | '/admin/subtitles'
     | '/admin/transcoder'
     | '/admin/users'
     | '/movie/$id'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/network'
     | '/admin/storage'
+    | '/admin/subtitles'
     | '/admin/transcoder'
     | '/admin/users'
     | '/movie/$id'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/network'
     | '/admin/storage'
+    | '/admin/subtitles'
     | '/admin/transcoder'
     | '/admin/users'
     | '/movie/$id'
@@ -411,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTranscoderRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/subtitles': {
+      id: '/admin/subtitles'
+      path: '/subtitles'
+      fullPath: '/admin/subtitles'
+      preLoaderRoute: typeof AdminSubtitlesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/storage': {
       id: '/admin/storage'
       path: '/storage'
@@ -471,6 +490,7 @@ interface AdminRouteChildren {
   AdminLibrariesRoute: typeof AdminLibrariesRoute
   AdminNetworkRoute: typeof AdminNetworkRoute
   AdminStorageRoute: typeof AdminStorageRoute
+  AdminSubtitlesRoute: typeof AdminSubtitlesRoute
   AdminTranscoderRoute: typeof AdminTranscoderRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -484,6 +504,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLibrariesRoute: AdminLibrariesRoute,
   AdminNetworkRoute: AdminNetworkRoute,
   AdminStorageRoute: AdminStorageRoute,
+  AdminSubtitlesRoute: AdminSubtitlesRoute,
   AdminTranscoderRoute: AdminTranscoderRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,

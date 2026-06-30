@@ -5,10 +5,11 @@
 //! live events the edges where LUMA talks to the world outside the process.
 
 pub mod probe;
-pub mod transcode;
+pub mod hls;
 pub mod metadata;
 pub mod embed;
 pub mod llm;
+pub mod whisper;
 pub mod image;
 pub mod theme;
 pub mod stream;

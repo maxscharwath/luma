@@ -15,6 +15,7 @@
     "@luma/core": "workspace:*",
     "@luma/ui": "workspace:*",
     "@tabler/icons-react": "^3.44.0",
+    "hls.js": "^1.5.0",
     "qrcode-generator": "^2.0.4"
   },
   "peerDependencies": {

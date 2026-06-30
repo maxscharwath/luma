@@ -108,6 +108,19 @@ pub(crate) const SCHEMA: &str = "
         PRIMARY KEY (item_id, kind)
     );
 
+    -- Subtitles fetched from an online provider (OpenSubtitles, …), converted to
+    -- WebVTT and cached under <data>/subs/downloaded/. Merged into the item's
+    -- subtitle list so they appear in the player alongside embedded tracks.
+    CREATE TABLE IF NOT EXISTS downloaded_subtitles (
+        id         TEXT PRIMARY KEY,
+        item_id    TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+        language   TEXT,
+        label      TEXT NOT NULL,
+        provider   TEXT NOT NULL,
+        path       TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS users (
         id            TEXT PRIMARY KEY,
         email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -261,6 +274,21 @@ pub(crate) const SCHEMA: &str = "
         reason_en  TEXT,
         updated_at INTEGER NOT NULL
     );
+
+    -- Keyframe-derived HLS segment table per physical file (see infra::hls).
+    -- Computed lazily on the first HLS request and revalidated by mtime/size/
+    -- version; `segments` is a JSON array of [start_us, end_us] keyframe-aligned
+    -- ranges, `v_codec` the cached RFC6381 video codec string for the master.
+    CREATE TABLE IF NOT EXISTS file_segments (
+        file_id     TEXT PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+        mtime       INTEGER,
+        size        INTEGER,
+        version     INTEGER NOT NULL,
+        duration_us INTEGER NOT NULL,
+        v_codec     TEXT,
+        segments    TEXT NOT NULL,
+        updated_at  INTEGER NOT NULL
+    );
 ";
 
 /// Explicit column list for file SELECTs keeps [`super::row_to_file`] index-stable.
@@ -312,6 +340,13 @@ fn migrate(conn: &Connection) {
         // keyword that breaks unquoted SELECT/INSERT. Rename to `casts`. Errors
         // ("no such column") once renamed / on fresh DBs, which we ignore.
         "ALTER TABLE season_meta RENAME COLUMN \"cast\" TO casts",
+        // Keyframe-derived HLS segment tables (infra::hls). `CREATE TABLE IF NOT
+        // EXISTS` is idempotent for DBs created before the table existed.
+        "CREATE TABLE IF NOT EXISTS file_segments (\
+            file_id TEXT PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,\
+            mtime INTEGER, size INTEGER, version INTEGER NOT NULL,\
+            duration_us INTEGER NOT NULL, v_codec TEXT,\
+            segments TEXT NOT NULL, updated_at INTEGER NOT NULL)",
     ] {
         let _ = conn.execute(sql, []);
     }

@@ -1,4 +1,5 @@
-//! Media byte delivery: original-file range streaming, live per-track HLS remux,
+//! Media byte delivery: original-file range streaming, the from-zero HLS remux
+//! (a continuous ffmpeg master + alternate audio renditions, served as it grows),
 //! and on-demand WebVTT subtitle extraction. Responses are media bytes / HLS
 //! playlists, not JSON.
 
@@ -12,6 +13,7 @@ use crate::api::error::json_error;
 use crate::api::util::query;
 use crate::db;
 use crate::infra::stream::stream_or_demo_error;
+use crate::model::MediaItem;
 use crate::state::SharedState;
 
 #[derive(Debug, Deserialize)]
@@ -37,7 +39,7 @@ pub async fn stream_item(
 
 /// Resolve which physical file to stream: an explicit `?file=<id>` when it
 /// belongs to the item, else the item's default/representative file.
-fn pick_file_path(item: &crate::model::MediaItem, file_id: Option<&str>) -> Option<String> {
+fn pick_file_path(item: &MediaItem, file_id: Option<&str>) -> Option<String> {
     if let Some(fid) = file_id {
         if let Some(f) = item.files.iter().find(|f| f.id == fid) {
             return f.abs_path.clone();
@@ -46,135 +48,90 @@ fn pick_file_path(item: &crate::model::MediaItem, file_id: Option<&str>) -> Opti
     item.abs_path.clone()
 }
 
-/// Parse an HLS `variant` path segment of the form `a<idx>c<0|1>` into the
-/// audio-relative track index and the stream-copy flag. `a0c0` is the legacy
-/// default (first track, re-encoded to AAC).
-fn parse_variant(variant: &str) -> Option<(u32, bool)> {
-    let rest = variant.strip_prefix('a')?;
-    let (idx, copy) = rest.split_once('c')?;
-    let idx: u32 = idx.parse().ok()?;
-    let copy = match copy {
-        "0" => false,
-        "1" => true,
-        _ => return None,
-    };
-    Some((idx, copy))
-}
+// ----- HLS: one muxed program per (mode, anchor, audio) -----------------------
 
-/// Parse an HLS *master* `variant`: `master`/`masteraac` (offset 0) or the
-/// positioned form `master.<copy|aac>.<startMs>`. Returns `(transcode_to_aac,
-/// start_seconds)`, or `None` when it's not a master variant (a per-track
-/// `a<idx>c<copy>` instead). The start is baked into the path (not a query) so
-/// the relative segment/rendition URLs the player derives keep the same session.
-fn master_spec(variant: &str) -> Option<(bool, f64)> {
-    let spec = variant.strip_prefix("master")?;
-    if spec.is_empty() {
-        return Some((false, 0.0));
-    }
-    if spec == "aac" {
-        return Some((true, 0.0));
-    }
-    let rest = spec.strip_prefix('.')?; // "<copy|aac>.<startMs>"
-    let mut it = rest.splitn(2, '.');
-    let aac = it.next() == Some("aac");
-    let start_secs = it
-        .next()
-        .and_then(|s| s.parse::<u64>().ok())
-        .map_or(0.0, |ms| ms as f64 / 1000.0);
-    Some((aac, start_secs))
-}
-
-/// `GET /api/items/:id/hls/:variant/index.m3u8` → HLS playlist for a per-track
-/// remux. The video stream is always copied untouched; the audio track named by
-/// `variant` (`a<idx>c<copy>`) is either stream-copied (`c1`, preserves surround)
-/// or re-encoded to stereo AAC (`c0`, for runtimes that can't decode the source
-/// codec). Powers both the audio-track picker and the AC3/EAC3/DTS fallback.
-/// Direct-play stays the default for the first track everywhere it can decode.
-pub async fn hls_playlist(
+/// `GET /api/items/:id/hls/:mode/:anchor/:audio/index.m3u8` (mode = `copy`|`aac`,
+/// anchor = start seconds for input `-ss`, audio = audio-relative track index) →
+/// a single media playlist for video + that ONE audio track, muxed. Each
+/// (anchor, audio) is its OWN session with its OWN child URLs. Language switching
+/// is a reload with a different `audio` (hls.js alternate-audio was unreliable).
+/// Segments are served by [`hls_file`].
+pub async fn hls_master(
     State(state): State<SharedState>,
-    Path((id, variant)): Path<(String, String)>,
-) -> Result<Response, Response> {
-    let id2 = id.clone();
-    let item = query(&state.db, move |pool| db::get_item(&pool, &id2))
-        .await?
-        .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
-    let abs = item
-        .abs_path
-        .clone()
-        .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "no media file for item"))?;
-    let path = std::path::Path::new(&abs);
-    let key = format!("{id}:{variant}");
-
-    // Bound concurrent transcodes (Transcodage → Flux simultanés max) by evicting
-    // the most-idle session rather than rejecting playback: a client's own seeks
-    // spawn a fresh per-position session each time, so a hard 503 would block the
-    // very stream the user is trying to watch. Reusing this key never evicts.
-    if !state.transcode.has(&key).await {
-        let cap = crate::services::settings::max_transcodes(&state.settings);
-        state.transcode.make_room(cap, &key).await;
-    }
-
-    let bytes = if let Some(spec) = master_spec(&variant) {
-        // One stream carrying every audio track as an alternate rendition, so the
-        // client switches language in place (no reload). `aac` re-encodes every
-        // rendition to stereo AAC for runtimes that can't decode the source audio
-        // (e.g. AC3/EAC3 on Chrome); else stream-copy (surround kept). `start_secs`
-        // (-ss) starts the remux at the requested position so resume/seek to any
-        // offset is available immediately, instead of waiting for a from-0 remux.
-        let (aac, start_secs) = spec;
-        let mut tracks: Vec<crate::infra::transcode::MasterTrack> = item
-            .audio_tracks
-            .iter()
-            .map(|a| crate::infra::transcode::MasterTrack {
-                index: a.index,
-                language: a.language.clone(),
-                default: false,
-            })
-            .collect();
-        if tracks.is_empty() {
-            return Err(json_error(StatusCode::BAD_REQUEST, "item has no audio tracks for a master playlist"));
-        }
-        // Exactly one default rendition: the container default, else the first.
-        let def = item.audio_tracks.iter().position(|a| a.default).unwrap_or(0);
-        tracks[def].default = true;
-        state.transcode.master(&key, path, &tracks, aac, start_secs).await
-    } else {
-        let (audio_idx, copy) = parse_variant(&variant)
-            .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, "bad hls variant"))?;
-        state.transcode.playlist(&key, path, audio_idx, copy).await
-    };
-
-    let resp = match bytes {
-        Some(bytes) => Response::builder()
-            .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
-            .header(header::CACHE_CONTROL, "no-store")
-            .body(Body::from(bytes))
-            .unwrap(),
-        None => json_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "audio remux unavailable (is ffmpeg installed?)",
-        ),
-    };
-    Ok(resp)
-}
-
-/// `GET /api/items/:id/hls/:variant/:file` → an init fragment or media segment
-/// for a live per-track remux session. A refreshed playlist (`index.m3u8`) is
-/// also served here as the `event` playlist grows.
-pub async fn hls_segment(
-    State(state): State<SharedState>,
-    Path((id, variant, file)): Path<(String, String, String)>,
+    Path((id, mode, anchor, audio)): Path<(String, String, u64, u32)>,
 ) -> Response {
-    let key = format!("{id}:{variant}");
-    match state.transcode.file(&key, &file).await {
-        Some((bytes, content_type)) => Response::builder()
-            .header(header::CONTENT_TYPE, content_type)
-            .header(header::CACHE_CONTROL, "no-store")
+    let Some(aac) = parse_mode(&mode) else {
+        return json_error(StatusCode::BAD_REQUEST, "bad mode");
+    };
+    let Some(item) = load_item(&state, id).await else {
+        return json_error(StatusCode::NOT_FOUND, "item not found");
+    };
+    let Some(abs) = item.abs_path.clone() else {
+        return json_error(StatusCode::NOT_FOUND, "no media file for item");
+    };
+    match state.hls.master(&item.id, &abs, audio, aac, anchor).await {
+        // `X-Hls-Start` is the REAL start (keyframe at-or-before the requested
+        // anchor) - the client reads it for `baseSec` so the clock/subtitles stay
+        // aligned with the A/V (which `-noaccurate_seek` starts at that keyframe).
+        Some((body, start)) => {
+            let mut resp = playlist_response(body);
+            if let Ok(v) = header::HeaderValue::from_str(&format!("{start:.3}")) {
+                resp.headers_mut().insert("X-Hls-Start", v);
+            }
+            resp
+        }
+        None => json_error(StatusCode::INTERNAL_SERVER_ERROR, "HLS remux unavailable (is ffmpeg installed?)"),
+    }
+}
+
+/// `GET /api/items/:id/hls/:mode/:anchor/:audio/:file` → a child file (init or
+/// media segment) of the `(mode, anchor, audio)` session. A not-yet-produced
+/// segment is polled for until ffmpeg flushes it.
+pub async fn hls_file(
+    State(state): State<SharedState>,
+    Path((id, mode, anchor, audio, file)): Path<(String, String, u64, u32, String)>,
+) -> Response {
+    let Some(aac) = parse_mode(&mode) else {
+        return json_error(StatusCode::BAD_REQUEST, "bad mode");
+    };
+    let immutable = !file.ends_with(".m3u8"); // segments/init are fixed per anchor; playlists grow
+    match state.hls.file(&id, aac, anchor, audio, &file).await {
+        Some((bytes, ct)) => Response::builder()
+            .header(header::CONTENT_TYPE, ct)
+            // Each anchor's URLs are unique, so a segment's bytes never change →
+            // safe to cache immutably. Playlists grow (event) → no-store.
+            .header(
+                header::CACHE_CONTROL,
+                if immutable { "public, max-age=31536000, immutable" } else { "no-store" },
+            )
             .body(Body::from(bytes))
             .unwrap(),
         None => json_error(StatusCode::NOT_FOUND, "segment not found (session expired?)"),
     }
 }
+
+async fn load_item(state: &SharedState, id: String) -> Option<MediaItem> {
+    query(&state.db, move |pool| db::get_item(&pool, &id)).await.ok().flatten()
+}
+
+/// `copy` → `false` (stream-copy), `aac` → `true` (transcode to stereo AAC).
+fn parse_mode(mode: &str) -> Option<bool> {
+    match mode {
+        "copy" => Some(false),
+        "aac" => Some(true),
+        _ => None,
+    }
+}
+
+fn playlist_response(body: String) -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::from(body))
+        .unwrap()
+}
+
+// ----- Subtitles --------------------------------------------------------------
 
 /// `GET /api/items/:id/subtitles/:track` → extract an embedded **text** subtitle
 /// stream to WebVTT via ffmpeg, for the custom client renderer. `track` is the
@@ -198,20 +155,55 @@ pub async fn subtitles(
         return json_error(StatusCode::NOT_FOUND, "no media file for item");
     };
 
+    // Disk cache: extracting a text subtitle reads the WHOLE file (cues are
+    // interleaved throughout), which is slow over a network mount - so do it ONCE
+    // per (file, mtime, track) and serve the cached WebVTT instantly thereafter.
+    let cache = subs_cache_path(&state.config.data_dir, &abs, index);
+    if let Ok(bytes) = tokio::fs::read(&cache).await {
+        return vtt_response(bytes);
+    }
     match extract_webvtt(&abs, index).await {
-        Some(bytes) => Response::builder()
-            .header(header::CONTENT_TYPE, "text/vtt; charset=utf-8")
-            .header(header::CACHE_CONTROL, "public, max-age=86400")
-            .body(Body::from(bytes))
-            .unwrap(),
+        Some(bytes) => {
+            if let Some(dir) = cache.parent() {
+                let _ = tokio::fs::create_dir_all(dir).await;
+                let _ = tokio::fs::write(&cache, &bytes).await;
+            }
+            vtt_response(bytes)
+        }
         None => json_error(StatusCode::NOT_FOUND, "subtitle unavailable (image-based or missing)"),
     }
 }
 
-/// Max wall-clock for a single subtitle extraction. A stalled ffmpeg (slow or
-/// disconnected mount, a pathological stream) is killed rather than pinning a
-/// worker forever.
-const SUBTITLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+fn vtt_response(bytes: Vec<u8>) -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/vtt; charset=utf-8")
+        .header(header::CACHE_CONTROL, "public, max-age=86400")
+        .body(Body::from(bytes))
+        .unwrap()
+}
+
+/// `<data>/subs/<hash>.vtt`, keyed by file path + mtime + track index so a
+/// replaced file re-extracts and each track caches independently.
+fn subs_cache_path(data_dir: &std::path::Path, abs: &str, index: usize) -> std::path::PathBuf {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    abs.hash(&mut h);
+    index.hash(&mut h);
+    let mtime = std::fs::metadata(abs)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    mtime.hash(&mut h);
+    data_dir.join("subs").join(format!("{:016x}.vtt", h.finish()))
+}
+
+/// Max wall-clock for a single subtitle extraction. Extracting a text track reads
+/// the WHOLE file (cues are interleaved), which on a multi-GB film over a network
+/// mount - especially while HLS remuxes compete for it - can take a minute or two.
+/// Generous so it completes (and caches); a truly stalled mount is still killed.
+const SUBTITLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(150);
 
 /// Run ffmpeg to transcode subtitle stream `index` to WebVTT (text subs only),
 /// bounded by [`SUBTITLE_TIMEOUT`]. Uses `tokio::process` directly (no
@@ -239,4 +231,17 @@ async fn extract_webvtt(path: &str, index: usize) -> Option<Vec<u8>> {
     } else {
         None
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_mode_variants() {
+        assert_eq!(parse_mode("copy"), Some(false));
+        assert_eq!(parse_mode("aac"), Some(true));
+        assert_eq!(parse_mode("bogus"), None);
+    }
+
 }

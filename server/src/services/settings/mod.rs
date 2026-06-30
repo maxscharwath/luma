@@ -20,8 +20,10 @@ mod accessors;
 mod llm;
 mod schema;
 mod store;
+mod subtitle_providers;
 
 pub use accessors::*;
 pub use llm::*;
 pub use schema::*;
 pub use store::*;
+pub use subtitle_providers::*;

@@ -3,7 +3,7 @@
 
 import type { MessageKey, TVars } from '../i18n';
 import type { AudioTrack, MediaItem } from '../types';
-import { type PlaybackCapabilities, capabilities } from './capabilities';
+import { type AudioCapabilities, type PlaybackCapabilities, capabilities } from './capabilities';
 
 export interface DirectPlayVerdict {
   /** True when the client can directly decode this item's video codec. */
@@ -132,43 +132,218 @@ export function masterNeedsAac(
   );
 }
 
-/** How to play a chosen audio track. */
-export interface AudioPlan {
-  /** `direct` = plain `<video src=stream>`; `hls` = the per-track remux variant. */
-  mode: 'direct' | 'hls';
-  /** Audio-relative index of the resolved track. */
+// ----- stable audio identity + reordering-robust resolver --------------------
+
+/**
+ * A STABLE identity for an audio track, decoupled from its display position.
+ * Track selection must key off this (never the array order), because the server
+ * can serve `item.audioTracks` in a different order than the player last saw, so
+ * a positional index would silently select the wrong language after a reorder.
+ */
+export interface AudioTrackId {
+  /** Audio-relative stream index (`-map 0:a:<index>`). */
   index: number;
-  /** When `mode === 'hls'`: stream-copy the track (true) or re-encode to AAC. */
-  copy: boolean;
+  language: string | null;
+  title: string | null;
+  channels: number | null;
+}
+
+/** The stable {@link AudioTrackId} of an audio track. */
+export function audioTrackId(t: AudioTrack): AudioTrackId {
+  return {
+    index: t.index,
+    language: t.language ?? null,
+    title: t.title ?? null,
+    channels: t.channels ?? null,
+  };
+}
+
+/** Whether a track agrees with `want` on every identity field (not just index). */
+function sameIdentity(t: AudioTrack, want: AudioTrackId): boolean {
+  return (
+    (t.language ?? null) === want.language &&
+    (t.title ?? null) === want.title &&
+    (t.channels ?? null) === want.channels
+  );
+}
+
+/** Score how well `t` matches `want`: language dominates, then channels, then
+ * title. 0 = nothing in common. */
+function scoreMatch(t: AudioTrack, want: AudioTrackId): number {
+  let s = 0;
+  const lang = t.language ?? null;
+  if (want.language != null && lang != null) {
+    if (lang.toLowerCase() === want.language.toLowerCase()) s += 100;
+  } else if (want.language == null && lang == null) {
+    s += 20; // both unknown language: weak agreement
+  }
+  if (want.channels != null && t.channels != null && t.channels === want.channels) s += 10;
+  const tt = (t.title ?? '').trim().toLowerCase();
+  const wt = (want.title ?? '').trim().toLowerCase();
+  if (wt && tt && tt === wt) s += 5;
+  return s;
 }
 
 /**
- * Decide how to deliver audio track `index` for an item, given the runtime.
+ * Resolve a wanted audio identity to the **audio-relative index** to select
+ * (i.e. what `hls.audioTrack` / a Safari `video.audioTracks` slot expects, since
+ * the master's renditions are keyed by `-map 0:a:<index>`). Robust to the track
+ * list being reordered:
  *
- *  - The first track, when this runtime can decode it, plays via plain
- *    direct-play (`mode: 'direct'`) no server work, exactly today's behaviour.
- *  - Any other track (or a first track the runtime can't decode) goes through
- *    the server's per-track HLS remux. We stream-copy when the codec is both
- *    decodable here and fMP4-copy-safe (surround preserved); otherwise we
- *    re-encode to stereo AAC so there's always sound.
- *  - When the video itself can't direct-play, the remux can't help (the client
- *    couldn't decode the copied video either), so we leave it on direct-play and
- *    let the caller surface the unsupported-codec warning.
+ *  1. exact index match, if that track ALSO agrees on language+title+channels;
+ *  2. else the best match by (language, then channels, then title);
+ *  3. else the container's default track, else the first track, else 0.
+ *
+ * So tracks served as `[EN 5.1, FR 5.1, FR-commentary 2.0]` then reordered to
+ * `[FR 5.1, EN 5.1, FR-commentary]` still resolve the commentary id (fr,
+ * "Commentary", 2ch) to the commentary track.
  */
-export function planAudio(
-  item: MediaItem,
-  index: number,
-  caps: PlaybackCapabilities = capabilities(),
-): AudioPlan {
+export function resolveAudioRelativeIndex(tracks: AudioTrack[], want: AudioTrackId): number {
+  if (tracks.length === 0) return 0;
+
+  const exact = tracks.find((t) => t.index === want.index);
+  if (exact && sameIdentity(exact, want)) return exact.index;
+
+  let best: AudioTrack | null = null;
+  let bestScore = 0;
+  for (const t of tracks) {
+    const s = scoreMatch(t, want);
+    if (s > bestScore) {
+      bestScore = s;
+      best = t;
+    }
+  }
+  if (best) return best.index;
+
+  const def = tracks.find((t) => t.default);
+  return def?.index ?? tracks[0]?.index ?? 0;
+}
+
+// ----- per-engine decode profiles --------------------------------------------
+// The platform `capabilities()` describes one runtime, but a single client can
+// reach the media through different *engines* (a plain `<video>` element, MSE /
+// hls.js, native HLS, or a TV's native decoder) that decode different codecs. We
+// pick the master variant per ENGINE, not per platform, so `masterNeedsAac`
+// answers correctly for the engine actually playing the stream.
+
+const MSE_AUDIO: AudioCapabilities = {
+  aac: true,
+  ac3: false, // Chromium/webOS MSE cannot decode AC3/EAC3/DTS
+  eac3: false,
+  dts: false,
+  truehd: false,
+  flac: true,
+  opus: true,
+  mp3: true,
+  vorbis: true,
+};
+
+/** Chromium MSE (hls.js on Chrome/Firefox/webOS): decodes the video codecs but
+ * NOT AC3/EAC3/DTS audio, so those masters must be AAC. */
+export const MSE_CAPS: PlaybackCapabilities = {
+  hevc: true,
+  hevc10bit: true,
+  h264: true,
+  av1: true,
+  vp9: true,
+  hdr: false,
+  audio: MSE_AUDIO,
+  source: 'mediaSource',
+};
+
+/** Safari native HLS: like {@link MSE_CAPS} but AC3/EAC3 decode natively, so
+ * surround masters can be stream-copied. */
+export const SAFARI_CAPS: PlaybackCapabilities = {
+  ...MSE_CAPS,
+  audio: { ...MSE_AUDIO, ac3: true, eac3: true },
+  source: 'videoElement',
+};
+
+const TV_AUDIO: AudioCapabilities = {
+  aac: true,
+  ac3: true,
+  eac3: true,
+  dts: true,
+  truehd: true,
+  flac: true,
+  opus: true,
+  mp3: true,
+  vorbis: true,
+};
+
+/** Native TV decoder (AVPlay / native `<video>` on Tizen/webOS): decodes
+ * everything, so masters can be stream-copied (surround preserved). */
+export const NATIVE_TV_CAPS: PlaybackCapabilities = {
+  hevc: true,
+  hevc10bit: true,
+  h264: true,
+  av1: false,
+  vp9: true,
+  hdr: true,
+  audio: TV_AUDIO,
+  source: 'platform-tv',
+};
+
+// ----- engine selection ------------------------------------------------------
+
+export type PlayerEngineKind = 'direct' | 'web-mse' | 'tizen-avplay' | 'webos';
+
+export interface PlayEnv {
+  platform: 'web' | 'tizen' | 'webos';
+  safari: boolean;
+}
+
+export interface EngineDecision {
+  kind: PlayerEngineKind;
+  /** When the chosen engine plays the HLS master, whether to request the AAC
+   * variant (`?aac=1`) rather than stream-copy (`?aac=0`). */
+  aacMaster: boolean;
+}
+
+const MP4_CONTAINERS = new Set(['mp4', 'mov', 'm4v', 'm4a', 'isom']);
+
+/** A plain, single-audio MP4 whose video + default audio direct-play under
+ * `caps`: the only shape we point a bare `<video src>` at (anything else, e.g.
+ * MKV or multi-audio, goes through the HLS master so audio renditions and
+ * seeking stay reliable). */
+function plainCompatibleMp4(item: MediaItem, caps: PlaybackCapabilities): boolean {
+  const container = (item.container ?? '').toLowerCase();
+  if (!MP4_CONTAINERS.has(container)) return false;
+  if (!canDirectPlay(item, caps).canDirectPlay) return false;
   const tracks = audioTracksOf(item);
-  const track = tracks.find((t) => t.index === index) ?? tracks[0];
-  const idx = track?.index ?? 0;
-  const codec = track?.codec;
-  const canDecode = canDecodeAudioCodec(codec, caps);
+  if (tracks.length !== 1) return false;
+  const def = tracks.find((t) => t.default) ?? tracks[0];
+  return canDecodeAudioCodec(def?.codec, caps);
+}
 
-  if (!canDirectPlay(item, caps).canDirectPlay) return { mode: 'direct', index: 0, copy: false };
-  if (idx === 0 && canDecode) return { mode: 'direct', index: 0, copy: false };
-
-  const copy = canDecode && !!codec && FMP4_COPY_CODECS.has(codec);
-  return { mode: 'hls', index: idx, copy };
+/**
+ * Pick the playback engine (and master variant) for an item in an environment.
+ * Pure so it is fully unit-tested.
+ *
+ *  - web: `direct` only for a plain compatible single-audio MP4 (and, off
+ *    Safari, only an h264 video a bare Chrome/Firefox `<video>` cannot reliably
+ *    direct-play HEVC); everything else is `web-mse` with the master variant
+ *    chosen by `masterNeedsAac` under Safari/MSE caps.
+ *  - tizen: `tizen-avplay` (native decode, so `aacMaster=false`).
+ *  - webos: `direct` for a plain compatible MP4, else `webos` forcing the AAC
+ *    master (its MSE path cannot decode AC3/EAC3).
+ */
+export function selectEngine(item: MediaItem, env: PlayEnv): EngineDecision {
+  if (env.platform === 'tizen') {
+    // TODO(avplay): a native `webapis.avplay` backend would decode AC3/EAC3
+    // surround for stream-copy masters (aacMaster=false). Until it lands the TV
+    // plays the master through hls.js (MSE), which the engine layer feeds the
+    // AAC variant; this decision records the native-decode intent.
+    return { kind: 'tizen-avplay', aacMaster: false };
+  }
+  if (env.platform === 'webos') {
+    if (plainCompatibleMp4(item, NATIVE_TV_CAPS)) return { kind: 'direct', aacMaster: false };
+    return { kind: 'webos', aacMaster: true };
+  }
+  const caps = env.safari ? SAFARI_CAPS : MSE_CAPS;
+  // A bare `<video>` element direct-plays HEVC only on Safari; on Chrome/Firefox
+  // HEVC (and the rest) must go through hls.js even when MSE can decode it.
+  const videoDirectOk = env.safari || item.video?.codec === 'h264';
+  if (videoDirectOk && plainCompatibleMp4(item, caps)) return { kind: 'direct', aacMaster: false };
+  return { kind: 'web-mse', aacMaster: masterNeedsAac(item, caps) };
 }

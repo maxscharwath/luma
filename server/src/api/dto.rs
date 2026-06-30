@@ -226,6 +226,37 @@ pub struct LlmProviderView {
     pub reasoning: bool,
 }
 
+/// Online-subtitle provider config for the admin "Subtitles" page. Secrets (API
+/// key / password) are never returned only whether each is set.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SubtitleProvidersConfig {
+    /// Id of the provider used for search/download (falls back to the first).
+    pub default_id: String,
+    pub providers: Vec<SubtitleProviderView>,
+    /// Whether in-process Whisper (`whisper-local` feature) is compiled into this
+    /// server build the UI only offers the local-Whisper kind when true.
+    pub whisper_local: bool,
+}
+
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SubtitleProviderView {
+    pub id: String,
+    pub name: String,
+    /// `"opensubtitles"` | `"whisper"` | `"whisperLocal"` | `"translate"`.
+    pub kind: String,
+    /// Whisper endpoint / whisper.cpp binary path (non-secret).
+    pub base_url: String,
+    /// Whisper model name / GGUF model path (non-secret).
+    pub model: String,
+    pub username: String,
+    pub has_api_key: bool,
+    pub has_password: bool,
+}
+
 /// One ranked result of `GET /api/search` a `type`-tagged union so the client
 /// can switch on it (`movie`/`episode` carry a `MediaItem`, `show` a `Show`).
 #[derive(Serialize, TS)]

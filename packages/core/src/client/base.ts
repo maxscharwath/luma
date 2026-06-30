@@ -29,6 +29,17 @@ export class LumaApiError extends Error {
   }
 }
 
+/** The human-facing message for a thrown request error: the server's `{ error }`
+ * text when present (far more useful than the generic "GET … failed (400)"),
+ * otherwise the provided localized `fallback`. */
+export function apiErrorText(e: unknown, fallback: string): string {
+  if (e instanceof LumaApiError && e.body && typeof e.body === 'object') {
+    const msg = (e.body as { error?: unknown }).error;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  }
+  return fallback;
+}
+
 /** The request plumbing a domain module needs: the resolved server origin, the
  * raw fetch (for non-JSON endpoints like logs) and the authed JSON helper. */
 export interface RequestContext {

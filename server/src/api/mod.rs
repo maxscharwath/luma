@@ -19,6 +19,7 @@ mod people;
 mod pin;
 mod recommend;
 mod search;
+mod online_subs;
 mod stream;
 mod suggest;
 mod themes;
@@ -50,14 +51,20 @@ pub fn router(state: SharedState) -> Router {
         .route("/shows/:id/metadata", get(metadata::show_metadata))
         .route("/items/:id", get(media::get_item))
         .route("/items/:id/stream", get(stream::stream_item))
-        .route("/items/:id/hls/:variant/index.m3u8", get(stream::hls_playlist))
-        .route("/items/:id/hls/:variant/:file", get(stream::hls_segment))
+        .route("/items/:id/hls/:mode/:anchor/:audio/index.m3u8", get(stream::hls_master))
+        .route("/items/:id/hls/:mode/:anchor/:audio/:file", get(stream::hls_file))
         .route("/items/:id/poster", get(images::item_poster))
         .route("/items/:id/card", get(images::item_card))
         .route("/items/:id/metadata", get(metadata::item_metadata))
         .route("/items/:id/similar", get(recommend::similar))
         .route("/items/:id/ai-suggest", get(suggest::ai_suggest))
         .route("/themed", get(recommend::themed))
+        .route("/items/:id/subtitles/search", get(online_subs::search))
+        .route("/items/:id/subtitles/download", post(online_subs::download))
+        .route("/items/:id/subtitles/generate", post(online_subs::generate))
+        .route("/items/:id/subtitles/capabilities", get(online_subs::capabilities))
+        .route("/items/:id/subtitles/downloaded", get(online_subs::list))
+        .route("/items/:id/subtitles/dl/:dl", get(online_subs::file))
         .route("/items/:id/subtitles/:track", get(stream::subtitles))
         .route("/images/:name", get(images::image))
         .route("/themes/:name", get(themes::theme))
@@ -123,6 +130,8 @@ pub fn router(state: SharedState) -> Router {
         .route("/admin/llm", get(admin::get_llm).put(admin::save_llm))
         .route("/admin/llm/models", post(admin::llm_models))
         .route("/admin/llm/test", post(admin::test_llm))
+        .route("/admin/subtitles", get(admin::get_subtitles).put(admin::save_subtitles))
+        .route("/admin/subtitles/test", post(admin::test_subtitles))
         .route("/admin/storage", get(admin::storage))
         .route("/admin/cache/clear", post(admin::clear_cache))
         .route("/admin/cache/reset-metadata", post(admin::reset_metadata))
