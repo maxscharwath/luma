@@ -75,6 +75,30 @@ export function resetMetadata(ctx: RequestContext): Promise<{ items: number; sho
   });
 }
 
+// ----- library folder browser -------------------------------------------------
+
+/** One directory entry returned by the server-side folder browser. */
+export interface AdminFsEntry {
+  name: string;
+  path: string;
+}
+
+/** A directory listing for the library folder picker: the current absolute
+ *  `path`, its `parent` (null at a root), and its immediate subdirectories. */
+export interface AdminFsList {
+  path: string;
+  parent: string | null;
+  entries: AdminFsEntry[];
+}
+
+/** Browse server-side directories for the library folder picker. An empty/absent
+ *  `path` returns the roots (NAS volumes, or `/` in dev). Requires an admin
+ *  capability. */
+export function adminBrowseFolders(ctx: RequestContext, path?: string): Promise<AdminFsList> {
+  const qs = path ? `?path=${encodeURIComponent(path)}` : '';
+  return ctx.json<AdminFsList>(`/admin/libraries/browse${qs}`);
+}
+
 /** Full member list (requires `users.manage`). */
 export function adminUsers(ctx: RequestContext): Promise<AdminUsers> {
   return ctx.json<AdminUsers>('/admin/users');

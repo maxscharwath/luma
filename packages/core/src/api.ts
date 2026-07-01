@@ -42,7 +42,6 @@ import type {
   PublicUser,
   QuickConnectInit,
   QuickConnectStatus,
-  ScanResult,
   SearchResponse,
   Section,
   ServerInfo,
@@ -67,6 +66,7 @@ export type {
   SubtitleGeneration,
 } from './client/subtitles';
 export type { StoryboardManifest } from './client/media';
+export type { AdminFsEntry, AdminFsList } from './client/admin';
 
 /** Thin typed client over the LUMA server REST API. Shared by every client shell.
  *
@@ -165,7 +165,7 @@ export class LumaClient {
   personCredits(name: string, opts?: { libraryId?: string }): Promise<PersonResponse> {
     return media.personCredits(this.ctx, name, opts);
   }
-  scan(): Promise<ScanResult> {
+  scan(): Promise<{ runId: string }> {
     return media.scan(this.ctx);
   }
   status(): Promise<Activity> {
@@ -363,7 +363,7 @@ export class LumaClient {
   }
   updateLibrary(
     id: string,
-    patch: { name?: string; folders?: string[]; autoScan?: boolean },
+    patch: { name?: string; kind?: string; folders?: string[]; autoScan?: boolean },
   ): Promise<void> {
     return library.updateLibrary(this.ctx, id, patch);
   }
@@ -372,6 +372,11 @@ export class LumaClient {
   }
   scanLibrary(id: string): Promise<void> {
     return library.scanLibrary(this.ctx, id);
+  }
+  /** Browse server-side directories for the library folder picker (roots when
+   *  `path` is empty/absent). */
+  adminBrowseFolders(path?: string): Promise<admin.AdminFsList> {
+    return admin.adminBrowseFolders(this.ctx, path);
   }
 
   // ----- admin: console -------------------------------------------------------

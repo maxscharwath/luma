@@ -99,32 +99,51 @@ fn default_true() -> bool {
 }
 
 /// The effective library definitions: persisted defs if present, else seeded
-/// one-per-folder from the env-configured media dirs.
+/// from the env-configured media dirs. Seeding prefers the typed
+/// `LUMA_MOVIES_DIRS` / `LUMA_SERIES_DIRS` roots (one "Films" / "Séries" library
+/// each) and always keeps the untyped one-per-folder `LUMA_MEDIA_DIRS` seed for
+/// backward compatibility.
 pub fn library_defs(settings: &Settings, config: &crate::config::Config) -> Vec<LibraryDef> {
     if let Value::Array(_) = settings.get("libraries") {
         if let Ok(defs) = serde_json::from_value::<Vec<LibraryDef>>(settings.get("libraries")) {
             return defs;
         }
     }
-    config
-        .media_dirs
-        .iter()
-        .map(|dir| {
-            let path = dir.to_string_lossy().to_string();
-            let name = dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("Bibliothèque")
-                .to_string();
-            LibraryDef {
-                id: crate::services::scan::short_hash(&path),
-                name,
-                kind: String::new(),
-                folders: vec![path],
-                auto_scan: true,
-            }
-        })
-        .collect()
+    let mut defs = Vec::new();
+    if !config.movies_dirs.is_empty() {
+        defs.push(LibraryDef {
+            id: crate::services::scan::short_hash("lib|movies"),
+            name: "Films".to_string(),
+            kind: "movies".to_string(),
+            folders: config.movies_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect(),
+            auto_scan: true,
+        });
+    }
+    if !config.series_dirs.is_empty() {
+        defs.push(LibraryDef {
+            id: crate::services::scan::short_hash("lib|shows"),
+            name: "Séries".to_string(),
+            kind: "shows".to_string(),
+            folders: config.series_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect(),
+            auto_scan: true,
+        });
+    }
+    defs.extend(config.media_dirs.iter().map(|dir| {
+        let path = dir.to_string_lossy().to_string();
+        let name = dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Bibliothèque")
+            .to_string();
+        LibraryDef {
+            id: crate::services::scan::short_hash(&path),
+            name,
+            kind: String::new(),
+            folders: vec![path],
+            auto_scan: true,
+        }
+    }));
+    defs
 }
 
 /// Persist the full set of library definitions.

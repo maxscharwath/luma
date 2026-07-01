@@ -7,7 +7,6 @@ import type {
   MediaItem,
   Metadata,
   PersonResponse,
-  ScanResult,
   SearchResponse,
   Section,
   Show,
@@ -102,8 +101,8 @@ export function personCredits(
   return ctx.json<PersonResponse>(`/people?${params.toString()}`);
 }
 
-export function scan(ctx: RequestContext): Promise<ScanResult> {
-  return ctx.json<ScanResult>('/scan', { method: 'POST' });
+export function scan(ctx: RequestContext): Promise<{ runId: string }> {
+  return ctx.json<{ runId: string }>('/scan', { method: 'POST' });
 }
 
 /** Live scan/enrichment status snapshot. */

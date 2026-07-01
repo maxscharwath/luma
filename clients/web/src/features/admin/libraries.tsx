@@ -20,7 +20,14 @@ import {
   usePoll,
 } from '#web/features/admin/shell';
 import { Card } from '#web/features/admin/ui';
-import { AddLibraryModal, ManageLibraryModal } from '#web/features/admin/librariesModals';
+import { FolderPicker } from '#web/features/admin/FolderPicker';
+import {
+  AddLibraryModal,
+  type LibKind,
+  LibraryTypeSelect,
+  ManageLibraryModal,
+  normalizeLibKind,
+} from '#web/features/admin/librariesModals';
 import { formatBytes, relativeSeen } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
 
@@ -113,6 +120,10 @@ function LibraryCard({
     await client.updateLibrary(lib.id, { folders: lib.folders.filter((p) => p !== path) });
     onChanged();
   }
+  async function changeKind(k: LibKind) {
+    await client.updateLibrary(lib.id, { kind: k });
+    onChanged();
+  }
   async function scan() {
     setScanning(true);
     try {
@@ -159,6 +170,13 @@ function LibraryCard({
         />
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-3.5">
+        <div className="text-[9.5px] font-bold uppercase tracking-[.12em] text-text/38">
+          {t('admin.libraryType')}
+        </div>
+        <LibraryTypeSelect value={normalizeLibKind(lib.kind)} onChange={(k) => void changeKind(k)} />
+      </div>
+
       <div className="flex flex-col gap-2.5 border-b border-white/5 px-5 pb-4 pt-3.5">
         <div className="text-[9.5px] font-bold uppercase tracking-[.12em] text-text/38">
           {t('admin.scannedFolders')}
@@ -182,23 +200,16 @@ function LibraryCard({
             </button>
           </div>
         ))}
-        <div className="flex gap-2">
-          <input
-            value={newFolder}
-            onChange={(e) => setNewFolder(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void addFolder()}
-            placeholder="/media/films"
-            className="min-w-0 flex-1 rounded-[9px] border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-[12.5px] font-semibold text-text outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => void addFolder()}
-            className="inline-flex items-center gap-1.5 rounded-[9px] border border-dashed border-border-strong px-3 py-2.5 text-[12.5px] font-semibold text-text/70"
-          >
-            <IconPlus size={14} stroke={2.4} />
-            {t('common.add')}
-          </button>
-        </div>
+        <FolderPicker value={newFolder} onChange={setNewFolder} />
+        <button
+          type="button"
+          onClick={() => void addFolder()}
+          disabled={!newFolder.trim()}
+          className="inline-flex items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border-strong px-3 py-2.5 text-[12.5px] font-semibold text-text/70 disabled:opacity-40"
+        >
+          <IconPlus size={14} stroke={2.4} />
+          {t('common.add')}
+        </button>
       </div>
 
       <div className="flex gap-2.5 px-5 py-3.5">

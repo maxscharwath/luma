@@ -30,8 +30,13 @@ assembles the `.spk`. Re-run faster with `SKIP_WEB=1` / `SKIP_RUST=1`.
 
 1. **Package Center → Manual Install →** pick the `.spk`. (It's unsigned/3rd-party,
    so first enable *Package Center → Settings → Trust Level → Any publisher*.)
-2. The install **wizard** asks for your **media folder(s)** (e.g. `/volume1/video`,
-   colon-separated for several) and the **port** (default `4040`).
+2. The install **wizard** asks for your **Movies folder(s)** and **TV Shows
+   folder(s)** (absolute NAS paths, e.g. `/volume1/video/Films`; colon- or
+   semicolon-separated for several, and leave a field empty if you don't have
+   that type) and the **port** (default `4040`). The wizard can't browse folders,
+   so type the paths here you'll be able to browse your NAS and reorganize
+   libraries (add folders, change each library's type) in the web admin under
+   **Bibliothèques** after install.
 3. Open `http://<nas-ip>:4040/`.
 
 ### One manual permission step (required)
@@ -49,6 +54,11 @@ package.
 ## Notes
 - **x86_64 only** for now (covers DS2xx+/DS9xx+/DS16xx+ etc.). ARM models need an
   `aarch64-musl` build ask and I'll add the target.
-- Data (SQLite DB, image cache, logs) lives in `/var/packages/luma/var/data` and
-  survives upgrades.
+- **Libraries:** the wizard's Movies/TV Shows fields just seed your first two
+  libraries. Everything else lives in the **web admin > Bibliothèques**, where a
+  folder picker lets you add more folders and set each library's type (Movies or
+  TV Shows) without editing paths by hand.
+- Data (SQLite DB, image cache, logs) lives in `/var/packages/luma/var/data` by
+  default (or the optional data folder you chose in the wizard) and survives
+  upgrades.
 - The TV apps (Tizen/webOS) connect to this server over the LAN via mDNS, unchanged.

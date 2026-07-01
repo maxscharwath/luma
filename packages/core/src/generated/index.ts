@@ -47,7 +47,6 @@ export type { ProgressEntry } from './ProgressEntry';
 export type { PublicUser } from './PublicUser';
 export type { QuickConnectInit } from './QuickConnectInit';
 export type { QuickConnectStatus } from './QuickConnectStatus';
-export type { ScanResult } from './ScanResult';
 export type { SearchHit } from './SearchHit';
 export type { SearchResponse } from './SearchResponse';
 export type { Season } from './Season';

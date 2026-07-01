@@ -19,6 +19,12 @@ pub struct Config {
     pub port: u16,
     /// Library roots to scan. May be empty (demo seed kicks in then).
     pub media_dirs: Vec<PathBuf>,
+    /// Movie-only library roots (`LUMA_MOVIES_DIRS`). Seed a typed "Films"
+    /// library on first run. May be empty.
+    pub movies_dirs: Vec<PathBuf>,
+    /// TV/show-only library roots (`LUMA_SERIES_DIRS`). Seed a typed "Séries"
+    /// library on first run. May be empty.
+    pub series_dirs: Vec<PathBuf>,
     /// Where `library.json` is cached.
     pub data_dir: PathBuf,
     /// TMDB API key for metadata enrichment. `None` disables the feature.
@@ -49,6 +55,16 @@ impl Config {
             .unwrap_or(4040);
 
         let media_dirs = env::var("LUMA_MEDIA_DIRS")
+            .ok()
+            .map(|raw| parse_dir_list(&raw))
+            .unwrap_or_default();
+
+        let movies_dirs = env::var("LUMA_MOVIES_DIRS")
+            .ok()
+            .map(|raw| parse_dir_list(&raw))
+            .unwrap_or_default();
+
+        let series_dirs = env::var("LUMA_SERIES_DIRS")
             .ok()
             .map(|raw| parse_dir_list(&raw))
             .unwrap_or_default();
@@ -89,6 +105,8 @@ impl Config {
             host,
             port,
             media_dirs,
+            movies_dirs,
+            series_dirs,
             data_dir,
             tmdb_api_key,
             tmdb_language,

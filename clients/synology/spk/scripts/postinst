@@ -1,6 +1,7 @@
 #!/bin/sh
-# Runs once after install/upgrade. Persist the wizard answers (media folder + port)
-# to the package's writable var dir; the service script reads them on start.
+# Runs once after install/upgrade. Persist the wizard answers (movies/series
+# folders, port, optional data folder) to the package's writable var dir; the
+# service script reads them on start.
 
 VAR="/var/packages/luma/var"
 mkdir -p "${VAR}/data"
@@ -8,11 +9,30 @@ mkdir -p "${VAR}/data"
 # Wizard field keys arrive as environment variables. Only write on a fresh install
 # never clobber an existing config on upgrade (the wizard doesn't run then, so the
 # env vars would be empty and we'd reset the user's media folders to the default).
+# LUMA_MOVIES_DIRS/LUMA_SERIES_DIRS are the primary inputs now (typed libraries);
+# LUMA_MEDIA_DIRS stays for backward compat but defaults empty.
 if [ ! -f "${VAR}/luma.conf" ]; then
     cat > "${VAR}/luma.conf" <<EOF
-LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS:-/volume1/video}"
+LUMA_MOVIES_DIRS="${LUMA_MOVIES_DIRS:-}"
+LUMA_SERIES_DIRS="${LUMA_SERIES_DIRS:-}"
+LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS:-}"
 LUMA_PORT="${LUMA_PORT:-4040}"
+LUMA_DATA_DIR="${LUMA_DATA_DIR:-}"
 EOF
+fi
+
+# If the user chose a custom data folder, create it now (postinst runs as root)
+# and hand it to the package's least-privilege runtime user so the service can
+# write there without a manual permission step. Best-effort: never fail the
+# install over this, and only touch a path the user explicitly asked for.
+if [ -n "${LUMA_DATA_DIR:-}" ]; then
+    mkdir -p "${LUMA_DATA_DIR}" 2>/dev/null || true
+    for u in sc-luma luma; do
+        if id "$u" >/dev/null 2>&1; then
+            chown -R "$u" "${LUMA_DATA_DIR}" 2>/dev/null || true
+            break
+        fi
+    done
 fi
 
 exit 0

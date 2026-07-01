@@ -1,8 +1,9 @@
 #!/bin/sh
 # DSM 7 service control for LUMA. One process: luma-server serves the API,
 # streaming, AND the bundled web SPA on a single port. ffmpeg/ffprobe are taken
-# from the bundled static copies via PATH. Config (media dirs + port) is written
-# by the install wizard (postinst) to var/luma.conf.
+# from the bundled static copies via PATH. Config (movies/series folders, port,
+# optional data folder) is written by the install wizard (postinst) to
+# var/luma.conf.
 
 PKG="luma"
 TARGET="/var/packages/${PKG}/target"
@@ -14,12 +15,25 @@ LOG="${VAR}/luma.log"
 # shellcheck disable=SC1090
 [ -f "${VAR}/luma.conf" ] && . "${VAR}/luma.conf"
 
+# Data lives in the user-chosen folder (wizard) or, by default, under the
+# package's own var. If the chosen path can't be created (e.g. permissions were
+# never granted), fall back to var/data so the service still starts.
+DATA_DIR="${LUMA_DATA_DIR:-}"
+[ -n "${DATA_DIR}" ] || DATA_DIR="${VAR}/data"
+
 start_daemon() {
-    mkdir -p "${VAR}/data"
+    mkdir -p "${DATA_DIR}" 2>/dev/null
+    if [ ! -d "${DATA_DIR}" ]; then
+        echo "$(date) data folder ${DATA_DIR} unavailable, using ${VAR}/data" >> "${LOG}"
+        DATA_DIR="${VAR}/data"
+    fi
+    mkdir -p "${DATA_DIR}"
     PATH="${TARGET}/ffmpeg:${PATH}" \
     LUMA_PORT="${LUMA_PORT:-4040}" \
+    LUMA_MOVIES_DIRS="${LUMA_MOVIES_DIRS}" \
+    LUMA_SERIES_DIRS="${LUMA_SERIES_DIRS}" \
     LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS}" \
-    LUMA_DATA_DIR="${VAR}/data" \
+    LUMA_DATA_DIR="${DATA_DIR}" \
     LUMA_WEB_DIR="${TARGET}/web" \
     "${BIN}" >> "${LOG}" 2>&1 &
     echo $! > "${PID}"

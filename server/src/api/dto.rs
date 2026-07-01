@@ -26,15 +26,6 @@ pub struct Health {
     pub shows: usize,
 }
 
-/// `POST /api/scan` result.
-#[derive(Serialize, TS)]
-#[ts(export)]
-pub struct ScanResult {
-    pub scanned: usize,
-    pub libraries: usize,
-    pub shows: usize,
-}
-
 /// `{ token, user }` returned by register/login.
 #[derive(Serialize, TS)]
 #[ts(export)]

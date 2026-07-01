@@ -18,6 +18,14 @@
 set -euo pipefail
 
 VERSION="${1:-0.1.0}"
+# DSM refuses a Manual Install whose version isn't strictly newer than the one
+# installed (same version => error, forcing a delete + reinstall that wipes the
+# package's var: config, DB, cache, downloaded Whisper model). So stamp a
+# monotonically increasing build number into INFO's `version=X.Y.Z-BUILD`:
+# minutes since 2020-01-01 UTC, always increasing and within a 32-bit int. This
+# makes every rebuild a valid in-place upgrade (which preserves var). Override
+# with BUILD=... if you need a specific number.
+BUILD="${BUILD:-$(( ( $(date -u +%s) - 1577836800 ) / 60 ))}"
 ARCH="x86_64"
 TARGET="x86_64-unknown-linux-musl"
 RUST_IMAGE="${RUST_IMAGE:-messense/rust-musl-cross:x86_64-musl}"
@@ -99,8 +107,9 @@ cp -R "$SKEL/scripts" "$SKEL/conf" "$SKEL/WIZARD_UIFILES" "$SPK/"
 chmod 755 "$SPK/scripts/"*
 cp "$WORK/package.tgz" "$SPK/package.tgz"
 EXT_SIZE="$(gzip -dc "$WORK/package.tgz" | wc -c | tr -d ' ')"
-sed -e "s/@VERSION@/$VERSION/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@BUILD@/$BUILD/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
   "$SKEL/INFO.template" > "$SPK/INFO"
+say "DSM package version: $VERSION-$BUILD (build number auto-increments so upgrades install in place)"
 # Icons: the LUMA brand mark (gold ring + dot), checked in alongside the skeleton.
 cp "$SKEL/PACKAGE_ICON.PNG" "$SKEL/PACKAGE_ICON_256.PNG" "$SPK/"
 
