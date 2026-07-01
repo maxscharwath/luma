@@ -1,3 +1,4 @@
+import { sizedImageUrl } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconCheck } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -59,7 +60,7 @@ export function Poster({
         >
           {showImg ? (
             <img
-              src={poster ?? undefined}
+              src={sizedImageUrl(poster, width) ?? undefined}
               alt=""
               loading="lazy"
               decoding="async"

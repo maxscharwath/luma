@@ -3,6 +3,16 @@ import { match } from './match';
 import { formatRuntime } from './player';
 import type { AudioTrack, MediaItem, VideoTrack } from './types';
 
+/** Request a downscaled rendition of LOCALLY-CACHED artwork (`?w=`, snapped to
+ * a server-side bucket): a 200px card must not download the full 780px poster.
+ * Pass the DISPLAY width; this asks for 2x for crisp hidpi/TV rendering. Remote
+ * (TMDB fallback) URLs and non-image URLs pass through untouched. */
+export function sizedImageUrl(url: string | null | undefined, displayWidth: number): string | null {
+  if (!url) return null;
+  if (!url.includes('/api/images/') || url.includes('?')) return url;
+  return `${url}?w=${Math.max(1, Math.round(displayWidth * 2))}`;
+}
+
 /** Deterministic two-stop key-art gradient derived from an item id. */
 export function posterColors(id: string): [string, string] {
   let h = 0;

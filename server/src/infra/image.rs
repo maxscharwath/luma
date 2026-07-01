@@ -132,6 +132,51 @@ pub fn jpeg_rendition(data_dir: &Path, webp_name: &str) -> Option<PathBuf> {
     )
 }
 
+/// Downscaled rendition of a cached image, for the `?w=` query on
+/// `GET /api/images/:name`: a 200px card has no business downloading the full
+/// 500-780px poster (the TV grid pulls dozens at once). Produced on demand and
+/// cached forever (the source name is content-addressed, so renditions are
+/// immutable too). Encoded by `cwebp -resize` when available (best bytes), else
+/// ffmpeg → JPEG many ffmpeg builds ship without a WebP *encoder*, but every
+/// build has mjpeg. Returns the rendition path + its content type.
+pub fn sized_rendition(data_dir: &Path, name: &str, width: u32) -> Option<(PathBuf, &'static str)> {
+    let dir = images_dir(data_dir);
+    let src = dir.join(name);
+    if !src.exists() {
+        return None;
+    }
+    let webp_out = dir.join(format!("{name}.w{width}.webp"));
+    if webp_out.exists() {
+        return Some((webp_out, "image/webp"));
+    }
+    let jpg_out = dir.join(format!("{name}.w{width}.jpg"));
+    if jpg_out.exists() {
+        return Some((jpg_out, "image/jpeg"));
+    }
+
+    let tmp = unique_tmp(&webp_out);
+    let cwebp = Command::new("cwebp")
+        .args(["-quiet", "-q", "82", "-resize", &width.to_string(), "0"])
+        .arg(&src)
+        .arg("-o")
+        .arg(&tmp)
+        .status();
+    if matches!(cwebp, Ok(s) if s.success()) && tmp.exists() {
+        if let Some(p) = finalize(&tmp, &webp_out) {
+            return Some((p, "image/webp"));
+        }
+    }
+    let _ = std::fs::remove_file(&tmp);
+
+    ffmpeg_rendition(
+        &src,
+        &jpg_out,
+        &format!("scale='min(iw,{width})':-2:flags=lanczos"),
+        &["-q:v", "4"],
+    )
+    .map(|p| (p, "image/jpeg"))
+}
+
 /// Single-frame ffmpeg rendition of `src` → `out` (cached: returns `out`
 /// immediately if it already exists). `vf` is the `-vf` filtergraph; `extra`
 /// carries any additional output args (e.g. JPEG quality).

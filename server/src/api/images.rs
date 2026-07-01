@@ -48,9 +48,25 @@ pub async fn item_poster(
     Ok(render_poster(&id, &item.title))
 }
 
-/// `GET /api/images/:name` → locally-cached WebP artwork (poster/backdrop).
+/// Allowed `?w=` rendition widths. A fixed bucket set keeps the on-disk cache
+/// bounded (each source image can gain at most this many variants) and makes
+/// every rendition shareable between clients that ask for similar sizes.
+const IMAGE_WIDTHS: [u32; 4] = [160, 320, 480, 780];
+
+#[derive(Debug, Deserialize)]
+pub struct ImageQuery {
+    /// Requested display width (px); snapped up to the nearest bucket.
+    pub w: Option<u32>,
+}
+
+/// `GET /api/images/:name?w=` → locally-cached WebP artwork (poster/backdrop),
+/// optionally downscaled to a bucketed width (`?w=`, see [`IMAGE_WIDTHS`]).
 /// Immutable, content-addressed filenames → cache forever.
-pub async fn image(State(state): State<SharedState>, Path(name): Path<String>) -> Response {
+pub async fn image(
+    State(state): State<SharedState>,
+    Path(name): Path<String>,
+    Query(q): Query<ImageQuery>,
+) -> Response {
     // Reject anything but a simple cache filename (no path traversal).
     let safe = !name.is_empty()
         && !name.contains("..")
@@ -59,6 +75,24 @@ pub async fn image(State(state): State<SharedState>, Path(name): Path<String>) -
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
     if !safe {
         return json_error(StatusCode::BAD_REQUEST, "invalid image name");
+    }
+
+    // Sized rendition: produced once (cwebp/ffmpeg, on the blocking pool), then
+    // served from disk forever. Falls through to the original on any failure.
+    if let Some(w) = q.w.filter(|_| name.ends_with(".webp")) {
+        let width = IMAGE_WIDTHS.iter().copied().find(|b| *b >= w).unwrap_or(0);
+        if width > 0 {
+            let data_dir = state.config.data_dir.clone();
+            let sized_name = name.clone();
+            let made =
+                blocking(move || Ok(crate::infra::image::sized_rendition(&data_dir, &sized_name, width)))
+                    .await;
+            if let Ok(Some((path, content_type))) = made {
+                if let Ok(bytes) = tokio::fs::read(&path).await {
+                    return image_response(bytes, content_type);
+                }
+            }
+        }
     }
 
     // JPEG rendition for Samsung TV preview tiles (the carousel rejects WebP).
