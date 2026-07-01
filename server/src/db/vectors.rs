@@ -220,17 +220,8 @@ fn blob_to_vec(bytes: &[u8]) -> Vec<f32> {
 /// same table, so this naturally yields a movies row).
 fn hydrate(pool: &Pool, ranked: &[(String, f32)]) -> Result<Vec<MediaItem>> {
     let conn = pool.get()?;
-    let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLS} FROM items WHERE id = ?1"))?;
-    let mut out = Vec::with_capacity(ranked.len());
-    for (id, _score) in ranked {
-        let mut rows = stmt.query_map(params![id], row_to_item)?;
-        if let Some(item) = rows.next() {
-            let mut item = item?;
-            attach_files(&conn, &mut item)?;
-            out.push(item);
-        }
-    }
-    Ok(out)
+    let ids: Vec<&str> = ranked.iter().map(|(id, _)| id.as_str()).collect();
+    Ok(items_by_ids_ordered(&conn, &ids)?)
 }
 
 /// "For You" as render-ready movies: [`for_you`] + hydration. Over-fetches a

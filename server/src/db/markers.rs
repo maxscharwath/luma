@@ -63,6 +63,41 @@ pub fn markers_for_item(conn: &Connection, item_id: &str) -> rusqlite::Result<Ve
     Ok(out)
 }
 
+/// [`markers_for_item`] over many items in one query per id-chunk, keyed by
+/// item id (ids absent from the result simply have no markers).
+pub(crate) fn markers_for_items(
+    conn: &Connection,
+    item_ids: &[&str],
+) -> rusqlite::Result<std::collections::HashMap<String, Vec<Marker>>> {
+    let mut out: std::collections::HashMap<String, Vec<Marker>> = std::collections::HashMap::new();
+    for chunk in item_ids.chunks(super::IN_CHUNK) {
+        let ph = vec!["?"; chunk.len()].join(",");
+        let mut stmt = conn.prepare(&format!(
+            "SELECT item_id, kind, start_ms, end_ms FROM markers \
+             WHERE item_id IN ({ph}) ORDER BY start_ms",
+        ))?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+            ))
+        })?;
+        for row in rows {
+            let (item_id, kind, start, end) = row?;
+            if let Some(kind) = kind_from_str(&kind) {
+                out.entry(item_id).or_default().push(Marker {
+                    kind,
+                    start_ms: start.max(0) as u64,
+                    end_ms: end.max(0) as u64,
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Upsert one segment marker (`(item_id, kind)` is unique). `source` records
 /// provenance (`chapters` | `fingerprint` | `manual`).
 ///

@@ -79,38 +79,54 @@ pub fn continue_watching(pool: &Pool, user_id: &str) -> Result<Vec<ContinueItem>
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(stmt);
 
-    // 2) Hydrate each into a full item (with files) on the same connection.
-    let mut item_stmt = conn.prepare(&format!("SELECT {ITEM_COLS} FROM items WHERE id = ?1"))?;
+    // 2) Hydrate all ids in one batched pass (files + markers included).
+    let ids: Vec<&str> = rows.iter().map(|(id, _, _, _)| id.as_str()).collect();
+    let items = items_by_ids_ordered(&conn, &ids)?;
+    let mut by_id: std::collections::HashMap<String, MediaItem> =
+        items.into_iter().map(|i| (i.id.clone(), i)).collect();
+
+    // 3) Episodes carry no poster of their own, so a Continue tile would fall
+    //    back to a placeholder. Borrow the parent show's artwork (keeping any
+    //    episode-specific still as the backdrop) one query for all shows.
+    let show_ids: Vec<String> = by_id
+        .values()
+        .filter(|i| i.kind == Kind::Episode)
+        .filter_map(|i| i.show_id.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    let mut show_meta_by_id: std::collections::HashMap<String, Option<String>> =
+        std::collections::HashMap::new();
+    for chunk in show_ids.chunks(super::IN_CHUNK) {
+        let ph = vec!["?"; chunk.len()].join(",");
+        let mut stmt =
+            conn.prepare(&format!("SELECT id, metadata FROM shows WHERE id IN ({ph})"))?;
+        let metas = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+        })?;
+        for row in metas {
+            let (id, json) = row?;
+            show_meta_by_id.insert(id, json);
+        }
+    }
+
     let mut out = Vec::with_capacity(rows.len());
     for (item_id, position_ms, duration_ms, updated_at) in rows {
-        let mut it = item_stmt.query_map(params![item_id], row_to_item)?;
-        if let Some(item) = it.next() {
-            let mut item = item?;
-            attach_files(&conn, &mut item)?;
-            // Episodes carry no poster of their own, so a Continue tile would fall
-            // back to a placeholder. Borrow the parent show's artwork (keeping any
-            // episode-specific still as the backdrop) so the tile shows real art.
-            if item.kind == Kind::Episode {
-                if let Some(show_id) = item.show_id.clone() {
-                    let json: Option<String> = conn
-                        .query_row(
-                            "SELECT metadata FROM shows WHERE id = ?1",
-                            params![show_id],
-                            |r| r.get::<_, Option<String>>(0),
-                        )
-                        .unwrap_or(None);
-                    if let Some(mut show_meta) = parse_metadata(json) {
-                        if let Some(still) =
-                            item.metadata.as_ref().and_then(|m| m.backdrop_url.clone())
-                        {
-                            show_meta.backdrop_url = Some(still);
-                        }
-                        item.metadata = Some(show_meta);
-                    }
+        let Some(mut item) = by_id.remove(&item_id) else { continue };
+        if item.kind == Kind::Episode {
+            let json = item
+                .show_id
+                .as_ref()
+                .and_then(|sid| show_meta_by_id.get(sid).cloned())
+                .flatten();
+            if let Some(mut show_meta) = parse_metadata(json) {
+                if let Some(still) = item.metadata.as_ref().and_then(|m| m.backdrop_url.clone()) {
+                    show_meta.backdrop_url = Some(still);
                 }
+                item.metadata = Some(show_meta);
             }
-            out.push(ContinueItem { item, position_ms, duration_ms, updated_at });
         }
+        out.push(ContinueItem { item, position_ms, duration_ms, updated_at });
     }
     Ok(out)
 }

@@ -102,17 +102,7 @@ pub fn genre_guard(pool: &Pool, seed: &str, ranked: Vec<(String, f32)>) -> Vec<(
 /// silently dropping ids without a backing `items` row (e.g. show vectors).
 pub fn items_by_ids(pool: &Pool, ids: &[&str]) -> Result<Vec<MediaItem>> {
     let conn = pool.get()?;
-    let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLS} FROM items WHERE id = ?1"))?;
-    let mut out = Vec::with_capacity(ids.len());
-    for id in ids {
-        let mut rows = stmt.query_map(params![id], row_to_item)?;
-        if let Some(item) = rows.next() {
-            let mut item = item?;
-            attach_files(&conn, &mut item)?;
-            out.push(item);
-        }
-    }
-    Ok(out)
+    Ok(items_by_ids_ordered(&conn, ids)?)
 }
 
 /// Hydrate ranked ids into [`SectionItem`]s, preserving order: each id resolves

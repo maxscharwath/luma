@@ -83,9 +83,7 @@ pub fn list_shows(pool: &Pool, library: Option<&str>) -> Result<Vec<Show>> {
         stmt.query_map([], map)?.collect::<rusqlite::Result<Vec<_>>>()?
     };
 
-    for s in &mut shows {
-        s.video = representative_video(&conn, &s.id)?;
-    }
+    apply_representative_videos(&conn, &mut shows)?;
     Ok(shows)
 }
 
@@ -131,9 +129,7 @@ pub fn get_items_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<MediaItem>> {
     let mut items: Vec<MediaItem> = stmt
         .query_map(rusqlite::params_from_iter(ids.iter()), row_to_item)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    for item in &mut items {
-        attach_files(&conn, item)?;
-    }
+    attach_files_batch(&conn, &mut items)?;
     Ok(items)
 }
 
@@ -169,9 +165,7 @@ pub fn get_shows_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<Show>> {
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    for s in &mut shows {
-        s.video = representative_video(&conn, &s.id)?;
-    }
+    apply_representative_videos(&conn, &mut shows)?;
     Ok(shows)
 }
 
@@ -246,9 +240,7 @@ pub fn get_show(pool: &Pool, id: &str) -> Result<Option<ShowDetail>> {
     let mut episodes: Vec<MediaItem> = stmt
         .query_map(params![id], row_to_item)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    for ep in &mut episodes {
-        attach_files(&conn, ep)?;
-    }
+    attach_files_batch(&conn, &mut episodes)?;
 
     // Group into seasons.
     let mut seasons: Vec<Season> = Vec::new();
@@ -274,6 +266,47 @@ pub fn get_show(pool: &Pool, id: &str) -> Result<Option<ShowDetail>> {
     show.video = representative_video(&conn, id)?;
 
     Ok(Some(ShowDetail { show, seasons }))
+}
+
+/// [`representative_video`] over a whole listing in one query per id-chunk:
+/// rows arrive widest-first, so the first row seen per show wins exactly the
+/// per-show `ORDER BY v_width DESC LIMIT 1` the single-show query does.
+fn apply_representative_videos(conn: &rusqlite::Connection, shows: &mut [Show]) -> Result<()> {
+    if shows.is_empty() {
+        return Ok(());
+    }
+    use std::collections::HashMap;
+    let ids: Vec<&str> = shows.iter().map(|s| s.id.as_str()).collect();
+    let mut best: HashMap<String, VideoStream> = HashMap::new();
+    for chunk in ids.chunks(super::IN_CHUNK) {
+        let ph = vec!["?"; chunk.len()].join(",");
+        let mut stmt = conn.prepare(&format!(
+            "SELECT i.show_id,f.v_codec,f.v_width,f.v_height,f.v_hdr,f.v_bit_depth \
+             FROM files f JOIN items i ON f.item_id = i.id \
+             WHERE i.show_id IN ({ph}) AND f.probed = 1 AND f.v_codec IS NOT NULL \
+             ORDER BY f.v_width DESC NULLS LAST",
+        ))?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                VideoStream {
+                    codec: r.get::<_, String>(1)?,
+                    width: r.get(2)?,
+                    height: r.get(3)?,
+                    hdr: r.get::<_, Option<i64>>(4)?.unwrap_or(0) != 0,
+                    bit_depth: r.get(5)?,
+                },
+            ))
+        })?;
+        for row in rows {
+            let (show_id, video) = row?;
+            best.entry(show_id).or_insert(video);
+        }
+    }
+    for s in shows.iter_mut() {
+        s.video = best.remove(&s.id);
+    }
+    Ok(())
 }
 
 /// Pick a representative video stream for a show the highest-resolution probed
@@ -316,8 +349,6 @@ fn query_items(pool: &Pool, base: &str, library: Option<&str>, tail: &str) -> Re
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         }
     };
-    for item in &mut items {
-        attach_files(&conn, item)?;
-    }
+    attach_files_batch(&conn, &mut items)?;
     Ok(items)
 }
