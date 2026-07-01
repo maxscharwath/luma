@@ -3,6 +3,7 @@ import {
   audioTrackId,
   audioTrackLabel,
   audioTracksOf,
+  avplayDirectPlayable,
   canDirectPlay,
   type DirectPlayVerdict,
   type LumaClient,
@@ -129,14 +130,18 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
 
   const audioTracks = audioTracksOf(item);
 
-  // Engine decision. A plain compatible MP4 direct-plays; otherwise the VOD
-  // master, through native AVPlay on Tizen (surround passthrough + seamless audio)
-  // and hls.js elsewhere (webOS MSE cannot decode AC3/EAC3, so it uses the AAC
-  // master). selectEngine records the intent; tvDirectPlay is the runtime gate.
+  // Engine decision. On Tizen EVERYTHING goes through native AVPlay (hardware
+  // plane, surround passthrough): the engine opens the ORIGINAL file directly
+  // when avplayDirectPlayable holds (zero server work no ffmpeg session at
+  // all; native seeks + in-place audio switching) and the stream-copy master
+  // otherwise, with an internal direct→master error fallback. webOS / no-AVPlay
+  // runtimes use `<video>`: direct for a plain compatible MP4, else hls.js on
+  // the AAC master (webOS MSE cannot decode AC3/EAC3).
   const env = useMemo(detectTvEnv, []);
   const decision = selectEngine(item, env);
   const direct = decision.kind === 'direct' || tvDirectPlay(item);
-  const useAvplay = !direct && env.platform === 'tizen' && avplayAvailable();
+  const useAvplay = env.platform === 'tizen' && avplayAvailable();
+  const avplayDirect = useAvplay && avplayDirectPlayable(item);
   const surface: 'video' | 'avplay' = useAvplay ? 'avplay' : 'video';
   const masterAac = masterNeedsAac(item, MSE_CAPS);
   const durationSec = item.durationMs ? item.durationMs / 1000 : 0;
@@ -180,6 +185,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
         durationSec,
         initialRendition: renditionFor(item, audioIndexRef.current),
         startSec: 0,
+        direct: avplayDirect,
         listeners,
       });
     } else {
@@ -203,7 +209,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
       engine?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, item, useAvplay, direct, masterAac, durationSec]);
+  }, [client, item, useAvplay, avplayDirect, direct, masterAac, durationSec]);
 
   // In-place audio rendition switch: no source reload, picture keeps playing.
   useEffect(() => {
@@ -230,10 +236,12 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     if (/web0?s|LG/i.test(ua)) return 'LG TV';
     return 'TV';
   };
-  // Video is always copied. AVPlay passes surround through (remux); only the
-  // hls.js AAC master (webOS / MSE without AC3) re-encodes audio (transcode).
+  // Video is always copied. AVPlay-direct plays the original file (direct);
+  // AVPlay-master passes surround through (remux); only the hls.js AAC master
+  // (webOS / MSE without AC3) re-encodes audio (transcode).
   let playbackMode: 'direct' | 'remux' | 'transcode' = 'direct';
-  if (!direct) playbackMode = !useAvplay && masterAac ? 'transcode' : 'remux';
+  if (useAvplay) playbackMode = avplayDirect ? 'direct' : 'remux';
+  else if (!direct) playbackMode = masterAac ? 'transcode' : 'remux';
   usePlaybackHeartbeat({
     client,
     enabled: client.hasAuth,

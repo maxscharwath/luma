@@ -1,4 +1,4 @@
-import { type PlayEnv, selectEngine } from '@luma/core';
+import { capabilities, type EngineDecision, MSE_CAPS, masterNeedsAac, type PlayEnv, SAFARI_CAPS, selectEngine } from '@luma/core';
 import { audioTracksOf } from '@luma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { attachMediaSource, bindMediaEvents, type VideoPlayback } from '#web/features/playback/videoEngine';
@@ -11,12 +11,14 @@ export type { VideoPlayback } from '#web/features/playback/videoEngine';
 
 /** Detect the browser environment for engine selection. Safari (and iOS) use
  * native HLS (and decode AC3/EAC3), so they get the stream-copy master; other
- * browsers go through hls.js (MSE) with the AAC master when needed. */
+ * browsers go through hls.js (MSE) with the AAC master when needed. The runtime
+ * caps (canPlayType/MediaSource probes) widen direct-play to whatever THIS
+ * browser actually hardware-decodes (e.g. HEVC MP4s on Chrome 107+). */
 function detectWebEnv(): PlayEnv {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const safari =
     /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(ua) || /iP(ad|hone|od)/i.test(ua);
-  return { platform: 'web', safari };
+  return { platform: 'web', safari, runtimeCaps: capabilities() };
 }
 
 /**
@@ -98,7 +100,16 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
 
   const audioTracks = audioTracksOf(item);
   const env = useMemo(detectWebEnv, []);
-  const decision = useMemo(() => selectEngine(item, env), [item, env]);
+  // `forceHls` is the direct-play safety net: if a bare `<video src>` errors
+  // (an over-optimistic capability probe, a quirky file), we drop to the HLS
+  // master at the same position instead of dying with a black screen.
+  const [forceHls, setForceHls] = useState(false);
+  const decision = useMemo<EngineDecision>(() => {
+    if (forceHls) {
+      return { kind: 'web-mse', aacMaster: masterNeedsAac(item, env.safari ? SAFARI_CAPS : MSE_CAPS) };
+    }
+    return selectEngine(item, env);
+  }, [item, env, forceHls]);
   const hlsRef = useRef<import('hls.js').default | null>(null);
 
   // The absolute-position offset: `absolute = baseSec + video.currentTime`. For
@@ -190,6 +201,23 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     document.addEventListener('fullscreenchange', onFs);
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
+
+  // Direct-play error fallback: a media error on the bare `<video src>` swaps
+  // to the HLS master anchored at the position we died at.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rebind on remount.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || decision.kind !== 'direct') return;
+    const onErr = () => {
+      setAnchor(Math.max(0, Math.floor(v.currentTime)));
+      setForceHls(true);
+    };
+    v.addEventListener('error', onErr);
+    return () => v.removeEventListener('error', onErr);
+  }, [decision.kind, item.id, anchor, audioIndex]);
+
+  // A new item starts from a fresh decision.
+  useEffect(() => setForceHls(false), [item.id]);
 
   // ----- actions --------------------------------------------------------------
   const togglePlay = useCallback(() => {

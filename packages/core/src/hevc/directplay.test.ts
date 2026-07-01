@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AudioTrack, MediaItem } from '../types';
 import {
   audioTrackId,
+  avplayDirectPlayable,
   masterNeedsAac,
   MSE_CAPS,
   NATIVE_TV_CAPS,
@@ -134,13 +135,48 @@ describe('selectEngine', () => {
     expect(selectEngine(item, WEB_CHROME).kind).toBe('web-mse');
   });
 
-  it('keeps HEVC off direct-play on Chrome (goes to web-mse)', () => {
+  it('direct-plays an HEVC mp4 on Chrome when the engine caps decode HEVC', () => {
     const item = makeItem({
       container: 'mp4',
       videoCodec: 'hevc',
       audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
     });
-    expect(selectEngine(item, WEB_CHROME)).toEqual({ kind: 'web-mse', aacMaster: false });
+    expect(selectEngine(item, WEB_CHROME)).toEqual({ kind: 'direct', aacMaster: false });
+  });
+
+  it('keeps HEVC off direct-play when the runtime probes NO HEVC decode', () => {
+    const item = makeItem({
+      container: 'mp4',
+      videoCodec: 'hevc',
+      audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
+    });
+    const noHevc: PlayEnv = {
+      platform: 'web',
+      safari: false,
+      runtimeCaps: { ...MSE_CAPS, hevc: false, hevc10bit: false },
+    };
+    expect(selectEngine(item, noHevc)).toEqual({ kind: 'web-mse', aacMaster: false });
+  });
+
+  it('avplayDirectPlayable: HEVC+DTS MKV yes, AV1 no, unknown container no', () => {
+    const mkv = makeItem({
+      container: 'mkv',
+      videoCodec: 'hevc',
+      audio: [track({ index: 0, codec: 'dts', channels: 6, default: true })],
+    });
+    expect(avplayDirectPlayable(mkv)).toBe(true);
+    const av1 = makeItem({
+      container: 'mkv',
+      videoCodec: 'av1',
+      audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
+    });
+    expect(avplayDirectPlayable(av1)).toBe(false);
+    const iso = makeItem({
+      container: 'iso',
+      videoCodec: 'h264',
+      audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
+    });
+    expect(avplayDirectPlayable(iso)).toBe(false);
   });
 
   it('direct-plays HEVC + aac mp4 on Safari (native HEVC decode)', () => {

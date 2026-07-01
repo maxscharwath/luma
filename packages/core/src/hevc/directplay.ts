@@ -291,6 +291,11 @@ export type PlayerEngineKind = 'direct' | 'web-mse' | 'tizen-avplay' | 'webos';
 export interface PlayEnv {
   platform: 'web' | 'tizen' | 'webos';
   safari: boolean;
+  /** Runtime-probed capabilities of a bare `<video>` element (canPlayType /
+   * MediaSource), when the caller has a DOM to probe. Widens direct-play beyond
+   * the static engine tables: e.g. Chrome 107+ with HEVC hardware decode
+   * direct-plays an HEVC MP4 instead of paying the server remux. */
+  runtimeCaps?: PlaybackCapabilities;
 }
 
 export interface EngineDecision {
@@ -316,24 +321,40 @@ function plainCompatibleMp4(item: MediaItem, caps: PlaybackCapabilities): boolea
   return canDecodeAudioCodec(def?.codec, caps);
 }
 
+/** Containers Samsung AVPlay demuxes natively from a plain HTTP(S) URL with
+ * Range support: it plays these DIRECTLY (hardware decode, native seeking and
+ * in-place audio-track selection) with the server doing nothing but sendfile. */
+const AVPLAY_CONTAINERS = new Set(['mp4', 'mov', 'm4v', 'mkv', 'webm', 'ts', 'm2ts']);
+
+/**
+ * Whether Tizen's native AVPlay can play this item's ORIGINAL file directly
+ * (no server remux at all): a container it demuxes + a video codec the TV
+ * hardware decodes. Audio is not a gate the TV decodes all the common codecs
+ * (see {@link NATIVE_TV_CAPS}) and unknown ones are attempted, with the engine
+ * falling back to the HLS master on a real playback error.
+ */
+export function avplayDirectPlayable(item: MediaItem): boolean {
+  const container = (item.container ?? '').toLowerCase();
+  if (!AVPLAY_CONTAINERS.has(container)) return false;
+  return canDirectPlay(item, NATIVE_TV_CAPS).canDirectPlay;
+}
+
 /**
  * Pick the playback engine (and master variant) for an item in an environment.
  * Pure so it is fully unit-tested.
  *
- *  - web: `direct` only for a plain compatible single-audio MP4 (and, off
- *    Safari, only an h264 video a bare Chrome/Firefox `<video>` cannot reliably
- *    direct-play HEVC); everything else is `web-mse` with the master variant
- *    chosen by `masterNeedsAac` under Safari/MSE caps.
- *  - tizen: `tizen-avplay` (native decode, so `aacMaster=false`).
+ *  - web: `direct` for a plain compatible single-audio MP4 whose video the
+ *    runtime decodes (`env.runtimeCaps` when probed, else the static engine
+ *    caps); everything else is `web-mse` with the master variant chosen by
+ *    `masterNeedsAac` under Safari/MSE caps. The player keeps an error fallback
+ *    from `direct` to the master, so eligibility can be optimistic.
+ *  - tizen: `tizen-avplay`; whether AVPlay opens the ORIGINAL file (zero server
+ *    work) or the stream-copy master is decided by {@link avplayDirectPlayable}.
  *  - webos: `direct` for a plain compatible MP4, else `webos` forcing the AAC
  *    master (its MSE path cannot decode AC3/EAC3).
  */
 export function selectEngine(item: MediaItem, env: PlayEnv): EngineDecision {
   if (env.platform === 'tizen') {
-    // TODO(avplay): a native `webapis.avplay` backend would decode AC3/EAC3
-    // surround for stream-copy masters (aacMaster=false). Until it lands the TV
-    // plays the master through hls.js (MSE), which the engine layer feeds the
-    // AAC variant; this decision records the native-decode intent.
     return { kind: 'tizen-avplay', aacMaster: false };
   }
   if (env.platform === 'webos') {
@@ -341,9 +362,10 @@ export function selectEngine(item: MediaItem, env: PlayEnv): EngineDecision {
     return { kind: 'webos', aacMaster: true };
   }
   const caps = env.safari ? SAFARI_CAPS : MSE_CAPS;
-  // A bare `<video>` element direct-plays HEVC only on Safari; on Chrome/Firefox
-  // HEVC (and the rest) must go through hls.js even when MSE can decode it.
-  const videoDirectOk = env.safari || item.video?.codec === 'h264';
-  if (videoDirectOk && plainCompatibleMp4(item, caps)) return { kind: 'direct', aacMaster: false };
+  // Direct-play eligibility follows what THIS runtime actually decodes (probed
+  // via canPlayType/MediaSource) rather than a codec allowlist: modern Chromium
+  // hardware-decodes HEVC in a bare `<video>` where available, and the player's
+  // direct→master error fallback covers an over-optimistic probe.
+  if (plainCompatibleMp4(item, env.runtimeCaps ?? caps)) return { kind: 'direct', aacMaster: false };
   return { kind: 'web-mse', aacMaster: masterNeedsAac(item, caps) };
 }
