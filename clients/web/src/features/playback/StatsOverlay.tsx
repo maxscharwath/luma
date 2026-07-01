@@ -65,9 +65,10 @@ export function StatsOverlay({
   const [, force] = useState(0);
   const [bytes, setBytes] = useState(0);
 
-  // Re-render ~2×/s to keep the live counters fresh.
+  // Re-render 1×/s to keep the live counters fresh (2×/s doubled the repaint
+  // cost during playback for values that barely change within a second).
   useEffect(() => {
-    const id = setInterval(() => force((n) => n + 1), 500);
+    const id = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
 

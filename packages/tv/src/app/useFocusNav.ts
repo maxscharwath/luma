@@ -10,13 +10,21 @@ import { useEffect } from 'react';
 // transition's unmount/mount.
 let okGuardUntil = 0;
 
-function isVisible(el: HTMLElement): boolean {
-  const r = el.getBoundingClientRect();
-  return r.width > 0 && r.height > 0;
+/** One candidate: the element and its rect, read ONCE per key press. On the
+ * TV's weak CPU the dominant cost of a move is `getBoundingClientRect`, so a
+ * 120-card grid must not read each rect twice (visibility + scoring). */
+interface Focusable {
+  el: HTMLElement;
+  rect: DOMRect;
 }
 
-function focusables(): HTMLElement[] {
-  return Array.from(document.querySelectorAll<HTMLElement>('[data-focus]')).filter(isVisible);
+function focusables(): Focusable[] {
+  const out: Focusable[] = [];
+  for (const el of document.querySelectorAll<HTMLElement>('[data-focus]')) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) out.push({ el, rect });
+  }
+  return out;
 }
 
 /** Geometric spatial navigation: move focus to the nearest element in `dir`. */
@@ -25,16 +33,17 @@ function moveFocus(dir: 'Up' | 'Down' | 'Left' | 'Right') {
   if (els.length === 0) return;
 
   const active = document.activeElement as HTMLElement | null;
-  const current = active && active.dataset.focus !== undefined ? active : els[0]!;
-  const r = current.getBoundingClientRect();
+  const activeFocusable = active && active.dataset.focus !== undefined;
+  const current = (activeFocusable && els.find((f) => f.el === active)) ||
+    (activeFocusable && active ? { el: active, rect: active.getBoundingClientRect() } : els[0]!);
+  const r = current.rect;
   const cx = r.left + r.width / 2;
   const cy = r.top + r.height / 2;
 
   let best: HTMLElement | null = null;
   let bestScore = Infinity;
-  for (const el of els) {
-    if (el === current) continue;
-    const b = el.getBoundingClientRect();
+  for (const { el, rect: b } of els) {
+    if (el === current.el) continue;
     const bx = b.left + b.width / 2;
     const by = b.top + b.height / 2;
     const dx = bx - cx;
@@ -102,7 +111,7 @@ export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers)
       (!document.activeElement ||
         (document.activeElement as HTMLElement).dataset?.focus === undefined)
     ) {
-      first.focus();
+      first.el.focus();
     }
 
     const onKey = (e: KeyboardEvent) => {

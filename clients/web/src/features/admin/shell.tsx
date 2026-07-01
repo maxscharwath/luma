@@ -67,14 +67,26 @@ export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
   // `job.progress` frames: bumping `tick` re-runs every admin `usePoll`, and a
   // verbose job would otherwise storm the admin endpoints. The jobs page consumes
   // those two on its own stream for smooth progress; start/finish still tick.
+  // Remaining events are COALESCED (one bump per window): an enrich pass emits
+  // one `item.updated` per title, which would otherwise refetch every admin
+  // panel hundreds of times in a row.
   useEffect(() => {
+    let pending: ReturnType<typeof setTimeout> | null = null;
     const ev = new LumaEvents(apiBase(), {
       onEvent: (e) => {
-        if (e.type !== 'job.log' && e.type !== 'job.progress') setTick((t) => t + 1);
+        if (e.type === 'job.log' || e.type === 'job.progress') return;
+        if (pending) return;
+        pending = setTimeout(() => {
+          pending = null;
+          setTick((t) => t + 1);
+        }, 1500);
       },
     });
     ev.connect();
-    return () => ev.close();
+    return () => {
+      if (pending) clearTimeout(pending);
+      ev.close();
+    };
   }, []);
 
   return <AdminContext.Provider value={{ serverInfo, tick }}>{children}</AdminContext.Provider>;

@@ -21,7 +21,8 @@ export function DashboardScreen() {
     3000,
     [client, tick],
   );
-  const { data: metrics } = usePoll(() => client.adminMetrics(), 2000, [client]);
+  // The server samples every 3s; polling faster only redraws identical charts.
+  const { data: metrics } = usePoll(() => client.adminMetrics(), 5000, [client]);
   const { data: top } = usePoll(() => client.topUsers(7), 30000, [client, tick]);
   const { data: history } = usePoll(() => client.playHistory(28), 60000, [client, tick]);
   const { data: users } = usePoll(() => client.users(), 60000, [client, tick]);

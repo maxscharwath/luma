@@ -36,7 +36,9 @@ export function TvTopNav({ active }: Readonly<{ active?: NavKey }>) {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[linear-gradient(180deg,rgba(10,10,12,0.72),rgba(10,10,12,0.25)_45%,transparent)]" />
       <div className="relative flex items-center justify-between">
         <LumaMark size={28} />
-        <nav className="flex items-center gap-1 rounded-full border border-border bg-[rgba(10,10,12,0.5)] p-1.5 backdrop-blur-[10px]">
+        {/* Solid translucent bg, no backdrop-blur: Tizen composites blur on the
+            CPU and it costs visible frames on every scroll/focus move. */}
+        <nav className="flex items-center gap-1 rounded-full border border-border bg-[rgba(10,10,12,0.78)] p-1.5">
           {items.map((n) => {
             const on = n.key === active;
             return (

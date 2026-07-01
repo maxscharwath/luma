@@ -1,6 +1,7 @@
 import { metaLine, posterColors, type Section } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useNavigate } from '@tanstack/react-router';
+import { memo } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
 import { useWatched } from '#web/shared/lib/watched';
@@ -79,7 +80,10 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
   );
 }
 
-function MoviePoster({ item }: Readonly<{ item: MovieView }>) {
+// Cards are memo()d: a home page renders hundreds of them, and without memo any
+// parent state change (hover, a poll refetch, router transitions) re-renders
+// every card. A watched toggle still re-renders them (context), by design.
+const MoviePoster = memo(function MoviePoster({ item }: Readonly<{ item: MovieView }>) {
   const t = useT();
   const navigate = useNavigate();
   const { isWatched, toggleWatched } = useWatched();
@@ -94,9 +98,9 @@ function MoviePoster({ item }: Readonly<{ item: MovieView }>) {
       onClick={() => navigate({ to: '/movie/$id', params: { id: item.id } })}
     />
   );
-}
+});
 
-function ShowPoster({ show }: Readonly<{ show: ShowView }>) {
+const ShowPoster = memo(function ShowPoster({ show }: Readonly<{ show: ShowView }>) {
   const t = useT();
   const navigate = useNavigate();
   const { isWatched, toggleWatched } = useWatched();
@@ -112,7 +116,7 @@ function ShowPoster({ show }: Readonly<{ show: ShowView }>) {
       onClick={() => navigate({ to: '/show/$id', params: { id: show.id } })}
     />
   );
-}
+});
 
 /** One item of a server-built [`Section`] (movie or show). */
 type SectionEntry = Section['items'][number];
@@ -121,7 +125,10 @@ type SectionEntry = Section['items'][number];
  * show-progress affordances as the catalogue grids. Used by the home rows and the
  * per-title "Suggestions IA" rail so those rails stay consistent with the grids
  * (the poster URL is resolved through the client, matching those rails). */
-export function SectionPoster({ entry, width }: Readonly<{ entry: SectionEntry; width?: number }>) {
+export const SectionPoster = memo(function SectionPoster({
+  entry,
+  width,
+}: Readonly<{ entry: SectionEntry; width?: number }>) {
   const t = useT();
   const navigate = useNavigate();
   const { client } = useAuth();
@@ -155,7 +162,7 @@ export function SectionPoster({ entry, width }: Readonly<{ entry: SectionEntry; 
       onClick={() => navigate({ to: '/movie/$id', params: { id: item.id } })}
     />
   );
-}
+});
 
 export function MovieRail({ title, movies }: Readonly<{ title: string; movies: MovieView[] }>) {
   if (movies.length === 0) return null;
