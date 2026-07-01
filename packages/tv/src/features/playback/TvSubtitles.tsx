@@ -24,6 +24,7 @@ const TV_SUB_CSS: CSSProperties = {
  */
 function TvSubtitlesImpl({
   positionSec,
+  playing,
   seekNonce,
   rendered,
   activeIndex,
@@ -31,6 +32,8 @@ function TvSubtitlesImpl({
 }: Readonly<{
   /** Absolute playback position (s), from the engine no element coupling. */
   positionSec: number;
+  /** Whether playback is advancing (drives the interpolated cue clock). */
+  playing: boolean;
   /** Bumps on every committed seek so the cue pointer re-anchors. */
   seekNonce: number;
   rendered: { index: number; url: string | null }[];
@@ -94,17 +97,40 @@ function TvSubtitlesImpl({
     pointer.current = 0;
   }, [seekNonce]);
 
-  // Sync the active cue to the absolute playback clock (driven by the engine's
-  // position, updated ~4x/s no `<video>` element needed, so AVPlay works too).
+  // Interpolated cue clock. The engine reports its position COARSELY (AVPlay's
+  // oncurrentplaytime can be a full second apart; timeupdate ~250ms), and cueing
+  // straight off those events made lines appear visibly late "not aligned".
+  // So: remember (position, wall-clock) at each report and, while playing,
+  // advance the estimate locally on a fast tick. Re-render only on text change.
+  const clock = useRef({ pos: 0, at: 0 });
+  useEffect(() => {
+    clock.current = {
+      pos: positionSec,
+      at: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+    };
+  }, [positionSec]);
+
   useEffect(() => {
     if (cues.length === 0) {
       setText('');
       return;
     }
-    const { text: t, index } = activeCueText(cues, positionSec, pointer.current);
-    pointer.current = index;
-    setText(t);
-  }, [cues, positionSec]);
+    let last: string | null = null;
+    const tick = () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const c = clock.current;
+      const est = playing ? c.pos + (now - c.at) / 1000 : c.pos;
+      const { text: t, index } = activeCueText(cues, est, pointer.current);
+      pointer.current = index;
+      if (t !== last) {
+        last = t;
+        setText(t);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 120);
+    return () => clearInterval(id);
+  }, [cues, playing]);
 
   if (!text) {
     if (!showLoading) return null;

@@ -65,10 +65,11 @@ fn process(ctx: &JobContext, item_id: &str) -> Result<()> {
     let Some(abs) = item.abs_path.as_deref() else {
         return Ok(()); // no backing file: nothing to extract
     };
-    let pending = subtitles::pending_text_tracks(&ctx.state.config.data_dir, abs, &item.subtitles);
-    // All text tracks already cached (or none): a clean no-op cache hit. Thread the
-    // stage's cancellation so cancelling the job kills the in-flight ffmpeg pass at
-    // the next poll tick instead of running out the full timeout.
+    // All text tracks already cached (or none): a clean no-op cache hit. The
+    // per-file lock dedupes against the on-demand endpoint and the playback
+    // pre-warm. Threading the stage's cancellation kills the in-flight ffmpeg
+    // pass at the next poll tick instead of running out the full timeout.
     let cancel = || ctx.cancelled();
-    subtitles::extract_batch_blocking_cancellable(abs, &pending, &cancel).map_err(|e| anyhow!(e))
+    subtitles::extract_pending_locked(&ctx.state.config.data_dir, abs, &item.subtitles, &cancel)
+        .map_err(|e| anyhow!(e))
 }

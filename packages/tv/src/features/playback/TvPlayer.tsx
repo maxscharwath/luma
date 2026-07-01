@@ -200,6 +200,7 @@ export function TvPlayer() {
       )}
       <TvSubtitles
         positionSec={cur}
+        playing={playing && !waiting}
         seekNonce={playback.seekNonce}
         rendered={subs.rendered}
         activeIndex={subs.active}

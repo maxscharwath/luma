@@ -11,7 +11,11 @@
 // re-anchors too (reload at the current position with the new `audio` segment).
 
 import { attachDirectPlay, type LumaClient, type MediaItem } from '@luma/core';
-import type { EngineListeners, TvEngine } from '#tv/features/playback/player/engine';
+import {
+  type EngineListeners,
+  resolveMasterStart,
+  type TvEngine,
+} from '#tv/features/playback/player/engine';
 
 type HlsInstance = import('hls.js').default;
 
@@ -105,18 +109,23 @@ export class HtmlEngine implements TvEngine {
       this.baseSec,
       this.rendition,
     );
-    void import('hls.js').then(({ default: Hls }) => {
-      if (this.destroyed) return;
-      if (!Hls.isSupported()) {
-        v.src = url; // last resort the hook's ready-gated play starts it
-        v.preload = 'auto';
-        return;
-      }
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: false, startPosition: 0 });
-      this.hls = hls;
-      hls.loadSource(url);
-      hls.attachMedia(v);
-    });
+    // The stream really starts at the keyframe AT-OR-BEFORE the anchor; correct
+    // `baseSec` from X-Hls-Start so the clock + subtitle cues don't drift a GOP.
+    void Promise.all([import('hls.js'), resolveMasterStart(url, this.baseSec)]).then(
+      ([{ default: Hls }, realStart]) => {
+        if (this.destroyed) return;
+        this.baseSec = realStart;
+        if (!Hls.isSupported()) {
+          v.src = url; // last resort the hook's ready-gated play starts it
+          v.preload = 'auto';
+          return;
+        }
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: false, startPosition: 0 });
+        this.hls = hls;
+        hls.loadSource(url);
+        hls.attachMedia(v);
+      },
+    );
   }
 
   /** Re-anchor the remux at `absSec` (reload the master at `?t=absSec`), then

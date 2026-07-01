@@ -234,11 +234,12 @@ pub async fn subtitles(
     }
     // Cache miss: demux the file ONCE and warm EVERY text track (so a later
     // language switch is instant too), then serve the one that was requested.
+    // The per-file lock joins any extraction already in flight (the playback
+    // pre-warm, another client, a retry) instead of demuxing in parallel.
     let subs = item.subtitles.clone();
     let (abs2, data_dir2) = (abs.clone(), data_dir.clone());
     let _ = tokio::task::spawn_blocking(move || {
-        let pending = subtitles::pending_text_tracks(&data_dir2, &abs2, &subs);
-        subtitles::extract_batch_blocking(&abs2, &pending)
+        subtitles::extract_pending_locked(&data_dir2, &abs2, &subs, &|| false)
     })
     .await;
     if let Ok(bytes) = tokio::fs::read(&cache).await {
@@ -284,7 +285,8 @@ pub(crate) async fn extract_webvtt(path: &str, index: usize) -> Option<Vec<u8>> 
         .ok()?;
 
     // On timeout the future is dropped, which (via kill_on_drop) kills ffmpeg.
-    let out = tokio::time::timeout(subtitles::TIMEOUT, child.wait_with_output())
+    // The budget scales with the file size (a whole-file read), like the batch path.
+    let out = tokio::time::timeout(subtitles::timeout_for(path), child.wait_with_output())
         .await
         .ok()?
         .ok()?;

@@ -93,3 +93,23 @@ export function getAvplay(): AvplayApi | null {
 export function avplayAvailable(): boolean {
   return getAvplay() != null;
 }
+
+/**
+ * The REAL start of an anchored master: the server seeks to the keyframe
+ * at-or-before the requested anchor (`-noaccurate_seek`) and reports it via the
+ * `X-Hls-Start` header on the playlist. Using the REQUESTED anchor as `baseSec`
+ * drifts the absolute clock by up to one GOP (seconds!), which desyncs the
+ * progress bar and every absolute-time subtitle cue after a resume/seek/audio
+ * switch. The web player has always corrected this; the TV engines must too.
+ * Fetching the playlist here also warms the session the engine opens next.
+ */
+export async function resolveMasterStart(url: string, requested: number): Promise<number> {
+  if (requested <= 0.5) return 0;
+  try {
+    const r = await fetch(url);
+    const real = Number(r.headers.get('X-Hls-Start'));
+    return Number.isFinite(real) ? real : requested;
+  } catch {
+    return requested;
+  }
+}

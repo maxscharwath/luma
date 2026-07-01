@@ -12,18 +12,52 @@
 //! before anyone hits play; the on-demand `/subtitles/:track` endpoint calls it on
 //! a cache miss (warming every track off that one read).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::domain::media::SubtitleTrack;
 
-/// Max wall-clock for one extraction pass. A text track reads the whole file, which
-/// on a multi-GB film over a network mount - while the remux competes for it - can
-/// take a minute or two. Generous so it completes (and caches); a truly stalled
-/// mount is still killed.
-pub const TIMEOUT: Duration = Duration::from_secs(150);
+/// Extraction wall-clock budget, scaled to the file: a text-subtitle demux is
+/// bandwidth-bound (ffmpeg reads the container front-to-back), so budget the
+/// size at a conservative 20 MB/s, clamped to 150s..900s. The old FIXED 150s
+/// permanently starved big files: the pass timed out, the partial output was
+/// discarded, and the next toggle started the whole read from zero again.
+pub fn timeout_for(abs: &str) -> Duration {
+    let size = std::fs::metadata(abs).map(|m| m.len()).unwrap_or(0);
+    let secs = (size / (20 * 1024 * 1024)).clamp(150, 900);
+    Duration::from_secs(secs)
+}
+
+/// Per-file extraction locks. Concurrent callers for the SAME file (a viewer's
+/// toggle racing the playback pre-warm or the pipeline stage, two clients on
+/// one film) serialize here; the losers then find the cache already written and
+/// no-op instead of demuxing the whole file a second time in parallel.
+fn file_lock(abs: &str) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+    let map = LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    map.lock().unwrap().entry(abs.to_string()).or_default().clone()
+}
+
+/// Extract every still-missing text track of `abs`, serialized per file: the
+/// pending set is computed UNDER the lock, so whichever caller ran first has
+/// already filled the cache and later callers are a cheap stat + no-op. This is
+/// the one entry point the endpoint, the playback pre-warm and the pipeline
+/// stage all share. Blocking; run it on a blocking thread.
+pub fn extract_pending_locked(
+    data_dir: &Path,
+    abs: &str,
+    subs: &[SubtitleTrack],
+    cancel: &dyn Fn() -> bool,
+) -> Result<(), String> {
+    let lock = file_lock(abs);
+    let _guard = lock.lock().map_err(|_| "subtitle extraction lock poisoned".to_string())?;
+    let pending = pending_text_tracks(data_dir, abs, subs);
+    extract_batch_blocking_cancellable(abs, &pending, cancel)
+}
 
 /// Distinct temp suffixes so two concurrent extractions of the SAME file never
 /// clobber each other's `.part` output (the pid alone collides in-process). Mirrors
@@ -87,16 +121,10 @@ pub fn invalidate(data_dir: &Path, abs: &str, subs: &[SubtitleTrack]) {
 /// sibling (scoped by pid AND a per-call sequence, so two concurrent extractions of
 /// the SAME file never collide on one `.part`) and atomically renamed on success,
 /// so a concurrent reader never sees a half-written cue list. Blocking (runs on a
-/// job thread); bounded by [`TIMEOUT`]. `Ok(())` when nothing is pending or ffmpeg
-/// exits clean.
-pub fn extract_batch_blocking(abs: &str, tracks: &[(usize, PathBuf)]) -> Result<(), String> {
-    extract_batch_blocking_cancellable(abs, tracks, &|| false)
-}
-
-/// [`extract_batch_blocking`] that also aborts the in-flight ffmpeg the moment
-/// `cancel` flips (a job/stage was cancelled), instead of running out the full
-/// [`TIMEOUT`].
-pub fn extract_batch_blocking_cancellable(
+/// job thread); bounded by [`timeout_for`]. Aborts the in-flight ffmpeg the moment
+/// `cancel` flips. `Ok(())` when nothing is pending or ffmpeg exits clean. Callers
+/// normally go through [`extract_pending_locked`] for the per-file dedupe.
+fn extract_batch_blocking_cancellable(
     abs: &str,
     tracks: &[(usize, PathBuf)],
     cancel: &dyn Fn() -> bool,
@@ -124,7 +152,7 @@ pub fn extract_batch_blocking_cancellable(
         cmd.arg("-map").arg(format!("0:s:{sidx}")).args(["-f", "webvtt"]).arg(tmp);
     }
 
-    let outcome = run_capturing_cancellable(cmd, TIMEOUT, cancel);
+    let outcome = run_capturing_cancellable(cmd, timeout_for(abs), cancel);
 
     // Move each non-empty output into place; clean up the rest either way so a
     // failed/partial pass never leaves temp files behind.

@@ -24,6 +24,7 @@ import {
   type AvplayApi,
   type EngineListeners,
   getAvplay,
+  resolveMasterStart,
   type TvEngine,
 } from '#tv/features/playback/player/engine';
 
@@ -100,10 +101,26 @@ export class AvplayEngine implements TvEngine {
       : this.client.hlsMasterUrl(this.item.id, false, this.baseSec, this.rendition);
   }
 
-  /** (Re)open the current source and prepare it. */
+  /** (Re)open the current source and prepare it. An anchored master first
+   * resolves its REAL start (the keyframe the server actually seeked to) so
+   * `baseSec` and every absolute-time consumer (progress bar, subtitle cues)
+   * stay honest; direct sources have an absolute timeline and open at once. */
   private open(): void {
+    const url = this.sourceUrl();
+    if (this.mode === 'master' && this.baseSec > 0.5) {
+      void resolveMasterStart(url, this.baseSec).then((real) => {
+        if (this.destroyed) return;
+        this.baseSec = real;
+        this.openNow(url);
+      });
+      return;
+    }
+    this.openNow(url);
+  }
+
+  private openNow(url: string): void {
     try {
-      this.api.open(this.sourceUrl());
+      this.api.open(url);
       this.api.setDisplayRect(0, 0, 1920, 1080);
       try {
         this.api.setStreamingProperty('ADAPTIVE_INFO', 'STARTBITRATE=HIGHEST|SKIPBITRATE=LOWEST');

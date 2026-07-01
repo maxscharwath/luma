@@ -114,6 +114,21 @@ pub async fn ping(
         subtitle: body.subtitle,
     };
 
+    // First beat of a session: pre-warm this item's text-subtitle cache in the
+    // background, so the toggle a viewer reaches for mid-film is a disk read
+    // instead of a whole-file demux they must sit through. The per-file lock in
+    // `extract_pending_locked` dedupes against the pipeline stage and the
+    // on-demand endpoint; when everything is already cached this is a few stats.
+    if let Some(item) = item.as_ref() {
+        if let Some(abs) = item.abs_path.clone() {
+            let subs = item.subtitles.clone();
+            let data_dir = state.config.data_dir.clone();
+            tokio::task::spawn_blocking(move || {
+                let _ = crate::infra::subtitles::extract_pending_locked(&data_dir, &abs, &subs, &|| false);
+            });
+        }
+    }
+
     let is_new = state.playback.upsert(
         ping,
         Some(user.id.clone()),

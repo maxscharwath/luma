@@ -109,12 +109,15 @@ function SubtitleLayerImpl({
       pointer.current = 0;
       update();
     };
-    v.addEventListener('timeupdate', update);
+    // Poll the element clock on a fast tick rather than `timeupdate`: browsers
+    // fire that event only ~4x/s, so cue boundaries landed up to 250ms late.
+    // Reading `currentTime` is exact and cheap; state only changes with the text.
+    const id = setInterval(update, 100);
     v.addEventListener('seeking', reanchor);
     v.addEventListener('seeked', reanchor);
     update();
     return () => {
-      v.removeEventListener('timeupdate', update);
+      clearInterval(id);
       v.removeEventListener('seeking', reanchor);
       v.removeEventListener('seeked', reanchor);
     };
