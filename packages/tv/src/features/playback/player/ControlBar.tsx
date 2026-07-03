@@ -1,5 +1,6 @@
 import type { Marker } from '@luma/core';
 import { useT } from '@luma/ui';
+import { type PointerEvent as ReactPointerEvent, useCallback, useRef } from 'react';
 import { fmtTime } from '#tv/features/playback/player/fmt';
 import {
   ForwardGlyph,
@@ -53,6 +54,20 @@ function CountdownRing({ progress }: { progress: number }) {
   );
 }
 
+/** Mouse driving for the bar: reveal + focus helpers, transport actions, and the
+ * scrub-bar click/drag hooks (seeking reuses the same gesture as the remote). */
+export interface ControlBarMouse {
+  poke: () => void;
+  focusBar: (name: string) => void;
+  focusProgress: () => void;
+  togglePlay: () => void;
+  seekPress: (dir: -1 | 1) => void;
+  scrub: (absSec: number) => void;
+  scrubCommit: () => void;
+  openAv: () => void;
+  onNext?: () => void;
+}
+
 interface ControlBarProps {
   fade: string;
   zone: Zone;
@@ -75,6 +90,8 @@ interface ControlBarProps {
   /** Storyboard thumbnail at the scrub position (null until the sheet is ready). */
   previewTile?: StoryboardTile | null;
   barFocusName: (name: string) => boolean;
+  /** Mouse driving (click transport, click / drag the scrub bar). */
+  mouse: ControlBarMouse;
 }
 
 /** Bottom seek bar + the focusable control row + the remote hint. */
@@ -95,8 +112,68 @@ export function ControlBar({
   markers,
   previewTile,
   barFocusName,
+  mouse,
 }: ControlBarProps) {
   const t = useT();
+  const trackRef = useRef<HTMLButtonElement>(null);
+  const dragging = useRef(false);
+
+  // Map a clientX on the scrub track to an absolute position and preview it.
+  const scrubAt = useCallback(
+    (clientX: number) => {
+      const el = trackRef.current;
+      if (!el || dur <= 0) return;
+      const r = el.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      mouse.scrub(frac * dur);
+    },
+    [dur, mouse],
+  );
+
+  // Click / drag the scrub track: preview live, commit ONE seek on release.
+  const onTrackDown = useCallback(
+    (e: ReactPointerEvent) => {
+      if (e.button !== 0) return; // left button only
+      e.preventDefault();
+      mouse.poke();
+      mouse.focusProgress();
+      dragging.current = true;
+      scrubAt(e.clientX);
+      const onMove = (ev: PointerEvent) => {
+        if (!dragging.current) return;
+        mouse.poke();
+        scrubAt(ev.clientX);
+      };
+      const onUp = () => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        mouse.scrubCommit();
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [mouse, scrubAt],
+  );
+
+  // Rewind / forward: pointer-down starts a press (tap if released quickly, or an
+  // accelerating scrub if held); the global pointer-up ends it (see useSeekGesture).
+  const onSeekDown = (dir: -1 | 1, name: string) => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    mouse.poke();
+    mouse.focusBar(name);
+    mouse.seekPress(dir);
+  };
+
+  // Discrete controls (play / next / tracks): act on click.
+  const onClickCtrl = (name: string, fn?: () => void) => () => {
+    mouse.poke();
+    mouse.focusBar(name);
+    fn?.();
+  };
+
   return (
     <div
       className={`absolute inset-x-0 bottom-0 bg-[linear-gradient(0deg,rgba(0,0,0,0.82),transparent)] px-8.5 pb-7 transition-opacity duration-350 ${fade}`}
@@ -109,13 +186,19 @@ export function ControlBar({
         >
           {fmtTime(shown)}
         </span>
-        <div
-          className={`relative flex-1 rounded-full bg-[rgba(255,255,255,0.18)] transition-[height,box-shadow] duration-200 ${
+        <button
+          type="button"
+          ref={trackRef}
+          onPointerDown={onTrackDown}
+          aria-label={t('player.seekBar')}
+          className={`relative flex-1 touch-none cursor-pointer rounded-full bg-[rgba(255,255,255,0.18)] transition-[height,box-shadow] duration-200 ${
             zone === 'progress' && controls
               ? 'h-2.5 shadow-[0_0_0_4px_rgba(242,180,66,0.35)]'
               : 'h-1.5'
           }`}
         >
+          {/* Taller transparent hit area so the thin track is easy to grab with a mouse. */}
+          <div className="absolute inset-x-0 -inset-y-3.5 z-20" />
           {previewTile ? (
             <div
               className="pointer-events-none absolute bottom-full z-10 mb-4 -translate-x-1/2 overflow-hidden rounded-xl border border-[rgba(255,255,255,0.2)] bg-black shadow-[0_12px_34px_rgba(0,0,0,0.65)] ring-1 ring-black/40"
@@ -155,7 +238,7 @@ export function ControlBar({
             }`}
             style={{ left: `${pct}%` }}
           />
-        </div>
+        </button>
         <span className="w-16 text-right font-sans text-[15px] font-semibold text-[rgba(244,243,240,0.55)] tabular-nums">
           {fmtTime(dur)}
         </span>
@@ -167,34 +250,49 @@ export function ControlBar({
       </div>
 
       <div className="flex items-center justify-center gap-5.5 pt-1">
-        <div
-          className={`${CTRL} h-17.5 w-17.5 ${barFocusName('rewind') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
+        <button
+          type="button"
+          onPointerDown={onSeekDown(-1, 'rewind')}
+          aria-label={t('player.rewind')}
+          className={`${CTRL} h-17.5 w-17.5 cursor-pointer ${barFocusName('rewind') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
         >
           <RewindGlyph />
-        </div>
-        <div
-          className={`${CTRL} relative h-21 w-21 text-accent-ink ${barFocusName('play') ? `${FOCUS_RING} bg-accent-hover` : 'bg-accent'}`}
+        </button>
+        <button
+          type="button"
+          onClick={onClickCtrl('play', mouse.togglePlay)}
+          aria-label={playing ? t('player.pause') : t('player.play')}
+          className={`${CTRL} relative h-21 w-21 cursor-pointer text-accent-ink ${barFocusName('play') ? `${FOCUS_RING} bg-accent-hover` : 'bg-accent'}`}
         >
           {playing ? <PauseGlyph /> : <PlayGlyph />}
           {showCountdown ? <CountdownRing progress={ringProgress} /> : null}
-        </div>
-        <div
-          className={`${CTRL} h-17.5 w-17.5 ${barFocusName('forward') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
+        </button>
+        <button
+          type="button"
+          onPointerDown={onSeekDown(1, 'forward')}
+          aria-label={t('player.forward')}
+          className={`${CTRL} h-17.5 w-17.5 cursor-pointer ${barFocusName('forward') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
         >
           <ForwardGlyph />
-        </div>
+        </button>
         {hasNext ? (
-          <div
-            className={`${CTRL} h-17.5 w-17.5 ${barFocusName('next') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
+          <button
+            type="button"
+            onClick={onClickCtrl('next', mouse.onNext)}
+            className={`${CTRL} h-17.5 w-17.5 cursor-pointer ${barFocusName('next') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
             aria-label={t('player.nextEpisode')}
           >
             <NextGlyph />
-          </div>
+          </button>
         ) : null}
-        <div className={`${PILL} ${barFocusName('av') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}>
+        <button
+          type="button"
+          onClick={onClickCtrl('av', mouse.openAv)}
+          className={`${PILL} cursor-pointer ${barFocusName('av') ? `${FOCUS_RING} ${CTRL_ON}` : CTRL_OFF}`}
+        >
           <TracksGlyph />
           {t('player.audioSubShort')}
-        </div>
+        </button>
       </div>
 
       <div className="mt-4 text-center font-sans text-[14px] font-semibold text-dim">

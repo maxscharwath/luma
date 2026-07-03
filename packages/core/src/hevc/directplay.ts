@@ -286,10 +286,10 @@ export const NATIVE_TV_CAPS: PlaybackCapabilities = {
 
 // ----- engine selection ------------------------------------------------------
 
-export type PlayerEngineKind = 'direct' | 'web-mse' | 'tizen-avplay' | 'webos';
+export type PlayerEngineKind = 'direct' | 'web-mse' | 'tizen-avplay' | 'webos' | 'desktop-mpv';
 
 export interface PlayEnv {
-  platform: 'web' | 'tizen' | 'webos';
+  platform: 'web' | 'tizen' | 'webos' | 'desktop';
   safari: boolean;
   /** Runtime-probed capabilities of a bare `<video>` element (canPlayType /
    * MediaSource), when the caller has a DOM to probe. Widens direct-play beyond
@@ -352,8 +352,16 @@ export function avplayDirectPlayable(item: MediaItem): boolean {
  *    work) or the stream-copy master is decided by {@link avplayDirectPlayable}.
  *  - webos: `direct` for a plain compatible MP4, else `webos` forcing the AAC
  *    master (its MSE path cannot decode AC3/EAC3).
+ *  - steamdeck: `desktop-mpv` always. A native mpv process opens the ORIGINAL
+ *    file directly (VA-API hardware decode of HEVC/etc. + all surround codecs,
+ *    native seeking, in-place audio-track switching via `aid`), so the server
+ *    only sends bytes. Like AVPlay the engine keeps a direct→master fallback for
+ *    the rare file mpv cannot demux, so the master (when used) is stream-copy.
  */
 export function selectEngine(item: MediaItem, env: PlayEnv): EngineDecision {
+  if (env.platform === 'desktop') {
+    return { kind: 'desktop-mpv', aacMaster: false };
+  }
   if (env.platform === 'tizen') {
     return { kind: 'tizen-avplay', aacMaster: false };
   }

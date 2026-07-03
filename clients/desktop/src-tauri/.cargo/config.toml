@@ -1,0 +1,4 @@
+# libmpv2-sys locates libmpv via pkg-config; on Apple-Silicon Homebrew the .pc
+# lives here. (macOS-only dependency, so this is irrelevant to Linux/Deck builds.)
+[env]
+PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"

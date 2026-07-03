@@ -115,6 +115,7 @@ const WEB_CHROME: PlayEnv = { platform: 'web', safari: false };
 const WEB_SAFARI: PlayEnv = { platform: 'web', safari: true };
 const TIZEN: PlayEnv = { platform: 'tizen', safari: false };
 const WEBOS: PlayEnv = { platform: 'webos', safari: false };
+const DESKTOP: PlayEnv = { platform: 'desktop', safari: false };
 
 describe('selectEngine', () => {
   it('routes a plain h264 + aac single-audio mp4 to direct-play on Chrome', () => {
@@ -200,6 +201,17 @@ describe('selectEngine', () => {
     expect(selectEngine(item, TIZEN)).toEqual({ kind: 'tizen-avplay', aacMaster: false });
     expect(selectEngine(item, WEB_CHROME)).toEqual({ kind: 'web-mse', aacMaster: true });
     expect(selectEngine(item, WEBOS)).toEqual({ kind: 'webos', aacMaster: true });
+    // Steam Deck: native mpv decodes everything, so always its own engine, copy master.
+    expect(selectEngine(item, DESKTOP)).toEqual({ kind: 'desktop-mpv', aacMaster: false });
+  });
+
+  it('always routes the Steam Deck to desktop-mpv (even a plain mp4)', () => {
+    const item = makeItem({
+      container: 'mp4',
+      videoCodec: 'h264',
+      audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
+    });
+    expect(selectEngine(item, DESKTOP)).toEqual({ kind: 'desktop-mpv', aacMaster: false });
   });
 
   it('direct-plays a plain mp4 on webOS, but always reports tizen-avplay on Tizen', () => {

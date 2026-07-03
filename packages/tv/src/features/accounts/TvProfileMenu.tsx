@@ -5,14 +5,22 @@ import {
   IconLanguage,
   IconLock,
   IconLogout,
+  IconMovie,
   IconTrash,
   IconUsersGroup,
 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
 import { AuthScreen, ProfileAvatar } from '#tv/shared/ui';
+import {
+  availableEngines,
+  ENGINE_LABEL_KEY,
+  type EnginePref,
+  getEnginePref,
+  setEnginePref,
+} from '#tv/app/enginePref';
 import { useFocusNav } from '#tv/app/useFocusNav';
 
 const MENU_ROW =
@@ -28,6 +36,21 @@ export function TvProfileMenu() {
   const { activeServerUrl, forgetServer, client } = useConnection();
   const { user, switchProfile, logout, forget } = useAuth();
   useFocusNav({ onBack: nav.back });
+
+  // Playback engine override (auto / direct <video> / server remux / mpv). Shown only
+  // where there is a choice - native-decoder TVs return just ['auto']. This useState
+  // MUST stay ABOVE the `!user` early return: a hook after a conditional return breaks
+  // the rules of hooks and crashes with React #300 the moment the profile is switched
+  // out (user -> null) - which was the switch-profile black screen.
+  const engines = availableEngines();
+  const [engine, setEngine] = useState<EnginePref>(getEnginePref);
+  const cycleEngine = () => {
+    const i = engines.indexOf(engine);
+    const next = engines[(i + 1) % engines.length]!;
+    setEngine(next);
+    setEnginePref(next);
+  };
+
   if (!user) return null;
 
   const cycleLocale = () => {
@@ -71,6 +94,18 @@ export function TvProfileMenu() {
             {localeLabel ? t(localeLabel) : locale}
           </span>
         </MenuRow>
+
+        {engines.length > 1 ? (
+          <MenuRow
+            icon={<IconMovie size={22} stroke={1.7} />}
+            label={t('playbackEngine.title')}
+            onAct={cycleEngine}
+          >
+            <span className="font-sans text-[16px] font-semibold text-accent">
+              {t(ENGINE_LABEL_KEY[engine])}
+            </span>
+          </MenuRow>
+        ) : null}
 
         {user.hasPin ? (
           <MenuRow

@@ -1,0 +1,38 @@
+{
+  "name": "@luma/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LUMA native desktop client: Tauri shell over @luma/tv with native mpv playback + gamepad input. Steam Deck is the primary target.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsgo --noEmit && vite build",
+    "build:fast": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsgo --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build --bundles appimage",
+    "tauri:build:mac": "tauri build --bundles app",
+    "tauri:build:mac:dmg": "tauri build --bundles app,dmg",
+    "tauri:icon": "tauri icon src-tauri/icons/icon.png"
+  },
+  "dependencies": {
+    "@luma/core": "workspace:*",
+    "@luma/tv": "workspace:*",
+    "@luma/ui": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.7"
+  }
+}

@@ -2,7 +2,7 @@
 name = "luma-server"
 version = "0.1.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.86"
 description = "LUMA a self-hosted, direct-play media streaming server"
 license = "MIT"
 
@@ -22,8 +22,9 @@ default = ["whisper-local"]
 # genre rows). Turn this on for the *aesthetic* themed rows lexical can't reach
 # ("mind-bending", "neon night drive") and proper cross-language matching.
 #
-# Needs rustc >= 1.85 (the candle graph pulls toml_parser → edition2024; that's
-# why rust-toolchain.toml pins 1.85). At runtime, point LUMA_EMBED_MODEL_DIR at a
+# Needs rustc >= 1.85 (the candle graph pulls toml_parser → edition2024); the repo
+# builds on a newer pinned stable (see rust-toolchain.toml). At runtime, point
+# LUMA_EMBED_MODEL_DIR at a
 # BERT-arch sentence model we use `paraphrase-multilingual-MiniLM-L12-v2`
 # (~470 MB, default ./models/ml-minilm): an English-only model collapses on a
 # French catalog (see infra/embed/candle.rs). Then re-embed (POST /api/scan) to

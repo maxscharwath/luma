@@ -1,0 +1,37 @@
+# Its own workspace root: keep this crate out of any parent Cargo workspace
+# (the server is standalone; this stays independent too).
+[workspace]
+
+[package]
+name = "luma-desktop"
+version = "0.1.0"
+description = "LUMA Steam Deck client (Tauri shell over @luma/tv, native mpv playback)"
+edition = "2021"
+# Tauri v2's dependency graph (darling / time / serde_with) needs >= 1.88.
+rust-version = "1.88"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# In-process libmpv render engine for macOS (WIP: not yet wired into the UI). OFF by
+# default so shippable builds don't link/need libmpv (a distributed .dmg would have to
+# BUNDLE libmpv.dylib). Enable for the native mpv work: `cargo build --features libmpv`
+# (needs `brew install mpv`). Only meaningful on macOS.
+libmpv = ["dep:libmpv2"]
+
+[profile.release]
+# Lean binary for the AppImage: LTO + strip, small over fast (a media shell is
+# I/O-bound, not CPU-bound - the decode work is mpv's, in a separate process).
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libmpv2 = { version = "6.0.0", optional = true }

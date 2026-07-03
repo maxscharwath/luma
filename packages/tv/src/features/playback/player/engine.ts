@@ -23,7 +23,7 @@ export interface EngineListeners {
 
 /** The uniform surface the hook + UI talk to, regardless of backend. */
 export interface TvEngine {
-  readonly kind: 'video' | 'avplay';
+  readonly kind: 'video' | 'avplay' | 'mpv';
   play(): void;
   pause(): void;
   isPaused(): boolean;
@@ -92,6 +92,43 @@ export function getAvplay(): AvplayApi | null {
 /** Whether to drive playback through native AVPlay (Tizen only). */
 export function avplayAvailable(): boolean {
   return getAvplay() != null;
+}
+
+// ----- Desktop mpv bridge (Tauri) --------------------------------------------
+// The @luma/desktop shell (a Tauri app, Steam Deck the primary target) runs a
+// native mpv process for video (VA-API hardware decode of HEVC + surround audio)
+// and exposes a tiny command surface + event stream to the webview. We reach it
+// through Tauri's injected `window.__TAURI__` globals (the shell sets
+// `app.withGlobalTauri: true`), so @luma/tv needs no Tauri dependency and this
+// whole path stays inert in a plain browser (getTauri() → null → the HTML/AVPlay
+// engines are used instead).
+
+/** The slice of Tauri's global API the mpv engine uses. */
+export interface TauriBridge {
+  core: { invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> };
+  event: {
+    listen(
+      event: string,
+      cb: (e: { payload: unknown }) => void,
+    ): Promise<() => void>;
+  };
+}
+
+/** Tauri's injected global API when running inside the Steam Deck shell, else null. */
+export function getTauri(): TauriBridge | null {
+  const w = globalThis as unknown as { __TAURI__?: Partial<TauriBridge> };
+  const t = w.__TAURI__;
+  return t?.core?.invoke && t?.event?.listen ? (t as TauriBridge) : null;
+}
+
+/** Whether to drive playback through the native mpv process. Only the LINUX desktop
+ * shell spawns mpv (the Deck's VA-API path); on macOS the WKWebView decodes HEVC via
+ * VideoToolbox, so there we use the in-page `<video>` engine and never spawn a second
+ * (mpv) window. So mpv is gated to a Tauri shell running on Linux. */
+export function mpvAvailable(): boolean {
+  if (getTauri() == null) return false;
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  return /Linux/i.test(ua) && !/Android/i.test(ua);
 }
 
 /**

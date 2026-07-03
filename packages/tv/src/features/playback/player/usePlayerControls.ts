@@ -11,9 +11,10 @@ const BAR_NEXT = ['rewind', 'play', 'forward', 'next', 'av'] as const;
 interface Args {
   playing: boolean;
   togglePlay: () => void;
-  seek: (delta: number) => void;
-  /** Progressive (accelerating) seek in a direction for held direction keys. */
-  nudge: (dir: -1 | 1) => void;
+  /** Begin a directional seek press (short = stacking tap, held = accelerating scrub). */
+  seekPress: (dir: -1 | 1) => void;
+  /** A discrete directional tap (OK on the focused rewind/forward control). */
+  seekTap: (dir: -1 | 1) => void;
   onExit: () => void;
   /** Admin stopped this stream: lock the transport (no resume/seek) and let any
    * OK/Retour just exit the player, mirroring the web client's blocking modal. */
@@ -72,6 +73,14 @@ export interface PlayerControls {
   /** Up-next card's "Play now" / "Cancel" buttons are focused. */
   upNextPlayFocus: boolean;
   upNextCancelFocus: boolean;
+  /** Reveal the controls + restart the auto-hide timer (mouse activity). */
+  poke: () => void;
+  /** Move the focus ring to a named bottom-bar control (mouse click). */
+  focusBar: (name: string) => void;
+  /** Move focus to the progress bar (mouse scrub). */
+  focusProgress: () => void;
+  /** Open the Audio & Subtitles panel (mouse click on the tracks pill). */
+  openAv: () => void;
 }
 
 /**
@@ -82,8 +91,8 @@ export interface PlayerControls {
 export function usePlayerControls({
   playing,
   togglePlay,
-  seek,
-  nudge,
+  seekPress,
+  seekTap,
   onExit,
   terminated = false,
   audioOptions,
@@ -154,17 +163,31 @@ export function usePlayerControls({
     setAvOpen(true);
   }, [avRows, activeAudio]);
 
+  // Mouse focus helpers: a pointer interaction moves the focus ring to match, so
+  // the keyboard/remote resumes from wherever the mouse last acted.
+  const focusBar = useCallback(
+    (name: string) => {
+      const i = bar.indexOf(name);
+      if (i >= 0) {
+        setZone('bar');
+        setBarIndex(i);
+      }
+    },
+    [bar],
+  );
+  const focusProgress = useCallback(() => setZone('progress'), []);
+
   const activate = useCallback(
     (i: number) => {
       switch (bar[i]) {
         case 'rewind':
-          seek(-10);
+          seekTap(-1);
           break;
         case 'play':
           togglePlay();
           break;
         case 'forward':
-          seek(10);
+          seekTap(1);
           break;
         case 'next':
           onNext?.();
@@ -174,7 +197,7 @@ export function usePlayerControls({
           break;
       }
     },
-    [bar, seek, togglePlay, openAv, onNext],
+    [bar, seekTap, togglePlay, openAv, onNext],
   );
 
   useEffect(() => {
@@ -194,7 +217,7 @@ export function usePlayerControls({
     const move = (reveal: boolean, dir: -1 | 1) => {
       if (reveal) return;
       if (zone === 'progress')
-        nudge(dir); // accelerating seek (hold to go faster)
+        seekPress(dir); // tap = 5s (stacks); hold = accelerating scrub
       else setBarIndex((i) => Math.max(0, Math.min(bar.length - 1, i + dir)));
     };
     const confirm = (reveal: boolean) => {
@@ -312,8 +335,8 @@ export function usePlayerControls({
         Pause: () => {
           if (playing) togglePlay();
         },
-        FastForward: () => nudge(1),
-        Rewind: () => nudge(-1),
+        FastForward: () => seekPress(1),
+        Rewind: () => seekPress(-1),
       });
       e.preventDefault(); // the visible overlay swallows every key
     };
@@ -335,7 +358,7 @@ export function usePlayerControls({
     onExit,
     terminated,
     poke,
-    nudge,
+    seekPress,
     togglePlay,
     activate,
     pickAudio,
@@ -366,5 +389,9 @@ export function usePlayerControls({
     skipFocused,
     upNextPlayFocus: cardFocused && upNextFocus === 0,
     upNextCancelFocus: cardFocused && upNextFocus === 1,
+    poke,
+    focusBar,
+    focusProgress,
+    openAv,
   };
 }

@@ -9,7 +9,7 @@ Rust server · web + TV clients · one cinematic design language.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4B642.svg?style=flat-square)](LICENSE)
 [![Bun ≥ 1.3](https://img.shields.io/badge/Bun-%E2%89%A5%201.3-0A0A0C.svg?style=flat-square&logo=bun&logoColor=F4B642)](https://bun.sh)
-[![Rust ≥ 1.85](https://img.shields.io/badge/Rust-%E2%89%A5%201.85-0A0A0C.svg?style=flat-square&logo=rust&logoColor=F4B642)](https://www.rust-lang.org)
+[![Rust ≥ 1.86](https://img.shields.io/badge/Rust-%E2%89%A5%201.86-0A0A0C.svg?style=flat-square&logo=rust&logoColor=F4B642)](https://www.rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-0A0A0C.svg?style=flat-square&logo=typescript&logoColor=3178C6)](https://www.typescriptlang.org)
 [![Platforms](https://img.shields.io/badge/platforms-web%20%C2%B7%20Samsung%20%C2%B7%20LG-0A0A0C.svg?style=flat-square)](#platforms)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-F4B642.svg?style=flat-square)](CONTRIBUTING.md)
@@ -131,7 +131,7 @@ luma/
 ## Prerequisites
 
 - **[Bun](https://bun.sh)** ≥ 1.3 package manager + runner (the repo is a Bun workspace)
-- **[Rust](https://www.rust-lang.org)** ≥ 1.85 + **ffmpeg/ffprobe** for the server's metadata + HLS path
+- **[Rust](https://www.rust-lang.org)** ≥ 1.86 + **ffmpeg/ffprobe** for the server's metadata + HLS path
 - Optional, only to package TV apps: **Tizen Studio** (Samsung) · **webOS TV CLI**
   [`@webos-tools/cli`](https://www.npmjs.com/package/@webos-tools/cli) (LG)
 

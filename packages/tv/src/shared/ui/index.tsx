@@ -9,6 +9,7 @@
 
 export { AuthScreen } from '#tv/shared/ui/AuthScreen';
 export { AVATAR_GRADS, gradFor, initials, LockGlyph, ProfileAvatar } from '#tv/shared/ui/avatar';
+export { TvBackButton } from '#tv/shared/ui/BackButton';
 export { LumaMark, useClock } from '#tv/shared/ui/brand';
 export { OnScreenKeyboard } from '#tv/shared/ui/keyboard';
 export { Keypad } from '#tv/shared/ui/keypad';

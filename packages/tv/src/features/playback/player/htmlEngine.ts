@@ -109,12 +109,23 @@ export class HtmlEngine implements TvEngine {
       this.baseSec,
       this.rendition,
     );
+    // Safari / WKWebView: prefer NATIVE HLS. Its media stack decodes Dolby
+    // (AC3 / E-AC3) with full surround, which hls.js + MSE cannot - so on macOS the
+    // master is stream-copied (5.1 preserved) and played natively, instead of the
+    // server transcoding audio to stereo AAC. Everything else uses hls.js over MSE.
+    const useNative = v.canPlayType('application/vnd.apple.mpegurl') !== '';
     // The stream really starts at the keyframe AT-OR-BEFORE the anchor; correct
     // `baseSec` from X-Hls-Start so the clock + subtitle cues don't drift a GOP.
-    void Promise.all([import('hls.js'), resolveMasterStart(url, this.baseSec)]).then(
-      ([{ default: Hls }, realStart]) => {
+    void resolveMasterStart(url, this.baseSec).then((realStart) => {
+      if (this.destroyed) return;
+      this.baseSec = realStart;
+      if (useNative) {
+        v.src = url; // Safari plays the HLS playlist (incl. AC3) natively.
+        v.preload = 'auto';
+        return;
+      }
+      void import('hls.js').then(({ default: Hls }) => {
         if (this.destroyed) return;
-        this.baseSec = realStart;
         if (!Hls.isSupported()) {
           v.src = url; // last resort the hook's ready-gated play starts it
           v.preload = 'auto';
@@ -124,8 +135,8 @@ export class HtmlEngine implements TvEngine {
         this.hls = hls;
         hls.loadSource(url);
         hls.attachMedia(v);
-      },
-    );
+      });
+    });
   }
 
   /** Re-anchor the remux at `absSec` (reload the master at `?t=absSec`), then

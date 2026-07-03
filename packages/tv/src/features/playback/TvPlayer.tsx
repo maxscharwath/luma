@@ -104,11 +104,15 @@ export function TvPlayer() {
     skipFocused,
     upNextPlayFocus,
     upNextCancelFocus,
+    poke,
+    focusBar,
+    focusProgress,
+    openAv,
   } = usePlayerControls({
     playing: playback.playing,
     togglePlay: playback.togglePlay,
-    seek: playback.seek,
-    nudge: playback.nudge,
+    seekPress: playback.seekPress,
+    seekTap: playback.seekTap,
     onExit: nav.back,
     terminated: terminated != null,
     audioOptions,
@@ -131,6 +135,36 @@ export function TvPlayer() {
 
   const audio = useMemo(() => audioSupport(item), [item]);
   const subtitle = playerSubtitle(item);
+
+  // Mouse driving for the control bar: reveal + focus helpers, the transport
+  // actions, and the scrub-bar click/drag hooks. Bundled so ControlBar takes one
+  // prop. Seeking reuses the same gesture as the remote (press = tap/hold, scrub =
+  // absolute drag), so both input paths share one commit path.
+  const mouse = useMemo(
+    () => ({
+      poke,
+      focusBar,
+      focusProgress,
+      togglePlay: playback.togglePlay,
+      seekPress: playback.seekPress,
+      scrub: playback.seekScrub,
+      scrubCommit: playback.seekScrubCommit,
+      openAv,
+      onNext: next ? goNext : undefined,
+    }),
+    [
+      poke,
+      focusBar,
+      focusProgress,
+      playback.togglePlay,
+      playback.seekPress,
+      playback.seekScrub,
+      playback.seekScrubCommit,
+      openAv,
+      next,
+      goNext,
+    ],
+  );
 
   // While progressively seeking, the bar + time preview the pending position.
   const shown = seekPreview ?? cur;
@@ -177,7 +211,11 @@ export function TvPlayer() {
 
   return (
     <div
-      className={`fixed inset-0 z-60 ${playback.surface === 'avplay' ? 'bg-transparent' : 'bg-black'} ${controls ? '' : 'cursor-none'}`}
+      className={`fixed inset-0 z-60 ${playback.surface === 'video' ? 'bg-black' : 'bg-transparent'} ${controls ? '' : 'cursor-none'}`}
+      onPointerMove={(e) => {
+        // Mouse/pen activity reveals the controls (touch scrolls are ignored).
+        if (e.pointerType !== 'touch') poke();
+      }}
     >
       {playback.surface === 'avplay' ? (
         // Native AVPlay renders to a hardware video plane BEHIND the page; this
@@ -189,6 +227,11 @@ export function TvPlayer() {
           className="h-full w-full"
           aria-label={item.title}
         />
+      ) : playback.surface === 'mpv' ? (
+        // Native mpv (Steam Deck) renders to its OWN window behind the transparent
+        // Tauri UI window - so there is no in-page media element; the page is
+        // transparent here and the HTML chrome + subtitles sit on top.
+        <div className="h-full w-full" aria-label={item.title} />
       ) : (
         // eslint-disable-next-line jsx-a11y/media-has-caption
         <video
@@ -232,9 +275,14 @@ export function TvPlayer() {
       <div
         className={`absolute inset-x-0 top-0 flex items-center gap-4.5 bg-[linear-gradient(180deg,rgba(0,0,0,0.65),transparent)] px-8.5 py-6.5 transition-opacity duration-350 ${fade}`}
       >
-        <div className="flex h-10.5 w-10.5 flex-none items-center justify-center rounded-full border border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.1)] text-white">
+        <button
+          type="button"
+          onClick={nav.back}
+          aria-label={t('player.back')}
+          className="flex h-10.5 w-10.5 flex-none cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.1)] text-white outline-none transition-transform hover:scale-[1.08] hover:bg-[rgba(255,255,255,0.2)]"
+        >
           <BackChevron />
-        </div>
+        </button>
         <div>
           <div className="font-display text-[22px] font-bold text-white">{item.title}</div>
           <div className="font-sans text-[14px] font-medium text-[rgba(244,243,240,0.6)]">
@@ -265,6 +313,7 @@ export function TvPlayer() {
         markers={item.markers}
         previewTile={previewTile}
         barFocusName={barFocusName}
+        mouse={mouse}
       />
 
       {avOpen ? (
@@ -297,12 +346,14 @@ export function TvPlayer() {
           <p className="max-w-[42rem] font-sans text-[18px] leading-relaxed text-[rgba(244,243,240,0.72)]">
             {terminated || t('player.stoppedDefault')}
           </p>
-          <div
-            className={`mt-2 flex items-center gap-2 rounded-full bg-accent px-7 py-3 font-sans text-[16px] font-bold text-accent-ink ${FOCUS_RING}`}
+          <button
+            type="button"
+            onClick={nav.back}
+            className={`mt-2 flex cursor-pointer items-center gap-2 rounded-full bg-accent px-7 py-3 font-sans text-[16px] font-bold text-accent-ink outline-none ${FOCUS_RING}`}
           >
             <BackChevron />
             {t('player.back')}
-          </div>
+          </button>
         </div>
       ) : null}
     </div>

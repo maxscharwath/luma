@@ -3,7 +3,7 @@ import { IconSearch, IconWifiOff } from '@tabler/icons-react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
-import { LumaMark, ProfileAvatar, useClock } from '#tv/shared/ui';
+import { LumaMark, ProfileAvatar, TvBackButton, useClock } from '#tv/shared/ui';
 
 export type NavKey = 'home' | 'films' | 'series' | 'mylist' | 'search';
 
@@ -35,7 +35,11 @@ export function TvTopNav({ active }: Readonly<{ active?: NavKey }>) {
           art (a sky, a snowy shot…) the hero veil only darkens left + bottom. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[linear-gradient(180deg,rgba(10,10,12,0.72),rgba(10,10,12,0.25)_45%,transparent)]" />
       <div className="relative flex items-center justify-between">
-        <LumaMark size={28} />
+        {/* Back (mouse users): shown on any pushed screen, hidden on Home (root). */}
+        <div className="flex items-center gap-4">
+          <TvBackButton />
+          <LumaMark size={28} />
+        </div>
         {/* Solid translucent bg, no backdrop-blur: Tizen composites blur on the
             CPU and it costs visible frames on every scroll/focus move. */}
         <nav className="flex items-center gap-1 rounded-full border border-border bg-[rgba(10,10,12,0.78)] p-1.5">

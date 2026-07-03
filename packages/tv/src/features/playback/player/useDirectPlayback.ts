@@ -9,8 +9,6 @@ import {
   type LumaClient,
   type MediaItem,
   type MessageKey,
-  MSE_CAPS,
-  masterNeedsAac,
   NATIVE_TV_CAPS,
   type PlayEnv,
   resolveAudioRelativeIndex,
@@ -22,18 +20,23 @@ import { AvplayEngine } from '#tv/features/playback/player/avplayEngine';
 import {
   avplayAvailable,
   type EngineListeners,
+  getTauri,
+  mpvAvailable,
   type TvEngine,
 } from '#tv/features/playback/player/engine';
 import { HtmlEngine } from '#tv/features/playback/player/htmlEngine';
+import { MpvEngine } from '#tv/features/playback/player/mpvEngine';
 import { useResumeAndPersist } from '#tv/features/playback/player/useResumeAndPersist';
+import { useSeekGesture } from '#tv/features/playback/player/useSeekGesture';
+import { type EnginePref, getEnginePref } from '#tv/app/enginePref';
 
 export interface Playback {
   /** The HTML `<video>` surface (HTML engine). Null while the AVPlay surface is used. */
   videoRef: React.RefObject<HTMLVideoElement>;
   /** The AVPlay `<object>` surface (native Tizen engine). */
   objectRef: React.RefObject<HTMLObjectElement>;
-  /** Which surface to render. */
-  surface: 'video' | 'avplay';
+  /** Which surface to render. `mpv` renders nothing in-page (native window behind). */
+  surface: 'video' | 'avplay' | 'mpv';
   verdict: DirectPlayVerdict | null;
   /** Codec/stream load failure, as an i18n key translated at the render site. */
   error: MessageKey | null;
@@ -58,11 +61,16 @@ export interface Playback {
   seekTo: (absSec: number) => void;
   /** Read the absolute current position in seconds. */
   getPosition: () => number;
-  /** Progressive seek: accumulate an offset in direction `dir` (the step grows on
-   * rapid successive calls hold to go faster) and commit one real seek the moment
-   * the key is released. `seekPreview` is the pending absolute position. */
-  nudge: (dir: -1 | 1) => void;
-  /** Pending absolute position (s) during a progressive seek, else `null`. */
+  /** Begin a directional seek press (remote key / mouse button down). A short press
+   * is a stacking tap; held past a threshold it becomes an accelerating scrub. */
+  seekPress: (dir: -1 | 1) => void;
+  /** A discrete directional tap (OK on a focused rewind/forward control). */
+  seekTap: (dir: -1 | 1) => void;
+  /** Live-preview an absolute position while clicking / dragging the scrub bar. */
+  seekScrub: (absSec: number) => void;
+  /** Commit the current scrub preview (drag release / bar click). */
+  seekScrubCommit: () => void;
+  /** Pending absolute position (s) during a seek gesture, else `null`. */
   seekPreview: number | null;
   /** Increments each time playback reaches the end (drives up-next autoplay). */
   endedNonce: number;
@@ -70,12 +78,43 @@ export interface Playback {
   seekNonce: number;
 }
 
-/** The browser/platform environment for engine selection (TVs are Chromium). */
+/** The browser/platform environment for engine selection (TVs are Chromium; the
+ * @luma/desktop shell is a Tauri app whose native mpv bridge is detectable). */
 function detectTvEnv(): PlayEnv {
+  if (mpvAvailable()) return { platform: 'desktop', safari: false }; // Linux shell -> mpv
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  // Tauri on macOS = WKWebView (Safari engine: native HEVC + AC3/EAC3), so treat it
+  // as Safari web - caps + engine selection then match the in-page <video> we use
+  // there, and no second (mpv) window is spawned.
+  if (getTauri() != null && /Mac|Macintosh/i.test(ua)) return { platform: 'web', safari: true };
   const webos =
     /web0?s/i.test(ua) || typeof (globalThis as Record<string, unknown>).webOS !== 'undefined';
   return { platform: webos ? 'webos' : 'tizen', safari: false };
+}
+
+/** The concrete backend to build for this item. */
+type Engine = 'mpv' | 'avplay' | 'video-direct' | 'video-remux';
+
+/** Resolve the backend from the user's engine preference, falling back to the
+ * automatic decision. `auto` on Tizen keeps AVPlay (hardware surround), but the user
+ * can force the HTML5 (`<video>` + hls.js) remux path instead; a manual choice that
+ * isn't available on this platform (e.g. `mpv` off the Linux shell, `avplay` off
+ * Tizen) quietly falls through to `auto`. */
+function resolveEngine(
+  pref: EnginePref,
+  env: PlayEnv,
+  autoDirect: boolean,
+): Engine {
+  const tizenNative = env.platform === 'tizen' && avplayAvailable();
+  // Manual overrides.
+  if (pref === 'avplay' && tizenNative) return 'avplay';
+  if (pref === 'webview') return 'video-direct';
+  if (pref === 'remux') return 'video-remux';
+  if (pref === 'mpv' && mpvAvailable()) return 'mpv';
+  // auto:
+  if (tizenNative) return 'avplay';
+  if (env.platform === 'desktop' && mpvAvailable()) return 'mpv';
+  return autoDirect ? 'video-direct' : 'video-remux';
 }
 
 /** A plain, single-audio MP4 a bare TV `<video>` direct-plays natively. */
@@ -84,6 +123,25 @@ function tvDirectPlay(item: MediaItem): boolean {
   if (container !== 'mp4' && container !== 'mov' && container !== 'm4v') return false;
   if (!canDirectPlay(item, NATIVE_TV_CAPS).canDirectPlay) return false;
   return audioTracksOf(item).length <= 1;
+}
+
+/** Container MIME the webview needs to demux a bare `<video src>`. */
+const CONTAINER_MIME: Record<string, string> = {
+  mp4: 'video/mp4',
+  mov: 'video/mp4',
+  m4v: 'video/mp4',
+  webm: 'video/webm',
+};
+
+/** Whether the webview can demux this item's container for a direct `<video src>`.
+ * Safari / WKWebView has no Matroska (MKV) or AVI demuxer, so a forced direct-play
+ * on one loads forever at HAVE_NOTHING with no error - callers fall back to the
+ * server remux (which repackages it into a webview-playable stream) instead. */
+function webviewCanDirectPlay(item: MediaItem): boolean {
+  if (typeof document === 'undefined') return true;
+  const mime = CONTAINER_MIME[(item.container ?? '').toLowerCase()];
+  if (!mime) return false;
+  return document.createElement('video').canPlayType(mime) !== '';
 }
 
 /** The audio-relative rendition to select for the chosen track, resolved from a
@@ -139,11 +197,23 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   // the AAC master (webOS MSE cannot decode AC3/EAC3).
   const env = useMemo(detectTvEnv, []);
   const decision = selectEngine(item, env);
-  const direct = decision.kind === 'direct' || tvDirectPlay(item);
-  const useAvplay = env.platform === 'tizen' && avplayAvailable();
+  const autoDirect = decision.kind === 'direct' || tvDirectPlay(item);
+  // The user can override the automatic engine (profile menu → Playback engine);
+  // `auto` follows selectEngine.
+  let eng = resolveEngine(getEnginePref(), env, autoDirect);
+  // A direct `<video>` on a container the webview can't demux (MKV/AVI in Safari)
+  // would spin forever, so fall back to the server remux which repackages it.
+  if (eng === 'video-direct' && !webviewCanDirectPlay(item)) eng = 'video-remux';
+  const useMpv = eng === 'mpv';
+  const useAvplay = eng === 'avplay';
   const avplayDirect = useAvplay && avplayDirectPlayable(item);
-  const surface: 'video' | 'avplay' = useAvplay ? 'avplay' : 'video';
-  const masterAac = masterNeedsAac(item, MSE_CAPS);
+  const direct = eng === 'video-direct';
+  // mpv / AVPlay render to their own plane behind the transparent UI, so neither
+  // uses an in-page media element.
+  const surface: 'video' | 'avplay' | 'mpv' = useMpv ? 'mpv' : useAvplay ? 'avplay' : 'video';
+  // Env-aware: Safari's native HLS decodes AC3/E-AC3 so its master is stream-copied
+  // (5.1 kept); Chromium/webOS MSE can't, so `selectEngine` marks those AAC.
+  const masterAac = decision.aacMaster;
   const durationSec = item.durationMs ? item.durationMs / 1000 : 0;
 
   // Build + tear down the engine for this item. Audio switches do NOT re-create
@@ -178,7 +248,19 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     };
 
     let engine: TvEngine | null = null;
-    if (useAvplay) {
+    if (useMpv) {
+      // Native mpv opens the original file directly (VA-API decode); an internal
+      // direct→master fallback covers the rare file it cannot demux.
+      engine = new MpvEngine({
+        client,
+        item,
+        durationSec,
+        initialRendition: renditionFor(item, audioIndexRef.current),
+        startSec: 0,
+        direct: true,
+        listeners,
+      });
+    } else if (useAvplay) {
       engine = new AvplayEngine({
         client,
         item,
@@ -209,12 +291,30 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
       engine?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, item, useAvplay, avplayDirect, direct, masterAac, durationSec]);
+  }, [client, item, useMpv, useAvplay, avplayDirect, direct, masterAac, durationSec]);
 
   // In-place audio rendition switch: no source reload, picture keeps playing.
   useEffect(() => {
     engineRef.current?.setAudioRendition(renditionFor(item, audioIndex));
   }, [item, audioIndex]);
+
+  // Safety net + diagnostic: a `<video>`/HLS load that never signals ready (blocked
+  // http media, macOS ATS, an undecodable codec) would otherwise spin forever.
+  // After a grace period, log the element's exact state and surface the failure.
+  useEffect(() => {
+    if (surface !== 'video' || ready || error) return;
+    const id = window.setTimeout(() => {
+      const v = videoRef.current;
+      const e = v?.error;
+      console.error(
+        `[LUMA] stream did not load in 15s: networkState=${v?.networkState} ` +
+          `readyState=${v?.readyState} errorCode=${e?.code ?? '-'} ${e?.message ?? ''} ` +
+          `src=${v?.currentSrc || v?.src || '(none)'}`,
+      );
+      setError('player.cantPlay');
+    }, 15000);
+    return () => window.clearTimeout(id);
+  }, [surface, ready, error]);
 
   const getPosition = useCallback(() => engineRef.current?.position() ?? 0, []);
   const runtime = useCallback(() => engineRef.current?.duration() || durationSec, [durationSec]);
@@ -231,6 +331,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
 
   // Heartbeat the session for the admin dashboard + react to a remote termination.
   const tvDevice = (): string => {
+    if (useMpv) return 'Desktop';
     const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent || '';
     if (/Tizen/i.test(ua)) return 'Samsung TV';
     if (/web0?s|LG/i.test(ua)) return 'LG TV';
@@ -240,7 +341,8 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   // AVPlay-master passes surround through (remux); only the hls.js AAC master
   // (webOS / MSE without AC3) re-encodes audio (transcode).
   let playbackMode: 'direct' | 'remux' | 'transcode' = 'direct';
-  if (useAvplay) playbackMode = avplayDirect ? 'direct' : 'remux';
+  if (useMpv) playbackMode = 'direct'; // mpv opens the original file (master only on fallback)
+  else if (useAvplay) playbackMode = avplayDirect ? 'direct' : 'remux';
   else if (!direct) playbackMode = masterAac ? 'transcode' : 'remux';
   usePlaybackHeartbeat({
     client,
@@ -291,50 +393,18 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
 
   const seek = useCallback((delta: number) => seekTo(getPosition() + delta), [seekTo, getPosition]);
 
-  // ----- progressive (accelerating) seek --------------------------------------
-  // While a direction key is held we accumulate a preview offset (the step grows
-  // the longer you hold) and commit a SINGLE real seek the moment the key is
-  // released. With the VOD master that seek is instant (no -ss respawn).
-  const [seekPreview, setSeekPreview] = useState<number | null>(null);
-  const seekRef = useRef<{ target: number; step: number; last: number } | null>(null);
-
-  const commitSeek = useCallback(() => {
-    const s = seekRef.current;
-    seekRef.current = null;
-    setSeekPreview(null);
-    if (s) seekTo(s.target);
-  }, [seekTo]);
-
-  const nudge = useCallback(
-    (dir: -1 | 1) => {
-      const total = runtime();
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      let s = seekRef.current;
-      if (!s || now - s.last > 700) {
-        s = { target: getPosition(), step: 5, last: now };
-      } else {
-        s.step = Math.min(s.step * 1.4, 120);
-      }
-      const raw = s.target + dir * s.step;
-      s.target = Math.max(0, total > 0 ? Math.min(total - 1, raw) : raw);
-      s.last = now;
-      seekRef.current = s;
-      setSeekPreview(s.target);
-    },
-    [runtime, getPosition],
-  );
-
-  // Commit the pending seek the instant the user releases the key.
-  useEffect(() => {
-    const onKeyUp = () => {
-      if (seekRef.current) commitSeek();
-    };
-    window.addEventListener('keyup', onKeyUp);
-    return () => window.removeEventListener('keyup', onKeyUp);
-  }, [commitSeek]);
-
-  // Flush a pending seek if the player unmounts mid-gesture.
-  useEffect(() => () => commitSeek(), [commitSeek]);
+  // Tap-vs-hold seek gesture shared by the remote and the mouse: a short press
+  // stacks fixed 5s taps into one commit (precise), a held press turns into an
+  // accelerating scrub (fast), and `scrub` drives the same preview from an
+  // absolute position for a mouse click / drag on the bar. Only ONE real seek per
+  // gesture; with the VOD master / direct source that seek is instant.
+  const {
+    preview: seekPreview,
+    press: seekPress,
+    tap: seekTap,
+    scrub: seekScrub,
+    commit: seekScrubCommit,
+  } = useSeekGesture({ getPosition, duration: runtime, seekTo });
 
   const setAudio = useCallback(
     (index: number) => setAudioIndex((c) => (c === index ? c : index)),
@@ -360,7 +430,10 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     seek,
     seekTo,
     getPosition,
-    nudge,
+    seekPress,
+    seekTap,
+    seekScrub,
+    seekScrubCommit,
     seekPreview,
     endedNonce,
     seekNonce,

@@ -1,14 +1,13 @@
-# Project toolchain floor = 1.85. The `semantic-embeddings` (candle/MiniLM) graph
-# transitively needs the `edition2024` Cargo feature, stabilized in Rust 1.85;
-# the default build is happy on 1.85 too. rustup auto-installs this in the repo.
-#
-# Lifting the old 1.81 floor means several edition2024 version pins in
-# server/Cargo.toml (uuid / jobserver / time) can now be relaxed left in place
-# for now since they belong to the search-index graph.
+# Repo build toolchain. Pinned to a concrete current stable (>= 1.86, the project
+# floor) so every cargo invocation in the repo - server AND the desktop Tauri app -
+# uses one modern toolchain. Tauri v2's dependency graph needs >= 1.88 (darling /
+# time / serde_with), and the server's semantic-embeddings (candle/MiniLM) graph
+# needs edition2024 (>= 1.85), so a recent stable satisfies both. rustup
+# auto-installs this in the repo.
 [toolchain]
-channel = "1.85.0"
+channel = "1.96.1"
 # This file overrides any CI-installed toolchain (e.g. dtolnay/rust-toolchain@stable)
 # whenever cargo runs in the repo, so the components must be declared HERE or
-# `cargo clippy`/`cargo fmt` break on the pinned 1.85.0 (which ships neither by
+# `cargo clippy`/`cargo fmt` break on the pinned toolchain (which ships neither by
 # default). rustup auto-installs these alongside the toolchain.
 components = ["clippy", "rustfmt"]

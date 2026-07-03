@@ -7,7 +7,7 @@ import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
 import { TvPoster } from '#tv/shared/TvMedia';
-import { LumaMark, OnScreenKeyboard } from '#tv/shared/ui';
+import { LumaMark, OnScreenKeyboard, TvBackButton } from '#tv/shared/ui';
 
 interface Hit {
   id: string;
@@ -102,6 +102,7 @@ export function TvSearch() {
   return (
     <div className="fixed inset-0 z-10 flex flex-col bg-bg px-16 py-11 animate-[tv-fade-in_0.3s_ease]">
       <div className="mb-7 flex items-center gap-3.5">
+        <TvBackButton />
         <LumaMark size={28} />
         <span className="ml-auto font-sans text-[14px] font-semibold text-dim">
           {t('search.backHint')}
