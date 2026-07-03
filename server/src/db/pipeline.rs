@@ -17,7 +17,8 @@ mod query;
 mod tests;
 
 pub use ops::{
-    claim_batch, enqueue, finish_batch, reconcile, reprocess, reset_running, retry, TaskResult,
+    claim_batch, enqueue, finish_batch, reconcile, reprocess, requeue_stage, reset_running, retry,
+    TaskResult, UNREADABLE_SIG,
 };
 pub use query::{
     counts, failed_tasks, item_titles, raw_items, raw_shows, show_titles, stage_stat,

@@ -27,13 +27,14 @@ pub const STAGE: Stage = Stage {
     process,
 };
 
-/// Drain `Builtin`: nightly, on a library change, and manually. Runs the shared
-/// dispatcher over [`STAGE`].
+/// Drain `Builtin`: nightly, and chained after `storyboard` (rather than firing on
+/// the same library change), so the CPU-heavy stages run one after another instead
+/// of all at once. Also manual. Runs the shared dispatcher over [`STAGE`].
 pub const SPEC: Builtin = Builtin {
     key: JobKey("pipeline.subtitles"),
     category: Category::Pipeline,
     schedule: Some("0 3 * * *"),
-    triggers: &[Trigger::LibraryChange],
+    triggers: &[Trigger::AfterJob(JobKey("pipeline.storyboard"))],
     run,
 };
 

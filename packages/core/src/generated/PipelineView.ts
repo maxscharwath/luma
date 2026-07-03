@@ -2,6 +2,7 @@
 import type { StageStat } from "./StageStat";
 
 /**
- * `GET /api/admin/pipeline`: every stage's health, in DAG order.
+ * `GET /api/admin/pipeline`: every stage's health, in DAG order, plus whether the
+ * whole pipeline is currently held by the global admin pause.
  */
-export type PipelineView = { stages: Array<StageStat>, };
+export type PipelineView = { stages: Array<StageStat>, paused: boolean, };

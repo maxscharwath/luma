@@ -41,6 +41,19 @@ pub fn max_transcodes(settings: &Settings) -> usize {
     settings.get_i64("maxConcurrent", 8).clamp(1, 32) as usize
 }
 
+/// How many CPU-heavy media passes (storyboard tiles/montage, subtitle extraction,
+/// marker fingerprinting) may run at once, 1..=32. `0`/unset = auto (`cores - 1`,
+/// floored at 1) so a small NAS keeps a core for playback out of the box. Seeds +
+/// live-updates the process-wide [`crate::infra::ffmpeg_gate`]. Unlike
+/// `maxConcurrent` (cheap stream-copy segments), these passes actually decode, so
+/// this is the knob that keeps the box usable during background processing.
+pub fn media_workers(settings: &Settings) -> usize {
+    match settings.get_i64("mediaConcurrency", 0) {
+        n if n > 0 => (n as usize).clamp(1, 32),
+        _ => crate::infra::ffmpeg_gate::auto_capacity(),
+    }
+}
+
 /// Byte budget for the on-disk transcode (HLS segment) cache, from the
 /// `transcodeCacheLimit` setting. `0` = unlimited (any non-numeric label, e.g.
 /// "Illimité"). Labels use decimal "Go" (1 Go = 1e9 bytes), matching the image

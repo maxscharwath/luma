@@ -470,6 +470,9 @@ export class LumaClient {
   cancelPipelineStage(stage: string): Promise<{ cancelled: boolean }> {
     return admin.cancelPipelineStage(this.ctx, stage);
   }
+  pausePipeline(paused: boolean): Promise<{ paused: boolean }> {
+    return admin.pausePipeline(this.ctx, paused);
+  }
   retryPipelineStage(stage: string): Promise<{ requeued: number }> {
     return admin.retryPipelineStage(this.ctx, stage);
   }

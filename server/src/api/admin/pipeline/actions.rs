@@ -74,6 +74,31 @@ pub async fn cancel_stage(
     Ok(Json(json!({ "cancelled": cancelled })).into_response())
 }
 
+/// Body for `POST /api/admin/pipeline/pause`.
+#[derive(Deserialize)]
+pub struct PauseBody {
+    pub paused: bool,
+}
+
+/// `POST /api/admin/pipeline/pause` → hold (or release) all pipeline stages. A
+/// held pipeline parks every drain within a poll tick (leftover work stays
+/// `pending`); releasing resumes the parked drains where they left off. Persisted
+/// so the hold survives a restart. This is the manual "free the box now" switch,
+/// on top of the automatic playback-priority yield.
+pub async fn set_pause(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+    Json(body): Json<PauseBody>,
+) -> Result<Response, Response> {
+    require(&user, Permission::SettingsManage)?;
+    state.jobs.set_pipeline_paused(body.paused);
+    // Persist so a reboot keeps the operator's choice (seeded in AppState::new).
+    let mut patch = std::collections::BTreeMap::new();
+    patch.insert("pipelinePaused".to_string(), json!(body.paused));
+    state.settings.set_patch(&state.db, patch);
+    Ok(Json(json!({ "paused": body.paused })).into_response())
+}
+
 /// `POST /api/admin/pipeline/:stage/retry` → reset this stage's failed tasks to
 /// pending (they run on the next drain / an immediate `run`).
 pub async fn retry_stage(

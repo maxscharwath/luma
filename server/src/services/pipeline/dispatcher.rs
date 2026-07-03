@@ -63,6 +63,7 @@ pub fn run(stage: &Stage, ctx: &JobContext) -> Result<()> {
     let mut failed_seen = 0usize;
     let mut stats_flush_ms = 0i64;
     let mut log_flush_ms = now_ms();
+    let mut hold_logged = false;
     loop {
         if ctx.cancelled() {
             ctx.info(format!(
@@ -71,6 +72,23 @@ pub fn run(stage: &Stage, ctx: &JobContext) -> Result<()> {
                 fmt_dur(drain_started.elapsed()),
             ));
             break;
+        }
+        // Global pause: park the whole drain BEFORE claiming, so a paused pipeline
+        // holds nothing `running` (in-flight batches also yield per item below).
+        while ctx.state.jobs.pipeline_paused() && !ctx.cancelled() {
+            if !hold_logged {
+                ctx.info(format!("{}: paused (pipeline held by admin)", stage.short));
+                hold_logged = true;
+            }
+            thread::sleep(Duration::from_secs(PAUSE_POLL_S));
+        }
+        if ctx.cancelled() {
+            ctx.info(format!("{}: cancelled while paused", stage.short));
+            break;
+        }
+        if hold_logged {
+            ctx.info(format!("{}: resumed", stage.short));
+            hold_logged = false;
         }
         let batch = db::pipeline::claim_batch(pool, stage.short, BATCH, now_ms())?;
         if batch.is_empty() {
@@ -180,9 +198,10 @@ fn process_batch(
                 if i >= batch.len() || ctx.cancelled() {
                     break;
                 }
-                if stage.pause_for_playback {
-                    wait_while_idle(ctx, &paused);
-                }
+                // Yield per item to the global pause (all stages) and, for the
+                // playback-sensitive stages, to a live stream. Keeps an in-flight
+                // batch from starting new ffmpeg the moment either fires.
+                wait_while_held(ctx, &paused, stage.pause_for_playback);
                 if ctx.cancelled() {
                     break;
                 }
@@ -207,22 +226,29 @@ fn process_batch(
     slots.into_iter().filter_map(|m| m.into_inner().unwrap()).collect()
 }
 
-/// Block while any playback session is live, so a heavy stage yields all disk/CPU
-/// to streaming. Logs the pause/resume transition once (CAS on `paused`). Mirrors
-/// the old markers/storyboards behavior.
-fn wait_while_idle(ctx: &JobContext, paused: &AtomicBool) {
+/// Block while heavy work should hold off: the global pipeline pause is set, or
+/// (for a playback-sensitive stage) a stream is live. Logs the hold/resume
+/// transition once per worker (CAS on `paused`). Generalizes the old
+/// markers/storyboards playback-yield to also honor the admin pause switch.
+fn wait_while_held(ctx: &JobContext, paused: &AtomicBool, pause_for_playback: bool) {
     loop {
         if ctx.cancelled() {
             return;
         }
-        if ctx.state.playback.list().is_empty() {
+        let admin_hold = ctx.state.jobs.pipeline_paused();
+        let playback_hold = pause_for_playback && !ctx.state.playback.list().is_empty();
+        if !admin_hold && !playback_hold {
             if paused.swap(false, Ordering::Relaxed) {
-                ctx.info("playback ended, resuming");
+                ctx.info("resuming");
             }
             return;
         }
         if !paused.swap(true, Ordering::Relaxed) {
-            ctx.info("playback active, pausing (playback has priority)");
+            ctx.info(if admin_hold {
+                "paused (pipeline held by admin)"
+            } else {
+                "playback active, pausing (playback has priority)"
+            });
         }
         thread::sleep(Duration::from_secs(PAUSE_POLL_S));
     }

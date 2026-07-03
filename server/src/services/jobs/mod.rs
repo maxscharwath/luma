@@ -40,7 +40,7 @@ pub use cron::Cron;
 
 use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use anyhow::{anyhow, Result};
@@ -136,6 +136,13 @@ pub struct JobManager {
     schedules: RwLock<HashMap<JobKey, ScheduleState>>,
     running: RwLock<HashMap<JobKey, Arc<RunHandle>>>,
     counter: AtomicU64,
+    /// Global "hold all pipeline stages" switch. The dispatcher parks every drain
+    /// while this is set (heavy background work stops within a poll tick, leftover
+    /// tasks stay `pending` and resume on clear). Seeded from the persisted
+    /// `pipelinePaused` setting at boot and flipped by the admin pause/resume
+    /// endpoints. Separate from the per-stage playback pause (which only yields the
+    /// playback-sensitive stages while something is streaming).
+    pipeline_paused: AtomicBool,
 }
 
 impl JobManager {
@@ -146,7 +153,19 @@ impl JobManager {
             schedules: RwLock::new(HashMap::new()),
             running: RwLock::new(HashMap::new()),
             counter: AtomicU64::new(0),
+            pipeline_paused: AtomicBool::new(false),
         }
+    }
+
+    /// Set (or clear) the global pipeline pause. Cheap; the dispatcher reads it
+    /// each poll tick, so it takes effect within a couple of seconds.
+    pub fn set_pipeline_paused(&self, paused: bool) {
+        self.pipeline_paused.store(paused, Ordering::Relaxed);
+    }
+
+    /// Whether all pipeline stages are currently held by the global pause.
+    pub fn pipeline_paused(&self) -> bool {
+        self.pipeline_paused.load(Ordering::Relaxed)
     }
 
     /// Register a job from its `'static` [`Builtin`] descriptor. Call during

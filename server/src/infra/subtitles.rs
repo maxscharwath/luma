@@ -198,6 +198,9 @@ fn run_capturing_cancellable(
     cancel: &dyn Fn() -> bool,
 ) -> Result<(), String> {
     use std::io::Read;
+    // Draw one slot from the process-wide ffmpeg budget (see `infra::ffmpeg_gate`)
+    // so subtitle extraction shares the same cap as storyboard/marker work.
+    let _permit = crate::infra::ffmpeg_gate::acquire();
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped());

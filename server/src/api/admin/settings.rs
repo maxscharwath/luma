@@ -54,6 +54,11 @@ pub async fn put_settings(
     if written.iter().any(|k| k == "transcodeCacheLimit") {
         state.hls.set_cache_budget(settings::transcode_cache_limit_bytes(&state.settings));
     }
+    // The ffmpeg concurrency gate caches its budget; refresh it so a new
+    // `mediaConcurrency` throttles (or opens up) background media work live.
+    if written.iter().any(|k| k == "mediaConcurrency") {
+        crate::infra::ffmpeg_gate::set_capacity(settings::media_workers(&state.settings));
+    }
     state.events.publish(ServerEvent::SettingsUpdated);
     Ok(Json(json!({ "updated": written })).into_response())
 }

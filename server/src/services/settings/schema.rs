@@ -99,6 +99,7 @@ pub fn groups(
             Some("admin.qualityPerfDesc"),
             vec![
                 row("maxConcurrent", t("admin.maxConcurrent"), Some(t("admin.maxConcurrentHint")), "select", &["2", "4", "8", "12", "16", "24", "32"], g("maxConcurrent"), true),
+                row("mediaConcurrency", t("admin.mediaConcurrency"), Some(t("admin.mediaConcurrencyHint")), "select", &["0", "1", "2", "3", "4", "6", "8", "12", "16"], g("mediaConcurrency"), true),
                 row("transcodeDir", t("admin.transcodeDir"), None, "value", &[], json!(transcode_dir(config)), true),
             ],
         )],

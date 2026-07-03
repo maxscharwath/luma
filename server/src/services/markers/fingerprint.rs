@@ -55,7 +55,12 @@ pub fn fingerprint_window(
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
 
-    let out = cmd.output().context("spawn ffmpeg for fingerprint")?;
+    // Share the process-wide ffmpeg budget (see `infra::ffmpeg_gate`); the permit
+    // is held only for the decode and dropped as this block ends.
+    let out = {
+        let _permit = crate::infra::ffmpeg_gate::acquire();
+        cmd.output().context("spawn ffmpeg for fingerprint")?
+    };
     if !out.status.success() {
         bail!("ffmpeg exited with {}", out.status);
     }

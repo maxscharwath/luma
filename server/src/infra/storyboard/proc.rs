@@ -35,6 +35,10 @@ pub(super) fn run_capturing_cancellable(
     cancel: Cancel,
 ) -> std::result::Result<(), String> {
     use std::io::Read;
+    // One slot from the process-wide ffmpeg budget, held until this pass exits, so
+    // the tile fan-out + montage + jpeg never oversubscribe the box (see
+    // `infra::ffmpeg_gate`). Acquired before spawn; released on return.
+    let _permit = crate::infra::ffmpeg_gate::acquire();
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped());

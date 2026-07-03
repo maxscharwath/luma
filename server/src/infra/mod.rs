@@ -5,6 +5,7 @@
 //! live events the edges where LUMA talks to the world outside the process.
 
 pub mod probe;
+pub mod ffmpeg_gate;
 pub mod hls;
 pub mod metadata;
 pub mod embed;

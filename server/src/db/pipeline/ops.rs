@@ -14,6 +14,17 @@ use crate::db::*;
 /// churning.
 pub const MAX_ATTEMPTS: i64 = 3;
 
+/// Sentinel signature meaning "the subject's inputs were unreadable at enumerate
+/// time" (e.g. the media mount was briefly offline). `reconcile` treats it as
+/// "leave this task exactly as it is": never a changed input, never a fresh
+/// insert. Without this, a flapping mount flips every file's real `mtime:size`
+/// signature to this and back, re-queueing the WHOLE library through the heavy
+/// stages twice per blip. Stage `enumerate`s emit it via
+/// `services::pipeline::stages::sig_for_path` (and markers when any episode is
+/// unreadable). The value can never collide with a real signature (`digits:digits`
+/// for a file, a hex hash for a season, a bare number for embeddings).
+pub const UNREADABLE_SIG: &str = "\u{0}unreadable";
+
 /// A unit of work: the subject's id + a signature of its current inputs. A task
 /// is skipped while `status='done'` and its stored signature still matches, and
 /// re-queued the moment the signature changes.
@@ -55,6 +66,12 @@ pub fn reconcile(
     for (id, sig) in subjects {
         match existing.get(id) {
             None => {
+                // Inputs unreadable right now (mount blip): do not create a task
+                // yet. The subject reappears on the next reconcile once readable,
+                // so this only defers the first-ever processing, never drops it.
+                if sig == UNREADABLE_SIG {
+                    continue;
+                }
                 tx.execute(
                     "INSERT INTO pipeline_tasks \
                        (stage,subject_kind,subject_id,status,input_sig,attempts,priority,enqueued_at,updated_at) \
@@ -64,6 +81,13 @@ pub fn reconcile(
             }
             Some((old_sig, status, attempts)) => {
                 if status == "running" {
+                    continue;
+                }
+                // Inputs unreadable right now: leave the task exactly as it is
+                // (a `done` stays done). Never treat this as a changed signature,
+                // or a flapping mount would re-queue the whole library on every
+                // blip. The subject is still in `present`, so it is not deleted.
+                if sig == UNREADABLE_SIG {
                     continue;
                 }
                 // Only a PRESENT-but-different signature means the inputs changed:
@@ -137,6 +161,24 @@ pub fn enqueue(
         params![stage, subject_kind, id, priority, now],
     )?;
     Ok(())
+}
+
+/// Force every settled task of `stage` back to `pending` so the stage rebuilds
+/// the whole set on its next run. Used when the stage's on-disk outputs were wiped
+/// out of band (admin "clear cache" / "reset metadata"): the signature-based skip
+/// cannot see a missing output, so without this the ledger stays `done` and the
+/// files never come back. Leaves `pending`/`running` alone and clears the stored
+/// signature so the next reconcile re-signs from scratch. Returns how many were
+/// re-queued.
+pub fn requeue_stage(pool: &Pool, stage: &str, now: i64) -> Result<usize> {
+    let conn = pool.get()?;
+    let n = conn.execute(
+        "UPDATE pipeline_tasks SET status='pending', attempts=0, error=NULL, input_sig=NULL, \
+           updated_at=?2 \
+         WHERE stage=?1 AND status IN ('done','failed','blocked')",
+        params![stage, now],
+    )?;
+    Ok(n)
 }
 
 /// Claim up to `limit` pending tasks for a stage: pick the highest-priority /

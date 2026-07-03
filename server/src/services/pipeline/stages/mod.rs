@@ -17,8 +17,11 @@ pub mod storyboard;
 pub mod subtitles;
 
 /// A cheap change-signature for a file: `mtime:size`. Changes when the file is
-/// replaced, so the ledger re-queues that subject. `"missing"` when unreadable
-/// (the stage's `process` then surfaces the real error).
+/// replaced, so the ledger re-queues that subject. Returns
+/// [`crate::db::pipeline::UNREADABLE_SIG`] when the file can't be stat'd (e.g. the
+/// media mount is briefly offline), which `reconcile` treats as "leave the task
+/// alone" rather than a changed input, so a flapping mount does not re-queue the
+/// whole library.
 pub(crate) fn sig_for_path(abs: &str) -> String {
     match std::fs::metadata(abs) {
         Ok(m) => {
@@ -30,6 +33,6 @@ pub(crate) fn sig_for_path(abs: &str) -> String {
                 .unwrap_or(0);
             format!("{mtime}:{}", m.len())
         }
-        Err(_) => "missing".to_string(),
+        Err(_) => crate::db::pipeline::UNREADABLE_SIG.to_string(),
     }
 }

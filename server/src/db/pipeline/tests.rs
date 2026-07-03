@@ -144,3 +144,56 @@ fn reset_running_recovers_stranded_tasks() {
     assert_eq!(reset_running(&p, None).unwrap(), 2);
     assert_eq!(c(&p), (2, 0, 0, 0, 0));
 }
+
+#[test]
+fn unreadable_signature_never_requeues_or_deletes() {
+    let p = pool();
+    // Process one subject to `done`.
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 1).unwrap();
+    let batch = claim_batch(&p, "s", 10, 2).unwrap();
+    let ok: Vec<TaskResult> =
+        batch.iter().map(|(id, _)| TaskResult { id: id.clone(), error: None, duration_ms: 1 }).collect();
+    finish_batch(&p, "s", &ok, 3).unwrap();
+    assert_eq!(c(&p), (0, 0, 1, 0, 0));
+
+    // Mount blip: the file is unreadable this pass. The done task must be left
+    // alone (not re-queued) and must survive (not purged as "gone").
+    reconcile(&p, "s", "item", &subj(&[("a", UNREADABLE_SIG)]), 4).unwrap();
+    assert_eq!(c(&p), (0, 0, 1, 0, 0));
+    assert!(claim_batch(&p, "s", 10, 5).unwrap().is_empty());
+
+    // Mount back with the SAME real signature: still a no-op (stored sig was never
+    // overwritten by the sentinel), so no wasteful recompute.
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 6).unwrap();
+    assert_eq!(c(&p), (0, 0, 1, 0, 0));
+    assert!(claim_batch(&p, "s", 10, 7).unwrap().is_empty());
+}
+
+#[test]
+fn requeue_stage_rebuilds_done_tasks_after_cache_wipe() {
+    let p = pool();
+    // Two subjects -> done.
+    reconcile(&p, "s", "item", &subj(&[("a", "v1"), ("b", "v1")]), 1).unwrap();
+    let batch = claim_batch(&p, "s", 10, 2).unwrap();
+    let ok: Vec<TaskResult> =
+        batch.iter().map(|(id, _)| TaskResult { id: id.clone(), error: None, duration_ms: 1 }).collect();
+    finish_batch(&p, "s", &ok, 3).unwrap();
+    assert_eq!(c(&p), (0, 0, 2, 0, 0));
+
+    // Outputs wiped out of band: re-queue the whole stage. Both go back to pending
+    // and are claimable again even though their signatures never changed.
+    assert_eq!(requeue_stage(&p, "s", 4).unwrap(), 2);
+    assert_eq!(c(&p), (2, 0, 0, 0, 0));
+    assert_eq!(claim_batch(&p, "s", 10, 5).unwrap().len(), 2);
+}
+
+#[test]
+fn unreadable_brand_new_subject_is_deferred_not_inserted() {
+    let p = pool();
+    // A never-seen subject that is unreadable right now creates no task...
+    reconcile(&p, "s", "item", &subj(&[("a", UNREADABLE_SIG)]), 1).unwrap();
+    assert_eq!(c(&p), (0, 0, 0, 0, 0));
+    // ...and is picked up as pending once it becomes readable.
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 2).unwrap();
+    assert_eq!(c(&p), (1, 0, 0, 0, 0));
+}

@@ -17,7 +17,8 @@ pub const STAGE: Stage = Stage {
     key: "pipeline.embed",
     subject_kind: "item",
     concurrency: 4,
-    pause_for_playback: false,
+    // BERT embedding is in-process CPU work; yield it to live playback too.
+    pause_for_playback: true,
     enumerate,
     process,
 };

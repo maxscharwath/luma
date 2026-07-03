@@ -86,6 +86,20 @@ pub async fn clear_cache(
         Ok(freed)
     })
     .await?;
+    // The pipeline's skip logic is keyed on input signatures, not output presence,
+    // so wiping these dirs would otherwise leave the ledger `done` and the outputs
+    // gone forever. Re-queue the stages whose durable outputs we just deleted:
+    // storyboards regenerate from local video (kick it now, it's gate-bounded);
+    // TMDB art re-downloads on the next metadata run (re-queued, not forced, so a
+    // disk-clear never stampedes TMDB).
+    let now = crate::services::jobs::now_ms();
+    let _ = query(&state.db, move |pool| {
+        db::pipeline::requeue_stage(&pool, "storyboard", now)?;
+        db::pipeline::requeue_stage(&pool, "metadata", now)?;
+        Ok(())
+    })
+    .await;
+    let _ = state.jobs.trigger(state.clone(), crate::services::jobs::JobKey("pipeline.storyboard"), "clear-cache");
     Ok(Json(json!({ "freedBytes": freed })).into_response())
 }
 
@@ -98,8 +112,22 @@ pub async fn reset_metadata(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
-    let (items, shows) = query(&state.db, move |pool| db::reset_all_metadata(&pool)).await?;
+    let now = crate::services::jobs::now_ms();
+    let (items, shows) = query(&state.db, move |pool| {
+        let cleared = db::reset_all_metadata(&pool)?;
+        // The metadata signature (`title:year`) is unchanged by a reset, and the
+        // embed signature is just the model dim, so neither stage would re-run on
+        // its own leaving metadata NULL and embeddings gone forever. Re-queue both
+        // ledgers so the enrich + embed actually happen again.
+        db::pipeline::requeue_stage(&pool, "metadata", now)?;
+        db::pipeline::requeue_stage(&pool, "embed", now)?;
+        Ok(cleared)
+    })
+    .await?;
     state.metadata_cache.clear();
+    // Kick the re-enrich now (this is a deliberate destructive action); `embed`
+    // chains after `metadata` via its `AfterJob` trigger.
+    let _ = state.jobs.trigger(state.clone(), crate::services::jobs::JobKey("pipeline.metadata"), "reset-metadata");
     Ok(Json(json!({ "items": items, "shows": shows })).into_response())
 }
 

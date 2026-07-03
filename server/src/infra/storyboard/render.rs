@@ -108,7 +108,10 @@ fn render_into(
 /// no video reads). `Err` carries ffmpeg's captured cause.
 fn montage(scratch: &Path, plan: &Plan, out: &Path) -> std::result::Result<(), String> {
     let mut cmd = Command::new("ffmpeg");
-    cmd.args(["-v", "error", "-nostdin", "-y", "-start_number", "0", "-i"])
+    // `-threads 1`: assembling one mosaic frame from local PNGs is cheap, so cap
+    // the decoder pool rather than let it grab every core (the ffmpeg gate bounds
+    // how many run, this bounds each one's footprint).
+    cmd.args(["-v", "error", "-nostdin", "-threads", "1", "-y", "-start_number", "0", "-i"])
         .arg(scratch.join("px_%04d.png"))
         .args(["-frames:v", "1", "-vf", &format!("tile={}x{}", plan.cols, plan.rows)])
         .arg(out);
@@ -125,7 +128,8 @@ fn montage(scratch: &Path, plan: &Plan, out: &Path) -> std::result::Result<(), S
 /// ffmpeg's captured stderr.
 fn png_to_jpeg(png: &Path, out: &Path) -> std::result::Result<(), String> {
     let mut cmd = Command::new("ffmpeg");
-    cmd.args(["-y", "-v", "error", "-i"])
+    // `-threads 1`: a single-frame JPEG encode is trivial; keep it off every core.
+    cmd.args(["-y", "-v", "error", "-threads", "1", "-i"])
         .arg(png)
         .args(["-c:v", "mjpeg", "-q:v", "12", "-huffman", "optimal"])
         .arg(out);

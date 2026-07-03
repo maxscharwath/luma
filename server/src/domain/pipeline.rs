@@ -32,11 +32,13 @@ pub struct StageStat {
     pub blocked: i64,
 }
 
-/// `GET /api/admin/pipeline`: every stage's health, in DAG order.
+/// `GET /api/admin/pipeline`: every stage's health, in DAG order, plus whether the
+/// whole pipeline is currently held by the global admin pause.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]
 pub struct PipelineView {
     pub stages: Vec<StageStat>,
+    pub paused: bool,
 }
 
 /// The status of one treatment (stage) as applied to a single catalog element,

@@ -24,12 +24,14 @@ pub const STAGE: Stage = Stage {
     process,
 };
 
-/// Drain `Builtin`: nightly, on a library change, and manually.
+/// Drain `Builtin`: nightly, and chained after `subtitles` (the tail of the
+/// storyboard -> subtitles -> markers heavy-stage chain, so they run one at a time
+/// rather than all firing on the same library change). Also manual.
 pub const SPEC: Builtin = Builtin {
     key: JobKey("pipeline.markers"),
     category: Category::Pipeline,
-    schedule: Some("0 3 * * *"),
-    triggers: &[Trigger::LibraryChange],
+    schedule: Some("30 3 * * *"),
+    triggers: &[Trigger::AfterJob(JobKey("pipeline.subtitles"))],
     run,
 };
 
@@ -55,18 +57,28 @@ fn enumerate(state: &SharedState) -> Result<Vec<(String, String)>> {
         for season in &detail.seasons {
             let mut parts = vec![mode.clone()];
             let mut playable = 0usize;
+            let mut unreadable = false;
             for ep in &season.episodes {
                 if let (Some(abs), Some(d)) = (ep.abs_path.as_deref(), ep.duration_ms) {
                     if d > 0 {
                         playable += 1;
-                        parts.push(super::sig_for_path(abs));
+                        let sig = super::sig_for_path(abs);
+                        // An unreadable episode (mount blip) must not perturb the
+                        // season hash, or the whole season re-fingerprints on every
+                        // flap. Flag the season unreadable so `reconcile` skips it.
+                        unreadable |= sig == crate::db::pipeline::UNREADABLE_SIG;
+                        parts.push(sig);
                     }
                 }
             }
             if playable == 0 {
                 continue; // no probed episodes yet: wait for probe/scan
             }
-            let sig = crate::services::scan::short_hash(&parts.join("|"));
+            let sig = if unreadable {
+                crate::db::pipeline::UNREADABLE_SIG.to_string()
+            } else {
+                crate::services::scan::short_hash(&parts.join("|"))
+            };
             out.push((format!("{}#{}", show.id, season.number), sig));
         }
     }

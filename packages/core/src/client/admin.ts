@@ -282,6 +282,15 @@ export function cancelPipelineStage(
   });
 }
 
+/** Hold (paused=true) or release all pipeline stages. Returns the new state. */
+export function pausePipeline(ctx: RequestContext, paused: boolean): Promise<{ paused: boolean }> {
+  return ctx.json<{ paused: boolean }>('/admin/pipeline/pause', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ paused }),
+  });
+}
+
 /** Reset all of a stage's failed tasks to pending. */
 export function retryPipelineStage(
   ctx: RequestContext,

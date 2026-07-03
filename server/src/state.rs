@@ -76,11 +76,17 @@ impl AppState {
             crate::services::settings::transcode_cache_limit_bytes(&settings),
         );
         let storyboard = Storyboard::new(&config.data_dir);
+        // Seed the process-wide ffmpeg concurrency budget from the setting so the
+        // very first background pass already honors it (updated live on write).
+        crate::infra::ffmpeg_gate::set_capacity(crate::services::settings::media_workers(&settings));
         // Build the job registry: register the built-ins, then overlay any
         // persisted schedule overrides. The cron loop is spawned in `main`.
         let mut jobs = JobManager::new();
         crate::services::jobs::register_all(&mut jobs);
         jobs.load_schedules(&db);
+        // Restore the persisted global pipeline-pause so a box rebooted while held
+        // stays held until an admin resumes (visible in the Pipeline console).
+        jobs.set_pipeline_paused(settings.get_bool("pipelinePaused", false));
         // Any run left `running` belongs to a previous process that died mid-job;
         // mark it failed so it doesn't show as forever-running in the console.
         let _ = crate::db::reconcile_running_runs(&db);

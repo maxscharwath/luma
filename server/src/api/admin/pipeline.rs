@@ -31,7 +31,7 @@ mod processing;
 
 pub use actions::{
     cancel_stage, reprocess_stage, reprocess_subject, retry_element_stage, retry_stage, retry_task,
-    run_stage,
+    run_stage, set_pause,
 };
 pub use health::{failed_tasks, list_elements, list_pipeline};
 pub use processing::{item_processing, show_processing};
@@ -39,6 +39,7 @@ pub use processing::{item_processing, show_processing};
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/pipeline", get(list_pipeline))
+        .route("/pipeline/pause", post(set_pause))
         .route("/pipeline/:stage/failed", get(failed_tasks))
         .route("/pipeline/:stage/run", post(run_stage))
         .route("/pipeline/:stage/cancel", post(cancel_stage))

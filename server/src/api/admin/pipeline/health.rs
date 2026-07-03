@@ -57,6 +57,7 @@ pub async fn list_pipeline(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_any_admin(&user)?;
+    let paused = state.jobs.pipeline_paused();
     let stages = blocking(move || {
         let mut out = Vec::with_capacity(STAGE_KEYS.len());
         for (short, key, kind) in STAGE_KEYS.iter().copied() {
@@ -65,7 +66,7 @@ pub async fn list_pipeline(
         Ok(out)
     })
     .await?;
-    Ok(Json(PipelineView { stages }).into_response())
+    Ok(Json(PipelineView { stages, paused }).into_response())
 }
 
 /// `GET /api/admin/pipeline/:stage/failed` → the stage's failed tasks, newest

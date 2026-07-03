@@ -134,6 +134,16 @@ fn defaults() -> BTreeMap<String, Value> {
     m.insert("transcoderSpeed".into(), json!("Automatique"));
     m.insert("bgQuality".into(), json!("Préférer la vitesse"));
     m.insert("maxConcurrent".into(), json!("8"));
+    // How many CPU-heavy background media passes (storyboard/subtitle/marker
+    // ffmpeg) run at once. "0" = auto (cores - 1); raise/lower to trade nightly
+    // throughput for how usable the box stays during processing (see
+    // infra::ffmpeg_gate).
+    m.insert("mediaConcurrency".into(), json!("0"));
+    // Global "hold all background media processing" switch (admin Pipeline
+    // console). Persisted so a pause survives a restart; the dispatcher parks
+    // every stage while set. Not exposed as a normal settings row it is toggled
+    // via the pipeline pause/resume action.
+    m.insert("pipelinePaused".into(), json!(false));
     m.insert("deleteAfter".into(), json!(true));
     // storage / cache
     m.insert("cacheLimit".into(), json!("80 Go"));

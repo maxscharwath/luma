@@ -5,7 +5,14 @@
 
 import { type ElementRow, LumaEvents, type MessageKey } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconChevronLeft, IconChevronRight, IconSearch, IconX } from '@tabler/icons-react';
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconSearch,
+  IconX,
+} from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { PipelineDrawer } from '#web/features/admin/pipelineDrawer';
 import { ElementRowView } from '#web/features/admin/pipelineRow';
@@ -30,6 +37,7 @@ export function PipelinePage() {
   const [page, setPage] = useState(0);
   const [drawer, setDrawer] = useState<ElementRow | null>(null);
   const [busy, setBusy] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [toast, setToast] = useState<{ text: string; on: boolean }>({ text: '', on: false });
 
   // Debounce the search box.
@@ -85,9 +93,29 @@ export function PipelinePage() {
     if (fresh) setDrawer(fresh);
   }, [data, drawer]);
 
+  // The global pause flag lives on the pipeline-health endpoint; poll it (on the
+  // admin shell's tick) so another admin's toggle shows, and mirror it into local
+  // state so the toggle can update optimistically.
+  const { data: health } = usePoll(() => client.adminPipeline(), 30000, [client, tick]);
+  useEffect(() => {
+    if (health) setPaused(health.paused);
+  }, [health]);
+
   const flash = (text: string) => {
     setToast({ text, on: true });
     window.setTimeout(() => setToast((s) => ({ ...s, on: false })), 2800);
+  };
+  const togglePause = () => {
+    if (!canManage) return;
+    const next = !paused;
+    setPaused(next); // optimistic
+    client
+      .pausePipeline(next)
+      .then((r) => {
+        setPaused(r.paused);
+        flash(t(next ? 'pipeline.toastPaused' : 'pipeline.toastResumed'));
+      })
+      .catch(() => setPaused(!next));
   };
   const reprocess = (el: ElementRow) => {
     if (!canManage) return;
@@ -137,25 +165,50 @@ export function PipelinePage() {
             {t('pipeline.needActionLabel')}
           </p>
         </div>
-        <div className="w-80 flex-[0_0_auto]">
-          <InputGroup className="h-11">
-            <InputGroupAddon>
-              <IconSearch size={17} />
-            </InputGroupAddon>
-            <InputGroupInput
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t('pipeline.searchPlaceholder')}
-              className="text-[14px] font-semibold"
-            />
-            {q ? (
-              <button type="button" onClick={() => setQ('')} className="shrink-0 text-white/50 hover:text-white">
-                <IconX size={16} stroke={2.2} />
-              </button>
-            ) : null}
-          </InputGroup>
+        <div className="flex flex-[0_0_auto] items-center gap-3">
+          {canManage ? (
+            <button
+              type="button"
+              onClick={togglePause}
+              title={t(paused ? 'pipeline.resumeHint' : 'pipeline.pauseHint')}
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-[13.5px] font-semibold transition-colors ${
+                paused
+                  ? 'border-[#46D08D]/40 bg-[#46D08D]/[0.14] text-[#46D08D] hover:bg-[#46D08D]/20'
+                  : 'border-white/12 bg-[#1A1A20] text-white/80 hover:bg-[#222229]'
+              }`}
+            >
+              {paused ? <IconPlayerPlay size={15} stroke={2} /> : <IconPlayerPause size={15} stroke={2} />}
+              {t(paused ? 'pipeline.resume' : 'pipeline.pause')}
+            </button>
+          ) : null}
+          <div className="w-80">
+            <InputGroup className="h-11">
+              <InputGroupAddon>
+                <IconSearch size={17} />
+              </InputGroupAddon>
+              <InputGroupInput
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('pipeline.searchPlaceholder')}
+                className="text-[14px] font-semibold"
+              />
+              {q ? (
+                <button type="button" onClick={() => setQ('')} className="shrink-0 text-white/50 hover:text-white">
+                  <IconX size={16} stroke={2.2} />
+                </button>
+              ) : null}
+            </InputGroup>
+          </div>
         </div>
       </div>
+
+      {/* paused banner */}
+      {paused ? (
+        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[#F4B642]/30 bg-[#F4B642]/[0.10] px-4 py-2.5 text-[13.5px] font-semibold text-[#F4B642]">
+          <IconPlayerPause size={15} stroke={2} />
+          {t('pipeline.pausedBanner')}
+        </div>
+      ) : null}
 
       {/* filters */}
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
