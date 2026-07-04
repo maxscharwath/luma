@@ -1,14 +1,22 @@
-name: Release
+name: Build & Release
 
 on:
-  # Tagging `vX.Y.Z` builds + publishes a GitHub Release with the artifacts.
+  # Tagging `vX.Y.Z` builds ALL artifacts + publishes a GitHub Release.
   push:
     tags: ['v*']
-  # Manual run: builds the artifacts (uploaded to the run) without a Release.
+  # Manual run: build artifacts (uploaded to the run, no Release). `targets` picks
+  # the scope, so this one workflow doubles as an on-demand .spk-only or
+  # desktop-only build.
   workflow_dispatch:
     inputs:
       version:
         description: 'Package version (e.g. 0.1.0). Defaults to a dev string.'
+        required: false
+      targets:
+        description: 'What to build'
+        type: choice
+        options: [all, spk, desktop]
+        default: all
         required: false
 
 permissions:
@@ -17,6 +25,8 @@ permissions:
 jobs:
   synology:
     name: Synology .spk (x86_64 musl)
+    # Runs for tags and any manual run except an explicit desktop-only one.
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.targets != 'desktop' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -88,6 +98,8 @@ jobs:
 
   desktop:
     name: Desktop ${{ matrix.label }}
+    # Runs for tags and any manual run except an explicit spk-only one.
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.targets != 'spk' }}
     strategy:
       fail-fast: false
       matrix:
