@@ -1,45 +1,67 @@
-# Multi-stage build for the LUMA media server.
+# syntax=docker/dockerfile:1
 #
-# NOTE (Synology / other NAS): build or pull this image for your NAS CPU arch
-# (linux/amd64 for Intel/AMD models, linux/arm64 for ARM models), e.g.
-#   docker buildx build --platform linux/arm64 -t luma-server:arm64 .
-# Media libraries are bind-mounted into the container and pointed at via the
-# LUMA_MEDIA_DIRS env var (see `docker run` in the README).
+# One image that runs the LUMA server: the Rust API + streaming server AND serves
+# the built web SPA on the same port (same single-process model as the .spk).
+#
+# BUILD FROM THE REPO ROOT (the server include_str!s the shared locale catalogs
+# under packages/, and the web SPA lives under clients/):
+#     docker build -f server/Dockerfile -t luma .
+#
+# Run: bind-mount media read-only, a data volume, point LUMA_MEDIA_DIRS at it:
+#     docker run -p 4040:4040 -v luma-data:/data -v /media:/media:ro \
+#       -e LUMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/luma:latest
 
-# ---- Builder ----------------------------------------------------------------
-FROM rust:1.81 AS builder
+# ---- 1) Web SPA (node + bun) -----------------------------------------------
+# Node base (not the bun-only image): the TanStack Start prerender spawns a `node`
+# render server and the `build:web` script's precompress step calls `node`, both
+# absent from oven/bun. bun does the workspace install + runs the scripts.
+FROM node:22-bookworm-slim AS web
+RUN npm install -g bun@1.3.14
 WORKDIR /app
+COPY . .
+# TanStack Start's SPA prerender spawns a render server on `localhost`; in a
+# container node resolves that to IPv6 (::1) while the crawler connects to IPv4
+# (127.0.0.1) -> ECONNREFUSED. Force IPv4 loopback so both agree.
+RUN bun install --frozen-lockfile \
+    && NODE_OPTIONS=--dns-result-order=ipv4first bun run build:web
+# → /app/clients/web/dist/client
 
-# Cache dependencies separately from source for faster rebuilds.
-COPY Cargo.toml Cargo.lock* ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs \
+# ---- 2) Rust server --------------------------------------------------------
+FROM rust:1.96-bookworm AS builder
+WORKDIR /src
+# Warm the dependency cache (the default `whisper-local` feature pulls the candle
+# stack, which is slow) before copying sources so a code-only change reuses it.
+COPY server/Cargo.toml server/Cargo.lock ./server/
+RUN cd server \
+    && mkdir -p src && echo 'fn main() {}' > src/main.rs \
     && cargo build --release \
     && rm -rf src
+# Real sources: the server crate + the shared locale catalogs it include_str!s at
+# compile time (server/src/i18n.rs -> ../../packages/core/src/locales/*.json).
+COPY packages ./packages
+COPY server ./server
+RUN cd server && touch src/main.rs && cargo build --release
+# → /src/server/target/release/luma-server
 
-COPY . .
-# Touch main so cargo recompiles with the real sources.
-RUN touch src/main.rs && cargo build --release
-
-# ---- Runtime ----------------------------------------------------------------
+# ---- 3) Runtime ------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
-
-# ffmpeg provides ffprobe (metadata extraction); curl fetches TMDB lookups +
-# artwork (src/metadata.rs, src/image.rs); webp provides cwebp for transcoding
-# cached posters/backdrops to WebP.
+# ffmpeg = ffprobe (metadata) + remux/HLS; curl = TMDB lookups + artwork + the
+# managed-cloudflared download; ca-certificates for outbound TLS.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg curl webp ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY --from=builder /app/target/release/luma-server /usr/local/bin/luma-server
+COPY --from=builder /src/server/target/release/luma-server /usr/local/bin/luma-server
+COPY --from=web /app/clients/web/dist/client /app/web
 
-# Defaults; override at runtime as needed.
+# Defaults; override at runtime. Media dirs are intentionally unset (bind-mount +
+# LUMA_MEDIA_DIRS / LUMA_MOVIES_DIRS / LUMA_SERIES_DIRS).
 ENV LUMA_HOST=0.0.0.0 \
     LUMA_PORT=4040 \
     LUMA_DATA_DIR=/data \
+    LUMA_WEB_DIR=/app/web \
     RUST_LOG=luma_server=info,tower_http=info
 
 VOLUME ["/data"]
 EXPOSE 4040
-
 ENTRYPOINT ["luma-server"]

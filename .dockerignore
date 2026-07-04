@@ -1,0 +1,15 @@
+# Build context = repo root (server/Dockerfile). Keep it lean: everything below is
+# regenerated in the image or irrelevant to the build.
+.git
+**/node_modules
+**/target
+**/dist
+clients/synology/.cache
+clients/synology/dist
+clients/desktop/src-tauri/gen
+server/data
+**/.DS_Store
+*.spk
+*.wgt
+*.dmg
+*.AppImage

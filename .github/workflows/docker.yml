@@ -1,0 +1,72 @@
+name: Docker image
+
+# Builds the LUMA server image (Rust API + web SPA + ffmpeg) and pushes it to the
+# GitHub Container Registry (ghcr.io/<owner>/luma). Path-filtered so only
+# server/web/shared changes rebuild it; also on version tags.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'server/**'
+      - 'clients/web/**'
+      - 'packages/**'
+      - '.dockerignore'
+      - '.github/workflows/docker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write # push to ghcr
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: v
+        shell: bash
+        run: |
+          BASE="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' server/Cargo.toml | head -1)"
+          BUILD=$(( ( $(date -u +%s) - 1577836800 ) / 60 ))
+          echo "version=$BASE-$BUILD" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags/labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.v.outputs.version }},enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # amd64 only for now (fast; covers Intel/AMD NAS + servers). arm64 is a
+      # one-line add (+ setup-qemu) but ~5-10x slower to compile under emulation.
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
