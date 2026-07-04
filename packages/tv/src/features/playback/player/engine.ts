@@ -128,7 +128,9 @@ export function getTauri(): TauriBridge | null {
 export function mpvAvailable(): boolean {
   if (getTauri() == null) return false;
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  return /Linux/i.test(ua) && !/Android/i.test(ua);
+  if (/Linux/i.test(ua) && !/Android/i.test(ua)) return true; // Deck: mpv binary
+  // macOS: the in-process libmpv engine flags itself in Rust `setup` once it's up.
+  return '__LUMA_MPV__' in globalThis;
 }
 
 /**

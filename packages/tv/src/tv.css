@@ -24,6 +24,16 @@
   --glow-accent: 0 10px 28px rgba(0, 0, 0, 0.5);
 }
 
+/* Native video surfaces (mpv / AVPlay) render a plane BEHIND the page. While the
+   player is up (TvPlayer toggles this class), force the html/body/#root chain
+   transparent so the video shows through - free-mode macOS otherwise paints an
+   opaque --luma-bg over it. */
+html.luma-native-surface,
+html.luma-native-surface body,
+html.luma-native-surface #root {
+  background: transparent !important;
+}
+
 @theme {
   /* Colors → reference the LUMA tokens. */
   --color-bg: var(--luma-bg);

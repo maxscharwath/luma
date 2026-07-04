@@ -16,6 +16,7 @@ import {
 } from '@luma/core';
 import { usePlaybackHeartbeat, useT } from '@luma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type EnginePref, getEnginePref } from '#tv/app/enginePref';
 import { AvplayEngine } from '#tv/features/playback/player/avplayEngine';
 import {
   avplayAvailable,
@@ -28,7 +29,6 @@ import { HtmlEngine } from '#tv/features/playback/player/htmlEngine';
 import { MpvEngine } from '#tv/features/playback/player/mpvEngine';
 import { useResumeAndPersist } from '#tv/features/playback/player/useResumeAndPersist';
 import { useSeekGesture } from '#tv/features/playback/player/useSeekGesture';
-import { type EnginePref, getEnginePref } from '#tv/app/enginePref';
 
 export interface Playback {
   /** The HTML `<video>` surface (HTML engine). Null while the AVPlay surface is used. */
@@ -43,6 +43,8 @@ export interface Playback {
   /** Admin-terminated message: a custom string, or '' for the default (the render
    * site supplies the localized fallback). Null while the session is live. */
   terminated: string | null;
+  /** The engine is ready to play (a fresh frame is up) - reveal the native video plane. */
+  ready: boolean;
   playing: boolean;
   waiting: boolean;
   cur: number;
@@ -100,11 +102,7 @@ type Engine = 'mpv' | 'avplay' | 'video-direct' | 'video-remux';
  * can force the HTML5 (`<video>` + hls.js) remux path instead; a manual choice that
  * isn't available on this platform (e.g. `mpv` off the Linux shell, `avplay` off
  * Tizen) quietly falls through to `auto`. */
-function resolveEngine(
-  pref: EnginePref,
-  env: PlayEnv,
-  autoDirect: boolean,
-): Engine {
+function resolveEngine(pref: EnginePref, env: PlayEnv, autoDirect: boolean): Engine {
   const tizenNative = env.platform === 'tizen' && avplayAvailable();
   // Manual overrides.
   if (pref === 'avplay' && tizenNative) return 'avplay';
@@ -168,7 +166,6 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   const engineRef = useRef<TvEngine | null>(null);
   const startedRef = useRef(false);
 
-  const [verdict, setVerdict] = useState<DirectPlayVerdict | null>(null);
   const [error, setError] = useState<MessageKey | null>(null);
   const [terminated, setTerminated] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -215,16 +212,72 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   // (5.1 kept); Chromium/webOS MSE can't, so `selectEngine` marks those AAC.
   const masterAac = decision.aacMaster;
   const durationSec = item.durationMs ? item.durationMs / 1000 : 0;
+  // The runtime decode verdict for this item (from probed `capabilities()`). Drives
+  // the pre-play warning and, when a `<video>`-engine attempt fails, the SPECIFIC
+  // reason (e.g. "AV1 not supported on this device") instead of a generic cantPlay -
+  // the server is remux-only, so an undecodable video codec here truly can't play
+  // (mpv, with software dav1d, is the path for AV1 on a pre-M3 Mac).
+  const playVerdict = useMemo(() => canDirectPlay(item), [item]);
+  const failKey: MessageKey =
+    surface === 'video' && !playVerdict.canDirectPlay ? playVerdict.messageKey : 'player.cantPlay';
+
+  // Resolve the RESUME start position BEFORE building the engine, so it opens directly
+  // THERE (HtmlEngine anchors the server ffmpeg at it, AVPlay/mpv open at that offset)
+  // instead of loading at 0, going ready, then re-seeking - which reloads the whole
+  // stream (a second ffmpeg session for the HLS path). `null` = not resolved yet; the
+  // engine build waits for it (a fast progress fetch, gone before the first frame).
+  // Keyed by item id: on an in-place item change (up-next autoplay) `resolved` still holds
+  // the PREVIOUS item's value for one render, so the engine build must gate on the id (via
+  // `startSec` below) or it would build at the wrong offset for a render then rebuild.
+  const [resolved, setResolved] = useState<{ id: string; sec: number } | null>(null);
+  useEffect(() => {
+    if (!client.hasAuth) {
+      setResolved({ id: item.id, sec: 0 });
+      return;
+    }
+    let done = false;
+    const settle = (sec: number) => {
+      if (done) return;
+      done = true;
+      setResolved({ id: item.id, sec });
+    };
+    // Never let a stalled progress fetch block playback forever - fall back to start at 0.
+    const timer = setTimeout(() => settle(0), 4000);
+    client
+      .itemProgress(item.id)
+      .then((p) => {
+        const durMs = p?.durationMs ?? item.durationMs ?? 0;
+        const posSec = p ? p.positionMs / 1000 : 0;
+        // Resume only if meaningfully into the title and not ~finished (else start at 0).
+        settle(p && posSec > 15 && (!durMs || p.positionMs < durMs * 0.95) ? posSec : 0);
+      })
+      .catch(() => settle(0));
+    return () => {
+      done = true;
+      clearTimeout(timer);
+    };
+  }, [client, item]);
+  // Valid ONLY for the current item - null while this item's resume is still resolving.
+  const startSec = resolved?.id === item.id ? resolved.sec : null;
 
   // Build + tear down the engine for this item. Audio switches do NOT re-create
   // it (they call setAudioRendition in place, below).
   useEffect(() => {
-    setVerdict(canDirectPlay(item));
     setReady(false);
     startedRef.current = false;
+    if (startSec == null) return; // wait until the resume position is known
+    // Show the resume position on the scrubber IMMEDIATELY (the stream opens there), so
+    // the cursor doesn't sit at 0:00 while loading and then teleport once ready.
+    setCur(startSec);
 
     const listeners: EngineListeners = {
-      onTime: setCur,
+      onTime: (s) => {
+        // Before playback has really started, ignore positions before the resume point
+        // so the scrubber stays put instead of dipping to 0 and jumping back once the
+        // seek lands (the engine can briefly report 0 during the initial open).
+        if (!startedRef.current && startSec != null && s < startSec - 2) return;
+        setCur(s);
+      },
       onDuration: (s) => {
         if (s > 0) setDur(s);
       },
@@ -238,7 +291,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
       onWaiting: () => setWaiting(true),
       onPlaying: () => setWaiting(false),
       onEnded: () => setEndedNonce((n) => n + 1),
-      onError: () => setError('player.cantPlay'),
+      onError: () => setError(failKey),
       onReady: () => {
         setReady(true);
         // Ready-gated, resilient autoplay: retry until playback actually starts,
@@ -256,7 +309,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
         item,
         durationSec,
         initialRendition: renditionFor(item, audioIndexRef.current),
-        startSec: 0,
+        startSec,
         direct: true,
         listeners,
       });
@@ -266,7 +319,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
         item,
         durationSec,
         initialRendition: renditionFor(item, audioIndexRef.current),
-        startSec: 0,
+        startSec,
         direct: avplayDirect,
         listeners,
       });
@@ -281,7 +334,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
         masterAac,
         initialRendition: renditionFor(item, audioIndexRef.current),
         durationSec,
-        startSec: 0,
+        startSec,
         listeners,
       });
     }
@@ -291,7 +344,18 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
       engine?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, item, useMpv, useAvplay, avplayDirect, direct, masterAac, durationSec]);
+  }, [
+    client,
+    item,
+    useMpv,
+    useAvplay,
+    avplayDirect,
+    direct,
+    masterAac,
+    durationSec,
+    startSec,
+    failKey,
+  ]);
 
   // In-place audio rendition switch: no source reload, picture keeps playing.
   useEffect(() => {
@@ -311,10 +375,10 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
           `readyState=${v?.readyState} errorCode=${e?.code ?? '-'} ${e?.message ?? ''} ` +
           `src=${v?.currentSrc || v?.src || '(none)'}`,
       );
-      setError('player.cantPlay');
+      setError(failKey);
     }, 15000);
     return () => window.clearTimeout(id);
-  }, [surface, ready, error]);
+  }, [surface, ready, error, failKey]);
 
   const getPosition = useCallback(() => engineRef.current?.position() ?? 0, []);
   const runtime = useCallback(() => engineRef.current?.duration() || durationSec, [durationSec]);
@@ -323,8 +387,6 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   useResumeAndPersist(client, item, {
     getPosition,
     getDuration: runtime,
-    seekTo: (s) => engineRef.current?.seekTo(s),
-    ready,
     paused: !playing,
     endedNonce,
   });
@@ -341,7 +403,8 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   // AVPlay-master passes surround through (remux); only the hls.js AAC master
   // (webOS / MSE without AC3) re-encodes audio (transcode).
   let playbackMode: 'direct' | 'remux' | 'transcode' = 'direct';
-  if (useMpv) playbackMode = 'direct'; // mpv opens the original file (master only on fallback)
+  if (useMpv)
+    playbackMode = 'direct'; // mpv opens the original file (master only on fallback)
   else if (useAvplay) playbackMode = avplayDirect ? 'direct' : 'remux';
   else if (!direct) playbackMode = masterAac ? 'transcode' : 'remux';
   usePlaybackHeartbeat({
@@ -354,7 +417,11 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
       if (!playing) return 'paused';
       return waiting ? 'buffering' : 'playing';
     },
-    getAudio: () => audioTrackLabel(t, audioTracks.find((a) => a.index === audioIndex)),
+    getAudio: () =>
+      audioTrackLabel(
+        t,
+        audioTracks.find((a) => a.index === audioIndex),
+      ),
     // Ping promptly on play/pause, buffering, and audio-track changes.
     pingSignal: `${playing}|${waiting}|${audioIndex}`,
     mode: playbackMode,
@@ -415,9 +482,10 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     videoRef,
     objectRef,
     surface,
-    verdict,
+    verdict: playVerdict,
     error,
     terminated,
+    ready,
     playing,
     waiting,
     cur,

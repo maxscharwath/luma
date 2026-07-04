@@ -112,9 +112,10 @@ export class MpvEngine implements TvEngine {
     this.cmd('set_property', name, value);
   }
 
-  /** Load a URL into mpv (replaces the current file). */
-  private load(url: string): void {
-    void this.bridge.core.invoke('mpv_load', { url }).catch(() => this.fail());
+  /** Load a URL into mpv (replaces the current file), optionally starting at `start`
+   * seconds so mpv seeks DURING the open (resume) instead of buffering at 0 first. */
+  private load(url: string, start = 0): void {
+    void this.bridge.core.invoke('mpv_load', { url, start }).catch(() => this.fail());
   }
 
   /** Subscribe to the observed-property + lifecycle events the shell forwards. */
@@ -245,6 +246,7 @@ export class MpvEngine implements TvEngine {
   private open(): void {
     const url = this.sourceUrl();
     if (this.mode === 'master' && this.baseSec > 0.5) {
+      // Master: the start offset is baked into the URL (server `-ss`), so just load.
       void resolveMasterStart(url, this.baseSec).then((real) => {
         if (this.destroyed) return;
         this.baseSec = real;
@@ -252,7 +254,9 @@ export class MpvEngine implements TvEngine {
       });
       return;
     }
-    this.load(url);
+    // Direct: open the original file AT the current position so mpv seeks during load
+    // (resume). `pendingSeek` remains as a safety net for mpv builds that ignore `start`.
+    this.load(url, this.mode === 'direct' ? this.elSec : 0);
   }
 
   /** Reopen the current mode's source at `absSec` (master: a new anchor; direct:

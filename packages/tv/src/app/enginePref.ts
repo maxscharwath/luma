@@ -51,7 +51,11 @@ export function availableEngines(): EnginePref[] {
   if (/web0?s/i.test(ua)) return ['auto', 'webview', 'remux'];
   const list: EnginePref[] = ['auto', 'webview', 'remux'];
   const isLinux = /Linux/i.test(ua) && !/Android/i.test(ua);
-  if (getTauri() != null && isLinux) list.splice(1, 0, 'mpv');
+  // mpv is offered when a native mpv engine is present: the Linux/Deck shell (mpv
+  // binary), or the macOS shell when its in-process libmpv engine flagged itself
+  // (window.__LUMA_MPV__, set by the Rust `setup`).
+  const macMpv = '__LUMA_MPV__' in globalThis;
+  if (getTauri() != null && (isLinux || macMpv)) list.splice(1, 0, 'mpv');
   return list;
 }
 

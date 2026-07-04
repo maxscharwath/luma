@@ -92,6 +92,22 @@ export class HtmlEngine implements TvEngine {
 
     if (opts.direct) {
       attachDirectPlay(v, opts.client, opts.item, { autoplay: false });
+      // Resume: the direct-play timeline is absolute, so seek to the start offset once
+      // metadata is known - it opens near the resume point instead of loading from 0.
+      if (opts.startSec > 0.5) {
+        const seekOnce = () => {
+          v.currentTime = opts.startSec;
+          v.removeEventListener('loadedmetadata', seekOnce);
+        };
+        v.addEventListener('loadedmetadata', seekOnce);
+        // The <video> is reused across items; if this engine is destroyed before
+        // metadata loads, a leaked seekOnce would jump the NEXT item to this offset.
+        const base = this.cleanupEvents;
+        this.cleanupEvents = () => {
+          base();
+          v.removeEventListener('loadedmetadata', seekOnce);
+        };
+      }
       return;
     }
     this.attachMaster();

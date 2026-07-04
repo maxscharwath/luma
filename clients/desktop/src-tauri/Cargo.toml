@@ -12,6 +12,8 @@ rust-version = "1.88"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# Compiles the Obj-C shim (vlc_shim.m) for the macOS libVLC engine.
+cc = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
@@ -23,6 +25,10 @@ serde_json = "1"
 # default so shippable builds don't link/need libmpv (a distributed .dmg would have to
 # BUNDLE libmpv.dylib). Enable for the native mpv work: `cargo build --features libmpv`
 # (needs `brew install mpv`). Only meaningful on macOS.
+# In-process libmpv, the chosen native engine (all OSes). Embeds into a native view
+# via `--wid` (NSView on macOS - verified - / HWND / X11), decoding everything the
+# webview can't (AV1 via dav1d + surround). Raw link + an Obj-C window shim; WIP, off
+# by default so shippable builds don't yet need a bundled libmpv.dylib.
 libmpv = ["dep:libmpv2"]
 
 [profile.release]

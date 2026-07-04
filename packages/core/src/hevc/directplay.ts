@@ -252,9 +252,14 @@ export const MSE_CAPS: PlaybackCapabilities = {
 };
 
 /** Safari native HLS: like {@link MSE_CAPS} but AC3/EAC3 decode natively, so
- * surround masters can be stream-copied. */
+ * surround masters can be stream-copied. Unlike Chromium it has NO software AV1
+ * decoder - AV1 in Safari / WKWebView is hardware-only (Apple Silicon M3+), so a
+ * pre-M3 Mac (or any Intel Mac) cannot decode it. We report `av1: false` rather
+ * than offer it and fail with an opaque "codec not supported"; the mpv engine
+ * (software dav1d) is the path for AV1 on those machines. */
 export const SAFARI_CAPS: PlaybackCapabilities = {
   ...MSE_CAPS,
+  av1: false,
   audio: { ...MSE_AUDIO, ac3: true, eac3: true },
   source: 'videoElement',
 };

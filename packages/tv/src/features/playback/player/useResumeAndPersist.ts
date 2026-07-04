@@ -6,9 +6,6 @@ import { useCallback, useEffect, useRef } from 'react';
 export interface PersistPort {
   getPosition: () => number;
   getDuration: () => number;
-  seekTo: (sec: number) => void;
-  /** True once the engine can play (apply the resume seek). */
-  ready: boolean;
   /** True while playback is paused (persist on pause). */
   paused: boolean;
   /** Increments when playback reaches the end (mark watched). */
@@ -16,40 +13,14 @@ export interface PersistPort {
 }
 
 /**
- * Resume + progress persistence for the TV player, engine-agnostic: restores the
- * saved resume position once the engine is ready, then persists progress every
- * 10 s, on pause, on ~finish, and on exit (cleanup).
+ * Progress persistence for the TV player, engine-agnostic: persists progress every
+ * 10 s, on pause, on ~finish, and on exit (cleanup). The RESUME position itself is now
+ * applied by `useDirectPlayback` as the engine's `startSec` (so it opens directly at
+ * the resume point), not re-seeked here.
  */
 export function useResumeAndPersist(client: LumaClient, item: MediaItem, port: PersistPort): void {
   const portRef = useRef(port);
   portRef.current = port;
-  const appliedRef = useRef(false);
-
-  // Reset the applied-once guard when the item changes (a new title may resume).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on item change.
-  useEffect(() => {
-    appliedRef.current = false;
-  }, [item]);
-
-  useEffect(() => {
-    if (!port.ready || !client.hasAuth || appliedRef.current) return;
-    let cancelled = false;
-    client
-      .itemProgress(item.id)
-      .then((p) => {
-        if (cancelled || !p || appliedRef.current) return;
-        const durMs = p.durationMs ?? item.durationMs ?? 0;
-        const posSec = p.positionMs / 1000;
-        if (posSec > 15 && (!durMs || p.positionMs < durMs * 0.95)) {
-          appliedRef.current = true;
-          if (portRef.current.getPosition() < posSec - 2) portRef.current.seekTo(posSec);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client, item, port.ready]);
 
   const save = useCallback(() => {
     if (!client.hasAuth) return;

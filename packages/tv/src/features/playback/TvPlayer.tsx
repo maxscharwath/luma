@@ -5,6 +5,7 @@ import { useClient, useNav, useParams } from '#tv/app/router';
 import { endsAtClock } from '#tv/features/catalog/detail/parts';
 import { AvPanel } from '#tv/features/playback/player/AvPanel';
 import { ControlBar } from '#tv/features/playback/player/ControlBar';
+import { useNowPlaying } from '#tv/features/playback/player/useNowPlaying';
 import { BackChevron, StopGlyph } from '#tv/features/playback/player/icons';
 import { SkipIntroButton, UpNextCard } from '#tv/features/playback/player/PlayerOverlays';
 import { FOCUS_RING } from '#tv/features/playback/player/playerStyles';
@@ -136,6 +137,10 @@ export function TvPlayer() {
   const audio = useMemo(() => audioSupport(item), [item]);
   const subtitle = playerSubtitle(item);
 
+  // Populate the OS "Now Playing" widget (title / show / poster / progress) on desktop,
+  // and honor its transport + scrubber.
+  useNowPlaying(client, item, item.title, subtitle, dur, cur, playing, playback.seekTo);
+
   // Mouse driving for the control bar: reveal + focus helpers, the transport
   // actions, and the scrub-bar click/drag hooks. Bundled so ControlBar takes one
   // prop. Seeking reuses the same gesture as the remote (press = tap/hold, scrub =
@@ -199,14 +204,31 @@ export function TvPlayer() {
     if (playback.endedNonce > 0 && next && !upNextCancelled) goNext();
   }, [playback.endedNonce, next, upNextCancelled, goNext]);
 
+  // Native video surfaces (mpv / AVPlay) render a video plane BEHIND the page, so the
+  // page must be see-through down to the window. This class forces the html/body/#root
+  // chain transparent - but ONLY once the engine is READY (a fresh frame is up): while
+  // loading, the page stays opaque so the previous video's last frame (still in the
+  // native plane) is hidden until the new one is ready. Stays revealed while paused.
+  useEffect(() => {
+    const native = playback.surface === 'mpv' || playback.surface === 'avplay';
+    if (!native || !playback.ready || typeof document === 'undefined') return;
+    const el = document.documentElement;
+    el.classList.add('luma-native-surface');
+    return () => el.classList.remove('luma-native-surface');
+  }, [playback.surface, playback.ready]);
+
   const endsAt = dur ? endsAtClock(Math.max(0, dur - cur) * 1000, locale) : '';
   const fade = controls ? 'opacity-100' : 'pointer-events-none opacity-0';
   // Warning pill text, by priority: stream/codec load error → direct-play verdict
   // → audio support. (An admin stop gets its own blocking overlay below, not the
   // pill.) All resolved to the active locale here.
   let warn: string | null = null;
+  // The direct-play verdict is derived from WEBVIEW decode caps, so it only applies to
+  // the in-page `<video>` surface. Native surfaces (mpv/AVPlay) decode everything
+  // (incl. AV1), so suppress the "unsupported" warning there.
   if (error) warn = t(error);
-  else if (verdict && !verdict.canDirectPlay) warn = t(verdict.messageKey, verdict.messageVars);
+  else if (playback.surface === 'video' && verdict && !verdict.canDirectPlay)
+    warn = t(verdict.messageKey, verdict.messageVars);
   else if (!audio.canPlay && audio.messageKey) warn = t(audio.messageKey, audio.messageVars);
 
   return (

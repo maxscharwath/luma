@@ -11,6 +11,8 @@ export type RemoteKey =
   | 'Play'
   | 'Pause'
   | 'PlayPause'
+  | 'Next'
+  | 'Prev'
   | 'Stop'
   | 'Rewind'
   | 'FastForward'
@@ -58,6 +60,12 @@ const KEY_NAMES: Record<string, RemoteKey> = {
   MediaStop: 'Stop',
   MediaRewind: 'Rewind',
   MediaFastForward: 'FastForward',
+  MediaTrackNext: 'Next',
+  MediaTrackPrevious: 'Prev',
+  // Spacebar = play/pause (desktop/keyboard). ' ' is the modern name; 'Spacebar' the
+  // legacy one (old WebKit / some TV browsers). Unused elsewhere, so safe to claim.
+  ' ': 'PlayPause',
+  Spacebar: 'PlayPause',
 };
 
 /** Resolve a KeyboardEvent into a logical remote key, or null if unmapped. */

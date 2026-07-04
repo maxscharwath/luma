@@ -3,6 +3,7 @@ import type { AudioTrack, MediaItem } from '../types';
 import {
   audioTrackId,
   avplayDirectPlayable,
+  canDirectPlay,
   masterNeedsAac,
   MSE_CAPS,
   NATIVE_TV_CAPS,
@@ -187,6 +188,20 @@ describe('selectEngine', () => {
       audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
     });
     expect(selectEngine(item, WEB_SAFARI)).toEqual({ kind: 'direct', aacMaster: false });
+  });
+
+  it('Safari cannot decode AV1 (no software decoder; HW is M3+ only)', () => {
+    const av1 = makeItem({
+      container: 'mkv',
+      videoCodec: 'av1',
+      audio: [track({ index: 0, codec: 'aac', channels: 2, default: true })],
+    });
+    // Chromium (MSE, dav1d) decodes AV1; Safari / WKWebView reports it unsupported
+    // so the player warns instead of offering it and failing opaquely.
+    expect(canDirectPlay(av1, MSE_CAPS).canDirectPlay).toBe(true);
+    const verdict = canDirectPlay(av1, SAFARI_CAPS);
+    expect(verdict.canDirectPlay).toBe(false);
+    expect(verdict.messageKey).toBe('player.av1Unsupported');
   });
 
   it('HEVC + EAC3 (2 audio): tizen native (no aac), web-mse + aac, webos + aac', () => {

@@ -1,7 +1,8 @@
 import { dispatchRemoteKey, type RemoteKeyMap, resolveRemoteKey } from '@luma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { GenField } from '#tv/features/playback/player/useSubtitleGen';
+import { getTauri } from '#tv/features/playback/player/engine';
 import { useOverlayFocus } from '#tv/features/playback/player/useOverlayFocus';
+import type { GenField } from '#tv/features/playback/player/useSubtitleGen';
 
 export type Zone = 'progress' | 'bar';
 /** Bottom control row, left → right (a `next` control is inserted for series). */
@@ -302,9 +303,34 @@ export function usePlayerControls({
         return;
       }
 
+      // Dedicated transport keys (the remote's play/pause button, Space) toggle playback
+      // DIRECTLY, independent of what control is focused - they never act as OK. Poke so
+      // the change is visible.
+      if (key === 'PlayPause' || key === 'Play' || key === 'Pause') {
+        e.preventDefault();
+        poke();
+        if (key === 'Play') {
+          if (!playing) togglePlay();
+        } else if (key === 'Pause') {
+          if (playing) togglePlay();
+        } else {
+          togglePlay();
+        }
+        return;
+      }
+      // Media next/prev (remote or keyboard ⏭/⏮): next episode / skip back.
+      if (key === 'Next' || key === 'Prev') {
+        e.preventDefault();
+        poke();
+        if (key === 'Next') onNext?.();
+        else seekTap(-1);
+        return;
+      }
+
       // Skip-intro is auto-focused: OK skips; any direction hands focus to the bar.
+      // (PlayPause is handled above, so it never reaches here.)
       if (skipFocused) {
-        if (key === 'Enter' || key === 'PlayPause') {
+        if (key === 'Enter') {
           e.preventDefault();
           onSkipIntro?.();
           setSkipFocused(false);
@@ -328,13 +354,6 @@ export function usePlayerControls({
         Left: () => move(reveal, -1),
         Right: () => move(reveal, 1),
         Enter: () => confirm(reveal),
-        PlayPause: () => confirm(reveal),
-        Play: () => {
-          if (!playing) togglePlay();
-        },
-        Pause: () => {
-          if (playing) togglePlay();
-        },
         FastForward: () => seekPress(1),
         Rewind: () => seekPress(-1),
       });
@@ -372,7 +391,76 @@ export function usePlayerControls({
     setUpNextFocus,
     onUpNextPlay,
     onUpNextCancel,
+    onNext,
+    seekTap,
   ]);
+
+  // Current transport handlers + play state in a ref, so the media-session and media-key
+  // subscriptions below register ONCE instead of tearing down + rebuilding on every toggle.
+  const transportRef = useRef({ playing, togglePlay, onNext, seekTap, seekPress, poke });
+  transportRef.current = { playing, togglePlay, onNext, seekTap, seekPress, poke };
+
+  // Media Session: route the OS "Now Playing" widget + a MacBook's ⏯/⏭/⏮ media keys to
+  // the player wherever the shell has an active media session (the web / `<video>`
+  // players). The desktop mpv plane has no media element, so there Space + the on-screen
+  // transport are the reliable path.
+  useEffect(() => {
+    const ms = navigator.mediaSession as MediaSession | undefined;
+    if (!ms || typeof ms.setActionHandler !== 'function') return;
+    const set = (action: MediaSessionAction, handler: (() => void) | null) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {
+        /* action unsupported by this engine */
+      }
+    };
+    const t = () => transportRef.current;
+    const handlers: Record<string, () => void> = {
+      play: () => {
+        if (!t().playing) t().togglePlay();
+      },
+      pause: () => {
+        if (t().playing) t().togglePlay();
+      },
+      nexttrack: () => t().onNext?.(),
+      previoustrack: () => t().seekTap(-1),
+      seekforward: () => t().seekPress(1),
+      seekbackward: () => t().seekPress(-1),
+    };
+    for (const [a, h] of Object.entries(handlers)) set(a as MediaSessionAction, h);
+    return () => {
+      for (const a of Object.keys(handlers)) set(a as MediaSessionAction, null);
+    };
+  }, []);
+
+  // Native MacBook media keys: the Rust shell registers MPRemoteCommandCenter and re-emits
+  // each press as a `media-key` event (the desktop mpv plane has no media element for the
+  // browser Media Session above). Route them to the same actions.
+  useEffect(() => {
+    const bridge = getTauri();
+    if (!bridge) return;
+    let un: (() => void) | undefined;
+    let dead = false;
+    void bridge.event
+      .listen('media-key', (e) => {
+        const action = String((e as { payload?: unknown }).payload ?? '');
+        const t = transportRef.current;
+        t.poke();
+        if (action === 'next') t.onNext?.();
+        else if (action === 'prev') t.seekTap(-1);
+        // play / pause / playpause: toggle for any - robust to the OS's playbackState
+        // lagging the real state by a frame.
+        else t.togglePlay();
+      })
+      .then((u) => {
+        if (dead) u();
+        else un = u;
+      });
+    return () => {
+      dead = true;
+      un?.();
+    };
+  }, []);
 
   const barFocus = (i: number) => controls && zone === 'bar' && barIndex === i;
   const barFocusName = (name: string) => controls && zone === 'bar' && bar[barIndex] === name;

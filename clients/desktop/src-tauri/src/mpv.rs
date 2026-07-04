@@ -194,10 +194,17 @@ pub fn shutdown(state: &MpvState) {
 
 // ----- commands invoked by the frontend MpvEngine ----------------------------
 
-/// Load a URL into mpv, replacing the current file (`{"command":["loadfile",…]}`).
+/// Load a URL into mpv, replacing the current file. `start` > 0 seeks DURING the open
+/// (resume) via `loadfile … start=<sec>`, so playback begins there without buffering
+/// at 0 first.
 #[tauri::command]
-pub fn mpv_load(app: AppHandle, url: String) {
-    write_ipc(&app, &json!({ "command": ["loadfile", url, "replace"] }));
+pub fn mpv_load(app: AppHandle, url: String, start: f64) {
+    let cmd = if start > 0.5 {
+        json!({ "command": ["loadfile", url, "replace", "0", format!("start={start}")] })
+    } else {
+        json!({ "command": ["loadfile", url, "replace"] })
+    };
+    write_ipc(&app, &cmd);
 }
 
 /// Send a raw mpv command array (`set_property`, `seek`, `stop`, …). The frontend

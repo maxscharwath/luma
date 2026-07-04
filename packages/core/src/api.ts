@@ -20,7 +20,6 @@ import type {
   ContinueItem,
   ElementProcessing,
   Health,
-  PipelineElements,
   HistoryStats,
   Invite,
   InviteCreated,
@@ -34,6 +33,7 @@ import type {
   MetricsSnapshot,
   Permission,
   PersonResponse,
+  PipelineElements,
   PipelineTaskView,
   PipelineView,
   PlaybackPing,
@@ -54,9 +54,10 @@ import type {
   User,
 } from './types';
 
+export type { AdminFsEntry, AdminFsList } from './client/admin';
 export type { LumaClientOptions } from './client/base';
 export { apiErrorText, LumaApiError } from './client/base';
-export { GEN_LANGS, GEN_QUALITIES } from './client/subtitles';
+export type { StoryboardManifest } from './client/media';
 export type {
   DownloadedSub,
   GenerateReq,
@@ -65,8 +66,7 @@ export type {
   SubCapabilities,
   SubtitleGeneration,
 } from './client/subtitles';
-export type { StoryboardManifest } from './client/media';
-export type { AdminFsEntry, AdminFsList } from './client/admin';
+export { GEN_LANGS, GEN_QUALITIES } from './client/subtitles';
 
 /** Thin typed client over the LUMA server REST API. Shared by every client shell.
  *
@@ -185,6 +185,24 @@ export class LumaClient {
   }
   posterUrl(id: string): string {
     return media.posterUrl(this.ctx, id);
+  }
+  /** The item's REAL poster bytes (cached TMDB art), for the OS "Now Playing" artwork.
+   * Prefers `metadata.posterUrl` (a raster the OS can decode) over the generated SVG
+   * placeholder, which NSImage can't render. Cached art is a relative `/api/images/…`
+   * path fetched WITH the bearer token; TMDB fallbacks are absolute + fetched directly. */
+  posterBlob(item: Pick<MediaItem, 'id' | 'metadata'>): Promise<Blob> {
+    const raw = item.metadata?.posterUrl;
+    // Absolute (TMDB) fallback: fetch directly, no LUMA auth needed.
+    if (raw && /^https?:\/\//.test(raw)) {
+      return this.fetchFn(raw).then((r) => {
+        if (!r.ok) throw new Error(`poster ${r.status}`);
+        return r.blob();
+      });
+    }
+    // Cached art paths are stored WITH the `/api` prefix (the resolveArt convention), but
+    // `blob()` re-adds `/api`, so strip one. Fall back to the generated poster endpoint.
+    const path = raw ? raw.replace(/^\/api\b/, '') : `/items/${encodeURIComponent(item.id)}/poster`;
+    return this.blob(path);
   }
   showPosterUrl(id: string): string {
     return media.showPosterUrl(this.ctx, id);
@@ -482,7 +500,10 @@ export class LumaClient {
   retryPipelineTask(stage: string, subjectId: string): Promise<{ requeued: number }> {
     return admin.retryPipelineTask(this.ctx, stage, subjectId);
   }
-  reprocessSubject(kind: 'item' | 'show', id: string): Promise<{ subjects: number; stages: string[] }> {
+  reprocessSubject(
+    kind: 'item' | 'show',
+    id: string,
+  ): Promise<{ subjects: number; stages: string[] }> {
     return admin.reprocessSubject(this.ctx, kind, id);
   }
   itemProcessing(id: string): Promise<ElementProcessing> {
