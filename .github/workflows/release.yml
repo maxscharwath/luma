@@ -184,12 +184,16 @@ jobs:
           fi
           kc="$RUNNER_TEMP/luma-check.keychain-db"
           security create-keychain -p '' "$kc"
+          security unlock-keychain -p '' "$kc"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12" 2>/dev/null || true
-          if security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1; then
-            echo "APPLE_CERTIFICATE imports OK; signing enabled."
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1 || true
+          # Only sign if a genuine, valid Developer ID Application identity is present -
+          # a merely-importable cert (or none, e.g. no paid membership) builds UNSIGNED.
+          if security find-identity -v -p codesigning "$kc" | grep -q "Developer ID Application"; then
+            echo "Valid Developer ID Application cert; signing enabled."
             echo "sign=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::APPLE_CERTIFICATE could not be imported (bad cert/password); building UNSIGNED."
+            echo "::warning::No valid Developer ID Application cert; building UNSIGNED (open with right-click > Open or xattr -dr com.apple.quarantine)."
             echo "sign=false" >> "$GITHUB_OUTPUT"
           fi
           security delete-keychain "$kc" >/dev/null 2>&1 || true
