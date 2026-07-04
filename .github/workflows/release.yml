@@ -46,10 +46,12 @@ jobs:
           elif [ -n "${{ github.event.inputs.version }}" ]; then
             V="${{ github.event.inputs.version }}"
           else
-            V="0.0.0-dev+${GITHUB_SHA::7}"
+            # No tag / no input: same base as the script + the in-app version,
+            # read from server/Cargo.toml. build.sh appends the -<build> number.
+            V="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' server/Cargo.toml | head -1)"
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Building version $V"
+          echo "Building version $V (build.sh appends -<build>)"
 
       # Caches the static ffmpeg download + the musl cargo registry across runs
       # (see clients/synology/.cache in build.sh) to keep rebuilds fast.

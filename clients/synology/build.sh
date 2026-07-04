@@ -17,7 +17,11 @@
 #          SKIP_WEB=1   reuse an existing web build
 set -euo pipefail
 
-VERSION="${1:-0.1.0}"
+# Base version: read from server/Cargo.toml so the .spk version, the in-app
+# version (CARGO_PKG_VERSION) and CI all agree. Override with $1 if needed.
+_CARGO_TOML="$(cd "$(dirname "$0")/../.." && pwd)/server/Cargo.toml"
+CARGO_VERSION="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$_CARGO_TOML" | head -1)"
+VERSION="${1:-${CARGO_VERSION:-0.1.0}}"
 # DSM refuses a Manual Install whose version isn't strictly newer than the one
 # installed (same version => error, forcing a delete + reinstall that wipes the
 # package's var: config, DB, cache, downloaded Whisper model). So stamp a
