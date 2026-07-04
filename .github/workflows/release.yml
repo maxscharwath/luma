@@ -199,15 +199,25 @@ jobs:
           security delete-keychain "$kc" >/dev/null 2>&1 || true
           rm -f "$RUNNER_TEMP/cert.p12"
 
+      # Unsigned / non-macOS: NO APPLE_* env at all, so tauri never attempts a codesign.
+      # (An empty-but-present APPLE_CERTIFICATE still makes `security import` fail, so the
+      # signing env must be absent entirely, not just empty - hence two separate steps.)
       - name: Build installer(s)
+        if: steps.macsign.outputs.sign != 'true'
+        working-directory: clients/desktop
+        run: bun run tauri build --bundles ${{ matrix.bundles }}
+
+      # macOS with a verified Developer ID cert: sign + notarize via the Apple secrets.
+      - name: Build installer(s) (macOS signed)
+        if: steps.macsign.outputs.sign == 'true'
         working-directory: clients/desktop
         env:
-          APPLE_CERTIFICATE: ${{ steps.macsign.outputs.sign == 'true' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ steps.macsign.outputs.sign == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_SIGNING_IDENTITY: ${{ steps.macsign.outputs.sign == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          APPLE_ID: ${{ steps.macsign.outputs.sign == 'true' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ steps.macsign.outputs.sign == 'true' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ steps.macsign.outputs.sign == 'true' && secrets.APPLE_TEAM_ID || '' }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: bun run tauri build --bundles ${{ matrix.bundles }}
 
       - name: Upload artifact
