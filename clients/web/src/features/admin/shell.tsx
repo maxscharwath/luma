@@ -14,6 +14,7 @@ import {
   IconArchive,
   IconChevronRight,
   IconClockBolt,
+  IconCloud,
   IconDatabase,
   IconLibrary,
   IconSettings,
@@ -126,6 +127,7 @@ const NAV_REGLAGES: {
     icon: IconSettings,
   },
   { to: '/admin/network', labelKey: 'admin.navNetwork', cap: 'settings.manage', icon: IconWorld },
+  { to: '/admin/remote', labelKey: 'admin.navRemote', cap: 'settings.manage', icon: IconCloud },
   {
     to: '/admin/libraries',
     labelKey: 'admin.navLibraries',

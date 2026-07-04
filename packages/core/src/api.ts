@@ -54,7 +54,13 @@ import type {
   User,
 } from './types';
 
-export type { AdminFsEntry, AdminFsList } from './client/admin';
+export type {
+  AdminFsEntry,
+  AdminFsList,
+  RemoteAccessSave,
+  RemoteAccessView,
+  RemoteConnectorStatus,
+} from './client/admin';
 export type { LumaClientOptions } from './client/base';
 export { apiErrorText, LumaApiError } from './client/base';
 export type { StoryboardManifest } from './client/media';
@@ -538,5 +544,14 @@ export class LumaClient {
   }
   testLlm(probe: admin.LlmProbe): Promise<{ ok: boolean; message: string }> {
     return admin.testLlm(this.ctx, probe);
+  }
+
+  // ----- admin: remote access (Cloudflare Tunnel connector) -------------------
+
+  adminRemote(): Promise<admin.RemoteAccessView> {
+    return admin.adminRemote(this.ctx);
+  }
+  saveRemote(body: admin.RemoteAccessSave): Promise<admin.RemoteAccessView> {
+    return admin.saveRemote(this.ctx, body);
   }
 }

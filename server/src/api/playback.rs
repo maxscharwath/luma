@@ -180,9 +180,18 @@ pub async fn stop(
     StatusCode::NO_CONTENT.into_response()
 }
 
-/// Best client IP: first `X-Forwarded-For` hop (when behind a reverse proxy like
-/// the Synology one), else the direct socket peer.
+/// Best client IP. Cloudflare sets `CF-Connecting-IP` to the true client and
+/// overwrites it at the edge, so it can't be spoofed by a client prefilling the
+/// header the way the first `X-Forwarded-For` hop can. Preferred when present;
+/// falls back to the first `X-Forwarded-For` hop (other reverse proxies, e.g. the
+/// Synology one), then the direct socket peer.
 fn client_ip(headers: &HeaderMap, addr: &SocketAddr) -> String {
+    if let Some(cf) = headers.get("cf-connecting-ip").and_then(|v| v.to_str().ok()) {
+        let cf = cf.trim();
+        if !cf.is_empty() {
+            return cf.to_string();
+        }
+    }
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(first) = xff.split(',').next() {
             let first = first.trim();

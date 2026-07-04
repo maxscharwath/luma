@@ -90,6 +90,47 @@ pub fn metadata_language(settings: &Settings, config: &crate::config::Config) ->
     }
 }
 
+// ----- remote access (managed Cloudflare Tunnel connector) --------------------
+
+/// Whether the managed `cloudflared` connector is enabled (off by default). When
+/// on and a token is stored, the server supervises the tunnel (see
+/// [`crate::services::remote`]). Installs with their own tunnel leave this off.
+pub fn remote_access_enabled(settings: &Settings) -> bool {
+    settings.get_bool("remoteAccess", false)
+}
+
+/// The public base URL clients reach the server at (e.g. `https://luma.example.com`),
+/// used for share / Quick Connect links. Trailing slash trimmed; empty if unset.
+pub fn public_url(settings: &Settings) -> String {
+    settings.get_str("remoteUrl", "").trim().trim_end_matches('/').to_string()
+}
+
+/// The stored Cloudflare Tunnel token for the managed connector. Secret never
+/// returned to clients (the admin API exposes only a `hasToken` bool).
+pub fn remote_access_token(settings: &Settings) -> String {
+    settings.get_str("remoteAccessToken", "")
+}
+
+/// Persist the remote-access config. `token` is `Some` only when the admin
+/// provided a new value a blank field keeps the stored secret rather than wiping
+/// it (mirrors the LLM API-key handling). The `cloudflared` binary is provided by
+/// the server, so there is no configurable path.
+pub fn set_remote_config(
+    settings: &Settings,
+    pool: &Pool,
+    enabled: bool,
+    url: &str,
+    token: Option<&str>,
+) {
+    let mut patch = BTreeMap::new();
+    patch.insert("remoteAccess".to_string(), json!(enabled));
+    patch.insert("remoteUrl".to_string(), json!(url.trim()));
+    if let Some(tok) = token {
+        patch.insert("remoteAccessToken".to_string(), json!(tok));
+    }
+    settings.set_patch(pool, patch);
+}
+
 // ----- library definitions (persisted, multi-folder) --------------------------
 
 /// A named, runtime-editable library spanning one or more scan folders. Persisted

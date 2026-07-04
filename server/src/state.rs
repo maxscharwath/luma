@@ -14,6 +14,7 @@ use crate::infra::storyboard::Storyboard;
 use crate::services::jobs::JobManager;
 use crate::services::playback::Registry;
 use crate::services::quickconnect::{self, QuickConnect};
+use crate::services::remote::RemoteAccess;
 use crate::services::search::SearchEngine;
 use crate::services::sections::VectorCache;
 use crate::services::settings::Settings;
@@ -64,6 +65,10 @@ pub struct AppState {
     /// In-flight on-device subtitle generations (Whisper / translate), tracked so
     /// the player can poll live progress + ETA and cancel.
     pub subtitle_gen: Arc<GenRegistry>,
+    /// Managed Cloudflare Tunnel connector (optional, off by default). Supervises a
+    /// `cloudflared` child when enabled so a box with no tunnel gets a public HTTPS
+    /// endpoint without port-forwarding. See [`crate::services::remote`].
+    pub remote: Arc<RemoteAccess>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -76,6 +81,9 @@ impl AppState {
             crate::services::settings::transcode_cache_limit_bytes(&settings),
         );
         let storyboard = Storyboard::new(&config.data_dir);
+        // Built before the struct literal moves `config`: the connector locates a
+        // server-provided `cloudflared` relative to the data dir.
+        let remote = RemoteAccess::new(config.data_dir.clone());
         // Seed the process-wide ffmpeg concurrency budget from the setting so the
         // very first background pass already honors it (updated live on write).
         crate::infra::ffmpeg_gate::set_capacity(crate::services::settings::media_workers(&settings));
@@ -111,6 +119,7 @@ impl AppState {
             vectors: Arc::new(VectorCache::new()),
             jobs: Arc::new(jobs),
             subtitle_gen: Arc::new(GenRegistry::default()),
+            remote,
         })
     }
 }

@@ -160,6 +160,11 @@ async fn main() -> anyhow::Result<()> {
     // refresh, …). Manual + scheduled runs are tracked in the admin "Tâches" UI.
     state.jobs.clone().spawn_scheduler(state.clone());
 
+    // Managed Cloudflare Tunnel connector: bring the tunnel up at boot if the admin
+    // enabled it with a token (installs with their own tunnel leave it off), and
+    // keep it alive via a watchdog. No-op otherwise.
+    state.remote.clone().spawn_boot(state.clone());
+
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
     let local_discovery = state.settings.get_bool("localDiscovery", true);
 

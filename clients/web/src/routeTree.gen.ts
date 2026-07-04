@@ -8,224 +8,233 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root';
-import { Route as SeriesRouteImport } from './routes/series';
-import { Route as MylistRouteImport } from './routes/mylist';
-import { Route as JoinRouteImport } from './routes/join';
-import { Route as InviteRouteImport } from './routes/invite';
-import { Route as FilmsRouteImport } from './routes/films';
-import { Route as ConnectRouteImport } from './routes/connect';
-import { Route as AdminRouteImport } from './routes/admin';
-import { Route as IndexRouteImport } from './routes/index';
-import { Route as AdminIndexRouteImport } from './routes/admin.index';
-import { Route as WatchIdRouteImport } from './routes/watch.$id';
-import { Route as ShowIdRouteImport } from './routes/show.$id';
-import { Route as PersonNameRouteImport } from './routes/person.$name';
-import { Route as MovieIdRouteImport } from './routes/movie.$id';
-import { Route as AdminUsersRouteImport } from './routes/admin.users';
-import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder';
-import { Route as AdminStorageRouteImport } from './routes/admin.storage';
-import { Route as AdminPipelineRouteImport } from './routes/admin.pipeline';
-import { Route as AdminNetworkRouteImport } from './routes/admin.network';
-import { Route as AdminLibrariesRouteImport } from './routes/admin.libraries';
-import { Route as AdminJobsRouteImport } from './routes/admin.jobs';
-import { Route as AdminGeneralRouteImport } from './routes/admin.general';
-import { Route as AdminBackupRouteImport } from './routes/admin.backup';
-import { Route as AdminAiRouteImport } from './routes/admin.ai';
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as SeriesRouteImport } from './routes/series'
+import { Route as MylistRouteImport } from './routes/mylist'
+import { Route as JoinRouteImport } from './routes/join'
+import { Route as InviteRouteImport } from './routes/invite'
+import { Route as FilmsRouteImport } from './routes/films'
+import { Route as ConnectRouteImport } from './routes/connect'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as WatchIdRouteImport } from './routes/watch.$id'
+import { Route as ShowIdRouteImport } from './routes/show.$id'
+import { Route as PersonNameRouteImport } from './routes/person.$name'
+import { Route as MovieIdRouteImport } from './routes/movie.$id'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder'
+import { Route as AdminStorageRouteImport } from './routes/admin.storage'
+import { Route as AdminRemoteRouteImport } from './routes/admin.remote'
+import { Route as AdminPipelineRouteImport } from './routes/admin.pipeline'
+import { Route as AdminNetworkRouteImport } from './routes/admin.network'
+import { Route as AdminLibrariesRouteImport } from './routes/admin.libraries'
+import { Route as AdminJobsRouteImport } from './routes/admin.jobs'
+import { Route as AdminGeneralRouteImport } from './routes/admin.general'
+import { Route as AdminBackupRouteImport } from './routes/admin.backup'
+import { Route as AdminAiRouteImport } from './routes/admin.ai'
 
 const SeriesRoute = SeriesRouteImport.update({
   id: '/series',
   path: '/series',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const MylistRoute = MylistRouteImport.update({
   id: '/mylist',
   path: '/mylist',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const JoinRoute = JoinRouteImport.update({
   id: '/join',
   path: '/join',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const InviteRoute = InviteRouteImport.update({
   id: '/invite',
   path: '/invite',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const FilmsRoute = FilmsRouteImport.update({
   id: '/films',
   path: '/films',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ConnectRoute = ConnectRouteImport.update({
   id: '/connect',
   path: '/connect',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const WatchIdRoute = WatchIdRouteImport.update({
   id: '/watch/$id',
   path: '/watch/$id',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ShowIdRoute = ShowIdRouteImport.update({
   id: '/show/$id',
   path: '/show/$id',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PersonNameRoute = PersonNameRouteImport.update({
   id: '/person/$name',
   path: '/person/$name',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const MovieIdRoute = MovieIdRouteImport.update({
   id: '/movie/$id',
   path: '/movie/$id',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminTranscoderRoute = AdminTranscoderRouteImport.update({
   id: '/transcoder',
   path: '/transcoder',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminStorageRoute = AdminStorageRouteImport.update({
   id: '/storage',
   path: '/storage',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
+const AdminRemoteRoute = AdminRemoteRouteImport.update({
+  id: '/remote',
+  path: '/remote',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPipelineRoute = AdminPipelineRouteImport.update({
   id: '/pipeline',
   path: '/pipeline',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminNetworkRoute = AdminNetworkRouteImport.update({
   id: '/network',
   path: '/network',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminLibrariesRoute = AdminLibrariesRouteImport.update({
   id: '/libraries',
   path: '/libraries',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminJobsRoute = AdminJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminGeneralRoute = AdminGeneralRouteImport.update({
   id: '/general',
   path: '/general',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminBackupRoute = AdminBackupRouteImport.update({
   id: '/backup',
   path: '/backup',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminAiRoute = AdminAiRouteImport.update({
   id: '/ai',
   path: '/ai',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute;
-  '/admin': typeof AdminRouteWithChildren;
-  '/connect': typeof ConnectRoute;
-  '/films': typeof FilmsRoute;
-  '/invite': typeof InviteRoute;
-  '/join': typeof JoinRoute;
-  '/mylist': typeof MylistRoute;
-  '/series': typeof SeriesRoute;
-  '/admin/ai': typeof AdminAiRoute;
-  '/admin/backup': typeof AdminBackupRoute;
-  '/admin/general': typeof AdminGeneralRoute;
-  '/admin/jobs': typeof AdminJobsRoute;
-  '/admin/libraries': typeof AdminLibrariesRoute;
-  '/admin/network': typeof AdminNetworkRoute;
-  '/admin/pipeline': typeof AdminPipelineRoute;
-  '/admin/storage': typeof AdminStorageRoute;
-  '/admin/transcoder': typeof AdminTranscoderRoute;
-  '/admin/users': typeof AdminUsersRoute;
-  '/movie/$id': typeof MovieIdRoute;
-  '/person/$name': typeof PersonNameRoute;
-  '/show/$id': typeof ShowIdRoute;
-  '/watch/$id': typeof WatchIdRoute;
-  '/admin/': typeof AdminIndexRoute;
+  '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/connect': typeof ConnectRoute
+  '/films': typeof FilmsRoute
+  '/invite': typeof InviteRoute
+  '/join': typeof JoinRoute
+  '/mylist': typeof MylistRoute
+  '/series': typeof SeriesRoute
+  '/admin/ai': typeof AdminAiRoute
+  '/admin/backup': typeof AdminBackupRoute
+  '/admin/general': typeof AdminGeneralRoute
+  '/admin/jobs': typeof AdminJobsRoute
+  '/admin/libraries': typeof AdminLibrariesRoute
+  '/admin/network': typeof AdminNetworkRoute
+  '/admin/pipeline': typeof AdminPipelineRoute
+  '/admin/remote': typeof AdminRemoteRoute
+  '/admin/storage': typeof AdminStorageRoute
+  '/admin/transcoder': typeof AdminTranscoderRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/movie/$id': typeof MovieIdRoute
+  '/person/$name': typeof PersonNameRoute
+  '/show/$id': typeof ShowIdRoute
+  '/watch/$id': typeof WatchIdRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute;
-  '/connect': typeof ConnectRoute;
-  '/films': typeof FilmsRoute;
-  '/invite': typeof InviteRoute;
-  '/join': typeof JoinRoute;
-  '/mylist': typeof MylistRoute;
-  '/series': typeof SeriesRoute;
-  '/admin/ai': typeof AdminAiRoute;
-  '/admin/backup': typeof AdminBackupRoute;
-  '/admin/general': typeof AdminGeneralRoute;
-  '/admin/jobs': typeof AdminJobsRoute;
-  '/admin/libraries': typeof AdminLibrariesRoute;
-  '/admin/network': typeof AdminNetworkRoute;
-  '/admin/pipeline': typeof AdminPipelineRoute;
-  '/admin/storage': typeof AdminStorageRoute;
-  '/admin/transcoder': typeof AdminTranscoderRoute;
-  '/admin/users': typeof AdminUsersRoute;
-  '/movie/$id': typeof MovieIdRoute;
-  '/person/$name': typeof PersonNameRoute;
-  '/show/$id': typeof ShowIdRoute;
-  '/watch/$id': typeof WatchIdRoute;
-  '/admin': typeof AdminIndexRoute;
+  '/': typeof IndexRoute
+  '/connect': typeof ConnectRoute
+  '/films': typeof FilmsRoute
+  '/invite': typeof InviteRoute
+  '/join': typeof JoinRoute
+  '/mylist': typeof MylistRoute
+  '/series': typeof SeriesRoute
+  '/admin/ai': typeof AdminAiRoute
+  '/admin/backup': typeof AdminBackupRoute
+  '/admin/general': typeof AdminGeneralRoute
+  '/admin/jobs': typeof AdminJobsRoute
+  '/admin/libraries': typeof AdminLibrariesRoute
+  '/admin/network': typeof AdminNetworkRoute
+  '/admin/pipeline': typeof AdminPipelineRoute
+  '/admin/remote': typeof AdminRemoteRoute
+  '/admin/storage': typeof AdminStorageRoute
+  '/admin/transcoder': typeof AdminTranscoderRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/movie/$id': typeof MovieIdRoute
+  '/person/$name': typeof PersonNameRoute
+  '/show/$id': typeof ShowIdRoute
+  '/watch/$id': typeof WatchIdRoute
+  '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  '/': typeof IndexRoute;
-  '/admin': typeof AdminRouteWithChildren;
-  '/connect': typeof ConnectRoute;
-  '/films': typeof FilmsRoute;
-  '/invite': typeof InviteRoute;
-  '/join': typeof JoinRoute;
-  '/mylist': typeof MylistRoute;
-  '/series': typeof SeriesRoute;
-  '/admin/ai': typeof AdminAiRoute;
-  '/admin/backup': typeof AdminBackupRoute;
-  '/admin/general': typeof AdminGeneralRoute;
-  '/admin/jobs': typeof AdminJobsRoute;
-  '/admin/libraries': typeof AdminLibrariesRoute;
-  '/admin/network': typeof AdminNetworkRoute;
-  '/admin/pipeline': typeof AdminPipelineRoute;
-  '/admin/storage': typeof AdminStorageRoute;
-  '/admin/transcoder': typeof AdminTranscoderRoute;
-  '/admin/users': typeof AdminUsersRoute;
-  '/movie/$id': typeof MovieIdRoute;
-  '/person/$name': typeof PersonNameRoute;
-  '/show/$id': typeof ShowIdRoute;
-  '/watch/$id': typeof WatchIdRoute;
-  '/admin/': typeof AdminIndexRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/connect': typeof ConnectRoute
+  '/films': typeof FilmsRoute
+  '/invite': typeof InviteRoute
+  '/join': typeof JoinRoute
+  '/mylist': typeof MylistRoute
+  '/series': typeof SeriesRoute
+  '/admin/ai': typeof AdminAiRoute
+  '/admin/backup': typeof AdminBackupRoute
+  '/admin/general': typeof AdminGeneralRoute
+  '/admin/jobs': typeof AdminJobsRoute
+  '/admin/libraries': typeof AdminLibrariesRoute
+  '/admin/network': typeof AdminNetworkRoute
+  '/admin/pipeline': typeof AdminPipelineRoute
+  '/admin/remote': typeof AdminRemoteRoute
+  '/admin/storage': typeof AdminStorageRoute
+  '/admin/transcoder': typeof AdminTranscoderRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/movie/$id': typeof MovieIdRoute
+  '/person/$name': typeof PersonNameRoute
+  '/show/$id': typeof ShowIdRoute
+  '/watch/$id': typeof WatchIdRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/network'
     | '/admin/pipeline'
+    | '/admin/remote'
     | '/admin/storage'
     | '/admin/transcoder'
     | '/admin/users'
@@ -249,8 +259,8 @@ export interface FileRouteTypes {
     | '/person/$name'
     | '/show/$id'
     | '/watch/$id'
-    | '/admin/';
-  fileRoutesByTo: FileRoutesByTo;
+    | '/admin/'
+  fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/connect'
@@ -266,6 +276,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/network'
     | '/admin/pipeline'
+    | '/admin/remote'
     | '/admin/storage'
     | '/admin/transcoder'
     | '/admin/users'
@@ -273,7 +284,7 @@ export interface FileRouteTypes {
     | '/person/$name'
     | '/show/$id'
     | '/watch/$id'
-    | '/admin';
+    | '/admin'
   id:
     | '__root__'
     | '/'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/network'
     | '/admin/pipeline'
+    | '/admin/remote'
     | '/admin/storage'
     | '/admin/transcoder'
     | '/admin/users'
@@ -298,202 +310,210 @@ export interface FileRouteTypes {
     | '/person/$name'
     | '/show/$id'
     | '/watch/$id'
-    | '/admin/';
-  fileRoutesById: FileRoutesById;
+    | '/admin/'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  AdminRoute: typeof AdminRouteWithChildren;
-  ConnectRoute: typeof ConnectRoute;
-  FilmsRoute: typeof FilmsRoute;
-  InviteRoute: typeof InviteRoute;
-  JoinRoute: typeof JoinRoute;
-  MylistRoute: typeof MylistRoute;
-  SeriesRoute: typeof SeriesRoute;
-  MovieIdRoute: typeof MovieIdRoute;
-  PersonNameRoute: typeof PersonNameRoute;
-  ShowIdRoute: typeof ShowIdRoute;
-  WatchIdRoute: typeof WatchIdRoute;
+  IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  ConnectRoute: typeof ConnectRoute
+  FilmsRoute: typeof FilmsRoute
+  InviteRoute: typeof InviteRoute
+  JoinRoute: typeof JoinRoute
+  MylistRoute: typeof MylistRoute
+  SeriesRoute: typeof SeriesRoute
+  MovieIdRoute: typeof MovieIdRoute
+  PersonNameRoute: typeof PersonNameRoute
+  ShowIdRoute: typeof ShowIdRoute
+  WatchIdRoute: typeof WatchIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/series': {
-      id: '/series';
-      path: '/series';
-      fullPath: '/series';
-      preLoaderRoute: typeof SeriesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/series'
+      path: '/series'
+      fullPath: '/series'
+      preLoaderRoute: typeof SeriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mylist': {
-      id: '/mylist';
-      path: '/mylist';
-      fullPath: '/mylist';
-      preLoaderRoute: typeof MylistRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/mylist'
+      path: '/mylist'
+      fullPath: '/mylist'
+      preLoaderRoute: typeof MylistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/join': {
-      id: '/join';
-      path: '/join';
-      fullPath: '/join';
-      preLoaderRoute: typeof JoinRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite': {
-      id: '/invite';
-      path: '/invite';
-      fullPath: '/invite';
-      preLoaderRoute: typeof InviteRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/films': {
-      id: '/films';
-      path: '/films';
-      fullPath: '/films';
-      preLoaderRoute: typeof FilmsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/films'
+      path: '/films'
+      fullPath: '/films'
+      preLoaderRoute: typeof FilmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/connect': {
-      id: '/connect';
-      path: '/connect';
-      fullPath: '/connect';
-      preLoaderRoute: typeof ConnectRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/connect'
+      path: '/connect'
+      fullPath: '/connect'
+      preLoaderRoute: typeof ConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
-      id: '/admin';
-      path: '/admin';
-      fullPath: '/admin';
-      preLoaderRoute: typeof AdminRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
-      id: '/';
-      path: '/';
-      fullPath: '/';
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/': {
-      id: '/admin/';
-      path: '/';
-      fullPath: '/admin/';
-      preLoaderRoute: typeof AdminIndexRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/watch/$id': {
-      id: '/watch/$id';
-      path: '/watch/$id';
-      fullPath: '/watch/$id';
-      preLoaderRoute: typeof WatchIdRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/watch/$id'
+      path: '/watch/$id'
+      fullPath: '/watch/$id'
+      preLoaderRoute: typeof WatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/show/$id': {
-      id: '/show/$id';
-      path: '/show/$id';
-      fullPath: '/show/$id';
-      preLoaderRoute: typeof ShowIdRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/show/$id'
+      path: '/show/$id'
+      fullPath: '/show/$id'
+      preLoaderRoute: typeof ShowIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/person/$name': {
-      id: '/person/$name';
-      path: '/person/$name';
-      fullPath: '/person/$name';
-      preLoaderRoute: typeof PersonNameRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/person/$name'
+      path: '/person/$name'
+      fullPath: '/person/$name'
+      preLoaderRoute: typeof PersonNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/movie/$id': {
-      id: '/movie/$id';
-      path: '/movie/$id';
-      fullPath: '/movie/$id';
-      preLoaderRoute: typeof MovieIdRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/movie/$id'
+      path: '/movie/$id'
+      fullPath: '/movie/$id'
+      preLoaderRoute: typeof MovieIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users': {
-      id: '/admin/users';
-      path: '/users';
-      fullPath: '/admin/users';
-      preLoaderRoute: typeof AdminUsersRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/transcoder': {
-      id: '/admin/transcoder';
-      path: '/transcoder';
-      fullPath: '/admin/transcoder';
-      preLoaderRoute: typeof AdminTranscoderRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/transcoder'
+      path: '/transcoder'
+      fullPath: '/admin/transcoder'
+      preLoaderRoute: typeof AdminTranscoderRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/storage': {
-      id: '/admin/storage';
-      path: '/storage';
-      fullPath: '/admin/storage';
-      preLoaderRoute: typeof AdminStorageRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/storage'
+      path: '/storage'
+      fullPath: '/admin/storage'
+      preLoaderRoute: typeof AdminStorageRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/remote': {
+      id: '/admin/remote'
+      path: '/remote'
+      fullPath: '/admin/remote'
+      preLoaderRoute: typeof AdminRemoteRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/pipeline': {
-      id: '/admin/pipeline';
-      path: '/pipeline';
-      fullPath: '/admin/pipeline';
-      preLoaderRoute: typeof AdminPipelineRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/pipeline'
+      path: '/pipeline'
+      fullPath: '/admin/pipeline'
+      preLoaderRoute: typeof AdminPipelineRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/network': {
-      id: '/admin/network';
-      path: '/network';
-      fullPath: '/admin/network';
-      preLoaderRoute: typeof AdminNetworkRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/network'
+      path: '/network'
+      fullPath: '/admin/network'
+      preLoaderRoute: typeof AdminNetworkRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/libraries': {
-      id: '/admin/libraries';
-      path: '/libraries';
-      fullPath: '/admin/libraries';
-      preLoaderRoute: typeof AdminLibrariesRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/libraries'
+      path: '/libraries'
+      fullPath: '/admin/libraries'
+      preLoaderRoute: typeof AdminLibrariesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/jobs': {
-      id: '/admin/jobs';
-      path: '/jobs';
-      fullPath: '/admin/jobs';
-      preLoaderRoute: typeof AdminJobsRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/jobs'
+      path: '/jobs'
+      fullPath: '/admin/jobs'
+      preLoaderRoute: typeof AdminJobsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/general': {
-      id: '/admin/general';
-      path: '/general';
-      fullPath: '/admin/general';
-      preLoaderRoute: typeof AdminGeneralRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/general'
+      path: '/general'
+      fullPath: '/admin/general'
+      preLoaderRoute: typeof AdminGeneralRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/backup': {
-      id: '/admin/backup';
-      path: '/backup';
-      fullPath: '/admin/backup';
-      preLoaderRoute: typeof AdminBackupRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/backup'
+      path: '/backup'
+      fullPath: '/admin/backup'
+      preLoaderRoute: typeof AdminBackupRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/ai': {
-      id: '/admin/ai';
-      path: '/ai';
-      fullPath: '/admin/ai';
-      preLoaderRoute: typeof AdminAiRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/ai'
+      path: '/ai'
+      fullPath: '/admin/ai'
+      preLoaderRoute: typeof AdminAiRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
-  AdminAiRoute: typeof AdminAiRoute;
-  AdminBackupRoute: typeof AdminBackupRoute;
-  AdminGeneralRoute: typeof AdminGeneralRoute;
-  AdminJobsRoute: typeof AdminJobsRoute;
-  AdminLibrariesRoute: typeof AdminLibrariesRoute;
-  AdminNetworkRoute: typeof AdminNetworkRoute;
-  AdminPipelineRoute: typeof AdminPipelineRoute;
-  AdminStorageRoute: typeof AdminStorageRoute;
-  AdminTranscoderRoute: typeof AdminTranscoderRoute;
-  AdminUsersRoute: typeof AdminUsersRoute;
-  AdminIndexRoute: typeof AdminIndexRoute;
+  AdminAiRoute: typeof AdminAiRoute
+  AdminBackupRoute: typeof AdminBackupRoute
+  AdminGeneralRoute: typeof AdminGeneralRoute
+  AdminJobsRoute: typeof AdminJobsRoute
+  AdminLibrariesRoute: typeof AdminLibrariesRoute
+  AdminNetworkRoute: typeof AdminNetworkRoute
+  AdminPipelineRoute: typeof AdminPipelineRoute
+  AdminRemoteRoute: typeof AdminRemoteRoute
+  AdminStorageRoute: typeof AdminStorageRoute
+  AdminTranscoderRoute: typeof AdminTranscoderRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -504,13 +524,14 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLibrariesRoute: AdminLibrariesRoute,
   AdminNetworkRoute: AdminNetworkRoute,
   AdminPipelineRoute: AdminPipelineRoute,
+  AdminRemoteRoute: AdminRemoteRoute,
   AdminStorageRoute: AdminStorageRoute,
   AdminTranscoderRoute: AdminTranscoderRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
-};
+}
 
-const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren);
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -525,7 +546,16 @@ const rootRouteChildren: RootRouteChildren = {
   PersonNameRoute: PersonNameRoute,
   ShowIdRoute: ShowIdRoute,
   WatchIdRoute: WatchIdRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

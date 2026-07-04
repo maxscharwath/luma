@@ -11,6 +11,7 @@ pub mod jobs;
 pub mod llm;
 pub mod markers;
 pub mod pipeline;
+pub mod remote;
 pub mod scan;
 pub mod enrich;
 pub mod search;

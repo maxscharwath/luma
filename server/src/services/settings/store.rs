@@ -122,6 +122,11 @@ fn defaults() -> BTreeMap<String, Value> {
     // network
     m.insert("remoteAccess".into(), json!(false));
     m.insert("remoteUrl".into(), json!(""));
+    // Managed Cloudflare Tunnel connector (optional, off by default). When enabled
+    // with a token, the server supervises a `cloudflared` child (services::remote);
+    // the token is a secret (never returned to clients). The binary is provided by
+    // the server, not configured here.
+    m.insert("remoteAccessToken".into(), json!(""));
     m.insert("upLimit".into(), json!("Illimité"));
     m.insert("https".into(), json!("Préférées"));
     m.insert("ipv6".into(), json!(false));

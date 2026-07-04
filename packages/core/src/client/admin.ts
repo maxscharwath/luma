@@ -4,15 +4,15 @@
 import type {
   AdminOverview,
   AdminUsers,
+  ElementProcessing,
   HistoryStats,
   JobDetail,
   JobLog,
-  ElementProcessing,
   JobsView,
-  PipelineElements,
   LlmAdminConfig,
   MetricsSnapshot,
   Permission,
+  PipelineElements,
   PipelineTaskView,
   PipelineView,
   PlaybackSession,
@@ -451,3 +451,50 @@ export function testLlm(
   });
 }
 
+// ----- remote access (managed Cloudflare Tunnel connector) --------------------
+
+/** Live state of the supervised `cloudflared` child (never carries the token). */
+export interface RemoteConnectorStatus {
+  running: boolean;
+  /** A launch is in progress (spawning, or downloading the binary). */
+  connecting: boolean;
+  since?: string | null;
+  lastError?: string | null;
+  /** Whether the resolved `cloudflared` binary is present + runnable. */
+  binaryFound: boolean;
+  binaryVersion?: string | null;
+  /** Recent connector log lines (oldest first). */
+  logs: string[];
+}
+
+/** Remote-access config (token masked as `hasToken`) + live connector status. */
+export interface RemoteAccessView {
+  enabled: boolean;
+  url: string;
+  hasToken: boolean;
+  status: RemoteConnectorStatus;
+}
+
+/** Config to persist (PUT /admin/remote). A blank/omitted `token` keeps the
+ *  stored one (never wiped by an empty field). The `cloudflared` binary is
+ *  provided by the server, so there is no path to configure. */
+export interface RemoteAccessSave {
+  enabled: boolean;
+  url: string;
+  token?: string;
+}
+
+/** Current remote-access config + live connector status. */
+export function adminRemote(ctx: RequestContext): Promise<RemoteAccessView> {
+  return ctx.json<RemoteAccessView>('/admin/remote');
+}
+
+/** Persist config; the server's reconcile loop starts/stops the connector to
+ *  match `enabled` (non-blocking). Returns the fresh config + status. */
+export function saveRemote(ctx: RequestContext, body: RemoteAccessSave): Promise<RemoteAccessView> {
+  return ctx.json<RemoteAccessView>('/admin/remote', {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
