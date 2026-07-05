@@ -1,57 +1,83 @@
 name: Build & Release
 
+# Tagging `vX.Y.Z` builds EVERY client artifact + publishes a GitHub Release:
+#   - Synology .spk (server + web SPA + ffmpeg, x86_64 musl)
+#   - Desktop installers (macOS .dmg, Windows .exe/.msi, Linux .AppImage/.deb)
+#   - LG webOS .ipk - ONE package carrying BOTH tiers (modern Chrome 99+ AND the
+#     legacy Chromium 53-94 bundle for 2018-2023 TVs, runtime-gated)
+#   - Samsung Tizen .wgt (signed with a throwaway author certificate; TVs in
+#     developer mode accept it)
+#   - Android TV .apk (release-signed when the keystore secrets are set, else
+#     debug-signed for sideloading)
+#
+# All bundles are PRODUCTION builds: `vite build`, console/debugger stripped by
+# the shared TV shell factory, no LUMA_TV_DEVICE dev mode.
+#
+# Manual runs build artifacts without publishing a Release; `targets` scopes the
+# run (all | spk | desktop | tv).
+
 on:
-  # Tagging `vX.Y.Z` builds ALL artifacts + publishes a GitHub Release.
   push:
     tags: ['v*']
-  # Manual run: build artifacts (uploaded to the run, no Release). `targets` picks
-  # the scope, so this one workflow doubles as an on-demand .spk-only or
-  # desktop-only build.
   workflow_dispatch:
     inputs:
       version:
-        description: 'Package version (e.g. 0.1.0). Defaults to a dev string.'
+        description: 'Package version (e.g. 0.1.0). Defaults to server/Cargo.toml.'
         required: false
       targets:
         description: 'What to build'
         type: choice
-        options: [all, spk, desktop]
+        options: [all, spk, desktop, tv]
         default: all
         required: false
 
 permissions:
   contents: write # create the Release + upload assets
 
+env:
+  BUN_VERSION: '1.3.14'
+
 jobs:
-  synology:
-    name: Synology .spk (x86_64 musl)
-    # Runs for tags and any manual run except an explicit desktop-only one.
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.targets != 'desktop' }}
+  # One version for every artifact: the tag, the manual input, or the
+  # server/Cargo.toml base. `triplet` is the sanitized x.y.z the TV stores
+  # require (appinfo.json / config.xml reject suffixes).
+  version:
+    name: Resolve version
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      triplet: ${{ steps.v.outputs.triplet }}
     steps:
       - uses: actions/checkout@v5
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Resolve version
-        id: ver
+      - id: v
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             V="${GITHUB_REF_NAME#v}"            # tag v0.1.0 -> 0.1.0
           elif [ -n "${{ github.event.inputs.version }}" ]; then
             V="${{ github.event.inputs.version }}"
           else
-            # No tag / no input: same base as the script + the in-app version,
-            # read from server/Cargo.toml. build.sh appends the -<build> number.
             V="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' server/Cargo.toml | head -1)"
           fi
+          T="${V%%-*}"                          # 0.1.0-rc1 -> 0.1.0 (TV manifests)
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Building version $V (build.sh appends -<build>)"
+          echo "triplet=$T" >> "$GITHUB_OUTPUT"
+          echo "Version: $V (TV manifests: $T)"
+
+  synology:
+    name: Synology .spk (x86_64 musl)
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","spk"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       # Caches the static ffmpeg download + the musl cargo registry across runs
       # (see clients/synology/.cache in build.sh) to keep rebuilds fast.
@@ -63,9 +89,9 @@ jobs:
           restore-keys: synology-
 
       # build.sh: web SPA -> static musl luma-server (Docker musl image) ->
-      # static ffmpeg -> assembles the .spk. Docker is preinstalled on the runner.
+      # static ffmpeg -> assembles the .spk (appends its own -<build> number).
       - name: Build .spk
-        run: clients/synology/build.sh "${{ steps.ver.outputs.version }}"
+        run: clients/synology/build.sh "${{ needs.version.outputs.version }}"
 
       # The musl cross-build runs as root in Docker and writes root-owned files
       # into the cache (cargo registry), so actions/cache's tar save fails (exit 2)
@@ -98,10 +124,211 @@ jobs:
           files: clients/synology/dist/*.spk
           generate_release_notes: true
 
+  # -------------------------------------------------------------------- TV ---
+
+  webos:
+    name: webOS .ipk (modern + legacy tiers)
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Builds BOTH tiers (modern ESM + legacy ES2015/flattened CSS + the
+      # runtime engine gate in index.html) and runs the Chromium-53 compat guard.
+      - name: Build (production, both tiers)
+        run: bun run build:webos
+
+      # webOS requires a plain x.y.z in appinfo.json.
+      - name: Stamp version ${{ needs.version.outputs.triplet }}
+        run: |
+          node -e "const f='clients/webos/dist/appinfo.json';const fs=require('fs');const j=JSON.parse(fs.readFileSync(f,'utf8'));j.version='${{ needs.version.outputs.triplet }}';fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+
+      # ares-package needs no signing; TVs install the .ipk via the Dev Mode app.
+      - name: Package .ipk
+        run: |
+          npm install -g @webos-tools/cli
+          ares-package clients/webos/dist -o clients/webos/out
+
+      - name: Upload .ipk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-webos-ipk
+          path: clients/webos/out/*.ipk
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: clients/webos/out/*.ipk
+
+  tizen:
+    name: Tizen .wgt (dev-certificate signed)
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    env:
+      TIZEN_STUDIO_VER: '6.0'
+      # Throwaway author certificate generated per run: Samsung TVs in developer
+      # mode accept any author cert (re-installing over an app signed with a
+      # DIFFERENT cert requires uninstalling it first).
+      TIZEN_CERT_PASS: lumaci-2026
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build (production)
+        run: bun run build:tizen
+
+      # Tizen requires a plain x.y.z in config.xml (the <widget> tag, line 2).
+      - name: Stamp version ${{ needs.version.outputs.triplet }}
+        run: |
+          sed -i -E 's/(<widget[^>]*version=")[^"]*/\1${{ needs.version.outputs.triplet }}/' clients/tizen/dist/config.xml
+          grep -o 'version="[^"]*"' clients/tizen/dist/config.xml | head -1
+
+      - name: Cache Tizen Studio installer
+        uses: actions/cache@v4
+        with:
+          path: web-cli.bin
+          key: tizen-cli-${{ env.TIZEN_STUDIO_VER }}
+
+      - name: Install Tizen Studio CLI
+        run: |
+          if [ ! -f web-cli.bin ]; then
+            wget -q -O web-cli.bin "https://download.tizen.org/sdk/Installer/tizen-studio_${TIZEN_STUDIO_VER}/web-cli_Tizen_Studio_${TIZEN_STUDIO_VER}_ubuntu-64.bin"
+          fi
+          chmod +x web-cli.bin
+          ./web-cli.bin --accept-license --no-java-check "$HOME/tizen-studio"
+          echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
+
+      - name: Create signing profile (throwaway author certificate)
+        run: |
+          tizen certificate -a LUMA -p "$TIZEN_CERT_PASS" -f luma-ci
+          tizen security-profiles add -n luma-ci \
+            -a "$HOME/tizen-studio-data/keystore/author/luma-ci.p12" -p "$TIZEN_CERT_PASS"
+          # The CLI records password FILE references it cannot read back in a
+          # headless run; inline the plaintext passwords (no-ops if not present).
+          P="$HOME/tizen-studio-data/profile/profiles.xml"
+          sed -i "s|password=\"[^\"]*luma-ci\.pwd\"|password=\"$TIZEN_CERT_PASS\"|g" "$P"
+          sed -i "s|password=\"[^\"]*tizen-distributor-signer\.pwd\"|password=\"tizenpkcs12passfordsigner\"|g" "$P"
+
+      - name: Package .wgt
+        run: tizen package -t wgt -s luma-ci -- clients/tizen/dist
+
+      - name: Upload .wgt artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-tizen-wgt
+          path: clients/tizen/dist/*.wgt
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: clients/tizen/dist/*.wgt
+
+  androidtv:
+    name: Android TV .apk
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Web bundle (production) -> synced into android/app/src/main/assets/luma.
+      - name: Build web bundle
+        run: bun run build:androidtv
+
+      # Release-sign when the keystore secrets exist; otherwise ship the
+      # debug-signed APK (installable via adb / Downloader for sideloading).
+      - name: Release keystore (optional)
+        id: ks
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "No ANDROID_KEYSTORE secret; building a debug-signed APK."
+            echo "task=assembleDebug" >> "$GITHUB_OUTPUT"
+            echo "apk=debug/app-debug.apk" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/luma.keystore"
+          {
+            echo "LUMA_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/luma.keystore"
+            echo "LUMA_ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "LUMA_ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "LUMA_ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "task=assembleRelease" >> "$GITHUB_OUTPUT"
+          echo "apk=release/app-release.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        run: |
+          # versionCode: minutes since 2020, monotonic across releases.
+          VC=$(( ( $(date -u +%s) - 1577836800 ) / 60 ))
+          gradle -p clients/androidtv/android ${{ steps.ks.outputs.task }} \
+            -PlumaVersion="${{ needs.version.outputs.triplet }}" -PlumaVersionCode="$VC"
+          mkdir -p out
+          cp "clients/androidtv/android/app/build/outputs/apk/${{ steps.ks.outputs.apk }}" \
+            "out/LUMA-androidtv-${{ needs.version.outputs.version }}.apk"
+
+      - name: Upload .apk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-androidtv-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+
+  # --------------------------------------------------------------- Desktop ---
+
   desktop:
     name: Desktop ${{ matrix.label }}
-    # Runs for tags and any manual run except an explicit spk-only one.
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.targets != 'spk' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","desktop"]'), github.event.inputs.targets) }}
     strategy:
       fail-fast: false
       matrix:
@@ -137,7 +364,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.3.14'
+          bun-version: ${{ env.BUN_VERSION }}
 
       # The repo's rust-toolchain.toml pins the exact version; this just ensures
       # rustup is present so it can auto-install the pin.
