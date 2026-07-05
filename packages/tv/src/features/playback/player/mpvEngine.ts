@@ -131,7 +131,25 @@ export class MpvEngine implements TvEngine {
       on('mpv://property', (p) => this.onProperty(p as { name: string; data: unknown })),
       on('mpv://file-loaded', () => this.onLoaded()),
       on('mpv://end-file', (p) => this.onEndFile(p as { reason?: string })),
+      // The mpv process itself is gone (crashed, killed, never became reachable):
+      // no direct→master fallback can help, surface the error immediately.
+      on('mpv://error', () => this.fatal()),
+      on('mpv://exited', () => this.fatal()),
     ]);
+    // mpv may already have died (or never launched: missing binary) BEFORE this
+    // engine subscribed, in which case no event will ever arrive - probe once so a
+    // dead process fails fast instead of leaving an endless spinner. The command
+    // only exists on the Linux shell; elsewhere the invoke rejects and we rely on
+    // the player's load watchdog.
+    const status = await this.bridge.core.invoke('mpv_status').catch(() => null);
+    if (status === 'dead') this.fatal();
+  }
+
+  /** Fail without the direct→master retry: the mpv process itself is unusable. */
+  private fatal(): void {
+    if (this.destroyed) return;
+    this.fellBack = true;
+    this.listeners.onError();
   }
 
   /** An observed mpv property changed. */

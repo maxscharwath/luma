@@ -33,7 +33,11 @@ fn main() {
     {
         builder = builder
             .manage(mpv::MpvState::default())
-            .invoke_handler(tauri::generate_handler![mpv::mpv_load, mpv::mpv_command]);
+            .invoke_handler(tauri::generate_handler![
+                mpv::mpv_load,
+                mpv::mpv_command,
+                mpv::mpv_status
+            ]);
     }
     #[cfg(all(target_os = "macos", feature = "libmpv"))]
     {

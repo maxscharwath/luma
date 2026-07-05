@@ -65,6 +65,14 @@ fn mpv_binary() -> String {
     "mpv".to_string() // last resort: rely on PATH
 }
 
+/// Tell the webview the native mpv plane is unusable (`mpv://error`) so an active
+/// player can fail fast instead of spinning forever. Startup failures land before
+/// any engine listens; those are caught by the `mpv_status` probe instead.
+fn emit_error(app: &AppHandle, reason: &str) {
+    eprintln!("LUMA: mpv unavailable ({reason})");
+    let _ = app.emit("mpv://error", json!({ "reason": reason }));
+}
+
 /// Launch mpv (idle + windowed) and spawn the reader thread that forwards its IPC
 /// events. Call once at setup; failures are logged, not fatal (the UI still runs).
 pub fn spawn(app: AppHandle) {
@@ -98,6 +106,7 @@ pub fn spawn(app: AppHandle) {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("LUMA: failed to launch mpv (is it installed / on PATH?): {e}");
+                emit_error(&app, "spawn-failed");
                 return;
             }
         };
@@ -108,12 +117,14 @@ pub fn spawn(app: AppHandle) {
         // mpv creates the socket asynchronously after launch; connect once it exists.
         let Some(stream) = connect(&sock) else {
             eprintln!("LUMA: mpv IPC socket never appeared at {}", sock.display());
+            emit_error(&app, "socket-timeout");
             return;
         };
         let read_half = match stream.try_clone() {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("LUMA: could not clone mpv IPC socket: {e}");
+                emit_error(&app, "socket-error");
                 return;
             }
         };
@@ -123,7 +134,7 @@ pub fn spawn(app: AppHandle) {
 
         // Subscribe to the properties the engine consumes, then pump events.
         for (i, prop) in OBSERVED.iter().enumerate() {
-            write_ipc(&app, &json!({ "command": ["observe_property", i + 1, prop] }));
+            let _ = write_ipc(&app, &json!({ "command": ["observe_property", i + 1, prop] }));
         }
         let reader = BufReader::new(read_half);
         for line in reader.lines() {
@@ -136,6 +147,13 @@ pub fn spawn(app: AppHandle) {
                 forward(&app, &msg);
             }
         }
+        // The IPC stream ended: mpv exited (crash or kill). Drop the dead write half
+        // so commands fail fast, and tell the webview so an active player errors out
+        // instead of spinning forever. (On normal app exit the webview is gone anyway.)
+        if let Some(state) = app.try_state::<MpvState>() {
+            *state.conn.lock().unwrap() = None;
+        }
+        let _ = app.emit("mpv://exited", ());
     });
 }
 
@@ -150,18 +168,25 @@ fn connect(sock: &Path) -> Option<UnixStream> {
     None
 }
 
-/// Write one newline-delimited JSON IPC message to mpv (best effort).
-fn write_ipc(app: &AppHandle, msg: &Value) {
+/// Write one newline-delimited JSON IPC message to mpv. Errs when mpv is not
+/// running (never launched / crashed) or the socket write fails, so the invoking
+/// frontend promise REJECTS and the engine can fail over instead of assuming the
+/// command landed. A write failure also retires the dead connection.
+fn write_ipc(app: &AppHandle, msg: &Value) -> Result<(), String> {
     let Some(state) = app.try_state::<MpvState>() else {
-        return;
+        return Err("mpv state unavailable".into());
     };
     let mut guard = state.conn.lock().unwrap();
-    if let Some(stream) = guard.as_mut() {
-        let mut line = msg.to_string();
-        line.push('\n');
-        let _ = stream.write_all(line.as_bytes());
-        let _ = stream.flush();
-    }
+    let Some(stream) = guard.as_mut() else {
+        return Err("mpv is not running (no IPC connection)".into());
+    };
+    let mut line = msg.to_string();
+    line.push('\n');
+    let res = stream.write_all(line.as_bytes()).and_then(|()| stream.flush());
+    res.map_err(|e| {
+        *guard = None; // dead socket: fail fast from now on (reader thread emits mpv://exited)
+        format!("mpv IPC write failed: {e}")
+    })
 }
 
 /// Map an mpv IPC event to the Tauri events the frontend MpvEngine listens for.
@@ -198,18 +223,37 @@ pub fn shutdown(state: &MpvState) {
 /// (resume) via `loadfile … start=<sec>`, so playback begins there without buffering
 /// at 0 first.
 #[tauri::command]
-pub fn mpv_load(app: AppHandle, url: String, start: f64) {
+pub fn mpv_load(app: AppHandle, url: String, start: f64) -> Result<(), String> {
     let cmd = if start > 0.5 {
         json!({ "command": ["loadfile", url, "replace", "0", format!("start={start}")] })
     } else {
         json!({ "command": ["loadfile", url, "replace"] })
     };
-    write_ipc(&app, &cmd);
+    write_ipc(&app, &cmd)
 }
 
 /// Send a raw mpv command array (`set_property`, `seek`, `stop`, …). The frontend
 /// passes JSON-compatible args (string / number / bool).
 #[tauri::command]
-pub fn mpv_command(app: AppHandle, args: Vec<Value>) {
-    write_ipc(&app, &json!({ "command": args }));
+pub fn mpv_command(app: AppHandle, args: Vec<Value>) -> Result<(), String> {
+    write_ipc(&app, &json!({ "command": args }))
+}
+
+/// Liveness probe for the frontend engine: `running` (IPC up), `starting` (process
+/// launched, socket not connected yet), or `dead` (never launched, or exited - the
+/// zombie is reaped here so a crash doesn't read as `starting` forever).
+#[tauri::command]
+pub fn mpv_status(state: tauri::State<MpvState>) -> String {
+    if state.conn.lock().unwrap().is_some() {
+        return "running".into();
+    }
+    let mut child = state.child.lock().unwrap();
+    match child.as_mut().map(Child::try_wait) {
+        Some(Ok(None)) => "starting".into(),
+        Some(Ok(Some(_))) => {
+            *child = None;
+            "dead".into()
+        }
+        Some(Err(_)) | None => "dead".into(),
+    }
 }
