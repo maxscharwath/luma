@@ -146,6 +146,34 @@ The app appears in the normal apps row (it registers as a Leanback TV app).
 Alternative without a computer: the **Downloader** app (allow it in
 "unknown sources") can fetch the `.apk` from any URL, e.g. the GitHub release.
 
+### Google Chromecast with Google TV (4K / HD)
+
+The Chromecast with Google TV is an Android TV device: the same `.apk`
+installs and gets full hardware HEVC decode (the pre-Google-TV cast-only
+dongles are NOT supported: no apps, and no HEVC on most of them). The menu
+paths on the Google TV UI:
+
+1. **Settings > System > About > Android TV OS build**: click it **7 times**
+   with the remote until "You are now a developer!" appears.
+2. **Settings > System > Developer options** (now visible) > enable
+   **USB debugging** (this also allows debugging over the network there is
+   no usable USB data port anyway).
+3. Get the dongle's IP: **Settings > Network & Internet** > your Wi-Fi.
+4. From a computer on the same network:
+
+```bash
+adb connect 192.168.1.61:5555     # a confirmation prompt appears on the TV:
+                                  # tick "always allow" and accept
+adb install -r LUMA-androidtv-0.1.0.apk
+```
+
+Without a computer: install **Downloader** (by AFTVnews) from the Play Store
+on the Chromecast, allow it under **Settings > Apps > Security & restrictions
+> Unknown sources**, then enter the direct URL of the `.apk` from a GitHub
+release (Actions artifacts won't work there: they need a GitHub login and are
+zipped). LUMA shows up under "Your apps" like any installed app; storage is
+tight on these dongles (8 GB) but the app is only ~4 MB.
+
 Notes:
 - Release APKs are debug-signed unless the repo's Android keystore secrets are
   configured. Android refuses to update an app whose signature changed if an
