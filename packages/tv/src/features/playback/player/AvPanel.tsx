@@ -1,4 +1,10 @@
-import { type AudioTrack, channelLabel, type SubtitleGeneration, subtitleEtaTime, subtitleStageKey } from '@luma/core';
+import {
+  type AudioTrack,
+  channelLabel,
+  type SubtitleGeneration,
+  subtitleEtaTime,
+  subtitleStageKey,
+} from '@luma/core';
 import { useT } from '@luma/ui';
 import { langCode, langName } from '#tv/features/playback/player/fmt';
 import { GeneratePanel } from '#tv/features/playback/player/GeneratePanel';
@@ -72,7 +78,9 @@ export function AvPanel({
           );
         })}
         {audioTracks.length === 0 ? (
-          <div className="px-1 py-2 font-sans text-[14px] font-medium text-dim">{t('player.noAudioTracks')}</div>
+          <div className="px-1 py-2 font-sans text-[14px] font-medium text-dim">
+            {t('player.noAudioTracks')}
+          </div>
         ) : null}
       </div>
 
@@ -86,7 +94,10 @@ export function AvPanel({
           else if (sv?.language) label = langName(t, sv.language) ?? sv.language.toUpperCase();
           else label = t('player.subtitleTrack', { number: opt + 1 });
           return (
-            <div key={opt ?? 'off'} className={`${TRACK} ${focus === subOffset + i ? FOCUSED : RESTING}`}>
+            <div
+              key={opt ?? 'off'}
+              className={`${TRACK} ${focus === subOffset + i ? FOCUSED : RESTING}`}
+            >
               <span className={CODE}>{opt == null ? '-' : langCode(sv?.language ?? null)}</span>
               <span className="flex-1 font-sans text-[15px] font-semibold text-text">{label}</span>
               {sv?.ai ? (
@@ -100,7 +111,9 @@ export function AvPanel({
           );
         })}
         {rendered.length === 0 ? (
-          <div className="px-1 py-2 font-sans text-[14px] font-medium text-dim">{t('player.noSubtitles')}</div>
+          <div className="px-1 py-2 font-sans text-[14px] font-medium text-dim">
+            {t('player.noSubtitles')}
+          </div>
         ) : null}
 
         {/* Running generations: a live progress row, OK cancels the focused one. */}
@@ -120,7 +133,9 @@ export function AvPanel({
             <span className="text-[#b3a9f5]">
               <SparkleGlyph />
             </span>
-            <span className="font-sans text-[15px] font-bold text-[#b3a9f5]">{t('player.subCreateMissing')}</span>
+            <span className="font-sans text-[15px] font-bold text-[#b3a9f5]">
+              {t('player.subCreateMissing')}
+            </span>
           </div>
         )
       ) : null}
@@ -146,7 +161,9 @@ function GenRow({
       <span className={CODE}>{langCode(gen.lang ?? null)}</span>
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          <span className="flex-1 font-sans text-[15px] font-semibold text-text">{gen.lang ?? ''}</span>
+          <span className="flex-1 font-sans text-[15px] font-semibold text-text">
+            {gen.lang ?? ''}
+          </span>
           <span className={AI_BADGE}>
             <SparkleGlyph />
             IA

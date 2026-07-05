@@ -64,7 +64,10 @@ export function useSubtitleSelection(client: LumaClient, item: MediaItem): Subti
     return [...embedded, ...gen];
   }, [client, item, downloaded]);
 
-  const options = useMemo<(number | null)[]>(() => [null, ...rendered.map((s) => s.index)], [rendered]);
+  const options = useMemo<(number | null)[]>(
+    () => [null, ...rendered.map((s) => s.index)],
+    [rendered],
+  );
   const pick = useCallback((index: number | null) => setActive(index), []);
 
   return { rendered, options, active, pick, reload };
