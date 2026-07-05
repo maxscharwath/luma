@@ -113,7 +113,9 @@ luma/
 ├─ clients/
 │  ├─ web/    @luma/web     desktop browser shell (sidebar) TanStack Start SSR + Tailwind v4
 │  ├─ tizen/  @luma/tizen   Samsung TV thin shell + config.xml → .wgt
-│  └─ webos/  @luma/webos   LG TV thin shell + appinfo.json → .ipk
+│  ├─ webos/  @luma/webos   LG TV thin shell (modern + legacy tiers) → .ipk
+│  ├─ androidtv/ @luma/androidtv  Android TV WebView shell + native ExoPlayer → .apk
+│  └─ tv-build/              shared TV-shell build pipeline (tv.target.ts per shell)
 └─ design/                  imported design source (tokens, components, guidelines, LUMA.dc.html)
 ```
 
@@ -125,7 +127,8 @@ luma/
 | `@luma/tv` | Shared 10-foot TV experience | [packages/tv/README.md](packages/tv/README.md) |
 | `@luma/web` | Desktop browser client | [clients/web/README.md](clients/web/README.md) |
 | `@luma/tizen` | Samsung TV (Tizen) shell | [clients/tizen/README.md](clients/tizen/README.md) |
-| `@luma/webos` | LG TV (webOS) shell | [clients/webos/README.md](clients/webos/README.md) |
+| `@luma/webos` | LG TV (webOS) shell, modern + legacy (2018+) tiers | [clients/webos/README.md](clients/webos/README.md) |
+| `@luma/androidtv` | Android TV / Google TV shell (WebView + ExoPlayer) | [clients/androidtv/README.md](clients/androidtv/README.md) |
 | `design` | Design system source (tokens, guidelines) | [design/readme.md](design/readme.md) |
 
 ## Prerequisites
@@ -163,8 +166,9 @@ Each TV client runs in a normal desktop browser for development **arrow keys +
 Enter act as the remote**:
 
 ```bash
-bun run dev:tizen     # :5174   Samsung
-bun run dev:webos     # :5175   LG
+bun run dev:tizen      # :5174   Samsung
+bun run dev:webos      # :5175   LG
+bun run dev:androidtv  # :5176   Android TV
 ```
 
 | Platform | Dev | Package & install |
@@ -172,6 +176,16 @@ bun run dev:webos     # :5175   LG
 | **Web** (desktop browser) | `bun run dev:web` | `bun run build:web` → static/SSR bundle ([web README](clients/web/README.md)) |
 | **Samsung TV** (Tizen) | `bun run dev:tizen` | `make -C clients/tizen deploy TV_IP=…` → `.wgt` ([tizen README](clients/tizen/README.md) · [SETUP](clients/tizen/SETUP.md)) |
 | **LG TV** (webOS) | `bun run dev:webos` | `ares-package clients/webos/dist` → `.ipk` ([webos README](clients/webos/README.md)) |
+| **Android TV / Google TV** | `bun run dev:androidtv` | `bun run build:androidtv` then `./gradlew assembleRelease` → `.apk` ([androidtv README](clients/androidtv/README.md)) |
+
+Every TV shell is driven by its `tv.target.ts` (platform, dev port, engine
+floors) through the shared pipeline in
+[`clients/tv-build/shell.ts`](clients/tv-build/shell.ts); webOS additionally
+ships a **legacy tier** (ES2015 + flattened Tailwind v4 CSS, runtime-gated) for
+Chromium 53-94 TVs (2018-2023). `bun run build:tv` builds all TV shells.
+
+**Installing on real devices** (TV developer mode, macOS quarantine, sideloading):
+see [INSTALL.md](INSTALL.md).
 
 > A **mobile** client is the next planned shell the design source already covers it.
 

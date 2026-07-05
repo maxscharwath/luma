@@ -1,0 +1,194 @@
+# Installing LUMA on your devices
+
+How to get each client running on real hardware: TVs need **developer mode**
+enabled once, macOS needs the **quarantine** cleared once. Nothing here requires
+a store account or a paid certificate.
+
+## Where to get the builds
+
+- **GitHub Releases** (a `vX.Y.Z` tag): every artifact attached to one release
+  `.spk` (Synology), `.dmg` (macOS), `-setup.exe` / `.msi` (Windows),
+  `.AppImage` / `.deb` (Linux / Steam Deck), `.ipk` (LG webOS),
+  `.wgt` (Samsung Tizen), `.apk` (Android TV).
+- **Prebuilt from GitHub Actions** without tagging a release: see below.
+- **Locally**: `bun install && bun run build:tv` (all TV bundles) or the
+  per-client commands in each `clients/*/README.md`.
+
+### Prebuilt installers from Actions (no release needed)
+
+The **Build & Release** workflow can be run by hand and produces the exact same
+installable packages as a tagged release, just as run artifacts instead of
+release assets:
+
+1. GitHub > **Actions** > **Build & Release** > **Run workflow**. Pick the
+   scope with `targets`: `all`, `tv` (.ipk + .wgt + .apk), `desktop`
+   (.dmg + .exe/.msi + .AppImage/.deb) or `spk`; `version` is optional
+   (defaults to `server/Cargo.toml`).
+2. When the run is green, open it and scroll to **Artifacts**:
+   `luma-webos-ipk`, `luma-tizen-wgt`, `luma-androidtv-apk`,
+   `luma-desktop-macos|windows|linux`, `luma-synology-spk`, `luma-web`.
+3. Download the one you need. GitHub wraps every artifact in a **.zip**:
+   unzip it first, the installable file (`.ipk`, `.wgt`, `.apk`, `.dmg`, ...)
+   is inside. Then follow the per-device steps below.
+
+Same thing from the CLI:
+
+```bash
+gh workflow run "Build & Release" -f targets=tv   # or all / desktop / spk
+gh run watch                                      # wait for it to finish
+gh run download -n luma-webos-ipk                 # unzipped automatically
+gh run download -n luma-androidtv-apk
+gh run download -n luma-tizen-wgt
+```
+
+Heads-up: the **CI** workflow (every push/PR) also uploads artifacts, but those
+are the raw web bundles (`dist/` folders) for debugging, NOT installable
+packages. For something you can put on a device, use **Build & Release**
+artifacts or a tagged release. Artifacts expire (90 days by default; CI ones
+after 7); releases stay forever.
+
+Install the **server** first (Synology `.spk`, Docker image
+`ghcr.io/<owner>/luma`, or `cargo` see [server/README.md](server/README.md));
+every client asks for the server address on first launch and remembers it.
+
+---
+
+## Samsung TV (Tizen) `.wgt`
+
+One-time **developer mode** on the TV:
+
+1. Open the **Apps** panel on the TV.
+2. With the remote, type **1 2 3 4 5** (a hidden shortcut; use the on-screen
+   number pad if your remote has no digits). A "Developer mode" popup appears.
+3. Switch **Developer mode ON**, enter the **IP of your computer** (the machine
+   that will push the app), and restart the TV.
+
+Then, from a computer on the same network (needs the
+[Tizen Studio CLI](https://developer.tizen.org/development/tizen-studio/download)
+or this repo's Makefile):
+
+```bash
+# easiest, from the repo (builds + installs + launches):
+make -C clients/tizen deploy TV_IP=192.168.1.50
+
+# or with a downloaded release .wgt:
+sdb connect 192.168.1.50
+tizen install -n LUMA.wgt -t <target-id-from-'sdb devices'>
+```
+
+Notes:
+- The release `.wgt` is signed with a **throwaway developer certificate**. A TV
+  in developer mode accepts it, but if a LUMA build signed with a *different*
+  certificate is already installed, uninstall that one first (Apps > long-press
+  the LUMA tile > Delete), or the install fails with a signature error.
+- Developer mode survives reboots; the app stays installed like any other.
+
+## LG TV (webOS) `.ipk`, old and new models
+
+The single `.ipk` covers **every supported generation** (webOS 4.x from 2018 up
+to current): it carries both the modern and the legacy bundle and picks the
+right one at launch. One-time **Developer Mode** on the TV:
+
+1. Create a (free) account on [developer.lge.com](https://developer.lge.com).
+2. On the TV, install the **Developer Mode** app from the LG Content Store and
+   log in with that account.
+3. In the app, switch **Dev Mode Status ON** (the TV restarts), then switch
+   **Key Server ON**.
+
+Then, from a computer on the same network:
+
+```bash
+npm install -g @webos-tools/cli        # provides the ares-* tools
+
+ares-setup-device                      # add the TV: its IP, port 9922; the
+                                       # passphrase is shown in the Dev Mode app
+ares-install app.luma.webos_0.1.0_all.ipk -d <device-name>
+ares-launch app.luma.webos -d <device-name>
+```
+
+Notes:
+- Dev Mode sessions last **50 hours**; open the Developer Mode app and press
+  the extend button (or just relaunch it) to renew. If it expires, sideloaded
+  apps disappear until Dev Mode is re-enabled reinstall the `.ipk` after.
+- 2016-17 models (webOS 3.x) are not supported; 2018+ (webOS 4.0) and newer are.
+
+## Android TV / Google TV / Nvidia Shield `.apk`
+
+One-time **developer options** on the device:
+
+1. **Settings > System (or Device Preferences) > About**, scroll to
+   **Android TV OS build** and click it **7 times** "You are now a developer".
+2. Back in Settings, open **Developer options** and enable
+   **USB debugging** and/or **Network debugging** (name varies per device).
+
+Then, from a computer with [adb](https://developer.android.com/tools/adb):
+
+```bash
+adb connect 192.168.1.60:5555          # accept the prompt shown on the TV
+adb install -r LUMA-androidtv-0.1.0.apk
+```
+
+The app appears in the normal apps row (it registers as a Leanback TV app).
+Alternative without a computer: the **Downloader** app (allow it in
+"unknown sources") can fetch the `.apk` from any URL, e.g. the GitHub release.
+
+Notes:
+- Release APKs are debug-signed unless the repo's Android keystore secrets are
+  configured. Android refuses to update an app whose signature changed if an
+  install fails with a signature error: `adb uninstall app.luma.tv`, then
+  install the new one.
+
+## macOS `.dmg` (and removing the quarantine)
+
+The app is not notarized (no paid Apple developer account), so the **first**
+launch trips Gatekeeper: "LUMA is damaged / can't be opened". This is only the
+quarantine flag macOS puts on downloaded files. Two ways to clear it:
+
+**Option A settings toggle:**
+
+1. Double-click `LUMA.app` once (it will be blocked, that's expected).
+2. Open **System Settings > Privacy & Security**, scroll down to the message
+   about LUMA, click **Open Anyway**, and confirm.
+
+**Option B terminal (fastest):** after dragging `LUMA.app` to Applications:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/LUMA.app
+```
+
+Then it opens normally. This is needed **once per machine**: the built-in
+auto-updater installs future versions without quarantine, so updates are
+silent from then on.
+
+## Windows `.exe` / `.msi`
+
+The installer is unsigned, so SmartScreen shows "Windows protected your PC":
+click **More info > Run anyway**. Once installed, the app self-updates
+silently.
+
+## Linux desktop / Steam Deck `.AppImage` / `.deb`
+
+Desktop Linux: install the `.deb`, or `chmod +x LUMA_*.AppImage` and run it.
+
+Steam Deck:
+
+1. Copy `LUMA_*.AppImage` to the Deck and `chmod +x` it (Desktop Mode).
+2. Ensure **mpv** is available (SteamOS ships it in the Flatpak runtime; in a
+   dev environment `sudo pacman -S mpv`) the shell drives the mpv binary for
+   hardware video decode.
+3. **Steam > Add a Non-Steam Game > Browse** and pick the AppImage.
+4. Launch from Game Mode and set the controller layout to **Gamepad**.
+   D-pad/stick = focus, A = OK, B = back, X = play/pause, L/R = seek.
+
+## Synology NAS `.spk`
+
+1. **Package Center > Settings > General > Trust Level**: allow
+   **Any publisher** (the package is self-built, not Synology-signed).
+2. **Package Center > Manual Install**, pick the `.spk`, follow the wizard.
+3. Open LUMA from the main menu; media folders are configured in the app's
+   admin console.
+
+## Web browser
+
+Nothing to install: browse to the server (e.g. `http://nas:4040` or your
+tunnel URL). The server ships the web app itself.
