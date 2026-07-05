@@ -68,17 +68,38 @@ One-time **developer mode** on the TV:
 3. Switch **Developer mode ON**, enter the **IP of your computer** (the machine
    that will push the app), and restart the TV.
 
-Then, from a computer on the same network (needs the
-[Tizen Studio CLI](https://developer.tizen.org/development/tizen-studio/download)
-or this repo's Makefile):
+### Install a prebuilt `.wgt` (from Actions / a release)
+
+There is **no npm package** for Samsung's tooling (unlike LG's
+`@webos-tools/cli`): the `tizen` and `sdb` commands only ship with
+**Tizen Studio**. You do NOT need the IDE though - the **CLI-only**
+installer is enough, and installing a prebuilt `.wgt` needs **no
+certificate** (ours is already signed; certificates are only required to
+*package*):
 
 ```bash
-# easiest, from the repo (builds + installs + launches):
-make -C clients/tizen deploy TV_IP=192.168.1.50
+# 1. Get the .wgt
+gh run download -n luma-tizen-wgt          # or download it from a release
 
-# or with a downloaded release .wgt:
+# 2. Tizen Studio CLI, one-time headless install (~400 MB; needs a JDK)
+#    Linux:  web-cli_Tizen_Studio_6.0_ubuntu-64.bin
+#    macOS:  web-cli_Tizen_Studio_6.0_macos-64.bin
+wget "https://download.tizen.org/sdk/Installer/tizen-studio_6.0/web-cli_Tizen_Studio_6.0_ubuntu-64.bin"
+chmod +x web-cli_*.bin && ./web-cli_*.bin --accept-license --no-java-check "$HOME/tizen-studio"
+export PATH="$PATH:$HOME/tizen-studio/tools:$HOME/tizen-studio/tools/ide/bin"
+
+# 3. Connect to the TV (developer mode above must list this computer's IP)
 sdb connect 192.168.1.50
-tizen install -n LUMA.wgt -t <target-id-from-'sdb devices'>
+sdb devices                                # note the device id, e.g. UE50AU7172...
+
+# 4. Install
+tizen install -n LUMA.wgt -t <device-id>
+```
+
+### Or build + deploy from the repo
+
+```bash
+make -C clients/tizen deploy TV_IP=192.168.1.50   # build + sign + install + launch
 ```
 
 Notes:
@@ -87,6 +108,9 @@ Notes:
   certificate is already installed, uninstall that one first (Apps > long-press
   the LUMA tile > Delete), or the install fails with a signature error.
 - Developer mode survives reboots; the app stays installed like any other.
+- Community GUI installers that skip Tizen Studio exist (they speak the sdb
+  protocol directly), but nothing official or maintained enough to recommend
+  here; the CLI-only install above is the reliable minimal path.
 
 ## LG TV (webOS) `.ipk`, old and new models
 
