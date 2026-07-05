@@ -152,10 +152,12 @@ jobs:
           node -e "const f='clients/webos/dist/appinfo.json';const fs=require('fs');const j=JSON.parse(fs.readFileSync(f,'utf8'));j.version='${{ needs.version.outputs.triplet }}';fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
 
       # ares-package needs no signing; TVs install the .ipk via the Dev Mode app.
+      # --no-minify: the bundles are already minified by Vite, and ares' own
+      # (ancient) minifier cannot parse modern ES2020 output (hls.js chunk).
       - name: Package .ipk
         run: |
           npm install -g @webos-tools/cli
-          ares-package clients/webos/dist -o clients/webos/out
+          ares-package clients/webos/dist -o clients/webos/out --no-minify
 
       - name: Upload .ipk artifact
         uses: actions/upload-artifact@v4
@@ -451,9 +453,14 @@ jobs:
       # Unsigned / non-macOS: NO APPLE_* env at all, so tauri never attempts a codesign.
       # (An empty-but-present APPLE_CERTIFICATE still makes `security import` fail, so the
       # signing env must be absent entirely, not just empty - hence two separate steps.)
+      # TAURI_SIGNING_PRIVATE_KEY is unrelated to codesigning: tauri.conf.json has
+      # createUpdaterArtifacts:true, so EVERY build must sign the updater artifacts.
       - name: Build installer(s)
         if: steps.macsign.outputs.sign != 'true'
         working-directory: clients/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: bun run tauri build --bundles ${{ matrix.bundles }}
 
       # macOS with a verified Developer ID cert: sign + notarize via the Apple secrets.
@@ -461,6 +468,8 @@ jobs:
         if: steps.macsign.outputs.sign == 'true'
         working-directory: clients/desktop
         env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
