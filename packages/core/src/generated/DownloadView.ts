@@ -29,7 +29,7 @@ infoHash: string | null,
 /**
  * Poster art (from the linked request), for the queue thumbnail.
  */
-posterUrl: string | null,
+posterUrl: string | null, 
 /**
  * The catalog item id when the title is already in the library (imported),
  * so the queue can link to its LUMA detail page. `None` until imported.
