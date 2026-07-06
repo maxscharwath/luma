@@ -266,42 +266,38 @@ pub fn wanted_searchable(conn: &Connection, today: &str, limit: usize) -> rusqli
     rows.collect()
 }
 
-pub fn set_wanted_status(pool: &Pool, ids: &[String], status: &str, now_ms: i64) -> Result<()> {
+/// Chunked `UPDATE wanted SET {set_sql} WHERE id IN (...)` over `ids`. `lead`
+/// are the SET-clause params (`?1`..) that precede the id placeholders.
+fn update_wanted_chunked(
+    pool: &Pool,
+    ids: &[String],
+    set_sql: &str,
+    lead: &[&dyn rusqlite::ToSql],
+) -> Result<()> {
     if ids.is_empty() {
         return Ok(());
     }
     let conn = pool.get()?;
     for chunk in ids.chunks(IN_CHUNK) {
         let ph = vec!["?"; chunk.len()].join(",");
-        let mut params_vec: Vec<&dyn rusqlite::ToSql> = vec![&status, &now_ms];
+        let mut params_vec: Vec<&dyn rusqlite::ToSql> = lead.to_vec();
         for id in chunk {
             params_vec.push(id);
         }
         conn.execute(
-            &format!("UPDATE wanted SET status = ?1, updated_at = ?2 WHERE id IN ({ph})"),
+            &format!("UPDATE wanted SET {set_sql} WHERE id IN ({ph})"),
             params_vec.as_slice(),
         )?;
     }
     Ok(())
 }
 
+pub fn set_wanted_status(pool: &Pool, ids: &[String], status: &str, now_ms: i64) -> Result<()> {
+    update_wanted_chunked(pool, ids, "status = ?1, updated_at = ?2", &[&status, &now_ms])
+}
+
 pub fn stamp_wanted_searched(pool: &Pool, ids: &[String], now_ms: i64) -> Result<()> {
-    if ids.is_empty() {
-        return Ok(());
-    }
-    let conn = pool.get()?;
-    for chunk in ids.chunks(IN_CHUNK) {
-        let ph = vec!["?"; chunk.len()].join(",");
-        let mut params_vec: Vec<&dyn rusqlite::ToSql> = vec![&now_ms];
-        for id in chunk {
-            params_vec.push(id);
-        }
-        conn.execute(
-            &format!("UPDATE wanted SET last_search_at = ?1, updated_at = ?1 WHERE id IN ({ph})"),
-            params_vec.as_slice(),
-        )?;
-    }
-    Ok(())
+    update_wanted_chunked(pool, ids, "last_search_at = ?1, updated_at = ?1", &[&now_ms])
 }
 
 // ----- availability lookups (expression-indexed) ---------------------------------

@@ -381,19 +381,26 @@ pub fn manual_search(state: &SharedState, query: &str) -> Result<crate::model::M
 
 /// The wanted rows a grab of this release covers (flip to `grabbed`).
 pub fn wanted_ids_for(wanted: &[WantedRow], view: &ScoredReleaseView) -> Vec<String> {
-    match view.target.as_str() {
+    wanted_ids_by(wanted, &view.target, view.season, view.episodes.as_deref())
+}
+
+/// Coverage rule keyed on the target shape alone (target / season / episodes),
+/// so callers holding a `SearchTarget` don't need to fabricate a full
+/// `ScoredReleaseView` just to reach it.
+pub fn wanted_ids_by(
+    wanted: &[WantedRow],
+    target: &str,
+    season: Option<u32>,
+    episodes: Option<&[u32]>,
+) -> Vec<String> {
+    match target {
         "movie" => wanted.iter().filter(|w| w.kind == "movie").map(|w| w.id.clone()).collect(),
-        "season" => wanted
-            .iter()
-            .filter(|w| w.season == view.season)
-            .map(|w| w.id.clone())
-            .collect(),
+        "season" => wanted.iter().filter(|w| w.season == season).map(|w| w.id.clone()).collect(),
         _ => wanted
             .iter()
             .filter(|w| {
-                w.season == view.season
-                    && w.episode
-                        .is_some_and(|e| view.episodes.as_ref().is_some_and(|list| list.contains(&e)))
+                w.season == season
+                    && w.episode.is_some_and(|e| episodes.is_some_and(|list| list.contains(&e)))
             })
             .map(|w| w.id.clone())
             .collect(),

@@ -12,7 +12,7 @@ use crate::db;
 use crate::services::requests::today_ymd;
 use crate::state::SharedState;
 
-use super::search::{score_release, targets_for_wanted, wanted_ids_for};
+use super::search::{score_release, targets_for_wanted, wanted_ids_by};
 
 /// How many wanted rows one pass considers (bounds runtime; the cron loops).
 const BATCH: usize = 40;
@@ -153,25 +153,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
 
 fn wanted_row_ids(wanted: &[db::WantedRow], st: &super::search::SearchTarget) -> Vec<String> {
     // Reuse the coverage rule the grab path uses, driven by the target shape.
-    let fake_view = crate::model::ScoredReleaseView {
-        title: String::new(),
-        guid: String::new(),
-        indexer_id: String::new(),
-        indexer_name: String::new(),
-        size_bytes: None,
-        seeders: None,
-        leechers: None,
-        published_at: None,
-        target: st.kind.to_string(),
-        season: st.season,
-        episodes: st.episodes.clone(),
-        score: None,
-        breakdown: Vec::new(),
-        rejected: None,
-        grabbable: false,
-        details_url: None,
-    };
-    wanted_ids_for(wanted, &fake_view)
+    wanted_ids_by(wanted, st.kind, st.season, st.episodes.as_deref())
         .into_iter()
         .filter(|id| wanted.iter().any(|w| &w.id == id && w.status == "wanted"))
         .collect()

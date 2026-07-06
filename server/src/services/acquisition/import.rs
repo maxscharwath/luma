@@ -137,7 +137,7 @@ fn import_one(state: &SharedState, row: &DownloadRow) -> Result<Vec<String>> {
                 .or(parsed.episode)
                 .ok_or_else(|| anyhow!("could not determine the episode number"))?;
             let season = row.season.or(parsed.season).unwrap_or(1);
-            let ctx = episode_ctx(&meta, season, episode, None, &parsed);
+            let ctx = episode_ctx(&meta, season, episode, &parsed);
             let dest = lib_root.join(tpl.episode_rel_path(&ctx, ext_of(src)));
             place(src, &dest)?;
             written.push(dest.to_string_lossy().into_owned());
@@ -150,7 +150,7 @@ fn import_one(state: &SharedState, row: &DownloadRow) -> Result<Vec<String>> {
                     tracing::debug!(file = %src.display(), "season pack: no episode marker, skipped");
                     continue;
                 };
-                let ctx = episode_ctx(&meta, parsed.season.unwrap_or(season), episode, None, &parsed);
+                let ctx = episode_ctx(&meta, parsed.season.unwrap_or(season), episode, &parsed);
                 let dest = lib_root.join(tpl.episode_rel_path(&ctx, ext_of(src)));
                 place(src, &dest)?;
                 written.push(dest.to_string_lossy().into_owned());
@@ -183,7 +183,6 @@ fn episode_ctx(
     meta: &ImportMeta,
     season: u32,
     episode: u32,
-    episode_title: Option<String>,
     parsed: &luma_release::ParsedRelease,
 ) -> naming::NameContext {
     let (resolution, codec, source) = naming::quality_from_parsed(parsed);
@@ -192,7 +191,7 @@ fn episode_ctx(
         year: meta.year,
         season: Some(season),
         episode: Some(episode),
-        episode_title,
+        episode_title: None,
         resolution,
         codec,
         source,
