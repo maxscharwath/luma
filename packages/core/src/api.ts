@@ -418,8 +418,8 @@ export class LumaClient {
   ): Promise<DiscoverResponse> {
     return discovery.discoverSearch(this.ctx, query, opts);
   }
-  discoverTrending(): Promise<DiscoverResponse> {
-    return discovery.discoverTrending(this.ctx);
+  discoverTrending(opts?: { type?: DiscoverType; page?: number }): Promise<DiscoverResponse> {
+    return discovery.discoverTrending(this.ctx, opts);
   }
   discoverDetail(kind: 'movie' | 'tv', tmdbId: number): Promise<DiscoverDetail> {
     return discovery.discoverDetail(this.ctx, kind, tmdbId);

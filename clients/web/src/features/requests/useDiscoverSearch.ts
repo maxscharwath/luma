@@ -94,3 +94,47 @@ export function useTrending(enabled: boolean): TrendingState {
 
   return state;
 }
+
+export interface TrendingPageState {
+  loading: boolean;
+  entries: DiscoverEntry[];
+  totalPages: number;
+}
+
+/** One page of trending titles for a single kind (`movie` | `tv`), backing the
+ * full "trending movies" / "trending shows" pages. Latest-wins via a sequence
+ * ref so fast paging never commits a stale page. */
+export function useTrendingPage(
+  type: 'movie' | 'tv',
+  page: number,
+  enabled: boolean,
+): TrendingPageState {
+  const { client } = useAuth();
+  const [state, setState] = useState<TrendingPageState>({
+    loading: enabled,
+    entries: [],
+    totalPages: 1,
+  });
+  const seq = useRef(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      setState({ loading: false, entries: [], totalPages: 1 });
+      return;
+    }
+    const mine = ++seq.current;
+    setState((s) => ({ ...s, loading: true }));
+    client
+      .discoverTrending({ type, page })
+      .then((r) => {
+        if (mine !== seq.current) return;
+        setState({ loading: false, entries: r.results, totalPages: r.totalPages });
+      })
+      .catch(() => {
+        if (mine !== seq.current) return;
+        setState({ loading: false, entries: [], totalPages: 1 });
+      });
+  }, [type, page, enabled, client]);
+
+  return state;
+}

@@ -4,22 +4,39 @@
 
 import { type DiscoverType, type DiscoverEntry } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconFlame } from '@tabler/icons-react';
+import { IconChevronRight, IconFlame } from '@tabler/icons-react';
+import { Link } from '@tanstack/react-router';
 import { DiscoverCard } from '#web/features/requests/DiscoverCard';
 import { SkeletonRow } from '#web/features/requests/PosterSkeleton';
 import { Rail } from '#web/shared/ui';
 
-const SECTION_TITLE =
-  'mb-4 mt-9 flex items-center gap-2 font-display text-[22px] font-bold tracking-[-.02em] text-text';
+const RAIL_HEADING =
+  'flex items-center gap-2 font-display text-[22px] font-bold tracking-[-.02em] text-text';
+const SECTION_TITLE = `mb-4 mt-9 ${RAIL_HEADING}`;
 
-function TrendRail({ title, entries }: Readonly<{ title: string; entries: DiscoverEntry[] }>) {
+function TrendRail({
+  title,
+  entries,
+  linkType,
+}: Readonly<{ title: string; entries: DiscoverEntry[]; linkType: 'movie' | 'tv' }>) {
+  const t = useT();
   if (entries.length === 0) return null;
   return (
     <section>
-      <h2 className={SECTION_TITLE}>
-        <IconFlame size={20} stroke={2} className="text-accent" />
-        {title}
-      </h2>
+      <div className="mb-4 mt-9 flex items-center justify-between gap-3">
+        <h2 className={RAIL_HEADING}>
+          <IconFlame size={20} stroke={2} className="text-accent" />
+          {title}
+        </h2>
+        <Link
+          to="/trending/$type"
+          params={{ type: linkType }}
+          className="inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold text-dim transition-colors hover:text-accent"
+        >
+          {t('discover.seeAll')}
+          <IconChevronRight size={15} stroke={2.4} />
+        </Link>
+      </div>
       <Rail label={title}>
         {entries.map((e) => (
           <DiscoverCard key={`${e.kind}-${e.tmdbId}`} entry={e} />
@@ -55,8 +72,12 @@ export function TrendingBrowse({
 
   return (
     <div className="animate-[fade-in_.3s_var(--ease-out)]">
-      {wantMovies ? <TrendRail title={t('discover.trendingMovies')} entries={movies} /> : null}
-      {wantShows ? <TrendRail title={t('discover.trendingShows')} entries={shows} /> : null}
+      {wantMovies ? (
+        <TrendRail title={t('discover.trendingMovies')} entries={movies} linkType="movie" />
+      ) : null}
+      {wantShows ? (
+        <TrendRail title={t('discover.trendingShows')} entries={shows} linkType="tv" />
+      ) : null}
     </div>
   );
 }

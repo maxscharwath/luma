@@ -104,11 +104,23 @@ pub fn search(
     Ok(map_page(resp, scope))
 }
 
-/// This week's trending movies + shows (the discover page's empty state).
-pub fn trending(api_key: &str, language: &str) -> Result<DiscoverPage, ()> {
-    let params = vec![("language", language.to_string())];
-    let resp: PageResp = curl_json(&format!("{API}/trending/all/week"), api_key, &params)?;
-    Ok(map_page(resp, DiscoverScope::All))
+/// This week's trending titles. `All` (movies + shows, page 1) powers the
+/// discover empty-state rails; the scoped variants back the full "trending
+/// movies" / "trending shows" pages with real pagination.
+pub fn trending(
+    api_key: &str,
+    language: &str,
+    scope: DiscoverScope,
+    page: u32,
+) -> Result<DiscoverPage, ()> {
+    let path = match scope {
+        DiscoverScope::Movies => "trending/movie/week",
+        DiscoverScope::Shows => "trending/tv/week",
+        DiscoverScope::All => "trending/all/week",
+    };
+    let params = vec![("language", language.to_string()), ("page", page.max(1).to_string())];
+    let resp: PageResp = curl_json(&format!("{API}/{path}"), api_key, &params)?;
+    Ok(map_page(resp, scope))
 }
 
 /// Fetch one title's detail (+ external ids for the wanted ledger).
@@ -160,7 +172,7 @@ pub fn detail(
         .map(|r| r.results)
         .unwrap_or_default()
         .into_iter()
-        .filter_map(|h| similar_hit(kind, h))
+        .filter_map(|h| hit_from(kind, h))
         .take(MAX_SIMILAR)
         .collect();
     Ok(Some(DiscoverRawDetail {
@@ -222,9 +234,9 @@ fn map_crew(crew: Vec<RawCrew>, created_by: Vec<RawCreatedBy>) -> Vec<CrewMember
         .collect()
 }
 
-/// Map one recommendation row into a hit; `kind` is the parent title's kind
-/// (recommendations share its namespace). Skips rows with no usable title.
-fn similar_hit(kind: RequestKind, h: RawHit) -> Option<DiscoverHit> {
+/// Map one raw TMDB row (search / trending / recommendation) into a hit;
+/// `kind` is the row's resolved namespace. Skips rows with no usable title.
+fn hit_from(kind: RequestKind, h: RawHit) -> Option<DiscoverHit> {
     let title = h.title.or(h.name)?;
     Some(DiscoverHit {
         kind,
@@ -255,17 +267,7 @@ fn map_page(resp: PageResp, scope: DiscoverScope) -> DiscoverPage {
                     DiscoverScope::All => return None,
                 },
             };
-            let title = h.title.or(h.name)?;
-            Some(DiscoverHit {
-                kind,
-                tmdb_id: h.id,
-                title,
-                year: year_of(h.release_date.as_deref().or(h.first_air_date.as_deref())),
-                poster_url: h.poster_path.map(|p| format!("{IMG}/w342{p}")),
-                backdrop_url: h.backdrop_path.map(|p| format!("{IMG}/w780{p}")),
-                overview: h.overview.filter(|s| !s.is_empty()),
-                rating: h.vote_average.filter(|v| *v > 0.0),
-            })
+            hit_from(kind, h)
         })
         .collect();
     DiscoverPage { hits, page: resp.page.max(1), total_pages: resp.total_pages.max(1) }
@@ -459,7 +461,7 @@ mod tests {
             .map(|r| r.results)
             .unwrap_or_default()
             .into_iter()
-            .filter_map(|h| similar_hit(RequestKind::Movie, h))
+            .filter_map(|h| hit_from(RequestKind::Movie, h))
             .collect();
         // The title-less row is skipped; the good one keeps the parent's kind.
         assert_eq!(similar.len(), 1);

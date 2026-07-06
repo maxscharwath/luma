@@ -54,6 +54,16 @@ fn require_tmdb(state: &SharedState, user: &User) -> Result<String, Response> {
         .ok_or_else(|| lerr(locale(user), StatusCode::SERVICE_UNAVAILABLE, "error.tmdbUnavailable"))
 }
 
+/// Route/query media-type vocabulary (`movie` | `tv`/`show`) -> TMDB scope,
+/// shared by the search and trending handlers so the aliases can't drift.
+fn scope_from_type(kind: Option<&str>) -> discover::DiscoverScope {
+    match kind {
+        Some("movie") => discover::DiscoverScope::Movies,
+        Some("tv") | Some("show") => discover::DiscoverScope::Shows,
+        _ => discover::DiscoverScope::All,
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SearchParams {
     #[serde(default)]
@@ -78,11 +88,7 @@ pub async fn search(
     if query.is_empty() {
         return Ok(Json(DiscoverResponse { results: Vec::new(), page: 1, total_pages: 1 }).into_response());
     }
-    let scope = match params.kind.as_deref() {
-        Some("movie") => discover::DiscoverScope::Movies,
-        Some("tv") | Some("show") => discover::DiscoverScope::Shows,
-        _ => discover::DiscoverScope::All,
-    };
+    let scope = scope_from_type(params.kind.as_deref());
     let page = params.page.unwrap_or(1);
     let out = blocking(move || {
         let found = discover::search(&key, &lang, scope, &query, page)
@@ -98,17 +104,31 @@ pub async fn search(
     Ok(Json(out).into_response())
 }
 
-/// `GET /api/discover/trending` this week's movies + shows.
+#[derive(Debug, Deserialize)]
+pub struct TrendingParams {
+    /// `movie` | `tv` (default: merged movies + shows).
+    #[serde(rename = "type", default)]
+    kind: Option<String>,
+    #[serde(default)]
+    page: Option<u32>,
+}
+
+/// `GET /api/discover/trending?type=&page=` this week's trending titles. No
+/// `type` = merged movies + shows (page 1) for the discover empty-state rails;
+/// `type=movie|tv` = a paginated single-kind list backing the full page.
 pub async fn trending(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
+    Query(params): Query<TrendingParams>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsCreate)?;
     let key = require_tmdb(&state, &user)?;
     let lang = settings::metadata_language(&state.settings, &state.config);
+    let scope = scope_from_type(params.kind.as_deref());
+    let page = params.page.unwrap_or(1);
     let out = blocking(move || {
-        let found =
-            discover::trending(&key, &lang).map_err(|()| anyhow::anyhow!("TMDB trending failed"))?;
+        let found = discover::trending(&key, &lang, scope, page)
+            .map_err(|()| anyhow::anyhow!("TMDB trending failed"))?;
         let conn = state.db.get()?;
         Ok(DiscoverResponse {
             results: flag_hits(&conn, found.hits)?,
@@ -162,11 +182,22 @@ fn flag_hits(conn: &Connection, hits: Vec<discover::DiscoverHit>) -> anyhow::Res
     // live downloading/importing phase + progress.
     let active: std::collections::HashMap<String, db::ActiveDownload> =
         db::requests_with_active_downloads(conn)?.into_iter().map(|a| (a.request_id.clone(), a)).collect();
+    flag_hits_with(conn, hits, &active)
+}
+
+/// Flag hits against the catalog + open requests, reusing an already-built
+/// active-download map so a caller (the detail page) doesn't re-aggregate the
+/// download ledger a second time.
+fn flag_hits_with(
+    conn: &Connection,
+    hits: Vec<discover::DiscoverHit>,
+    active: &std::collections::HashMap<String, db::ActiveDownload>,
+) -> anyhow::Result<Vec<DiscoverEntry>> {
     hits.into_iter()
         .map(|h| {
             let local_id = local_id_for(conn, h.kind, h.tmdb_id)?;
             let request = db::latest_request_for(conn, h.kind, h.tmdb_id)?;
-            let (status, progress) = overlay_active(&active, request.as_ref());
+            let (status, progress) = overlay_active(active, request.as_ref());
             Ok(DiscoverEntry {
                 kind: h.kind,
                 tmdb_id: h.tmdb_id,
@@ -265,7 +296,7 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
         seasons,
         cast: d.cast,
         crew: d.crew,
-        similar: flag_hits(conn, d.similar)?,
+        similar: flag_hits_with(conn, d.similar, &active)?,
         in_library: local_id.is_some(),
         local_id,
         request_id: request.as_ref().map(|(id, _)| id.clone()),

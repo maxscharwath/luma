@@ -20,8 +20,15 @@ export function discoverSearch(
   return ctx.json<DiscoverResponse>(`/discover/search?${params.toString()}`);
 }
 
-export function discoverTrending(ctx: RequestContext): Promise<DiscoverResponse> {
-  return ctx.json<DiscoverResponse>('/discover/trending');
+export function discoverTrending(
+  ctx: RequestContext,
+  opts?: { type?: DiscoverType; page?: number },
+): Promise<DiscoverResponse> {
+  const params = new URLSearchParams();
+  if (opts?.type && opts.type !== 'all') params.set('type', opts.type);
+  if (opts?.page && opts.page > 1) params.set('page', String(opts.page));
+  const qs = params.toString();
+  return ctx.json<DiscoverResponse>(`/discover/trending${qs ? `?${qs}` : ''}`);
 }
 
 /** One title's request-flow detail. `kind` follows the route vocabulary

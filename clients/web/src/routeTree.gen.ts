@@ -21,6 +21,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
+import { Route as TrendingTypeRouteImport } from './routes/trending.$type'
 import { Route as ShowIdRouteImport } from './routes/show.$id'
 import { Route as PersonNameRouteImport } from './routes/person.$name'
 import { Route as MovieIdRouteImport } from './routes/movie.$id'
@@ -100,6 +101,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const WatchIdRoute = WatchIdRouteImport.update({
   id: '/watch/$id',
   path: '/watch/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrendingTypeRoute = TrendingTypeRouteImport.update({
+  id: '/trending/$type',
+  path: '/trending/$type',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShowIdRoute = ShowIdRouteImport.update({
@@ -233,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/movie/$id': typeof MovieIdRoute
   '/person/$name': typeof PersonNameRoute
   '/show/$id': typeof ShowIdRoute
+  '/trending/$type': typeof TrendingTypeRoute
   '/watch/$id': typeof WatchIdRoute
   '/admin/': typeof AdminIndexRoute
   '/discover/$type/$tmdbId': typeof DiscoverTypeTmdbIdRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/movie/$id': typeof MovieIdRoute
   '/person/$name': typeof PersonNameRoute
   '/show/$id': typeof ShowIdRoute
+  '/trending/$type': typeof TrendingTypeRoute
   '/watch/$id': typeof WatchIdRoute
   '/admin': typeof AdminIndexRoute
   '/discover/$type/$tmdbId': typeof DiscoverTypeTmdbIdRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/movie/$id': typeof MovieIdRoute
   '/person/$name': typeof PersonNameRoute
   '/show/$id': typeof ShowIdRoute
+  '/trending/$type': typeof TrendingTypeRoute
   '/watch/$id': typeof WatchIdRoute
   '/admin/': typeof AdminIndexRoute
   '/discover/$type/$tmdbId': typeof DiscoverTypeTmdbIdRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/movie/$id'
     | '/person/$name'
     | '/show/$id'
+    | '/trending/$type'
     | '/watch/$id'
     | '/admin/'
     | '/discover/$type/$tmdbId'
@@ -370,6 +380,7 @@ export interface FileRouteTypes {
     | '/movie/$id'
     | '/person/$name'
     | '/show/$id'
+    | '/trending/$type'
     | '/watch/$id'
     | '/admin'
     | '/discover/$type/$tmdbId'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/movie/$id'
     | '/person/$name'
     | '/show/$id'
+    | '/trending/$type'
     | '/watch/$id'
     | '/admin/'
     | '/discover/$type/$tmdbId'
@@ -423,6 +435,7 @@ export interface RootRouteChildren {
   MovieIdRoute: typeof MovieIdRoute
   PersonNameRoute: typeof PersonNameRoute
   ShowIdRoute: typeof ShowIdRoute
+  TrendingTypeRoute: typeof TrendingTypeRoute
   WatchIdRoute: typeof WatchIdRoute
   DiscoverTypeTmdbIdRoute: typeof DiscoverTypeTmdbIdRoute
 }
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/watch/$id'
       fullPath: '/watch/$id'
       preLoaderRoute: typeof WatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trending/$type': {
+      id: '/trending/$type'
+      path: '/trending/$type'
+      fullPath: '/trending/$type'
+      preLoaderRoute: typeof TrendingTypeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/show/$id': {
@@ -712,6 +732,7 @@ const rootRouteChildren: RootRouteChildren = {
   MovieIdRoute: MovieIdRoute,
   PersonNameRoute: PersonNameRoute,
   ShowIdRoute: ShowIdRoute,
+  TrendingTypeRoute: TrendingTypeRoute,
   WatchIdRoute: WatchIdRoute,
   DiscoverTypeTmdbIdRoute: DiscoverTypeTmdbIdRoute,
 }
