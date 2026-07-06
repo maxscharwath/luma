@@ -407,7 +407,14 @@ pub fn enrich_one(state: &SharedState, id: &str, is_show: bool) -> anyhow::Resul
             title: item.title.clone(),
             year: item.year,
             is_show: false,
-            resolved_tmdb: item.metadata.as_ref().map(|m| m.tmdb_id).filter(|&i| i != 0),
+            // Prefer an already-resolved id; else adopt a pinned id from an
+            // acquisition (so the real TMDB movie is fetched, not a title guess).
+            resolved_tmdb: item
+                .metadata
+                .as_ref()
+                .map(|m| m.tmdb_id)
+                .filter(|&i| i != 0)
+                .or_else(|| state.db.get().ok().and_then(|c| db::tmdb_hint(&c, &item.id).ok().flatten())),
         }
     };
     let eng = engine_for(state, api_key);

@@ -17,6 +17,9 @@ build/
 server/target/
 server/data/
 
+# Desktop: downloaded luma-mpv sidecar (clients/desktop/scripts/fetch-mpv.sh)
+clients/desktop/src-tauri/bin/
+
 # TV packaging artifacts
 clients/tizen/*.wgt
 clients/tizen/dist/*.wgt

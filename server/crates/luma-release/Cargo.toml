@@ -1,0 +1,10 @@
+[package]
+name = "luma-release"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+description = "Release-name parsing and the acquisition decision engine (pure, zero I/O)"
+license = "MIT"
+
+[dependencies]
+serde = { workspace = true }

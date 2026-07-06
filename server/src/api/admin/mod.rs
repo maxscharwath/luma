@@ -9,15 +9,20 @@
 //! capability guards live here.
 
 mod backup;
+mod download_clients;
+mod downloads;
+mod indexers;
 mod jobs;
 mod libraries;
 mod llm;
+mod organize;
 mod pipeline;
 mod remote;
 mod settings;
 mod stats;
 mod storage;
 mod users;
+mod vpn;
 
 use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
@@ -48,13 +53,18 @@ pub fn routes() -> Router<SharedState> {
         .route("/metrics", get(metrics))
         .merge(users::routes())
         .merge(libraries::routes())
+        .merge(organize::routes())
         .merge(settings::routes())
         .merge(storage::routes())
         .merge(stats::routes())
+        .merge(download_clients::routes())
+        .merge(downloads::routes())
+        .merge(indexers::routes())
         .merge(jobs::routes())
         .merge(llm::routes())
         .merge(pipeline::routes())
         .merge(remote::routes())
+        .merge(vpn::routes())
         .merge(backup::routes())
 }
 
@@ -80,10 +90,13 @@ fn require(user: &User, perm: Permission) -> Result<(), Response> {
 }
 
 /// Any management capability unlocks the read-only dashboard panels.
+/// `requests.manage` counts: a requests moderator needs the console shell (and
+/// the downloads queue) even without user/library/settings rights.
 fn require_any_admin(user: &User) -> Result<(), Response> {
     if user.can(Permission::UsersManage)
         || user.can(Permission::LibraryManage)
         || user.can(Permission::SettingsManage)
+        || user.can(Permission::RequestsManage)
     {
         Ok(())
     } else {

@@ -79,7 +79,8 @@ bun run tauri:dev           # builds the frontend, opens the Tauri window, launc
 ```
 
 Needs the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/) (Rust +
-WebKitGTK 4.1) and the **mpv binary** on PATH.
+WebKitGTK 4.1) and the **mpv binary** on PATH (dev only; release bundles carry their
+own, see below).
 
 ## Build the AppImage
 
@@ -88,9 +89,16 @@ Only builds on **Linux** (Ubuntu 22.04 base recommended - the oldest with WebKit
 
 ```bash
 cd clients/desktop
+./scripts/fetch-mpv.sh          # once: the luma-mpv sidecar the bundle embeds
 bun run tauri:build
 # -> src-tauri/target/release/bundle/appimage/LUMA_0.1.0_amd64.AppImage
 ```
+
+The Linux bundles embed a self-contained mpv (pkgforge-dev's "anylinux" mpv AppImage,
+pinned + sha256-verified by `scripts/fetch-mpv.sh`) as the `luma-mpv` Tauri sidecar
+(`tauri.linux.conf.json` -> `bundle.externalBin`). It installs next to the LUMA binary
+and is probed first at runtime, so SteamOS needs no mpv install; `LUMA_MPV` still
+overrides, and system mpv (Flatpak/pacman/PATH) remains the fallback.
 
 CI does this on every `v*` tag (`.github/workflows/release.yml`, job `desktop`) and
 attaches the AppImage to the GitHub Release.
@@ -109,11 +117,10 @@ so it needs a real GUI session (it fails in headless/automated shells).
 
 ## Install on the Steam Deck
 
-1. Copy `LUMA_*.AppImage` to the Deck and `chmod +x` it.
-2. Ensure **mpv** is available (SteamOS ships it in the Flatpak runtime; in a dev
-   environment `sudo pacman -S mpv`). The shell spawns the `mpv` binary at runtime.
-3. In Desktop mode: **Steam → Add a Non-Steam Game → Browse** → pick the AppImage.
-4. Launch it from Game Mode. Set the controller layout to **Gamepad** so the sticks and
+1. Copy `LUMA_*.AppImage` to the Deck and `chmod +x` it. (mpv is bundled inside;
+   nothing else to install.)
+2. In Desktop mode: **Steam → Add a Non-Steam Game → Browse** → pick the AppImage.
+3. Launch it from Game Mode. Set the controller layout to **Gamepad** so the sticks and
    D-pad reach the app's Gamepad API. Point it at your LUMA server via the connect flow.
 
 ### Controls

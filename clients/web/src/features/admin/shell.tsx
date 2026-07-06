@@ -11,11 +11,15 @@ import {
 } from '@luma/core';
 import { Logo, useT } from '@luma/ui';
 import {
+  IconAntenna,
   IconArchive,
   IconChevronRight,
   IconClockBolt,
   IconCloud,
   IconDatabase,
+  IconDownload,
+  IconFileText,
+  IconMagnet,
   IconLibrary,
   IconSettings,
   IconSitemap,
@@ -75,7 +79,9 @@ export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
     let pending: ReturnType<typeof setTimeout> | null = null;
     const ev = new LumaEvents(apiBase(), {
       onEvent: (e) => {
-        if (e.type === 'job.log' || e.type === 'job.progress') return;
+        // download.progress joins the skip list: several active torrents emit
+        // ~1 frame/s each, which would re-tick every admin poll continuously.
+        if (e.type === 'job.log' || e.type === 'job.progress' || e.type === 'download.progress') return;
         if (pending) return;
         pending = setTimeout(() => {
           pending = null;
@@ -112,6 +118,7 @@ const NAV_GESTION: {
 }[] = [
   { to: '/admin', labelKey: 'admin.dashboard', exact: true, cap: null },
   { to: '/admin/users', labelKey: 'admin.navUsers', exact: false, cap: 'users.manage' },
+  { to: '/admin/requests', labelKey: 'admin.navRequests', exact: false, cap: 'requests.manage' },
 ];
 
 const NAV_REGLAGES: {
@@ -135,12 +142,36 @@ const NAV_REGLAGES: {
     icon: IconLibrary,
   },
   {
+    to: '/admin/naming',
+    labelKey: 'admin.navNaming',
+    cap: 'library.manage',
+    icon: IconFileText,
+  },
+  {
     to: '/admin/transcoder',
     labelKey: 'admin.navTranscoder',
     cap: 'settings.manage',
     icon: IconTransform,
   },
   { to: '/admin/ai', labelKey: 'admin.navAi', cap: 'settings.manage', icon: IconSparkles },
+  {
+    to: '/admin/acquisition',
+    labelKey: 'admin.navAcquisition',
+    cap: 'settings.manage',
+    icon: IconMagnet,
+  },
+  {
+    to: '/admin/indexers',
+    labelKey: 'admin.navIndexers',
+    cap: 'settings.manage',
+    icon: IconAntenna,
+  },
+  {
+    to: '/admin/downloads',
+    labelKey: 'admin.navDownloads',
+    cap: null,
+    icon: IconDownload,
+  },
   { to: '/admin/jobs', labelKey: 'admin.navJobs', cap: 'settings.manage', icon: IconClockBolt },
   {
     to: '/admin/pipeline',

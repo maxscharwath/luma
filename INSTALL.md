@@ -239,12 +239,12 @@ Desktop Linux: install the `.deb`, or `chmod +x LUMA_*.AppImage` and run it.
 Steam Deck:
 
 1. Copy `LUMA_*.AppImage` to the Deck and `chmod +x` it (Desktop Mode).
-2. Ensure **mpv** is available (SteamOS ships it in the Flatpak runtime; in a
-   dev environment `sudo pacman -S mpv`) the shell drives the mpv binary for
-   hardware video decode.
-3. **Steam > Add a Non-Steam Game > Browse** and pick the AppImage.
-4. Launch from Game Mode and set the controller layout to **Gamepad**.
+2. **Steam > Add a Non-Steam Game > Browse** and pick the AppImage.
+3. Launch from Game Mode and set the controller layout to **Gamepad**.
    D-pad/stick = focus, A = OK, B = back, X = play/pause, L/R = seek.
+
+mpv is bundled (the `luma-mpv` sidecar drives hardware video decode); nothing to
+install. To use your own mpv instead, point the `LUMA_MPV` env var at it.
 
 ## Synology NAS `.spk`
 

@@ -15,7 +15,7 @@ use super::ids::{detect_edition, episode_logical_id, movie_logical_id, short_has
 use super::now_iso8601;
 
 /// Extensions we treat as playable video.
-const VIDEO_EXTENSIONS: &[&str] = &["mkv", "mp4", "m4v", "mov", "webm", "avi", "ts"];
+pub(crate) const VIDEO_EXTENSIONS: &[&str] = &["mkv", "mp4", "m4v", "mov", "webm", "avi", "ts"];
 
 /// Scan one folder belonging to `lib_id`, accumulating items (by logical id) and
 /// shows into the shared maps. Flags/ids track what this library contributed so

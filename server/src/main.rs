@@ -160,6 +160,31 @@ async fn main() -> anyhow::Result<()> {
     // refresh, …). Manual + scheduled runs are tracked in the admin "Tâches" UI.
     state.jobs.clone().spawn_scheduler(state.clone());
 
+    // Acquisition stack: bring the WireGuard bridge up first (when configured)
+    // so the embedded engine's SOCKS5 URL points at a live proxy, then seed
+    // the embedded engine's client row (compiled-in builds only; INSERT OR
+    // IGNORE keeps admin edits), start the engine (fastresume restores
+    // in-flight torrents) and the downloads monitor.
+    state.vpn.apply(&state).await;
+    if luma_torrents::RQBIT_COMPILED {
+        let _ = db::insert_download_client(
+            &state.db,
+            &db::DownloadClientRow {
+                id: db::EMBEDDED_CLIENT_ID.to_string(),
+                kind: "rqbit".into(),
+                name: "Moteur intégré".into(),
+                url: String::new(),
+                username: String::new(),
+                password: String::new(),
+                enabled: true,
+                priority: 100,
+                created_at: services::jobs::now_ms(),
+            },
+        );
+        state.downloads.start_rqbit(&state).await;
+    }
+    state.downloads.spawn_monitor(state.clone());
+
     // Managed Cloudflare Tunnel connector: bring the tunnel up at boot if the admin
     // enabled it with a token (installs with their own tunnel leave it off), and
     // keep it alive via a watchdog. No-op otherwise.
@@ -209,8 +234,12 @@ async fn main() -> anyhow::Result<()> {
 /// (best-effort). Returns the appender guard, which must be held for the process
 /// lifetime so buffered lines flush.
 fn init_tracing(log_dir: &std::path::Path) -> Option<tracing_appender::non_blocking::WorkerGuard> {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("luma_server=info,tower_http=info,axum=info"));
+    // `librqbit=info` surfaces the embedded engine's tracker announces + peer
+    // connection errors (why a torrent finds no peers). Bump to
+    // `RUST_LOG=librqbit=debug` for the full swarm chatter.
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new("luma_server=info,tower_http=info,axum=info,librqbit=info")
+    });
 
     // Best-effort rolling file layer (no ANSI colour codes on disk).
     let (file_layer, guard) = match std::fs::create_dir_all(log_dir) {

@@ -62,6 +62,16 @@ pub enum Permission {
     /// Watch the catalogue and save playback progress (default for everyone).
     #[serde(rename = "playback")]
     Playback,
+    /// Submit media requests (discover on TMDB + ask for a title).
+    #[serde(rename = "requests.create")]
+    RequestsCreate,
+    /// Review the request queue: approve/deny anyone's requests, run
+    /// interactive searches and manage downloads.
+    #[serde(rename = "requests.manage")]
+    RequestsManage,
+    /// This user's requests skip the approval queue (Overseerr's auto-approve).
+    #[serde(rename = "requests.auto")]
+    RequestsAuto,
 }
 
 impl Permission {
@@ -72,6 +82,9 @@ impl Permission {
             "library.manage" => Some(Permission::LibraryManage),
             "settings.manage" => Some(Permission::SettingsManage),
             "playback" => Some(Permission::Playback),
+            "requests.create" => Some(Permission::RequestsCreate),
+            "requests.manage" => Some(Permission::RequestsManage),
+            "requests.auto" => Some(Permission::RequestsAuto),
             _ => None,
         }
     }
@@ -83,6 +96,9 @@ impl Permission {
             Permission::LibraryManage,
             Permission::SettingsManage,
             Permission::Playback,
+            Permission::RequestsCreate,
+            Permission::RequestsManage,
+            Permission::RequestsAuto,
         ]
     }
 }

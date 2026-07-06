@@ -19,7 +19,8 @@ function AdminRoute() {
   const allowed =
     hasPermission(user, 'users.manage') ||
     hasPermission(user, 'library.manage') ||
-    hasPermission(user, 'settings.manage');
+    hasPermission(user, 'settings.manage') ||
+    hasPermission(user, 'requests.manage');
 
   if (!allowed) {
     return (

@@ -6,6 +6,8 @@ use std::sync::Arc;
 use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
+use crate::services::downloads::DownloadManager;
+use crate::services::vpn::Vpn;
 use crate::infra::embed::{self, Embedder};
 use crate::infra::events::Bus;
 use crate::infra::metadata;
@@ -69,6 +71,13 @@ pub struct AppState {
     /// `cloudflared` child when enabled so a box with no tunnel gets a public HTTPS
     /// endpoint without port-forwarding. See [`crate::services::remote`].
     pub remote: Arc<RemoteAccess>,
+    /// The acquisition stack's download manager: embedded torrent engine
+    /// lifecycle, grabs ledger, kill-switch gate. The monitor task is spawned
+    /// in `main` next to the other reapers. See [`crate::services::downloads`].
+    pub downloads: Arc<DownloadManager>,
+    /// Managed WireGuard-to-SOCKS5 bridge (wireproxy) for torrent traffic,
+    /// the Proton VPN path. See [`crate::services::vpn`].
+    pub vpn: Arc<Vpn>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -84,6 +93,8 @@ impl AppState {
         // Built before the struct literal moves `config`: the connector locates a
         // server-provided `cloudflared` relative to the data dir.
         let remote = RemoteAccess::new(config.data_dir.clone());
+        let downloads = DownloadManager::new(&config.data_dir);
+        let vpn = Vpn::new(config.data_dir.clone());
         // Seed the process-wide ffmpeg concurrency budget from the setting so the
         // very first background pass already honors it (updated live on write).
         crate::infra::ffmpeg_gate::set_capacity(crate::services::settings::media_workers(&settings));
@@ -120,6 +131,8 @@ impl AppState {
             jobs: Arc::new(jobs),
             subtitle_gen: Arc::new(GenRegistry::default()),
             remote,
+            downloads,
+            vpn,
         })
     }
 }

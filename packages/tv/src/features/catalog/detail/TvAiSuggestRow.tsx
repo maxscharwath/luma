@@ -1,56 +1,22 @@
-import { posterColors, type Section, type SectionItem } from '@luma/core';
-import { useT } from '@luma/ui';
-import { useEffect, useState } from 'react';
+import { posterColors, type SectionItem } from '@luma/core';
+import { ProgressRing, useAiSuggest, useT } from '@luma/ui';
 import { useClient, useNav } from '#tv/app/router';
 import { TvCard } from '#tv/shared/TvMedia';
 
-// The "Suggestions IA" rail on a TV detail screen. The server generates these
-// lazily with the LLM connector and caches them, so the first view returns `null`
-// (generating) we poll until a section arrives (empty items → render nothing).
-// Cards carry `data-focus`, and the focus engine re-queries the DOM on every
-// move, so the rail becomes navigable the moment it appears (even after mount).
+// The "Suggestions IA" rail on a TV detail screen. The shared `useAiSuggest` hook
+// polls the lazily-generated section (LLM connector, server-cached); a progress
+// ring shows while it generates and cards render once items arrive (empty items or
+// a timeout → nothing). Cards carry `data-focus`, and the focus engine re-queries
+// the DOM on every move, so the rail becomes navigable the moment it appears.
 
 const LABEL =
   'mb-4 font-sans text-[15px] font-bold uppercase tracking-[0.04em] text-[rgba(244,243,240,0.55)]';
-const MAX_POLLS = 12;
 
 export function TvAiSuggestRow({ id }: Readonly<{ id: string }>) {
   const t = useT();
   const client = useClient();
   const { go } = useNav();
-  const [section, setSection] = useState<Section | null>(null);
-  const [pending, setPending] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    setSection(null);
-    setPending(true);
-    const poll = () => {
-      client
-        .aiSuggest(id)
-        .then((res) => {
-          if (cancelled) return;
-          if (res) {
-            setSection(res);
-            setPending(false);
-          } else if (tries++ < MAX_POLLS) {
-            timer = setTimeout(poll, 6000);
-          } else {
-            setPending(false);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setPending(false);
-        });
-    };
-    poll();
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [id, client]);
+  const { section, pending, progress } = useAiSuggest(client, id);
 
   const card = (e: SectionItem) => {
     if (e.type === 'show') {
@@ -102,9 +68,18 @@ export function TvAiSuggestRow({ id }: Readonly<{ id: string }>) {
     return (
       <div className="mt-10">
         <div className={LABEL}>{t('content.aiSuggestions')}</div>
-        <p className="font-sans text-[16px] text-[rgba(244,243,240,0.4)]">
-          {t('content.aiSuggestionsLoading')}
-        </p>
+        <div className="flex items-center gap-4">
+          <ProgressRing
+            value={progress}
+            size={26}
+            stroke={3}
+            track="rgba(244,243,240,0.15)"
+            fill="rgba(244,243,240,0.7)"
+          />
+          <span className="font-sans text-[16px] text-[rgba(244,243,240,0.4)]">
+            {t('content.aiSuggestionsLoading')}
+          </span>
+        </div>
       </div>
     );
   }

@@ -1,0 +1,12 @@
+[package]
+name = "luma-fetch"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+description = "HTTP transport over the system curl binary, shared by LUMA's acquisition stack"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -59,6 +59,16 @@ pub async fn put_settings(
     if written.iter().any(|k| k == "mediaConcurrency") {
         crate::infra::ffmpeg_gate::set_capacity(settings::media_workers(&state.settings));
     }
+    // The embedded torrent engine reads its listen port / rate limits at
+    // session creation: restart it (cheap + safe, fastresume) so they apply
+    // live. VPN config changes flow through /api/admin/vpn, not here.
+    if written
+        .iter()
+        .any(|k| matches!(k.as_str(), "rqbitPort" | "rqbitDownKbps" | "rqbitUpKbps"))
+    {
+        let st = state.clone();
+        tokio::spawn(async move { st.downloads.start_rqbit(&st).await });
+    }
     state.events.publish(ServerEvent::SettingsUpdated);
     Ok(Json(json!({ "updated": written })).into_response())
 }

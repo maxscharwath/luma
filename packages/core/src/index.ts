@@ -6,6 +6,7 @@ export * from './hevc';
 export * from './i18n';
 export * from './match';
 export * from './people';
+export * from './permissions';
 export * from './player';
 export * from './remote';
 export * from './session';

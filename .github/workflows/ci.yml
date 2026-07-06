@@ -153,6 +153,11 @@ jobs:
       - name: Build desktop frontend
         run: bun run --filter '@luma/desktop' build
 
+      # tauri.linux.conf.json declares the `luma-mpv` externalBin sidecar; fetch it
+      # so the merged config always points at a real file (skips when already there).
+      - name: Fetch bundled mpv (Linux sidecar)
+        run: bash clients/desktop/scripts/fetch-mpv.sh
+
       # Compiles the Linux-only mpv IPC module (watchdog, mpv_status, events)
       # that macOS dev machines cannot check.
       - name: cargo check
@@ -184,10 +189,10 @@ jobs:
       # Hard gates. clippy without `-D warnings` (a couple of pre-existing
       # warnings are surfaced in the log but don't fail the build).
       - name: clippy
-        run: cargo clippy --all-targets
+        run: cargo clippy --workspace --all-targets
 
       - name: test
-        run: cargo test
+        run: cargo test --workspace
 
       # Architecture guard: the domain layer (entities + pure rules) stays free of
       # I/O crates. Dependencies point inward (api → services → {db,infra} → domain);

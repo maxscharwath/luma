@@ -1,4 +1,5 @@
 import * as accounts from './client/accounts';
+import * as acquisition from './client/acquisition';
 import * as admin from './client/admin';
 import {
   type LumaClientOptions,
@@ -7,9 +8,13 @@ import {
   requestBlob,
   requestJson,
 } from './client/base';
+import * as discovery from './client/discovery';
+import type { DiscoverType } from './client/discovery';
 import * as library from './client/library';
 import * as media from './client/media';
+import * as organize from './client/organize';
 import * as playback from './client/playback';
+import * as requests from './client/requests';
 import * as subtitlesClient from './client/subtitles';
 import type {
   Activity,
@@ -17,9 +22,24 @@ import type {
   AdminOverview,
   AdminUsers,
   AuthResult,
+  ClientTestResult,
   ContinueItem,
+  CreateRequestBody,
+  DiscoverDetail,
+  DiscoverResponse,
+  DownloadClientsView,
+  DownloadClientView,
+  DownloadsView,
   ElementProcessing,
+  GrabBody,
   Health,
+  IndexersView,
+  IndexerTestResult,
+  IndexerView,
+  InteractiveSearchView,
+  ManualAddBody,
+  ManualSearchView,
+  TorrentAnalysis,
   HistoryStats,
   Invite,
   InviteCreated,
@@ -29,8 +49,13 @@ import type {
   Library,
   LlmAdminConfig,
   MediaItem,
+  MediaRequest,
+  NamingTemplatesView,
+  NamingView,
   Metadata,
   MetricsSnapshot,
+  OrganizePlan,
+  OrganizeResult,
   Permission,
   PersonResponse,
   PipelineElements,
@@ -42,6 +67,11 @@ import type {
   PublicUser,
   QuickConnectInit,
   QuickConnectStatus,
+  RequestsView,
+  SampleNames,
+  SaveDownloadClientBody,
+  SaveIndexerBody,
+  SaveVpnBody,
   SearchResponse,
   Section,
   ServerInfo,
@@ -52,6 +82,8 @@ import type {
   TopUser,
   UpNext,
   User,
+  VpnAdminView,
+  VpnTestResult,
 } from './types';
 
 export type {
@@ -63,6 +95,7 @@ export type {
 } from './client/admin';
 export type { LumaClientOptions } from './client/base';
 export { apiErrorText, LumaApiError } from './client/base';
+export type { DiscoverType } from './client/discovery';
 export type { StoryboardManifest } from './client/media';
 export type {
   DownloadedSub,
@@ -375,6 +408,138 @@ export class LumaClient {
   }
   stopPlayback(sessionId: string): Promise<void> {
     return playback.stopPlayback(this.ctx, sessionId);
+  }
+
+  // ----- discovery / requests -------------------------------------------------
+
+  discoverSearch(
+    query: string,
+    opts?: { type?: DiscoverType; page?: number },
+  ): Promise<DiscoverResponse> {
+    return discovery.discoverSearch(this.ctx, query, opts);
+  }
+  discoverTrending(opts?: { type?: DiscoverType; page?: number }): Promise<DiscoverResponse> {
+    return discovery.discoverTrending(this.ctx, opts);
+  }
+  discoverDetail(kind: 'movie' | 'tv', tmdbId: number): Promise<DiscoverDetail> {
+    return discovery.discoverDetail(this.ctx, kind, tmdbId);
+  }
+  listRequests(opts?: { mine?: boolean }): Promise<RequestsView> {
+    return requests.listRequests(this.ctx, opts);
+  }
+  createRequest(body: CreateRequestBody): Promise<MediaRequest> {
+    return requests.createRequest(this.ctx, body);
+  }
+  deleteRequest(id: string): Promise<void> {
+    return requests.deleteRequest(this.ctx, id);
+  }
+  approveRequest(id: string): Promise<MediaRequest> {
+    return requests.approveRequest(this.ctx, id);
+  }
+  denyRequest(id: string, note?: string): Promise<MediaRequest> {
+    return requests.denyRequest(this.ctx, id, note);
+  }
+  searchReleases(id: string): Promise<InteractiveSearchView> {
+    return requests.searchReleases(this.ctx, id);
+  }
+  grabRelease(id: string, body: GrabBody): Promise<void> {
+    return requests.grabRelease(this.ctx, id, body);
+  }
+
+  // ----- admin: naming / organize -----------------------------------------------
+
+  adminNaming(): Promise<NamingView> {
+    return organize.adminNaming(this.ctx);
+  }
+  namingSample(templates: NamingTemplatesView): Promise<SampleNames> {
+    return organize.namingSample(this.ctx, templates);
+  }
+  saveNaming(templates: NamingTemplatesView): Promise<void> {
+    return organize.saveNaming(this.ctx, templates);
+  }
+  organizePreview(): Promise<OrganizePlan> {
+    return organize.organizePreview(this.ctx);
+  }
+  organizeApply(): Promise<OrganizeResult> {
+    return organize.organizeApply(this.ctx);
+  }
+
+  // ----- admin: acquisition (indexers / clients / downloads) --------------------
+
+  adminIndexers(): Promise<IndexersView> {
+    return acquisition.adminIndexers(this.ctx);
+  }
+  createIndexer(body: SaveIndexerBody): Promise<IndexerView> {
+    return acquisition.createIndexer(this.ctx, body);
+  }
+  updateIndexer(id: string, body: SaveIndexerBody): Promise<IndexerView> {
+    return acquisition.updateIndexer(this.ctx, id, body);
+  }
+  deleteIndexer(id: string): Promise<void> {
+    return acquisition.deleteIndexer(this.ctx, id);
+  }
+  testIndexer(id: string): Promise<IndexerTestResult> {
+    return acquisition.testIndexer(this.ctx, id);
+  }
+  adminDownloadClients(): Promise<DownloadClientsView> {
+    return acquisition.adminDownloadClients(this.ctx);
+  }
+  createDownloadClient(body: SaveDownloadClientBody): Promise<DownloadClientView> {
+    return acquisition.createDownloadClient(this.ctx, body);
+  }
+  updateDownloadClient(id: string, body: SaveDownloadClientBody): Promise<DownloadClientView> {
+    return acquisition.updateDownloadClient(this.ctx, id, body);
+  }
+  deleteDownloadClient(id: string): Promise<void> {
+    return acquisition.deleteDownloadClient(this.ctx, id);
+  }
+  testDownloadClient(id: string): Promise<ClientTestResult> {
+    return acquisition.testDownloadClient(this.ctx, id);
+  }
+  adminDownloads(): Promise<DownloadsView> {
+    return acquisition.adminDownloads(this.ctx);
+  }
+  pauseDownload(id: string): Promise<void> {
+    return acquisition.pauseDownload(this.ctx, id);
+  }
+  resumeDownload(id: string): Promise<void> {
+    return acquisition.resumeDownload(this.ctx, id);
+  }
+  retryDownload(id: string): Promise<void> {
+    return acquisition.retryDownload(this.ctx, id);
+  }
+  reannounceDownload(id: string): Promise<void> {
+    return acquisition.reannounceDownload(this.ctx, id);
+  }
+  pauseAllDownloads(): Promise<{ count: number }> {
+    return acquisition.pauseAllDownloads(this.ctx);
+  }
+  resumeAllDownloads(): Promise<{ count: number }> {
+    return acquisition.resumeAllDownloads(this.ctx);
+  }
+  reannounceDownloads(): Promise<{ count: number }> {
+    return acquisition.reannounceDownloads(this.ctx);
+  }
+  removeDownload(id: string, opts?: { deleteData?: boolean }): Promise<void> {
+    return acquisition.removeDownload(this.ctx, id, opts);
+  }
+  manualSearch(query: string): Promise<ManualSearchView> {
+    return acquisition.manualSearch(this.ctx, query);
+  }
+  analyzeTorrent(magnetOrUrl: string): Promise<TorrentAnalysis> {
+    return acquisition.analyzeTorrent(this.ctx, magnetOrUrl);
+  }
+  manualAdd(body: ManualAddBody): Promise<{ id: string }> {
+    return acquisition.manualAdd(this.ctx, body);
+  }
+  adminVpn(): Promise<VpnAdminView> {
+    return acquisition.adminVpn(this.ctx);
+  }
+  saveVpn(body: SaveVpnBody): Promise<{ wgConfigured: boolean }> {
+    return acquisition.saveVpn(this.ctx, body);
+  }
+  testVpn(): Promise<VpnTestResult> {
+    return acquisition.testVpn(this.ctx);
   }
 
   // ----- admin: libraries -----------------------------------------------------

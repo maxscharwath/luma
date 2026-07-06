@@ -25,6 +25,10 @@ pub enum Category {
     /// markers, embed). Surfaced in the dedicated admin Pipeline dashboard rather
     /// than the general Tâches list. See [`crate::services::pipeline`].
     Pipeline,
+    /// The acquisition stack: request availability matching, wanted-list
+    /// indexer searches, download import. See `crate::services::requests` /
+    /// `crate::services::acquisition`.
+    Acquisition,
 }
 
 /// One recorded execution of a job.

@@ -1,4 +1,4 @@
-import { hasPermission, type Invite, type MessageKey, type Permission } from '@luma/core';
+import { hasPermission, type Invite, type Permission, PERMISSIONS } from '@luma/core';
 import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
@@ -9,13 +9,6 @@ import { useAuth } from '#web/shared/lib/auth';
 export const Route = createFileRoute('/invite')({
   component: InvitePage,
 });
-
-const PERMS: { key: Permission; labelKey: MessageKey; hintKey: MessageKey }[] = [
-  { key: 'playback', labelKey: 'admin.permPlayback', hintKey: 'admin.permPlaybackHintDefault' },
-  { key: 'library.manage', labelKey: 'admin.permLibrary', hintKey: 'admin.permLibraryHint' },
-  { key: 'users.manage', labelKey: 'admin.permUsers', hintKey: 'admin.permUsersHint' },
-  { key: 'settings.manage', labelKey: 'admin.permSettings', hintKey: 'admin.permSettingsHint' },
-];
 
 function joinUrl(token: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -93,7 +86,7 @@ function InvitePage() {
           {t('admin.permissions')}
         </div>
         <div className="flex flex-col gap-2.5">
-          {PERMS.map((p) => (
+          {PERMISSIONS.map((p) => (
             <label
               key={p.key}
               className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/3"

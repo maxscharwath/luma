@@ -1,17 +1,10 @@
-import type { AdminUser, Invite, MessageKey, Permission } from '@luma/core';
+import { type AdminUser, type Invite, type Permission, PERMISSIONS } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconMail } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useAsyncAction } from '#web/features/admin/shell';
 import { Field, Modal, ModalActions } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
-
-const PERMS: { key: Permission; labelKey: MessageKey; hintKey: MessageKey }[] = [
-  { key: 'playback', labelKey: 'admin.permPlayback', hintKey: 'admin.permPlaybackHint' },
-  { key: 'library.manage', labelKey: 'admin.permLibrary', hintKey: 'admin.permLibraryHint' },
-  { key: 'users.manage', labelKey: 'admin.permUsers', hintKey: 'admin.permUsersHint' },
-  { key: 'settings.manage', labelKey: 'admin.permSettings', hintKey: 'admin.permSettingsHint' },
-];
 
 export function PendingInvite({ inv, onChange }: Readonly<{ inv: Invite; onChange: () => void }>) {
   const t = useT();
@@ -74,7 +67,7 @@ function PermPicker({
   const t = useT();
   return (
     <div className="flex flex-col gap-2">
-      {PERMS.map((p) => (
+      {PERMISSIONS.map((p) => (
         <label
           key={p.key}
           className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/3"

@@ -24,7 +24,21 @@ export type ServerEvent =
   | { type: 'job.progress'; key: string; runId: string; done: number; total: number }
   | { type: 'job.log'; runId: string; level: string; message: string }
   | { type: 'job.finished'; key: string; runId: string; status: string }
-  | { type: 'pipeline.stats'; stages: StageStat[] };
+  | { type: 'pipeline.stats'; stages: StageStat[] }
+  | { type: 'request.updated'; id: string; status: string }
+  | {
+      type: 'download.progress';
+      id: string;
+      requestId: string | null;
+      progress: number;
+      downBps: number;
+      upBps: number;
+      peers: number;
+      peersSeen: number;
+      state: string;
+    }
+  | { type: 'download.completed'; id: string; title: string }
+  | { type: 'vpn.status'; connected: boolean; exitIp: string | null; paused: boolean };
 
 export interface LumaEventsOptions {
   onEvent?: (event: ServerEvent) => void;

@@ -1,3 +1,5 @@
+export type { UseAiSuggestOptions, UseAiSuggestResult } from './aiSuggest';
+export { useAiSuggest } from './aiSuggest';
 export type { AuthSession } from './auth';
 export { useAuthSession } from './auth';
 export type { AvatarProps } from './components/Avatar';
@@ -14,6 +16,8 @@ export type { LumaIntroProps } from './components/LumaIntro';
 export { LumaIntro } from './components/LumaIntro';
 export type { PosterCardProps } from './components/PosterCard';
 export { PosterCard } from './components/PosterCard';
+export type { ProgressRingProps } from './components/ProgressRing';
+export { ProgressRing } from './components/ProgressRing';
 export type { I18nProviderProps } from './i18n';
 export { I18nProvider, useLocale, useSetLocale, useT } from './i18n';
 export type { LocaleProviderProps } from './locale';

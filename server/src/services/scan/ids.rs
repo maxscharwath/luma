@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 // ----- logical ids ------------------------------------------------------------
 
 /// Stable movie logical id: same title+year → one item.
-pub(super) fn movie_logical_id(lib_id: &str, title: &str, year: Option<u32>) -> String {
+pub fn movie_logical_id(lib_id: &str, title: &str, year: Option<u32>) -> String {
     let norm = normalize_title(title);
     let year = year.map(|y| y.to_string()).unwrap_or_default();
     short_hash(&format!("{lib_id}|movie|{norm}|{year}"))

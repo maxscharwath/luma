@@ -8,8 +8,9 @@
 //
 // mpv renders to its OWN native window (VA-API hardware decode on the Deck's APU).
 // The Tauri UI window is transparent + always-on-top, so the web chrome floats
-// over the video. mpv must be present on PATH at runtime (SteamOS: it ships in the
-// Flatpak runtime, or `sudo pacman -S mpv` in a dev environment - see README).
+// over the video. The Linux packages bundle their own mpv (the `luma-mpv` sidecar,
+// a self-contained mpv AppImage - see scripts/fetch-mpv.sh); a system mpv
+// (Flatpak / pacman / PATH) is only a fallback for dev environments.
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -43,13 +44,24 @@ fn socket_path() -> PathBuf {
     std::env::temp_dir().join("luma-mpv.sock")
 }
 
-/// Resolve the mpv binary. A GUI-launched app (Finder / Steam Game Mode) inherits
-/// a minimal PATH that usually omits Homebrew / Flatpak dirs, so probe the common
-/// install locations before falling back to a bare PATH lookup. `LUMA_MPV` overrides.
+/// Resolve the mpv binary. The bundled `luma-mpv` sidecar (Tauri externalBin: a
+/// self-contained mpv AppImage installed next to the LUMA binary) is probed first.
+/// A GUI-launched app (Finder / Steam Game Mode) inherits a minimal PATH that
+/// usually omits Homebrew / Flatpak dirs, so probe the common install locations
+/// before falling back to a bare PATH lookup. `LUMA_MPV` overrides everything.
 fn mpv_binary() -> String {
     if let Ok(p) = std::env::var("LUMA_MPV") {
         if !p.trim().is_empty() {
             return p;
+        }
+    }
+    // Bundled sidecar: $APPDIR/usr/bin/luma-mpv inside the AppImage,
+    // /usr/bin/luma-mpv from the .deb.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(cand) = exe.parent().map(|d| d.join("luma-mpv")) {
+            if cand.exists() {
+                return cand.to_string_lossy().into_owned();
+            }
         }
     }
     for cand in [
@@ -81,6 +93,11 @@ pub fn spawn(app: AppHandle) {
         let _ = std::fs::remove_file(&sock);
 
         let child = Command::new(mpv_binary())
+            // The bundled luma-mpv is itself an AppImage; we spawn it from INSIDE the
+            // LUMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
+            // Force extract-and-run so mpv never depends on FUSE; harmless for a
+            // non-AppImage system mpv (it just ignores the var).
+            .env("APPIMAGE_EXTRACT_AND_RUN", "1")
             .args([
                 "--idle=yes",            // stay alive with no file (we loadfile later)
                 "--force-window=yes",    // create the video window up front

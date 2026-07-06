@@ -103,6 +103,61 @@ pub fn groups(
                 row("transcodeDir", t("admin.transcodeDir"), None, "value", &[], json!(transcode_dir(config)), true),
             ],
         )],
+        "acquisition" => {
+            // Import-target selects offer the configured libraries by name
+            // ("Auto" = first library of the matching kind).
+            let libs = super::library_defs(settings, config);
+            let lib_options = |kind: &str| -> Vec<String> {
+                let mut opts = vec!["Auto".to_string()];
+                opts.extend(libs.iter().filter(|d| d.kind == kind || d.kind.is_empty()).map(|d| d.name.clone()));
+                opts
+            };
+            let movie_opts = lib_options("movies");
+            let show_opts = lib_options("shows");
+            vec![
+            group(
+                "admin.acqGeneral",
+                Some("admin.acqGeneralDesc"),
+                vec![
+                    row("acqEnabled", t("admin.acqEnabled"), Some(t("admin.acqEnabledHint")), "toggle", &[], g("acqEnabled"), true),
+                    row("acqAutoApprove", t("admin.acqAutoApprove"), Some(t("admin.acqAutoApproveHint")), "toggle", &[], g("acqAutoApprove"), true),
+                    row("acqDeleteAfterImport", t("admin.acqDeleteAfterImport"), Some(t("admin.acqDeleteAfterImportHint")), "toggle", &[], g("acqDeleteAfterImport"), true),
+                    row("acqMovieLibrary", t("admin.acqMovieLibrary"), None, "select", &movie_opts.iter().map(String::as_str).collect::<Vec<_>>(), g("acqMovieLibrary"), true),
+                    row("acqSeriesLibrary", t("admin.acqSeriesLibrary"), None, "select", &show_opts.iter().map(String::as_str).collect::<Vec<_>>(), g("acqSeriesLibrary"), true),
+                ],
+            ),
+            group(
+                "admin.acqQuality",
+                Some("admin.acqQualityDesc"),
+                vec![
+                    row("acqResolution", t("admin.acqResolution"), None, "select", &["720p", "1080p", "2160p"], g("acqResolution"), true),
+                    row("acqPreferHevc", t("admin.acqPreferHevc"), Some(t("admin.acqPreferHevcHint")), "toggle", &[], g("acqPreferHevc"), true),
+                    row("acqMinSeeders", t("admin.acqMinSeeders"), None, "select", &["0", "1", "2", "5", "10"], g("acqMinSeeders"), true),
+                    row("acqMaxSizeGbMovie", t("admin.acqMaxSizeGbMovie"), None, "select", &["5", "10", "15", "25", "40", "80"], g("acqMaxSizeGbMovie"), true),
+                    row("acqMaxSizeGbEpisode", t("admin.acqMaxSizeGbEpisode"), None, "select", &["1", "2", "3", "5", "8"], g("acqMaxSizeGbEpisode"), true),
+                    row("acqRequiredKeywords", t("admin.acqRequiredKeywords"), Some(t("admin.acqRequiredKeywordsHint")), "text", &[], g("acqRequiredKeywords"), true),
+                    row("acqForbiddenKeywords", t("admin.acqForbiddenKeywords"), Some(t("admin.acqForbiddenKeywordsHint")), "text", &[], g("acqForbiddenKeywords"), true),
+                ],
+            ),
+            group(
+                "admin.acqEngine",
+                Some("admin.acqEngineDesc"),
+                vec![
+                    row("rqbitPort", t("admin.rqbitPort"), Some(t("admin.rqbitPortHint")), "text", &[], g("rqbitPort"), true),
+                    row("rqbitDownKbps", t("admin.rqbitDownKbps"), Some(t("admin.rqbitRateHint")), "text", &[], g("rqbitDownKbps"), true),
+                    row("rqbitUpKbps", t("admin.rqbitUpKbps"), Some(t("admin.rqbitRateHint")), "text", &[], g("rqbitUpKbps"), true),
+                ],
+            ),
+            group(
+                "admin.acqVpn",
+                Some("admin.acqVpnDesc"),
+                vec![
+                    row("vpnKillSwitch", t("admin.vpnKillSwitch"), Some(t("admin.vpnKillSwitchHint")), "toggle", &[], g("vpnKillSwitch"), true),
+                    row("vpnCheckUrl", t("admin.vpnCheckUrl"), None, "text", &[], g("vpnCheckUrl"), true),
+                ],
+            ),
+        ]
+        }
         _ => Vec::new(),
     }
 }

@@ -17,6 +17,7 @@
 
 mod cache;
 mod client;
+pub mod discover;
 
 pub use cache::Cache;
 pub use client::{curl_available, lookup, season_episodes, EpisodeArt, SeasonData, Target};

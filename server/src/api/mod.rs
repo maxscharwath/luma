@@ -11,6 +11,7 @@ pub mod poster;
 pub mod ws;
 
 mod accounts;
+mod discover;
 mod extract;
 mod home;
 mod images;
@@ -20,6 +21,7 @@ mod metadata;
 mod people;
 mod pin;
 mod recommend;
+mod requests;
 mod search;
 mod online_subs;
 mod stream;
@@ -59,6 +61,8 @@ pub fn router(state: SharedState) -> Router {
         .merge(accounts::routes())
         .merge(pin::routes())
         .merge(invites::routes())
+        .merge(discover::routes())
+        .merge(requests::routes())
         .nest("/admin", admin::routes());
 
     let mut app = Router::new().nest("/api", api);

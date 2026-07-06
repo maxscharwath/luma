@@ -1,0 +1,5 @@
+{
+  "bundle": {
+    "externalBin": ["bin/luma-mpv"]
+  }
+}

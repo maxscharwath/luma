@@ -159,6 +159,54 @@ fn defaults() -> BTreeMap<String, Value> {
     // jobs: scheduler timezone offset in minutes from UTC (cron `0 4 * * *`
     // means 4am at this offset). 0 = UTC; e.g. 60 = UTC+1, -300 = UTC-5.
     m.insert("jobsUtcOffset".into(), json!(0));
+    // acquisition: the release decision engine's quality profile (see
+    // services::acquisition + the luma-release crate). LUMA is HEVC-first, so
+    // x265 releases outrank x264 by default. Keyword lists are comma-separated,
+    // matched as whole tokens against release names.
+    m.insert("acqEnabled".into(), json!(false));
+    m.insert("acqAutoApprove".into(), json!(false));
+    // Remove the torrent + its downloaded data once imported into the library
+    // (frees the download folder + stops seeding; the library copy survives).
+    m.insert("acqDeleteAfterImport".into(), json!(false));
+    m.insert("acqResolution".into(), json!("1080p"));
+    m.insert("acqPreferHevc".into(), json!(true));
+    m.insert("acqMinSeeders".into(), json!(2));
+    m.insert("acqMaxSizeGbMovie".into(), json!(15));
+    m.insert("acqMaxSizeGbEpisode".into(), json!(3));
+    m.insert("acqRequiredKeywords".into(), json!(""));
+    m.insert(
+        "acqForbiddenKeywords".into(),
+        json!("cam, hdcam, ts, telesync, telecine, screener, dvdscr, workprint"),
+    );
+    // Embedded torrent engine knobs (0 = ephemeral port / unlimited rate).
+    // Applied on engine (re)start; the settings PUT hook restarts it live.
+    m.insert("rqbitPort".into(), json!(0));
+    m.insert("rqbitDownKbps".into(), json!(0));
+    m.insert("rqbitUpKbps".into(), json!(0));
+    // VPN routing for torrent traffic (see services::downloads/vpn): a pasted
+    // WireGuard config that LUMA bridges to a local SOCKS5 via a managed
+    // wireproxy child, which the embedded engine routes peers through. This is
+    // the single VPN path (no raw external proxy option). `vpnWgConfig` is a
+    // secret: stored here, written via /api/admin/vpn, never in a settings view.
+    // `vpnLocalPort` is the internal bridge port (implementation detail).
+    m.insert("vpnWgConfig".into(), json!(""));
+    m.insert("vpnLocalPort".into(), json!(25345));
+    m.insert("vpnKillSwitch".into(), json!(false));
+    m.insert("vpnCheckUrl".into(), json!("https://api.ipify.org"));
+    // Import targets: the library (by name) new downloads land in; "Auto" =
+    // first library of the matching kind.
+    m.insert("acqMovieLibrary".into(), json!("Auto"));
+    m.insert("acqSeriesLibrary".into(), json!("Auto"));
+    // File naming templates (Sonarr/Radarr-style tokens), used by import and
+    // the library rename tool. See services::organize::naming for the tokens.
+    m.insert("namingMovieFolder".into(), json!("{Title} ({Year})"));
+    m.insert("namingMovieFile".into(), json!("{Title} ({Year}) {Quality Full}"));
+    m.insert("namingSeriesFolder".into(), json!("{Title} ({Year})"));
+    m.insert("namingSeasonFolder".into(), json!("Season {season:00}"));
+    m.insert(
+        "namingEpisodeFile".into(),
+        json!("{Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}"),
+    );
     // AI / LLM: powers personalized auto-named home sections + per-user taste
     // profiles (the `sections.personalize` job). Open-ended provider choice:
     // openai = any OpenAI-compatible server (Ollama, llama.cpp, LM Studio, …);

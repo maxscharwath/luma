@@ -327,6 +327,138 @@ pub(crate) const SCHEMA: &str = "
     -- without this composite index.
     CREATE INDEX IF NOT EXISTS idx_pipeline_subject
         ON pipeline_tasks(stage, subject_id);
+
+    -- ----- acquisition stack (see services::requests / services::acquisition) --
+
+    -- Media requests (the 'ask for a title' flow). One row per user request; a
+    -- show request may carry a season subset (JSON int array; NULL = whole show
+    -- or a movie). Linked to the catalog ONLY via tmdb_id: the acquisition.match
+    -- job flips status once enrichment writes metadata.tmdbId for a local title.
+    -- Timestamps are epoch ms (the newer-table convention, like pipeline_tasks).
+    CREATE TABLE IF NOT EXISTS requests (
+        id           TEXT PRIMARY KEY,
+        kind         TEXT NOT NULL,
+        tmdb_id      INTEGER NOT NULL,
+        title        TEXT NOT NULL,
+        year         INTEGER,
+        poster_url   TEXT,
+        seasons      TEXT,
+        status       TEXT NOT NULL DEFAULT 'pending',
+        requested_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        reviewed_by  TEXT,
+        note         TEXT,
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_requests_ident  ON requests(kind, tmdb_id);
+    CREATE INDEX IF NOT EXISTS idx_requests_user   ON requests(requested_by, created_at DESC);
+
+    -- Episode-level wanted ledger, materialized when a request is approved
+    -- (movie: one row; show: one row per aired episode of the requested
+    -- seasons, from TMDB season data). Season packs are computed at search time
+    -- by grouping rows on (tmdb_id, season); there are no separate season rows.
+    -- `air_date` (YYYY-MM-DD) gates searching unaired episodes.
+    CREATE TABLE IF NOT EXISTS wanted (
+        id             TEXT PRIMARY KEY,
+        request_id     TEXT NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL,
+        tmdb_id        INTEGER NOT NULL,
+        imdb_id        TEXT,
+        title          TEXT NOT NULL,
+        year           INTEGER,
+        season         INTEGER,
+        episode        INTEGER,
+        air_date       TEXT,
+        status         TEXT NOT NULL DEFAULT 'wanted',
+        last_search_at INTEGER,
+        updated_at     INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_wanted_search  ON wanted(status, last_search_at);
+    CREATE INDEX IF NOT EXISTS idx_wanted_request ON wanted(request_id);
+    CREATE INDEX IF NOT EXISTS idx_wanted_ident   ON wanted(tmdb_id, season, episode);
+
+    -- Torznab indexers (Jackett / Prowlarr endpoints). `categories` is a comma
+    -- list; `priority` is a flat score tiebreak in the decision engine.
+    CREATE TABLE IF NOT EXISTS indexers (
+        id         TEXT PRIMARY KEY,
+        name       TEXT NOT NULL,
+        url        TEXT NOT NULL,
+        api_key    TEXT NOT NULL DEFAULT '',
+        categories TEXT NOT NULL DEFAULT '2000,5000',
+        enabled    INTEGER NOT NULL DEFAULT 1,
+        priority   INTEGER NOT NULL DEFAULT 0,
+        last_ok_at INTEGER,
+        last_error TEXT,
+        created_at INTEGER NOT NULL
+    );
+
+    -- Download clients (torrent engines). The embedded rqbit engine is seeded
+    -- as a row (id='embedded', kind='rqbit') at boot when compiled in, so
+    -- dispatch and the admin UI treat every engine uniformly; url/username/
+    -- password apply to the external kinds only.
+    CREATE TABLE IF NOT EXISTS download_clients (
+        id         TEXT PRIMARY KEY,
+        kind       TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        url        TEXT NOT NULL DEFAULT '',
+        username   TEXT NOT NULL DEFAULT '',
+        password   TEXT NOT NULL DEFAULT '',
+        enabled    INTEGER NOT NULL DEFAULT 1,
+        priority   INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+    );
+
+    -- One row per grab: a release sent to a download client. `client_id` has no
+    -- FK so history survives a deleted client config. `score_breakdown` keeps
+    -- the decision engine's explanation; `episodes` is the JSON list of episode
+    -- numbers a season pack covers; `imported_paths` the library files written.
+    CREATE TABLE IF NOT EXISTS downloads (
+        id              TEXT PRIMARY KEY,
+        client_id       TEXT NOT NULL,
+        client_ref      TEXT NOT NULL,
+        request_id      TEXT REFERENCES requests(id) ON DELETE SET NULL,
+        kind            TEXT NOT NULL,
+        tmdb_id         INTEGER NOT NULL,
+        title           TEXT,
+        year            INTEGER,
+        season          INTEGER,
+        episodes        TEXT,
+        release_title   TEXT NOT NULL,
+        indexer_id      TEXT,
+        info_hash       TEXT,
+        magnet_or_url   TEXT NOT NULL,
+        size_bytes      INTEGER,
+        score           INTEGER,
+        score_breakdown TEXT,
+        status          TEXT NOT NULL DEFAULT 'queued',
+        progress        REAL NOT NULL DEFAULT 0,
+        save_path       TEXT,
+        imported_paths  TEXT,
+        error           TEXT,
+        grabbed_at      INTEGER NOT NULL,
+        completed_at    INTEGER,
+        imported_at     INTEGER,
+        details_url     TEXT,
+        only_files      TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status, grabbed_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_downloads_req    ON downloads(request_id);
+
+    -- Known TMDB id for an acquired item, keyed by its (future) logical item id.
+    -- Set at import time so enrichment uses the real id instead of re-guessing
+    -- from the filename (which fails for obscure/foreign titles), and the movie
+    -- resolves its poster + shows as in-library in Discover.
+    CREATE TABLE IF NOT EXISTS acq_tmdb (
+        logical_id  TEXT PRIMARY KEY,
+        tmdb_id     INTEGER NOT NULL
+    );
+
+    -- Availability matching: expression indexes on the tmdbId inside the
+    -- metadata JSON blobs, so 'is this TMDB title in the library' is a seek.
+    -- Queries MUST use the byte-identical json_extract expression to hit these.
+    CREATE INDEX IF NOT EXISTS idx_items_tmdb ON items(json_extract(metadata, '$.tmdbId'));
+    CREATE INDEX IF NOT EXISTS idx_shows_tmdb ON shows(json_extract(metadata, '$.tmdbId'));
 ";
 
 /// Explicit column list for file SELECTs keeps [`super::row_to_file`] index-stable.
@@ -385,6 +517,12 @@ fn migrate(conn: &Connection) {
             mtime INTEGER, size INTEGER, version INTEGER NOT NULL,\
             duration_us INTEGER NOT NULL, v_codec TEXT,\
             segments TEXT NOT NULL, updated_at INTEGER NOT NULL)",
+        // Denormalized import title/year on downloads: lets a manually-added
+        // torrent (no request) still import with correct library naming.
+        "ALTER TABLE downloads ADD COLUMN title TEXT",
+        "ALTER TABLE downloads ADD COLUMN year INTEGER",
+        "ALTER TABLE downloads ADD COLUMN details_url TEXT",
+        "ALTER TABLE downloads ADD COLUMN only_files TEXT",
     ] {
         let _ = conn.execute(sql, []);
     }

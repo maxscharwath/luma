@@ -24,6 +24,19 @@ mod mpv;
 mod libmpv_mac;
 
 fn main() {
+    // WebKitGTK's DMABUF renderer fails on some GPU/driver combos (verified on the
+    // Steam Deck: "Could not create default EGL display: EGL_BAD_PARAMETER" - the
+    // web process aborts, so the transparent window renders NOTHING and sits
+    // invisible-but-focused over the desktop). Disable it before WebKitGTK
+    // initializes. Compositing stays on, so window transparency (mpv behind the
+    // webview) is unaffected. An explicit user value is respected.
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 

@@ -64,13 +64,16 @@ export function useAsyncAction(): {
   return { busy, error, run };
 }
 
-/** True if the user holds any management capability (unlocks the console). */
+/** True if the user holds any management capability (unlocks the console).
+ * `requests.manage` counts: a requests moderator needs the console shell for
+ * the Demandes queue even without user/library/settings rights. */
 export function isAnyAdmin(user: Pick<User, 'permissions'> | null | undefined): boolean {
   return (
     !!user &&
     (hasPermission(user, 'users.manage') ||
       hasPermission(user, 'library.manage') ||
-      hasPermission(user, 'settings.manage'))
+      hasPermission(user, 'settings.manage') ||
+      hasPermission(user, 'requests.manage'))
   );
 }
 

@@ -3,6 +3,7 @@ import {
   IconDeviceDesktop,
   IconDeviceTv,
   IconHome,
+  IconInbox,
   IconListDetails,
   IconMovie,
   IconSearch,
@@ -22,13 +23,10 @@ const itemCls =
 
 const NAV: { labelKey: MessageKey; to: string; icon: TablerIcon; exact?: boolean }[] = [
   { labelKey: 'nav.home', to: '/', icon: IconHome, exact: true },
+  { labelKey: 'nav.search', to: '/search', icon: IconSearch },
   { labelKey: 'nav.films', to: '/films', icon: IconMovie },
   { labelKey: 'nav.series', to: '/series', icon: IconDeviceTv },
   { labelKey: 'nav.myList', to: '/mylist', icon: IconListDetails },
-];
-
-const SOON: { labelKey: MessageKey; icon: TablerIcon }[] = [
-  { labelKey: 'nav.search', icon: IconSearch },
 ];
 
 export function Sidebar() {
@@ -50,12 +48,7 @@ export function Sidebar() {
             {t(item.labelKey)}
           </Link>
         ))}
-        {SOON.map((item) => (
-          <div key={item.labelKey} className={`${itemCls} cursor-default opacity-50`}>
-            <item.icon size={18} />
-            {t(item.labelKey)}
-          </div>
-        ))}
+        <RequestsLink />
       </nav>
       <div className="mt-auto flex flex-col gap-2.5">
         <InviteLink />
@@ -74,6 +67,19 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+/** "Mes demandes" only for accounts allowed to request media. */
+function RequestsLink() {
+  const t = useT();
+  const { user } = useAuth();
+  if (!user || !hasPermission(user, 'requests.create')) return null;
+  return (
+    <Link to="/requests" className={itemCls}>
+      <IconInbox size={18} />
+      {t('nav.requests')}
+    </Link>
   );
 }
 
@@ -127,7 +133,8 @@ function AdminLink() {
     !!user &&
     (hasPermission(user, 'users.manage') ||
       hasPermission(user, 'library.manage') ||
-      hasPermission(user, 'settings.manage'));
+      hasPermission(user, 'settings.manage') ||
+      hasPermission(user, 'requests.manage'));
   if (!isAdmin) {
     return (
       <div className={`${itemCls} cursor-default opacity-50`}>

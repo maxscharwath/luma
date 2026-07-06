@@ -3,6 +3,7 @@
 //! lives in [`crate::db`]. `crate::model` re-exports everything here as a flat
 //! namespace for backwards-compatible call sites.
 
+pub mod acquisition;
 pub mod media;
 pub mod metadata;
 pub mod accounts;
@@ -12,4 +13,6 @@ pub mod admin;
 pub mod jobs;
 pub mod pipeline;
 pub mod naming;
+pub mod organize;
+pub mod requests;
 pub mod section;

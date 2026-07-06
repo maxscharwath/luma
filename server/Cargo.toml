@@ -10,12 +10,37 @@ license = "MIT"
 name = "luma-server"
 path = "src/main.rs"
 
+# The server is the root package of a Cargo workspace (the Rust mirror of the
+# bun workspaces on the TS side). Self-contained domains live as crates under
+# crates/ so they build + test in isolation (`cargo test -p luma-release`),
+# while everything still links into this one binary. All existing entry points
+# (`cargo build` from server/, CI, the Synology docker build) are unchanged.
+[workspace]
+members = ["crates/*"]
+
+# Single source of truth for versions shared across workspace members. The root
+# package keeps its own [dependencies] table as-is; members opt in via
+# `{ workspace = true }`.
+[workspace.dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+quick-xml = "0.37"
+
 [features]
 # On-device Whisper subtitle transcription ships by default: it is the only
 # transcription backend (there is no cloud/whisper.cpp path) and the Synology
 # package already builds with it. Turning it off compiles a stub and the player's
 # "transcribe" capability reports false.
-default = ["whisper-local"]
+default = ["whisper-local", "torrent-rqbit"]
+
+# Embedded BitTorrent engine (librqbit inside the luma-torrents crate) for the
+# acquisition stack. ON by default: it is what makes downloads work with zero
+# extra software. Turning it off drops the librqbit graph entirely; the
+# "rqbit" download-client kind then reports "not compiled" and external
+# Transmission / qBittorrent connectors (plain curl) remain the only engines.
+torrent-rqbit = ["luma-torrents/rqbit"]
 
 # Multilingual semantic embeddings (infra::embed::candle). OFF by default; the
 # default build uses the dependency-free lexical embedder (good for keyword-able
@@ -76,6 +101,15 @@ whisper-accelerate = [
 ]
 
 [dependencies]
+# --- Acquisition stack: the workspace crates under crates/ ---
+# luma-fetch (curl transport), luma-release (release-name parsing + scoring),
+# luma-torznab (Jackett/Prowlarr indexer search), luma-torrents (DownloadClient
+# trait + engines; the embedded librqbit engine hides behind `torrent-rqbit`).
+luma-fetch = { path = "crates/luma-fetch" }
+luma-release = { path = "crates/luma-release" }
+luma-torznab = { path = "crates/luma-torznab" }
+luma-torrents = { path = "crates/luma-torrents" }
+
 # --- Optional: semantic embeddings (feature `semantic-embeddings`) ---
 # CPU-only, pure-Rust backends so the musl single-binary keeps linking.
 candle-core = { version = "0.8", optional = true, default-features = false }

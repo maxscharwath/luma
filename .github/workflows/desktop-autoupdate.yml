@@ -112,6 +112,11 @@ jobs:
             file
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      # Bundle a self-contained mpv (pinned pkgforge AppImage, sha256-verified) as
+      # the `luma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
+      - name: Fetch bundled mpv (Linux sidecar)
+        if: runner.os == 'Linux'
+        run: bash clients/desktop/scripts/fetch-mpv.sh
       # Stamp the timestamped version into tauri.conf.json so this build is a
       # strictly-newer prerelease. `shell: bash` + node work on all three runners.
       - name: Stamp version ${{ needs.version.outputs.version }}

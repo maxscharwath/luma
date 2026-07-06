@@ -11,8 +11,8 @@ use crate::domain::metadata::{CastMember, CrewMember, Metadata};
 
 use super::cache::Cache;
 
-const API: &str = "https://api.themoviedb.org/3";
-const IMG: &str = "https://image.tmdb.org/t/p";
+pub(super) const API: &str = "https://api.themoviedb.org/3";
+pub(super) const IMG: &str = "https://image.tmdb.org/t/p";
 
 /// Whether to resolve against TMDB's movie or TV namespace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -309,7 +309,7 @@ fn note_curl_failure(reason: &str, detail: &str) {
 /// transient failure as a permanent miss. `-S` keeps curl's error message on
 /// stderr even under `-s`; curl exit 22 = HTTP ≥ 400 (e.g. 401 bad key), 28 =
 /// timeout, 6/7 = DNS/connect.
-fn curl_json<T: for<'de> Deserialize<'de>>(
+pub(super) fn curl_json<T: for<'de> Deserialize<'de>>(
     url: &str,
     api_key: &str,
     params: &[(&str, String)],

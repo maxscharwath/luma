@@ -394,6 +394,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Bundle a self-contained mpv (pinned pkgforge AppImage, sha256-verified) as
+      # the `luma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
+      - name: Fetch bundled mpv (Linux sidecar)
+        if: runner.os == 'Linux'
+        run: bash clients/desktop/scripts/fetch-mpv.sh
+
       # Windows Authenticode: import the PFX + inject its thumbprint so `tauri build`
       # signs the .exe/.msi. No-ops (unsigned) when the secret is unset.
       - name: Windows code-signing setup

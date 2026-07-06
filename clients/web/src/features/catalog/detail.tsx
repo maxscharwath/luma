@@ -83,11 +83,15 @@ export interface DetailHeroProps {
   directors?: string[];
   tagline?: string | null;
   overview?: string | null;
-  audio: string;
-  subtitles: string;
+  /** Primary audio line; omit to hide the audio/subtitle fields (not-owned titles). */
+  audio?: string;
+  subtitles?: string;
   playLabel?: string;
+  /** Replaces the default Play button (e.g. a Request CTA / status chip for a
+   * title that isn't in the library). When set, `onPlay` is ignored. */
+  primaryAction?: ReactNode;
   onBack: () => void;
-  onPlay: () => void;
+  onPlay?: () => void;
   /** Watched state for the title; omit (undefined) to hide the watched toggle. */
   watched?: boolean;
   /** Flip the watched flag. Required for the watched toggle to render. */
@@ -128,6 +132,7 @@ export function DetailHero({
   audio,
   subtitles,
   playLabel,
+  primaryAction,
   onBack,
   onPlay,
   watched,
@@ -245,9 +250,12 @@ export function DetailHero({
           ) : null}
 
           <div className="mb-6.5 flex flex-wrap items-center gap-3.5">
-            <Button onClick={onPlay} icon={<PlayIcon />}>
-              {playLabel ?? t('content.play')}
-            </Button>
+            {primaryAction ??
+              (onPlay ? (
+                <Button onClick={onPlay} icon={<PlayIcon />}>
+                  {playLabel ?? t('content.play')}
+                </Button>
+              ) : null)}
             {onToggleWatched ? (
               <button
                 type="button"
@@ -286,10 +294,14 @@ export function DetailHero({
             {adminAction}
           </div>
 
-          <div className="flex flex-wrap gap-x-11 gap-y-4 border-t border-white/8 py-4.5">
-            <Field label={t('content.fieldAudio')} value={audio} />
-            <Field label={t('content.fieldSubtitles')} value={subtitles} />
-          </div>
+          {audio != null || subtitles != null ? (
+            <div className="flex flex-wrap gap-x-11 gap-y-4 border-t border-white/8 py-4.5">
+              {audio != null ? <Field label={t('content.fieldAudio')} value={audio} /> : null}
+              {subtitles != null ? (
+                <Field label={t('content.fieldSubtitles')} value={subtitles} />
+              ) : null}
+            </div>
+          ) : null}
           {unsupported ? <p className="mt-3.5 text-[13px] text-muted">{unsupported}</p> : null}
         </div>
       </div>

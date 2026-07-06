@@ -103,6 +103,40 @@ pub enum ServerEvent {
     PipelineStats {
         stages: Vec<crate::model::StageStat>,
     },
+    /// A media request changed state (created / approved / denied / became
+    /// available...). Low-frequency: clients refetch their request lists on it.
+    #[serde(rename = "request.updated")]
+    RequestUpdated { id: String, status: String },
+    /// Live download progress (~one frame per active torrent per monitor
+    /// tick). High-frequency: the admin shell SKIPS it for its tick (like
+    /// job.progress); pages wanting smooth bars consume it on their own
+    /// stream.
+    #[serde(rename = "download.progress")]
+    DownloadProgress {
+        id: String,
+        #[serde(rename = "requestId")]
+        request_id: Option<String>,
+        progress: f64,
+        #[serde(rename = "downBps")]
+        down_bps: u64,
+        #[serde(rename = "upBps")]
+        up_bps: u64,
+        peers: u32,
+        #[serde(rename = "peersSeen")]
+        peers_seen: u32,
+        state: String,
+    },
+    /// A download finished (import follows).
+    #[serde(rename = "download.completed")]
+    DownloadCompleted { id: String, title: String },
+    /// The VPN kill-switch state changed.
+    #[serde(rename = "vpn.status")]
+    VpnStatus {
+        connected: bool,
+        #[serde(rename = "exitIp")]
+        exit_ip: Option<String>,
+        paused: bool,
+    },
 }
 
 /// Cheap-to-clone handle to the broadcast channel. The channel carries the

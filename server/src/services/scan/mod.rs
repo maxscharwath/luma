@@ -11,7 +11,7 @@
 //! that aggregates them into the [`ScanData`] handed to [`crate::db::sync_all`].
 
 mod ids;
-mod walk;
+pub(crate) mod walk;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,7 +25,7 @@ use crate::services::settings::LibraryDef;
 
 use walk::scan_root;
 
-pub use ids::short_hash;
+pub use ids::{movie_logical_id, short_hash};
 
 /// Everything a phase-1 scan produces, ready to hand to [`crate::db::sync_all`].
 #[derive(Debug, Default)]

@@ -85,3 +85,16 @@
     transform: translate(-50%, -50%) scale(1);
   }
 }
+
+/* The shared @luma/ui `:focus-visible` amber ring (essential for 10-foot TV
+   navigation) is UNLAYERED, so it beats Tailwind's layered utilities and the
+   InputGroup's `focus-visible:shadow-none` never actually suppressed it. On the
+   web, text inputs signal focus with their field border, so a ring drawn around
+   the raw <input> doubles up into a broken offset outline. Kill the ring for
+   form controls here (also unlayered + higher specificity, so it wins); buttons
+   and links keep it. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: none;
+}

@@ -5,4 +5,4 @@
  * below. Extend this enum (and the TS mirror in `@luma/core`) to add more
  * e.g. a `stats.view` for the upcoming stats pages.
  */
-export type Permission = "users.manage" | "library.manage" | "settings.manage" | "playback";
+export type Permission = "users.manage" | "library.manage" | "settings.manage" | "playback" | "requests.create" | "requests.manage" | "requests.auto";
