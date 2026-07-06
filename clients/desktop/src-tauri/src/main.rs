@@ -35,6 +35,19 @@ fn main() {
         if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
+        // Disabling DMABUF is not enough on some Wayland stacks (verified on the
+        // Steam Deck): WebKitGTK's *native Wayland* backend still can't create an
+        // EGL display ("Could not create default EGL display: EGL_BAD_PARAMETER"),
+        // the web process aborts, and the transparent window shows NOTHING. Pin GTK
+        // to X11 so the webview runs over XWayland instead, whose GLX/EGL path is the
+        // battle-tested one on the Deck (gamescope in Game Mode, KDE in Desktop mode
+        // both provide XWayland). Compositing stays on, so window transparency (mpv
+        // behind the webview) is unaffected - unlike WEBKIT_DISABLE_COMPOSITING_MODE.
+        // This is the webview analog of mpv.rs's "GLX via X11, no EGL" ladder rung.
+        // An explicit GDK_BACKEND (e.g. a user pinning wayland) is respected.
+        if std::env::var_os("GDK_BACKEND").is_none() {
+            std::env::set_var("GDK_BACKEND", "x11");
+        }
     }
 
     #[allow(unused_mut)]
