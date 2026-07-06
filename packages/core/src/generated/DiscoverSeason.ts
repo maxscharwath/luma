@@ -9,6 +9,10 @@ export type DiscoverSeason = { season: number, name: string | null, episodeCount
  */
 available: boolean, 
 /**
+ * How many of the season's episodes are on disk (for "4/6" partial state).
+ */
+episodesAvailable: number, 
+/**
  * Covered by an open request.
  */
 requested: boolean, };

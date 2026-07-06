@@ -57,32 +57,51 @@ export function DiscoverSeasons({
 function SeasonCard({ s, onPick }: Readonly<{ s: DiscoverSeason; onPick: () => void }>) {
   const t = useT();
   const locked = s.available || s.requested;
+  // Some but not all episodes on disk: still requestable (fills only the gaps).
+  const partial = !s.available && s.episodesAvailable > 0;
   const year = airYear(s.airDate);
-  const sub = [t('discover.episodesN', { n: String(s.episodeCount) }), year]
-    .filter(Boolean)
-    .join(' · ');
+  const epLabel = partial
+    ? t('discover.episodesPartial', {
+        have: String(s.episodesAvailable),
+        total: String(s.episodeCount),
+      })
+    : t('discover.episodesN', { n: String(s.episodeCount) });
+  const sub = [epLabel, year].filter(Boolean).join(' · ');
 
   return (
     <button
       type="button"
       disabled={locked}
       onClick={onPick}
+      title={partial ? t('discover.fillGapsHint') : undefined}
       className={`group flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
         locked
           ? 'cursor-default border-white/[0.05] bg-white/[0.02]'
-          : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/50 hover:bg-white/[0.06]'
+          : partial
+            ? 'border-[#F4B642]/30 bg-[#F4B642]/[0.06] hover:border-[#F4B642]/60 hover:bg-[#F4B642]/[0.10]'
+            : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/50 hover:bg-white/[0.06]'
       }`}
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-bold">
           {s.name ?? t('discover.seasonN', { n: String(s.season) })}
         </span>
-        <span className="mt-0.5 block truncate text-[12px] font-medium text-white/45">{sub}</span>
+        <span
+          className={`mt-0.5 block truncate text-[12px] font-medium ${partial ? 'text-[#F4B642]' : 'text-white/45'}`}
+        >
+          {sub}
+        </span>
       </span>
       {locked ? (
         <RequestStatusChip status={s.available ? 'available' : 'pending'} size="card" />
       ) : (
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-ink">
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+            partial
+              ? 'bg-[#F4B642]/15 text-[#F4B642] group-hover:bg-[#F4B642] group-hover:text-black'
+              : 'bg-accent/12 text-accent group-hover:bg-accent group-hover:text-accent-ink'
+          }`}
+        >
           <IconPlus size={16} stroke={2.6} />
         </span>
       )}

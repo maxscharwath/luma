@@ -19,7 +19,8 @@ use crate::db;
 use crate::i18n;
 use crate::infra::metadata::discover;
 use crate::model::{
-    DiscoverDetail, DiscoverEntry, DiscoverResponse, DiscoverSeason, Permission, RequestKind, User,
+    DiscoverDetail, DiscoverEntry, DiscoverResponse, DiscoverSeason, Permission, RequestKind,
+    RequestStatus, User,
 };
 use crate::services::settings;
 use crate::state::SharedState;
@@ -183,6 +184,27 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
     let local_id = local_id_for(conn, d.kind, d.tmdb_id)?;
     let request = db::latest_request_for(conn, d.kind, d.tmdb_id)?;
 
+    // Overlay the live acquisition phase + progress from the download ledger, so
+    // the detail page shows "Téléchargement 45%" the same way the queue does.
+    let (mut request_status, mut request_progress) = (request.as_ref().map(|(_, s)| *s), None);
+    if let Some((rid, _)) = &request {
+        if let Some(active) =
+            db::requests_with_active_downloads(conn)?.into_iter().find(|a| &a.request_id == rid)
+        {
+            if matches!(
+                request_status,
+                Some(RequestStatus::Approved | RequestStatus::PartiallyAvailable)
+            ) {
+                request_status = Some(if active.importing {
+                    RequestStatus::Importing
+                } else {
+                    RequestStatus::Downloading
+                });
+                request_progress = Some(active.progress);
+            }
+        }
+    }
+
     // Season flags: available = every listed episode is on disk; requested =
     // covered by the newest open request (None = whole show).
     let mut seasons: Vec<DiscoverSeason> = Vec::with_capacity(d.seasons.len());
@@ -207,6 +229,7 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
                 episode_count: s.episode_count,
                 air_date: s.air_date.clone(),
                 available: s.episode_count > 0 && have >= s.episode_count,
+                episodes_available: have,
                 requested: requested_seasons
                     .as_ref()
                     .is_some_and(|list| list.contains(&s.season)),
@@ -233,6 +256,7 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
         in_library: local_id.is_some(),
         local_id,
         request_id: request.as_ref().map(|(id, _)| id.clone()),
-        request_status: request.map(|(_, s)| s),
+        request_status,
+        request_progress,
     })
 }

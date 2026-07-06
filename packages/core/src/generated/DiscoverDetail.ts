@@ -27,4 +27,8 @@ crew: Array<CrewMember>,
  * "Titres similaires" TMDB recommendations, flagged against the local
  * catalog + open requests so each tile deep-links correctly.
  */
-similar: Array<DiscoverEntry>, inLibrary: boolean, localId: string | null, requestId: string | null, requestStatus: RequestStatus | null, };
+similar: Array<DiscoverEntry>, inLibrary: boolean, localId: string | null, requestId: string | null, requestStatus: RequestStatus | null, 
+/**
+ * Live download progress (0..1) while the request is downloading/importing.
+ */
+requestProgress: number | null, };

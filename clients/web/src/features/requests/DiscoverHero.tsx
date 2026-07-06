@@ -199,7 +199,7 @@ function HeroCta({
   }
 
   if (status && status !== 'denied') {
-    return <RequestStatusChip status={status} size="hero" />;
+    return <RequestStatusChip status={status} size="hero" progress={detail.requestProgress} />;
   }
 
   return (

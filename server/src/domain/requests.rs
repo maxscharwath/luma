@@ -192,6 +192,8 @@ pub struct DiscoverSeason {
     pub air_date: Option<String>,
     /// Every episode of this season is already in the library.
     pub available: bool,
+    /// How many of the season's episodes are on disk (for "4/6" partial state).
+    pub episodes_available: u32,
     /// Covered by an open request.
     pub requested: bool,
 }
@@ -229,4 +231,7 @@ pub struct DiscoverDetail {
     pub local_id: Option<String>,
     pub request_id: Option<String>,
     pub request_status: Option<RequestStatus>,
+    /// Live download progress (0..1) while the request is downloading/importing.
+    #[serde(default)]
+    pub request_progress: Option<f64>,
 }

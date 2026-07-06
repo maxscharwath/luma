@@ -53,6 +53,8 @@
   "discover.allSeasons": "All seasons",
   "discover.seasonN": "Season {n}",
   "discover.episodesN": "{n} episodes",
+  "discover.episodesPartial": "{have}/{total} episodes",
+  "discover.fillGapsHint": "Request to fill the missing episodes",
   "discover.requestFailed": "Request failed",
   "discover.viewInLibrary": "View in library",
   "requests.myTitle": "My requests",
