@@ -210,6 +210,9 @@ pub struct DownloadView {
     pub info_hash: Option<String>,
     /// Poster art (from the linked request), for the queue thumbnail.
     pub poster_url: Option<String>,
+    /// The catalog item id when the title is already in the library (imported),
+    /// so the queue can link to its LUMA detail page. `None` until imported.
+    pub local_id: Option<String>,
 }
 
 /// `GET /api/admin/downloads`.

@@ -27,9 +27,13 @@ pub fn routes() -> Router<SharedState> {
         .route("/downloads/search", post(manual_search))
         .route("/downloads/analyze", post(analyze))
         .route("/downloads/add", post(manual_add))
+        .route("/downloads/pause-all", post(pause_all))
+        .route("/downloads/resume-all", post(resume_all))
+        .route("/downloads/reannounce", post(reannounce_all))
         .route("/downloads/:id/pause", post(pause))
         .route("/downloads/:id/resume", post(resume))
         .route("/downloads/:id/retry", post(retry))
+        .route("/downloads/:id/reannounce", post(reannounce))
         .route("/downloads/:id", axum::routing::delete(remove))
 }
 
@@ -66,6 +70,14 @@ pub async fn list(
                 let title = req.as_ref().map(|r| r.title.clone()).unwrap_or_else(|| d.release_title.clone());
                 let poster_url = req.as_ref().and_then(|r| r.poster_url.clone());
                 let indexer_name = d.indexer_id.as_deref().and_then(|id| indexers.get(id).cloned());
+                // Link to the LUMA fiche once the title is in the library.
+                let local_id = req.as_ref().and_then(|r| {
+                    if d.kind == "movie" {
+                        db::movie_item_by_tmdb(&conn, r.tmdb_id).ok().flatten()
+                    } else {
+                        db::show_by_tmdb(&conn, r.tmdb_id).ok().flatten()
+                    }
+                });
                 DownloadView {
                     id: d.id,
                     client_name: clients.get(&d.client_id).cloned().unwrap_or_else(|| d.client_id.clone()),
@@ -88,6 +100,7 @@ pub async fn list(
                     details_url: d.details_url,
                     info_hash: d.info_hash,
                     poster_url,
+                    local_id,
                 }
             })
             .collect();
@@ -254,6 +267,52 @@ pub async fn resume(
 ) -> Result<Response, Response> {
     let downloads = state.downloads.clone();
     act(state.clone(), user, id, move |st, id| downloads.resume(st, id)).await
+}
+
+/// `POST /api/admin/downloads/:id/reannounce` "ask more peers" for one download.
+pub async fn reannounce(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+    AxPath(id): AxPath<String>,
+) -> Result<Response, Response> {
+    let downloads = state.downloads.clone();
+    act(state.clone(), user, id, move |st, id| downloads.reannounce(st, id)).await
+}
+
+/// `{ "count": N }` from a bulk queue action.
+fn bulk_response(out: anyhow::Result<usize>) -> Result<Response, Response> {
+    match out {
+        Ok(count) => Ok(Json(json!({ "count": count })).into_response()),
+        Err(e) => Err(json_error(StatusCode::BAD_REQUEST, &format!("{e:#}"))),
+    }
+}
+
+/// `POST /api/admin/downloads/pause-all`
+pub async fn pause_all(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    require_downloads(&user)?;
+    bulk_response(blocking(move || Ok(state.downloads.pause_all(&state))).await?)
+}
+
+/// `POST /api/admin/downloads/resume-all`
+pub async fn resume_all(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    require_downloads(&user)?;
+    bulk_response(blocking(move || Ok(state.downloads.resume_all(&state))).await?)
+}
+
+/// `POST /api/admin/downloads/reannounce` force a tracker re-announce ("ask more
+/// peers") on every active download.
+pub async fn reannounce_all(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    require_downloads(&user)?;
+    bulk_response(blocking(move || Ok(state.downloads.reannounce_all(&state))).await?)
 }
 
 /// `POST /api/admin/downloads/:id/retry` re-attempt a failed step. A `completed`

@@ -4,7 +4,14 @@
 
 import { type DownloadView, LumaEvents } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconDownload, IconShieldCheck, IconShieldX } from '@tabler/icons-react';
+import {
+  IconDownload,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconShieldCheck,
+  IconShieldX,
+  IconUsersPlus,
+} from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { DownloadClientsSection } from '#web/features/admin/downloadClients';
 import { DownloadRowView, type LiveDl } from '#web/features/admin/downloadRow';
@@ -132,6 +139,23 @@ export function DownloadsPage() {
         <StatCard label={t('downloads.statHistory')} value={String(doneRows.length)} />
       </div>
 
+      {activeRows.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <BulkBtn onClick={() => act(() => client.pauseAllDownloads())} busy={busy}>
+            <IconPlayerPause size={14} stroke={2.2} />
+            {t('downloads.pauseAll')}
+          </BulkBtn>
+          <BulkBtn onClick={() => act(() => client.resumeAllDownloads())} busy={busy}>
+            <IconPlayerPlay size={14} stroke={2.2} />
+            {t('downloads.resumeAll')}
+          </BulkBtn>
+          <BulkBtn onClick={() => act(() => client.reannounceDownloads())} busy={busy}>
+            <IconUsersPlus size={14} stroke={2.2} />
+            {t('downloads.askPeers')}
+          </BulkBtn>
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
         <div className="grid grid-cols-[minmax(0,1fr)_190px_120px_110px_84px] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3">
           <Head>{t('downloads.colRelease')}</Head>
@@ -149,6 +173,7 @@ export function DownloadsPage() {
             onPause={() => act(() => client.pauseDownload(dl.id))}
             onResume={() => act(() => client.resumeDownload(dl.id))}
             onRetry={() => act(() => client.retryDownload(dl.id))}
+            onAskPeers={() => act(() => client.reannounceDownload(dl.id))}
             onRemove={() => {
               setWipeData(true);
               setConfirm(dl);
@@ -202,4 +227,21 @@ export function DownloadsPage() {
 
 function Head({ children }: Readonly<{ children: ReactNode }>) {
   return <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">{children}</span>;
+}
+
+function BulkBtn({
+  onClick,
+  busy,
+  children,
+}: Readonly<{ onClick: () => void; busy: boolean; children: ReactNode }>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] bg-white/[0.04] px-3 py-2 text-[12.5px] font-semibold text-white/75 transition-colors hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
 }

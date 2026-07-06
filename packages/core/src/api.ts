@@ -508,6 +508,18 @@ export class LumaClient {
   retryDownload(id: string): Promise<void> {
     return acquisition.retryDownload(this.ctx, id);
   }
+  reannounceDownload(id: string): Promise<void> {
+    return acquisition.reannounceDownload(this.ctx, id);
+  }
+  pauseAllDownloads(): Promise<{ count: number }> {
+    return acquisition.pauseAllDownloads(this.ctx);
+  }
+  resumeAllDownloads(): Promise<{ count: number }> {
+    return acquisition.resumeAllDownloads(this.ctx);
+  }
+  reannounceDownloads(): Promise<{ count: number }> {
+    return acquisition.reannounceDownloads(this.ctx);
+  }
   removeDownload(id: string, opts?: { deleteData?: boolean }): Promise<void> {
     return acquisition.removeDownload(this.ctx, id, opts);
   }

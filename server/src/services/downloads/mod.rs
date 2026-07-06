@@ -479,6 +479,75 @@ impl DownloadManager {
         Ok(())
     }
 
+    /// Pause every LUMA-tracked download that is still active (best-effort per
+    /// row). Only our ledger's torrents are touched, never foreign torrents in a
+    /// shared external client. Returns how many were paused.
+    pub fn pause_all(&self, state: &SharedState) -> Result<usize> {
+        let rows = {
+            let conn = state.db.get()?;
+            db::active_downloads(&conn)?
+        };
+        let mut n = 0;
+        for row in rows {
+            if row.status == "paused" {
+                continue;
+            }
+            match self.pause(state, &row.id) {
+                Ok(()) => n += 1,
+                Err(e) => tracing::warn!(id = %row.id, error = %format!("{e:#}"), "pause_all: skipped a download"),
+            }
+        }
+        Ok(n)
+    }
+
+    /// Resume every LUMA download we previously paused. Returns the count.
+    pub fn resume_all(&self, state: &SharedState) -> Result<usize> {
+        let rows = {
+            let conn = state.db.get()?;
+            db::active_downloads(&conn)?
+        };
+        let mut n = 0;
+        for row in rows {
+            if row.status != "paused" {
+                continue;
+            }
+            match self.resume(state, &row.id) {
+                Ok(()) => n += 1,
+                Err(e) => tracing::warn!(id = %row.id, error = %format!("{e:#}"), "resume_all: skipped a download"),
+            }
+        }
+        Ok(n)
+    }
+
+    /// Force a tracker/DHT re-announce ("ask more peers") on one download.
+    pub fn reannounce(&self, state: &SharedState, id: &str) -> Result<()> {
+        let (row, client) = self.row_and_client(state, id)?;
+        if !row.client_ref.is_empty() {
+            self.engine_for(&client)?.reannounce(&row.client_ref)?;
+        }
+        Ok(())
+    }
+
+    /// Force a tracker/DHT re-announce ("ask more peers") on every active
+    /// download. Best-effort per row. Returns how many were reannounced.
+    pub fn reannounce_all(&self, state: &SharedState) -> Result<usize> {
+        let rows = {
+            let conn = state.db.get()?;
+            db::active_downloads(&conn)?
+        };
+        let mut n = 0;
+        for row in rows {
+            if row.client_ref.is_empty() || row.status == "paused" {
+                continue;
+            }
+            match self.reannounce(state, &row.id) {
+                Ok(()) => n += 1,
+                Err(e) => tracing::warn!(id = %row.id, error = %format!("{e:#}"), "reannounce_all: skipped a download"),
+            }
+        }
+        Ok(n)
+    }
+
     fn row_and_client(&self, state: &SharedState, id: &str) -> Result<(DownloadRow, DownloadClientRow)> {
         let conn = state.db.get()?;
         let row = db::get_download(&conn, id)?.ok_or_else(|| anyhow!("download not found"))?;

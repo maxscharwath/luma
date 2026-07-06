@@ -187,6 +187,10 @@ impl DownloadClient for Transmission {
         self.rpc("torrent-start", json!({ "ids": [client_ref] })).map(|_| ())
     }
 
+    fn reannounce(&self, client_ref: &str) -> Result<()> {
+        self.rpc("torrent-reannounce", json!({ "ids": [client_ref] })).map(|_| ())
+    }
+
     fn remove(&self, client_ref: &str, delete_data: bool) -> Result<()> {
         self.rpc(
             "torrent-remove",

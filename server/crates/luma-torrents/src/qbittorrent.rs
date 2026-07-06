@@ -189,6 +189,10 @@ impl DownloadClient for QBittorrent {
         self.post("/api/v2/torrents/resume", &[("hashes", client_ref)]).map(|_| ())
     }
 
+    fn reannounce(&self, client_ref: &str) -> Result<()> {
+        self.post("/api/v2/torrents/reannounce", &[("hashes", client_ref)]).map(|_| ())
+    }
+
     fn remove(&self, client_ref: &str, delete_data: bool) -> Result<()> {
         self.post(
             "/api/v2/torrents/delete",
