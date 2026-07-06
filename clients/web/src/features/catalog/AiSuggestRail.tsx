@@ -1,58 +1,20 @@
-// The per-title "Suggestions IA" rail on a detail page. The server generates
-// these lazily with the LLM connector and caches them, so the first view returns
-// `null` (generating) we poll until a section arrives (its items may be empty
-// when the model found nothing, in which case we render nothing). Reuses the same
-// Poster/Rail as the home + similar rails, and handles movies *and* shows.
+// The per-title "Suggestions IA" rail on a detail page. The shared `useAiSuggest`
+// hook polls the lazily-generated section (LLM connector, server-cached); while it
+// generates we show a subtle progress ring, and once items arrive we render them
+// in the same Poster/Rail as the home + similar rails (movies *and* shows). Empty
+// items or a timeout → render nothing.
 
-import { type Section } from '@luma/core';
-import { useT } from '@luma/ui';
-import { useEffect, useState } from 'react';
+import { ProgressRing, useAiSuggest, useT } from '@luma/ui';
 import { SectionPoster } from '#web/features/catalog/cards';
 import { useAuth } from '#web/shared/lib/auth';
 import { Rail } from '#web/shared/ui';
 
 const HEADING = 'mb-1 px-(--gutter-web) font-display text-[22px] font-bold tracking-[-.02em]';
-/** How many times to re-poll while the model is still generating (×6s ≈ 72s). */
-const MAX_POLLS = 12;
 
 export function AiSuggestRail({ id }: Readonly<{ id: string }>) {
   const t = useT();
   const { ready, user, client } = useAuth();
-  const [section, setSection] = useState<Section | null>(null);
-  const [pending, setPending] = useState(true);
-
-  useEffect(() => {
-    if (!ready || !user) return;
-    let cancelled = false;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    setSection(null);
-    setPending(true);
-    const poll = () => {
-      client
-        .aiSuggest(id)
-        .then((res) => {
-          if (cancelled) return;
-          if (res) {
-            // Terminal: a section (possibly with empty items).
-            setSection(res);
-            setPending(false);
-          } else if (tries++ < MAX_POLLS) {
-            timer = setTimeout(poll, 6000); // still generating
-          } else {
-            setPending(false); // gave up waiting
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setPending(false);
-        });
-    };
-    poll();
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [id, ready, user, client]);
+  const { section, pending, progress } = useAiSuggest(client, id, { active: ready && !!user });
 
   if (section && section.items.length > 0) {
     return (
@@ -82,7 +44,10 @@ export function AiSuggestRail({ id }: Readonly<{ id: string }>) {
     return (
       <section className="mt-11">
         <h2 className={HEADING}>{t('content.aiSuggestions')}</h2>
-        <p className="mt-3 px-(--gutter-web) text-[14px] text-white/40">{t('content.aiSuggestionsLoading')}</p>
+        <div className="mt-3 flex items-center gap-3 px-(--gutter-web)">
+          <ProgressRing value={progress} />
+          <span className="text-[14px] text-white/40">{t('content.aiSuggestionsLoading')}</span>
+        </div>
       </section>
     );
   }
