@@ -32,6 +32,9 @@ WORKDIR /src
 # Warm the dependency cache (the default `whisper-local` feature pulls the candle
 # stack, which is slow) before copying sources so a code-only change reuses it.
 COPY server/Cargo.toml server/Cargo.lock ./server/
+# The workspace members (crates/*) must be present for cargo to resolve the
+# dependency graph, otherwise the stub-main build below fails to solve.
+COPY server/crates ./server/crates
 RUN cd server \
     && mkdir -p src && echo 'fn main() {}' > src/main.rs \
     && cargo build --release \
