@@ -40,8 +40,69 @@ const OBSERVED: &[&str] = &[
     "track-list", // audio-track ids, so the player selects the RIGHT language
 ];
 
+/// mpv args shared by every video-output attempt (everything except the
+/// `--vo`/`--gpu-*` selection and the `--input-ipc-server`, which vary per rung).
+const BASE_ARGS: &[&str] = &[
+    "--idle=yes",         // stay alive with no file (we loadfile later)
+    "--force-window=yes", // create the video window up front
+    "--fullscreen",       // fill the Deck screen behind the UI
+    "--ontop=no",         // stay BELOW the always-on-top Tauri window
+    "--no-osc",           // no mpv on-screen controls (LUMA draws its own)
+    "--no-input-default-bindings",
+    "--no-terminal",
+    "--no-config",          // deterministic: ignore any user mpv.conf
+    "--keep-open=no",       // let end-file fire, then return to idle
+    "--hwdec=auto-safe",    // VA-API hardware decode where available
+    "--cache=yes",
+    "--hr-seek=yes",        // frame-accurate seeks for the scrub bar
+    "--force-seekable=yes", // seek HTTP sources even if length is unknown
+    "--sub-auto=no",        // LUMA renders its own subtitle overlay
+    "--sid=no",
+];
+
 fn socket_path() -> PathBuf {
     std::env::temp_dir().join("luma-mpv.sock")
+}
+
+/// Video-output fallback ladder, most-capable first. mpv aborts (and its IPC
+/// socket never appears) when a video output can't initialise its GPU context;
+/// [`start_mpv`] detects that early exit and drops to the next rung.
+///
+/// The default `gpu-next` needs an EGL/GL context that fails on some stacks -
+/// notably the Steam Deck's KDE-Wayland *desktop* session, which aborts with
+/// "Could not create default EGL display: EGL_BAD_PARAMETER" (the very same
+/// driver bug the webview dodges via `WEBKIT_DISABLE_DMABUF_RENDERER`). The
+/// later rungs sidestep that EGL path: Vulkan (the Deck's native API, no EGL),
+/// then GLX on X11/XWayland (no EGL), then plain software output (always works).
+///
+/// `LUMA_MPV_VO` pins exactly one output and skips the ladder (with optional
+/// `LUMA_MPV_GPU_API` / `LUMA_MPV_GPU_CONTEXT`) handy to lock in a known-good
+/// combo, or to probe one on a specific box without a rebuild.
+fn vo_ladder() -> Vec<Vec<String>> {
+    if let Ok(vo) = std::env::var("LUMA_MPV_VO") {
+        let vo = vo.trim();
+        if !vo.is_empty() {
+            let mut cfg = vec![format!("--vo={vo}")];
+            for (var, flag) in [
+                ("LUMA_MPV_GPU_API", "--gpu-api"),
+                ("LUMA_MPV_GPU_CONTEXT", "--gpu-context"),
+            ] {
+                if let Ok(val) = std::env::var(var) {
+                    let val = val.trim();
+                    if !val.is_empty() {
+                        cfg.push(format!("{flag}={val}"));
+                    }
+                }
+            }
+            return vec![cfg];
+        }
+    }
+    vec![
+        vec!["--vo=gpu-next".into()],                         // modern GPU output (auto context)
+        vec!["--vo=gpu-next".into(), "--gpu-api=vulkan".into()], // Vulkan: no EGL, ideal on the Deck
+        vec!["--vo=gpu".into(), "--gpu-context=x11".into()], // GLX via X11/XWayland: no EGL
+        vec!["--vo=x11".into()],                             // pure software: last-resort, always works
+    ]
 }
 
 /// Resolve the mpv binary. The bundled `luma-mpv` sidecar (Tauri externalBin: a
@@ -90,40 +151,21 @@ fn emit_error(app: &AppHandle, reason: &str) {
 pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
         let sock = socket_path();
-        let _ = std::fs::remove_file(&sock);
+        let binary = mpv_binary();
 
-        let child = Command::new(mpv_binary())
-            // The bundled luma-mpv is itself an AppImage; we spawn it from INSIDE the
-            // LUMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
-            // Force extract-and-run so mpv never depends on FUSE; harmless for a
-            // non-AppImage system mpv (it just ignores the var).
-            .env("APPIMAGE_EXTRACT_AND_RUN", "1")
-            .args([
-                "--idle=yes",            // stay alive with no file (we loadfile later)
-                "--force-window=yes",    // create the video window up front
-                "--fullscreen",          // fill the Deck screen behind the UI
-                "--ontop=no",            // stay BELOW the always-on-top Tauri window
-                "--no-osc",              // no mpv on-screen controls (LUMA draws its own)
-                "--no-input-default-bindings",
-                "--no-terminal",
-                "--no-config",           // deterministic: ignore any user mpv.conf
-                "--keep-open=no",        // let end-file fire, then return to idle
-                "--hwdec=auto-safe",     // VA-API hardware decode where available
-                "--vo=gpu-next",         // modern GPU video output
-                "--cache=yes",
-                "--hr-seek=yes",         // frame-accurate seeks for the scrub bar
-                "--force-seekable=yes",  // seek HTTP sources even if length is unknown
-                "--sub-auto=no",         // LUMA renders its own subtitle overlay
-                "--sid=no",
-            ])
-            .arg(format!("--input-ipc-server={}", sock.display()))
-            .spawn();
-
-        let child = match child {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("LUMA: failed to launch mpv (is it installed / on PATH?): {e}");
-                emit_error(&app, "spawn-failed");
+        // Bring mpv up on a video output this machine can actually initialise. The
+        // default gpu-next needs an EGL/GL context that aborts on some driver stacks
+        // (the Steam Deck's KDE-Wayland desktop: "Could not create default EGL
+        // display: EGL_BAD_PARAMETER"), so mpv dies and its IPC socket never appears.
+        // `start_mpv` walks the fallback ladder (Vulkan → GLX → software) until one
+        // stays up. On a healthy machine the first rung wins instantly.
+        let (child, stream) = match start_mpv(&binary, &sock) {
+            Ok(v) => v,
+            Err(reason) => {
+                if reason == "socket-timeout" {
+                    eprintln!("LUMA: mpv IPC socket never appeared at {}", sock.display());
+                }
+                emit_error(&app, reason);
                 return;
             }
         };
@@ -131,12 +173,6 @@ pub fn spawn(app: AppHandle) {
             *state.child.lock().unwrap() = Some(child);
         }
 
-        // mpv creates the socket asynchronously after launch; connect once it exists.
-        let Some(stream) = connect(&sock) else {
-            eprintln!("LUMA: mpv IPC socket never appeared at {}", sock.display());
-            emit_error(&app, "socket-timeout");
-            return;
-        };
         let read_half = match stream.try_clone() {
             Ok(s) => s,
             Err(e) => {
@@ -174,15 +210,68 @@ pub fn spawn(app: AppHandle) {
     });
 }
 
-/// Retry-connect to mpv's IPC socket for a few seconds after launch.
-fn connect(sock: &Path) -> Option<UnixStream> {
+/// Launch mpv, trying each rung of the video-output [`vo_ladder`] until one comes
+/// up with a live IPC socket. Failed rungs (mpv aborts on a bad GPU context) are
+/// killed and reaped before the next is tried. Returns the winning process + its
+/// connected socket, or an error reason (`spawn-failed` if the binary itself can't
+/// launch, `socket-timeout` if every rung failed to produce a socket).
+fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static str> {
+    let ladder = vo_ladder();
+    for cfg in &ladder {
+        let _ = std::fs::remove_file(sock);
+        let child = Command::new(binary)
+            // The bundled luma-mpv is itself an AppImage; we spawn it from INSIDE the
+            // LUMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
+            // Force extract-and-run so mpv never depends on FUSE; harmless for a
+            // non-AppImage system mpv (it just ignores the var).
+            .env("APPIMAGE_EXTRACT_AND_RUN", "1")
+            .args(BASE_ARGS)
+            .args(cfg)
+            .arg(format!("--input-ipc-server={}", sock.display()))
+            .spawn();
+
+        let mut child = match child {
+            Ok(c) => c,
+            Err(e) => {
+                // A missing / unspawnable binary won't be fixed by a different VO.
+                eprintln!("LUMA: failed to launch mpv (is it installed / on PATH?): {e}");
+                return Err("spawn-failed");
+            }
+        };
+
+        match await_socket(&mut child, sock) {
+            Some(stream) => {
+                eprintln!("LUMA: mpv up [{}]", cfg.join(" "));
+                return Ok((child, stream));
+            }
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                eprintln!(
+                    "LUMA: mpv could not start [{}]; trying a more compatible video output",
+                    cfg.join(" ")
+                );
+            }
+        }
+    }
+    Err("socket-timeout")
+}
+
+/// Wait for mpv's IPC socket to appear (it is created asynchronously after
+/// launch), short-circuiting the instant the process exits first - a failed video
+/// output aborts in well under a second, so we fail over fast rather than block
+/// the whole ~5s window on a rung that already died.
+fn await_socket(child: &mut Child, sock: &Path) -> Option<UnixStream> {
     for _ in 0..100 {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return None; // mpv aborted (e.g. EGL/GPU-context failure)
+        }
         if let Ok(s) = UnixStream::connect(sock) {
             return Some(s);
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    None
+    None // still no socket after ~5s and the process is alive: treat as stuck
 }
 
 /// Write one newline-delimited JSON IPC message to mpv. Errs when mpv is not

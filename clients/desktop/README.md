@@ -143,6 +143,14 @@ D-pad and stick - JMP's client is stick-only.)
   the least-certain part on the Deck's Game Mode compositor. If the UI or video doesn't
   layer correctly, this is the first thing to check (it may need gamescope-specific
   window hints, or driving mpv via `--wid` embedding instead).
+- **mpv GPU context / EGL.** mpv's default `--vo=gpu-next` needs an EGL/GL context that
+  aborts on some driver stacks (the Deck's KDE-Wayland *desktop* session: "Could not
+  create default EGL display: EGL_BAD_PARAMETER" - the same driver bug the webview dodges
+  with `WEBKIT_DISABLE_DMABUF_RENDERER`). `mpv.rs` now walks a fallback ladder
+  (`gpu-next` → `gpu-next`+Vulkan → `gpu`+GLX/X11 → software `x11`) and keeps the first
+  rung whose IPC socket comes up; the winning args are printed as `LUMA: mpv up [...]`.
+  Override with `LUMA_MPV_VO` (+ optional `LUMA_MPV_GPU_API` / `LUMA_MPV_GPU_CONTEXT`) to
+  pin one output and skip the ladder.
 - **HEVC via VA-API** - expected to work on the APU; confirm no software-decode fallback
   kicks in on 10-bit HEVC.
 - **HDR** is OLED-only (LCD Decks are SDR); a hardware limit, not ours.
