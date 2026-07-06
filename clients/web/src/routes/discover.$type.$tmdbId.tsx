@@ -1,21 +1,19 @@
-import { redirect } from '@tanstack/react-router';
-import { createFileRoute } from '@tanstack/react-router';
-import { DiscoverDetailView } from '#web/features/requests/discoverDetail';
+import { useT } from '@luma/ui';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useMemo } from 'react';
+import { TitleDetail } from '#web/features/catalog/titleDetail';
 import { lumaClient } from '#web/shared/lib/api';
+import { useAuth } from '#web/shared/lib/auth';
+import { buildTitleView } from '#web/shared/lib/titleView';
 
 export const Route = createFileRoute('/discover/$type/$tmdbId')({
   loader: async ({ params }) => {
-    const kind = params.type === 'tv' ? 'tv' : params.type === 'movie' ? 'movie' : null;
-    if (!kind) throw redirect({ to: '/search' });
+    if (params.type !== 'tv' && params.type !== 'movie') throw redirect({ to: '/search' });
+    const kind = params.type as 'movie' | 'tv';
     const detail = await lumaClient().discoverDetail(kind, Number(params.tmdbId));
-    // Only send the user back to the real fiche when the title is FULLY in the
-    // library. A show can be present but missing seasons - keep it here so the
-    // season picker can request the gaps (that's the whole point of this page).
-    const fullyAvailable =
-      detail.kind === 'show'
-        ? detail.seasons.length > 0 && detail.seasons.every((s) => s.available)
-        : detail.inLibrary;
-    if (fullyAvailable && detail.localId) {
+    // Owned (fully OR partially) → the canonical local fiche, which now overlays
+    // the season gaps itself. Only not-owned titles render on the discover route.
+    if (detail.localId) {
       throw redirect({
         to: detail.kind === 'show' ? '/show/$id' : '/movie/$id',
         params: { id: detail.localId },
@@ -27,6 +25,12 @@ export const Route = createFileRoute('/discover/$type/$tmdbId')({
 });
 
 function DiscoverRoute() {
+  const t = useT();
+  const { client, user } = useAuth();
   const detail = Route.useLoaderData();
-  return <DiscoverDetailView initial={detail} />;
+  const view = useMemo(
+    () => buildTitleView(client, t, user, { source: 'discover', detail }),
+    [client, t, user, detail],
+  );
+  return <TitleDetail key={detail.tmdbId} initial={view} />;
 }

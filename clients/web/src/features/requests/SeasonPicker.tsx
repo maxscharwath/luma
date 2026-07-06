@@ -2,20 +2,22 @@
 // or requested seasons disabled with their chip), a "toutes les saisons"
 // master, and the request action.
 
-import type { DiscoverDetail, DiscoverSeason } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconCheck, IconLoader2, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { RequestStatusChip } from '#web/features/requests/RequestStatusChip';
+import type { TitleSeason } from '#web/shared/lib/titleView';
 
 export function SeasonPicker({
-  detail,
+  seasons,
+  title,
   busy,
   initial,
   onClose,
   onRequest,
 }: Readonly<{
-  detail: DiscoverDetail;
+  seasons: TitleSeason[];
+  title: string;
   busy: boolean;
   /** Seasons ticked when the sheet opens; omit to preselect every open season
    * (e.g. clicking a single season card opens the sheet with just that one). */
@@ -26,9 +28,9 @@ export function SeasonPicker({
 }>) {
   const t = useT();
   // Seasons still requestable (not already fully available or requested).
-  const open = detail.seasons.filter((s) => !s.available && !s.requested);
+  const open = seasons.filter((s) => !s.available && !s.requested);
   const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(initial ?? open.map((s) => s.season)),
+    () => new Set(initial ?? open.map((s) => s.number)),
   );
 
   const toggle = (season: number) => {
@@ -39,12 +41,12 @@ export function SeasonPicker({
       return next;
     });
   };
-  const allOpen = open.length > 0 && open.every((s) => selected.has(s.season));
-  const toggleAll = () => setSelected(allOpen ? new Set() : new Set(open.map((s) => s.season)));
+  const allOpen = open.length > 0 && open.every((s) => selected.has(s.number));
+  const toggleAll = () => setSelected(allOpen ? new Set() : new Set(open.map((s) => s.number)));
 
   const submit = () => {
     // Whole show when every season is picked; otherwise the subset.
-    const all = detail.seasons.length === selected.size && open.length === detail.seasons.length;
+    const all = seasons.length === selected.size && open.length === seasons.length;
     onRequest(all ? null : Array.from(selected).sort((a, b) => a - b));
   };
 
@@ -62,7 +64,7 @@ export function SeasonPicker({
             <div className="text-[10px] font-bold uppercase tracking-[.14em] text-white/40">
               {t('discover.requestSeasons')}
             </div>
-            <h2 className="mt-1 font-display text-[19px] font-bold">{detail.title}</h2>
+            <h2 className="mt-1 font-display text-[19px] font-bold">{title}</h2>
           </div>
           <button type="button" onClick={onClose} className="text-white/60 hover:text-white">
             <IconX size={20} stroke={2.1} />
@@ -80,12 +82,12 @@ export function SeasonPicker({
               <span className="text-[14px] font-bold">{t('discover.allSeasons')}</span>
             </button>
           ) : null}
-          {detail.seasons.map((s) => (
+          {seasons.map((s) => (
             <SeasonRow
-              key={s.season}
+              key={s.number}
               s={s}
-              checked={selected.has(s.season)}
-              onToggle={() => toggle(s.season)}
+              checked={selected.has(s.number)}
+              onToggle={() => toggle(s.number)}
             />
           ))}
         </div>
@@ -110,7 +112,7 @@ function SeasonRow({
   s,
   checked,
   onToggle,
-}: Readonly<{ s: DiscoverSeason; checked: boolean; onToggle: () => void }>) {
+}: Readonly<{ s: TitleSeason; checked: boolean; onToggle: () => void }>) {
   const t = useT();
   const locked = s.available || s.requested;
   return (
@@ -129,7 +131,7 @@ function SeasonRow({
       )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-bold">
-          {s.name ?? t('discover.seasonN', { n: String(s.season) })}
+          {s.name ?? t('discover.seasonN', { n: String(s.number) })}
         </span>
         <span className="block text-[12px] font-medium text-white/45">
           {t('discover.episodesN', { n: String(s.episodeCount) })}
