@@ -1,7 +1,7 @@
 import type { MessageKey, Translate } from './i18n';
 import { match } from './match';
 import { formatRuntime } from './player';
-import type { AudioTrack, MediaItem, VideoTrack } from './types';
+import type { AudioTrack, MediaItem, VideoTrack } from '@luma/client';
 
 /** Request a downscaled rendition of LOCALLY-CACHED artwork (`?w=`, snapped to
  * a server-side bucket): a 200px card must not download the full 780px poster.
@@ -38,7 +38,7 @@ export function codecLabel(codec: string): string {
 }
 
 /** Top-right quality badge text for a video track, or null. */
-export function qualityBadgeForVideo(video: VideoTrack | null): string | null {
+export function qualityBadgeForVideo(video: VideoTrack | null | undefined): string | null {
   if (!video) return null;
   return match(video)
     .when((v) => v.hdr === true, 'HDR')

@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { TrendingPage } from '#web/features/requests/trendingPage';
+import { TrendingPage } from '#web/features/requests/trending-page';
 
 export const Route = createFileRoute('/trending/$type')({
   beforeLoad: ({ params }) => {

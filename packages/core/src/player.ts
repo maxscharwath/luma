@@ -1,6 +1,6 @@
-import type { LumaClient } from './api';
+import type { LumaClient } from '@luma/client';
 import { canDirectPlay, capabilities, type DirectPlayVerdict } from './hevc';
-import type { MediaItem } from './types';
+import type { MediaItem } from '@luma/client';
 
 export interface AttachOptions {
   /** Resume position in milliseconds. */
@@ -45,7 +45,7 @@ export function attachDirectPlay(
 }
 
 /** Format milliseconds as cinematic French runtime, e.g. "2h08" or "47min". */
-export function formatRuntime(durationMs: number | null): string {
+export function formatRuntime(durationMs: number | null | undefined): string {
   if (!durationMs || durationMs <= 0) return '';
   const totalMin = Math.round(durationMs / 60000);
   const h = Math.floor(totalMin / 60);

@@ -1,9 +1,10 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Player } from '#web/features/playback/Player';
-import { lumaClient, toMovieView } from '#web/shared/lib/api';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { Player } from '#web/features/playback/player';
+import { isAuthed, lumaClient, toMovieView } from '#web/shared/lib/api';
 
 export const Route = createFileRoute('/watch/$id')({
   loader: async ({ params }) => {
+    if (!isAuthed()) throw redirect({ to: '/' });
     const c = lumaClient();
     // The next episode (for the Netflix-style "up next" autoplay) is sequence-based
     // and public, so it loads alongside the item.

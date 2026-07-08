@@ -1,9 +1,9 @@
 import { createRootRoute, HeadContent, Scripts, useRouterState } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { AuthGate } from '#web/features/accounts/AuthGate';
-import { Intro } from '#web/features/catalog/Intro';
-import { Sidebar } from '#web/features/catalog/Sidebar';
-import { AuthProvider } from '#web/shared/lib/auth';
+import { AuthGate } from '#web/features/accounts/auth-gate';
+import { Intro } from '#web/features/catalog/intro';
+import { Sidebar } from '#web/features/catalog/sidebar';
+import { AuthProvider, useAuth } from '#web/shared/lib/auth';
 import { LocaleProvider } from '#web/shared/lib/locale';
 import { MyListProvider } from '#web/shared/lib/mylist';
 import { WatchedProvider } from '#web/shared/lib/watched';
@@ -24,10 +24,6 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  // The admin console (/admin/*) brings its own full-screen sidebar, so it
-  // escapes the main app's two-column grid.
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isAdmin = pathname.startsWith('/admin');
   return (
     // `lang` is the SSR default; LocaleProvider updates it client-side to match
     // the active locale (account preference → device → browser).
@@ -41,14 +37,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
             <MyListProvider>
               <LocaleProvider>
                 <AuthGate />
-                {isAdmin ? (
-                  children
-                ) : (
-                  <div className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)]">
-                    <Sidebar />
-                    {children}
-                  </div>
-                )}
+                <AppShell>{children}</AppShell>
               </LocaleProvider>
             </MyListProvider>
           </WatchedProvider>
@@ -58,5 +47,27 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <Scripts />
       </body>
     </html>
+  );
+}
+
+/** Renders the routed app, but only once a session exists so per-user route
+ * components (which fetch auth-gated data on mount) never run behind the login
+ * gate. Public pages the gate lets through (e.g. `/join`) still render signed
+ * out. The gate overlay covers the empty signed-out state. */
+function AppShell({ children }: Readonly<{ children: ReactNode }>) {
+  const { user, ready } = useAuth();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin = pathname.startsWith('/admin');
+  const isPublic = pathname === '/join';
+
+  if (!isPublic && !(ready && user)) return null;
+  // The admin console brings its own full-screen sidebar, so it escapes the
+  // main app's two-column grid.
+  if (isAdmin) return <>{children}</>;
+  return (
+    <div className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)]">
+      <Sidebar />
+      {children}
+    </div>
   );
 }

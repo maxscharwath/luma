@@ -41,7 +41,7 @@ export function TvQuickConnect() {
         const res = await client.quickConnectPoll(secret);
         if (cancelled) return;
         if (res.status === 'authorized') {
-          onAuthenticated({ token: res.token, user: res.user });
+          onAuthenticated({ token: res.token, accessToken: res.accessToken, user: res.user });
           return;
         }
         if (res.status === 'expired') {

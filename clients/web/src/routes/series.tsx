@@ -1,10 +1,11 @@
 import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
 import { ShowGrid } from '#web/features/catalog/cards';
-import { lumaClient, toShowView } from '#web/shared/lib/api';
+import { isAuthed, lumaClient, toShowView } from '#web/shared/lib/api';
 
 export const Route = createFileRoute('/series')({
   loader: async () => {
+    if (!isAuthed()) return { shows: [] };
     const c = lumaClient();
     const shows = await c.shows();
     return { shows: shows.map((s) => toShowView(c, s)) };

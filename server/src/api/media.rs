@@ -17,17 +17,25 @@ use crate::state::SharedState;
 use axum::routing::{get, post};
 use axum::Router;
 
-/// `/api` routes owned by this module: catalogue browsing, status and rescan.
-pub fn routes() -> Router<SharedState> {
+/// Public, unauthenticated routes: liveness + a minimal status probe. These must
+/// stay open the TV health monitor polls `/api/health` before any login, and
+/// they leak no catalogue data.
+pub fn public_routes() -> Router<SharedState> {
     Router::new()
         .route("/health", get(health))
+        .route("/status", get(status))
+}
+
+/// Authenticated catalogue routes: browsing, detail, logs and rescan. Gated by
+/// the session middleware in [`super`] so the library isn't listable anonymously.
+pub fn routes() -> Router<SharedState> {
+    Router::new()
         .route("/libraries", get(list_libraries))
         .route("/items", get(list_items))
         .route("/movies", get(list_movies))
         .route("/shows", get(list_shows))
         .route("/shows/:id", get(get_show))
         .route("/items/:id", get(get_item))
-        .route("/status", get(status))
         .route("/logs", get(logs))
         .route("/scan", post(rescan))
 }

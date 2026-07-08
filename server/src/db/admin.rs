@@ -43,7 +43,8 @@ pub fn settings_set(pool: &Pool, key: &str, value: &serde_json::Value) -> Result
 fn row_to_admin_user(r: &Row) -> rusqlite::Result<User> {
     // Reuse the User shape: cols 0..=5 match row_to_user, col 6 carries last_seen
     // (read as `language`, ignored by the caller, which re-reads col 6 itself),
-    // col 7 is the has_pin flag. The caller's SELECT must project all eight.
+    // col 7 is the has_pin flag, cols 8..=9 the playback-language prefs. The
+    // caller's SELECT must project all ten.
     row_to_user(r)
 }
 
@@ -53,7 +54,7 @@ fn row_to_admin_user(r: &Row) -> rusqlite::Result<User> {
 pub fn admin_users(pool: &Pool) -> Result<Vec<crate::model::AdminUser>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id,email,username,avatar_url,created_at,permissions,last_seen,(pin_hash IS NOT NULL) \
+        "SELECT id,email,username,avatar_url,created_at,permissions,last_seen,(pin_hash IS NOT NULL),audio_language,subtitle_language \
          FROM users ORDER BY created_at",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -85,7 +86,7 @@ pub fn get_user(pool: &Pool, id: &str) -> Result<Option<User>> {
     let conn = pool.get()?;
     let user = conn
         .query_row(
-            "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL) FROM users WHERE id = ?1",
+            "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL),audio_language,subtitle_language FROM users WHERE id = ?1",
             params![id],
             row_to_user,
         )

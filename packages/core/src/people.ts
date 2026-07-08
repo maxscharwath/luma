@@ -2,7 +2,7 @@
 // id in LUMA cast/crew are embedded in each title's TMDB metadata and matched by
 // name so all of this keys off a case-insensitive name comparison.
 
-import type { Metadata } from './generated';
+import type { Metadata } from '@luma/client';
 
 /** Case-insensitive, trimmed name equality (TMDB credit names). */
 function sameName(a: string, b: string): boolean {

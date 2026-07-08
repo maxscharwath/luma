@@ -10,6 +10,7 @@
 // reached), so even pre-auth copy is translated.
 
 import {
+  DEFAULT_LOCALE,
   detectLocale,
   isLocale,
   type Locale,
@@ -42,10 +43,22 @@ export function LocaleProvider({
 }: Readonly<LocaleProviderProps>) {
   const accountLocale = normalizeLocale(accountLanguage);
 
-  const [override, setOverride] = useState<Locale>(() => {
+  // Start from the deterministic project default so the SSR/prerendered shell and
+  // the first client render agree (no hydration mismatch). `detectLocale()` reads
+  // `navigator`/localStorage which differ between the Node prerender and the
+  // browser so the real device locale is adopted post-hydration in the effect
+  // below, not in this initializer.
+  const [override, setOverride] = useState<Locale>(DEFAULT_LOCALE);
+
+  // Post-hydration: adopt the device override (localStorage) or the browser
+  // locale, unless the signed-in account's preference already applies (handled
+  // by the effect below). Runs once on mount, client-side only.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; account changes are handled separately.
+  useEffect(() => {
+    if (accountLocale) return;
     const stored = loadLocalePref();
-    return isLocale(stored) ? stored : detectLocale();
-  });
+    setOverride(isLocale(stored) ? stored : detectLocale());
+  }, []);
 
   // The signed-in account's preference is authoritative: adopt it whenever it
   // becomes known or changes (sign-in, profile switch, or an `me()` refresh that

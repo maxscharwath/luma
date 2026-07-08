@@ -6,7 +6,7 @@ import { apiErrorText, type IndexerTestResult, type IndexerView } from '@luma/co
 import { useT } from '@luma/ui';
 import { IconAntenna, IconLoader2, IconPencil } from '@tabler/icons-react';
 import { useState } from 'react';
-import { IndexerModal } from '#web/features/admin/indexerModals';
+import { IndexerModal } from '#web/features/admin/indexer-modals';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';

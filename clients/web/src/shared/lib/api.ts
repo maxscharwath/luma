@@ -5,7 +5,15 @@
 // there's nothing to configure. Dev: the web (vite :3000) and API (:4040) are
 // separate origins, so a build-time `VITE_LUMA_SERVER` points at the API.
 // `window.__LUMA_API__` (if injected) still wins, for embedding flexibility.
-import { isTextSubtitle, loadSession, LumaClient, type MediaItem, type Show } from '@luma/core';
+import {
+  isTextSubtitle,
+  LumaClient,
+  loadSession,
+  type MediaItem,
+  type Show,
+  sessionToken,
+  setSessionToken,
+} from '@luma/core';
 
 declare global {
   interface Window {
@@ -40,12 +48,46 @@ export function apiBase(): string {
   return (env ?? DEFAULT_BASE).replace(/\/+$/, '');
 }
 
+/** Whether an account is active on this device (has a stored access token).
+ * Route loaders use this to skip fetching the (now auth-gated) catalogue before
+ * sign-in the router re-runs them once logged in (see the root invalidator). */
+export function isAuthed(): boolean {
+  return loadSession() != null;
+}
+
+// Silent refresh shared by every ad-hoc `lumaClient()`: on a 401 they exchange
+// the stored access token for a fresh in-memory session token. Deduped so a burst
+// of 401s (a page full of cards) triggers a single exchange.
+let refreshInFlight: Promise<string | undefined> | null = null;
+function refreshSession(): Promise<string | undefined> {
+  if (refreshInFlight) return refreshInFlight;
+  const active = loadSession();
+  if (!active) return Promise.resolve(undefined);
+  const c = new LumaClient({ baseUrl: apiBase() });
+  refreshInFlight = c
+    .exchangeToken(active.accessToken)
+    .then((res) => {
+      setSessionToken(res.token);
+      return res.token as string | undefined;
+    })
+    .catch(() => {
+      setSessionToken(undefined);
+      return undefined;
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
 export function lumaClient(): LumaClient {
-  // Carry the active session token (if any) so route loaders which now run on
-  // the client (SPA, no SSR) get per-user personalised catalogue DTOs, e.g. the
-  // per-show progress on cards. `loadSession()` is storage-guarded (null on the
-  // server), so this stays safe during the shell prerender.
-  return new LumaClient({ baseUrl: apiBase(), authToken: loadSession()?.token });
+  // The bearer is the in-memory session token (never persisted); a 401 refreshes
+  // it from the stored access token. `sessionToken()` is null during the shell
+  // prerender / before the boot exchange, which is fine those requests either
+  // hit public endpoints or trigger a refresh.
+  const c = new LumaClient({ baseUrl: apiBase(), authToken: sessionToken() });
+  c.setRefreshHandler(refreshSession);
+  return c;
 }
 
 /** Resolve a metadata image path (relative `/api/…` cached art, or an absolute

@@ -5,17 +5,14 @@
 //! client + cache that produce them live in [`crate::infra::metadata`].
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 /// Resolved provider metadata for one movie or show. Serialized to clients and
 /// round-tripped through the DB's `metadata` JSON column (hence `Deserialize`).
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata {
     // `&'static str` can't be deserialized into; it's always "tmdb" anyway, so
     // skip it on the way in and default it.
     #[serde(skip_deserializing, default = "default_provider")]
-    #[ts(type = "string")]
     pub provider: &'static str,
     #[serde(rename = "tmdbId")]
     pub tmdb_id: u64,
@@ -57,21 +54,18 @@ pub struct Metadata {
     /// in-memory by `infra::embed::build_doc` during enrichment; deliberately not
     /// persisted to the metadata JSON nor sent to clients.
     #[serde(default, skip_serializing)]
-    #[ts(skip)]
     pub keywords: Vec<String>,
     /// TheTVDB series id, from TMDB's `external_ids`. Internal: used during
     /// enrichment to look up the theme song (the tvthemes archive is TVDB-keyed),
     /// then dropped not persisted to the metadata JSON nor sent to clients.
     #[serde(default, skip_serializing)]
-    #[ts(skip)]
     pub tvdb_id: Option<u64>,
     #[serde(rename = "tmdbUrl")]
     pub tmdb_url: String,
 }
 
 /// One top-billed cast member, surfaced in the detail page's "Distribution".
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CastMember {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -85,8 +79,7 @@ pub struct CastMember {
 /// One key crew member (director, writer, creator), surfaced on the detail page
 /// and used to group director collections. `job` is the TMDB job title
 /// (`"Director"`, `"Writer"`, `"Creator"`, …).
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrewMember {
     pub name: String,
     pub job: String,

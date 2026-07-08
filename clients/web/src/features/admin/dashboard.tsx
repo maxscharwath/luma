@@ -5,7 +5,7 @@ import { HistoryBars, MetricsChart } from '#web/features/admin/charts';
 import {
   NowPlayingCard,
   StopStreamModal,
-} from '#web/features/admin/dashboardNowPlaying';
+} from '#web/features/admin/dashboard-now-playing';
 import { PageHeader, useAdmin, usePoll } from '#web/features/admin/shell';
 import { Avatar, C, Card, FilterLabel, Section } from '#web/features/admin/ui';
 import { decimal, formatDuration, formatMbps } from '#web/shared/lib/adminFormat';

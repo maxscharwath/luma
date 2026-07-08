@@ -37,6 +37,8 @@ pub fn create_user(
         permissions,
         created_at,
         has_pin: false,
+        audio_language: None,
+        subtitle_language: None,
     })
 }
 
@@ -139,10 +141,10 @@ pub fn delete_invite(pool: &Pool, token: &str) -> Result<()> {
 pub fn find_user_by_email(pool: &Pool, email: &str) -> Result<Option<(User, String)>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL),password_hash FROM users WHERE email = ?1",
+        "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL),audio_language,subtitle_language,password_hash FROM users WHERE email = ?1",
     )?;
     let mut rows = stmt.query_map(params![email], |r| {
-        Ok((row_to_user(r)?, r.get::<_, String>(8)?))
+        Ok((row_to_user(r)?, r.get::<_, String>(10)?))
     })?;
     match rows.next() {
         Some(v) => Ok(Some(v?)),
@@ -156,11 +158,11 @@ pub fn find_user_by_email(pool: &Pool, email: &str) -> Result<Option<(User, Stri
 pub fn find_user_by_login(pool: &Pool, identifier: &str) -> Result<Option<(User, String)>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL),password_hash FROM users \
+        "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL),audio_language,subtitle_language,password_hash FROM users \
          WHERE email = ?1 COLLATE NOCASE OR username = ?1 LIMIT 1",
     )?;
     let mut rows = stmt.query_map(params![identifier], |r| {
-        Ok((row_to_user(r)?, r.get::<_, String>(8)?))
+        Ok((row_to_user(r)?, r.get::<_, String>(10)?))
     })?;
     match rows.next() {
         Some(v) => Ok(Some(v?)),
@@ -215,6 +217,85 @@ pub fn set_user_language(pool: &Pool, user_id: &str, language: Option<&str>) -> 
     Ok(())
 }
 
+/// Set (or clear, with `None`) a user's preferred playback audio language.
+pub fn set_user_audio_language(pool: &Pool, user_id: &str, language: Option<&str>) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET audio_language = ?2 WHERE id = ?1",
+        params![user_id, language],
+    )?;
+    Ok(())
+}
+
+/// Set (or clear, with `None`) a user's preferred playback subtitle language
+/// (the sentinel `"off"` is a stored value meaning "force subtitles off").
+pub fn set_user_subtitle_language(pool: &Pool, user_id: &str, language: Option<&str>) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET subtitle_language = ?2 WHERE id = ?1",
+        params![user_id, language],
+    )?;
+    Ok(())
+}
+
+/// Whether `username` is already taken by *another* account, checking BOTH the
+/// username column (case-sensitive, as username login resolves) AND the email
+/// column (case-insensitive). Rejecting a username that equals someone's email
+/// closes the ambiguity in `find_user_by_login` (`email = ?1 OR username = ?1`),
+/// where an attacker could otherwise register/rename to a victim's email and
+/// shadow their email login. `exclude_id` skips the caller's own row.
+pub fn username_taken(pool: &Pool, username: &str, exclude_id: Option<&str>) -> Result<bool> {
+    let conn = pool.get()?;
+    let taken: i64 = match exclude_id {
+        Some(id) => conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE (username = ?1 OR email = ?1 COLLATE NOCASE) AND id <> ?2)",
+            params![username, id],
+            |r| r.get(0),
+        )?,
+        None => conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE username = ?1 OR email = ?1 COLLATE NOCASE)",
+            params![username],
+            |r| r.get(0),
+        )?,
+    };
+    Ok(taken != 0)
+}
+
+/// Change a user's email. The caller must pre-check for a duplicate to surface a
+/// clean 409; the `UNIQUE COLLATE NOCASE` constraint is the atomic backstop
+/// (a `rusqlite` error here is that collision).
+pub fn set_user_email(pool: &Pool, user_id: &str, email: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET email = ?2 WHERE id = ?1",
+        params![user_id, email],
+    )?;
+    Ok(())
+}
+
+/// The stored password hash for a user (for verifying the *current* password on
+/// a self-service change). `None` if the user id is unknown.
+pub fn user_password_hash(pool: &Pool, user_id: &str) -> Result<Option<String>> {
+    let conn = pool.get()?;
+    let hash = conn
+        .query_row("SELECT password_hash FROM users WHERE id = ?1", params![user_id], |r| {
+            r.get::<_, String>(0)
+        })
+        .optional()?;
+    Ok(hash)
+}
+
+/// Replace a user's password hash (self-service change; the caller verifies the
+/// current password first).
+pub fn set_user_password(pool: &Pool, user_id: &str, password_hash: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE users SET password_hash = ?2 WHERE id = ?1",
+        params![user_id, password_hash],
+    )?;
+    Ok(())
+}
+
 /// The stored PBKDF2 PIN hash for a user, or `None` when no PIN is set. Used by
 /// `/api/auth/pin/verify` and the set/clear handlers to compare the supplied PIN.
 pub fn user_pin_hash(pool: &Pool, user_id: &str) -> Result<Option<String>> {
@@ -254,7 +335,7 @@ pub fn session_user(pool: &Pool, token: &str) -> Result<Option<User>> {
     let conn = pool.get()?;
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
     let mut stmt = conn.prepare(
-        "SELECT u.id,u.email,u.username,u.avatar_url,u.created_at,u.permissions,u.language,(u.pin_hash IS NOT NULL) \
+        "SELECT u.id,u.email,u.username,u.avatar_url,u.created_at,u.permissions,u.language,(u.pin_hash IS NOT NULL),u.audio_language,u.subtitle_language \
          FROM sessions s JOIN users u ON u.id = s.user_id \
          WHERE s.token = ?1 AND s.expires_at > ?2",
     )?;
@@ -269,5 +350,74 @@ pub fn session_user(pool: &Pool, token: &str) -> Result<Option<User>> {
 pub fn delete_session(pool: &Pool, token: &str) -> Result<()> {
     let conn = pool.get()?;
     conn.execute("DELETE FROM sessions WHERE token = ?1", params![token])?;
+    Ok(())
+}
+
+// ----- access tokens (long-lived device credential) ---------------------------
+
+/// Persist a new access token. `pin_verified` is true when it was minted through
+/// a strong check (password login / correct PIN) so the exchange can skip the
+/// PIN on subsequent silent refreshes.
+pub fn create_access_token(
+    pool: &Pool,
+    token: &str,
+    user_id: &str,
+    expires_at: i64,
+    pin_verified: bool,
+) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "INSERT INTO access_tokens (token,user_id,created_at,expires_at,pin_verified,last_seen) \
+         VALUES (?1,?2,?3,?4,?5,?3)",
+        params![token, user_id, now_or_blank(), expires_at, pin_verified as i64],
+    )?;
+    Ok(())
+}
+
+/// Resolve a (non-expired) access token to its user plus the stored
+/// `pin_verified` flag. `None` when unknown/expired.
+pub fn access_token_user(pool: &Pool, token: &str) -> Result<Option<(User, bool)>> {
+    let conn = pool.get()?;
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    let mut stmt = conn.prepare(
+        "SELECT u.id,u.email,u.username,u.avatar_url,u.created_at,u.permissions,u.language,(u.pin_hash IS NOT NULL),u.audio_language,u.subtitle_language,a.pin_verified \
+         FROM access_tokens a JOIN users u ON u.id = a.user_id \
+         WHERE a.token = ?1 AND a.expires_at > ?2",
+    )?;
+    let mut rows = stmt.query_map(params![token, now], |r| {
+        Ok((row_to_user(r)?, r.get::<_, i64>(10)? != 0))
+    })?;
+    match rows.next() {
+        Some(v) => Ok(Some(v?)),
+        None => Ok(None),
+    }
+}
+
+/// Mark an access token PIN-verified (after a correct PIN on exchange), so later
+/// silent refreshes for a PIN-locked account skip the prompt.
+pub fn set_access_pin_verified(pool: &Pool, token: &str, verified: bool) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE access_tokens SET pin_verified = ?2 WHERE token = ?1",
+        params![token, verified as i64],
+    )?;
+    Ok(())
+}
+
+/// Re-lock every access token for a user (clear `pin_verified`). Called when the
+/// PIN is set/rotated/cleared so all devices must re-confirm the new state.
+pub fn reset_access_pin_verified(pool: &Pool, user_id: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE access_tokens SET pin_verified = 0 WHERE user_id = ?1",
+        params![user_id],
+    )?;
+    Ok(())
+}
+
+/// Delete an access token (device logout / disconnect). No-op if unknown.
+pub fn delete_access_token(pool: &Pool, token: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute("DELETE FROM access_tokens WHERE token = ?1", params![token])?;
     Ok(())
 }

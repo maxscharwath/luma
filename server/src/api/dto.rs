@@ -6,19 +6,15 @@
 //! the camelCase the clients expect.
 
 use serde::Serialize;
-use ts_rs::TS;
 
 use crate::infra::metrics::DiskInfo;
 use crate::model::{AdminUser, MediaItem, Permission, Show, User};
 use crate::services::settings::SettingGroup;
 
 /// `GET /api/health`.
-#[derive(Serialize, TS)]
-#[ts(export)]
+#[derive(Serialize)]
 pub struct Health {
-    #[ts(type = "string")]
     pub status: &'static str,
-    #[ts(type = "string")]
     pub version: &'static str,
     pub ffprobe: bool,
     pub libraries: usize,
@@ -26,19 +22,29 @@ pub struct Health {
     pub shows: usize,
 }
 
-/// `{ token, user }` returned by register/login.
-#[derive(Serialize, TS)]
-#[ts(export)]
+/// `{ token, accessToken, user }` returned by register/login. `token` is the
+/// short-lived session bearer; `accessToken` is the long-lived device credential
+/// the client stores and later exchanges (see `/auth/token`).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthResult {
+    pub token: String,
+    pub access_token: String,
+    pub user: User,
+}
+
+/// `{ token, user }` from `/auth/token` a fresh session minted from an access
+/// token (the access token itself is unchanged, so it isn't echoed back).
+#[derive(Serialize)]
+pub struct SessionResult {
     pub token: String,
     pub user: User,
 }
 
 /// `GET /api/auth/config` the public login-gate configuration, read before any
 /// credential so the client knows what to render.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct AuthConfig {
     /// Whether the account roster is public (the "Qui regarde ?" profile picker).
     /// Off by default: hiding it means knowing the URL no longer lists accounts.
@@ -49,9 +55,8 @@ pub struct AuthConfig {
 }
 
 /// `POST /api/invites` result the invite plus a ready-to-share join URL.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct InviteCreated {
     pub token: String,
     /// `<web>/join?invite=…` when the server knows the web URL, else null.
@@ -61,9 +66,8 @@ pub struct InviteCreated {
 }
 
 /// `POST /api/auth/quickconnect/initiate` a device-pairing request.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, rename = "QuickConnectInit")]
 pub struct QuickConnectInit {
     /// Short numeric code shown on the device.
     pub code: String,
@@ -75,23 +79,25 @@ pub struct QuickConnectInit {
 }
 
 /// `GET /api/auth/quickconnect/poll` result a status-tagged union.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(tag = "status", rename_all = "lowercase")]
-#[ts(export, rename = "QuickConnectStatus")]
 pub enum QuickPoll {
     Pending,
     Expired,
-    Authorized { token: String, user: User },
+    #[serde(rename_all = "camelCase")]
+    Authorized {
+        token: String,
+        access_token: String,
+        user: User,
+    },
 }
 
 /// Server identity + uptime for the admin sidebar status card.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ServerInfo {
     pub name: String,
     pub hostname: String,
-    #[ts(type = "string")]
     pub version: &'static str,
     pub uptime_sec: u64,
     pub online: bool,
@@ -99,9 +105,8 @@ pub struct ServerInfo {
 }
 
 /// Cache directory usage + counts, nested in [`StorageInfo`].
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct CacheInfo {
     pub dir: String,
     /// Total on-disk cache (transcode + images).
@@ -124,9 +129,8 @@ pub struct CacheInfo {
 }
 
 /// `GET /api/admin/storage`.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct StorageInfo {
     pub volumes: Vec<DiskInfo>,
     pub total_bytes: u64,
@@ -137,18 +141,16 @@ pub struct StorageInfo {
 }
 
 /// `GET /api/admin/users`.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct AdminUsers {
     pub users: Vec<AdminUser>,
     pub library_count: usize,
 }
 
 /// A named, multi-folder library (`GET /api/admin/libraries`).
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct AdminLibrary {
     pub id: String,
     pub name: String,
@@ -162,9 +164,8 @@ pub struct AdminLibrary {
 }
 
 /// One weekly bucket of the play-history chart.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct HistoryBucket {
     pub label: String,
     pub films_ms: i64,
@@ -172,9 +173,8 @@ pub struct HistoryBucket {
 }
 
 /// `GET /api/admin/stats/history`.
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct HistoryStats {
     pub buckets: Vec<HistoryBucket>,
     pub total_films_ms: i64,
@@ -182,8 +182,7 @@ pub struct HistoryStats {
 }
 
 /// `GET /api/admin/stats/overview`.
-#[derive(Serialize, TS)]
-#[ts(export)]
+#[derive(Serialize)]
 pub struct AdminOverview {
     pub users: usize,
     pub online: usize,
@@ -194,8 +193,7 @@ pub struct AdminOverview {
 }
 
 /// `GET /api/admin/settings?view=…`.
-#[derive(Serialize, TS)]
-#[ts(export)]
+#[derive(Serialize)]
 pub struct SettingsView {
     pub view: String,
     pub groups: Vec<SettingGroup>,
@@ -204,9 +202,8 @@ pub struct SettingsView {
 /// `GET /api/admin/llm` the multi-provider LLM configuration for the IA admin
 /// page: the global enable flag, the id of the default provider used for
 /// generation, and every configured provider (API keys never returned).
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct LlmAdminConfig {
     pub enabled: bool,
     /// Id of the provider used for generation (falls back to the first).
@@ -216,9 +213,8 @@ pub struct LlmAdminConfig {
 
 /// One configured provider as shown to the admin the API key itself is never
 /// returned, only whether one is set (`has_api_key`).
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct LlmProviderView {
     pub id: String,
     pub name: String,
@@ -235,9 +231,8 @@ pub struct LlmProviderView {
 
 /// One ranked result of `GET /api/search` a `type`-tagged union so the client
 /// can switch on it (`movie`/`episode` carry a `MediaItem`, `show` a `Show`).
-#[derive(Serialize, TS)]
+#[derive(Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-#[ts(export)]
 pub enum SearchHit {
     Movie { item: MediaItem },
     Show { show: Show },
@@ -245,8 +240,7 @@ pub enum SearchHit {
 }
 
 /// `GET /api/search?q=…` the echoed query plus hits in descending relevance.
-#[derive(Serialize, TS)]
-#[ts(export)]
+#[derive(Serialize)]
 pub struct SearchResponse {
     pub query: String,
     pub results: Vec<SearchHit>,
@@ -255,8 +249,7 @@ pub struct SearchResponse {
 /// `GET /api/people?name=…` every movie + show one person is credited in (cast
 /// or key crew), best-known work first. Reuses [`SearchHit`] so clients render the
 /// results with their existing card UI.
-#[derive(Serialize, TS)]
-#[ts(export)]
+#[derive(Serialize)]
 pub struct PersonResponse {
     /// The matched person's name (echoed; original casing from the request).
     pub name: String,

@@ -6,7 +6,6 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use ts_rs::TS;
 
 use crate::db::Pool;
 use crate::infra::events::{Bus, ServerEvent};
@@ -38,8 +37,7 @@ pub struct Ping {
 
 /// A live playback session, serialized for the admin API. Field names feed the
 /// dashboard's "En cours de lecture" card directly.
-#[derive(Clone, Serialize, TS)]
-#[ts(export, rename = "PlaybackSession")]
+#[derive(Clone, Serialize)]
 pub struct Session {
     pub id: String,
     #[serde(rename = "userId", skip_serializing_if = "Option::is_none")]

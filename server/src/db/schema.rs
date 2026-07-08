@@ -143,6 +143,19 @@ pub(crate) const SCHEMA: &str = "
         created_at TEXT NOT NULL,
         expires_at INTEGER NOT NULL
     );
+    -- Long-lived per-device credential. The client stores ONLY this (not a bearer
+    -- session) and exchanges it for a short-lived session token via /auth/token.
+    -- `pin_verified` gates the exchange for PIN-locked accounts: it's set once the
+    -- correct PIN is presented (or at password login) and lets subsequent silent
+    -- refreshes skip the PIN; returning to the profile picker re-locks it.
+    CREATE TABLE IF NOT EXISTS access_tokens (
+        token        TEXT PRIMARY KEY,
+        user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at   TEXT NOT NULL,
+        expires_at   INTEGER NOT NULL,
+        pin_verified INTEGER NOT NULL DEFAULT 0,
+        last_seen    TEXT
+    );
     CREATE TABLE IF NOT EXISTS progress (
         user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         item_id     TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -551,6 +564,16 @@ fn migrate(conn: &Connection) {
         "ALTER TABLE users ADD COLUMN language TEXT",
         // Optional profile-lock PIN (PBKDF2 hash, own salt). NULL = no PIN.
         "ALTER TABLE users ADD COLUMN pin_hash TEXT",
+        // Per-account playback language preferences, synced across devices.
+        // audio_language: preferred audio ISO code (NULL = no preference).
+        // subtitle_language: preferred subtitle ISO code, or "off" (NULL = none).
+        "ALTER TABLE users ADD COLUMN audio_language TEXT",
+        "ALTER TABLE users ADD COLUMN subtitle_language TEXT",
+        // Backstop the app-level username-uniqueness check against a check-then-
+        // write race. Best-effort: on a legacy DB that already holds duplicate
+        // usernames the index creation errors and is ignored (the app check still
+        // covers the common case); fresh/clean DBs gain the hard guarantee.
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)",
         // `season_meta` shipped briefly with a `cast` column a reserved SQLite
         // keyword that breaks unquoted SELECT/INSERT. Rename to `casts`. Errors
         // ("no such column") once renamed / on fresh DBs, which we ignore.

@@ -1,13 +1,14 @@
 import { useT } from '@luma/ui';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { TitleDetail } from '#web/features/catalog/titleDetail';
-import { lumaClient } from '#web/shared/lib/api';
+import { TitleDetail } from '#web/features/catalog/title-detail';
+import { isAuthed, lumaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { buildTitleView } from '#web/shared/lib/titleView';
 
 export const Route = createFileRoute('/discover/$type/$tmdbId')({
   loader: async ({ params }) => {
+    if (!isAuthed()) throw redirect({ to: '/' });
     if (params.type !== 'tv' && params.type !== 'movie') throw redirect({ to: '/search' });
     const kind = params.type as 'movie' | 'tv';
     const detail = await lumaClient().discoverDetail(kind, Number(params.tmdbId));

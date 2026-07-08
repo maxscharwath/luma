@@ -10,6 +10,9 @@
     "typecheck": "tsgo --noEmit",
     "build": "tsgo --noEmit"
   },
+  "dependencies": {
+    "@luma/client": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.6.3"
   }

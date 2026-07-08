@@ -1,13 +1,16 @@
 import { useT } from '@luma/ui';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { TitleDetail } from '#web/features/catalog/titleDetail';
-import { lumaClient } from '#web/shared/lib/api';
+import { TitleDetail } from '#web/features/catalog/title-detail';
+import { isAuthed, lumaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { buildTitleView } from '#web/shared/lib/titleView';
 
 export const Route = createFileRoute('/movie/$id')({
   loader: async ({ params }) => {
+    // Catalogue is auth-gated: a signed-out deep-link goes to the gate (the
+    // AuthGate overlay covers /, and its loader is guarded too).
+    if (!isAuthed()) throw redirect({ to: '/' });
     const c = lumaClient();
     // "Titres similaires" prefers content-embedding neighbours, falling back to
     // genre overlap, then any other movie.

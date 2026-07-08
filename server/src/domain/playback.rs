@@ -1,13 +1,11 @@
 //! Playback progress types: a saved position and a "continue watching" entry.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 use crate::domain::media::MediaItem;
 
 /// One row of a user's playback progress.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressEntry {
     #[serde(rename = "itemId")]
     pub item_id: String,
@@ -20,8 +18,7 @@ pub struct ProgressEntry {
 }
 
 /// A "continue watching" entry: the resumable item plus where to resume from.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ContinueItem {
     pub item: MediaItem,
     #[serde(rename = "positionMs")]
@@ -35,8 +32,7 @@ pub struct ContinueItem {
 /// The episode to play to continue a show (`GET /api/shows/:id/up-next`): the
 /// episode plus whether it has a saved resume position (drives the "Reprendre"
 /// vs "Lecture" button label).
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct UpNext {
     pub item: MediaItem,
     pub resume: bool,

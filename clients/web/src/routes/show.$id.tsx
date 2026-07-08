@@ -1,13 +1,14 @@
 import { useT } from '@luma/ui';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { TitleDetail } from '#web/features/catalog/titleDetail';
-import { lumaClient } from '#web/shared/lib/api';
+import { TitleDetail } from '#web/features/catalog/title-detail';
+import { isAuthed, lumaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { buildTitleView } from '#web/shared/lib/titleView';
 
 export const Route = createFileRoute('/show/$id')({
   loader: async ({ params }) => {
+    if (!isAuthed()) throw redirect({ to: '/' });
     const c = lumaClient();
     const [detail, shows] = await Promise.all([c.show(params.id), c.shows()]);
     const show = detail.show;

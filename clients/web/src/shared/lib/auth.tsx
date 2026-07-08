@@ -6,14 +6,9 @@
 // an optional avatar upload.
 
 import { LumaClient, type StoredSession, type User } from '@luma/core';
-import { useAuthSession } from '@luma/ui';
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useMemo,
-} from 'react';
+import { type ActivateResult, useAuthSession } from '@luma/ui';
+import { useRouter } from '@tanstack/react-router';
+import { createContext, type ReactNode, useCallback, useContext, useMemo } from 'react';
 import { apiBase } from '#web/shared/lib/api';
 
 interface AuthValue {
@@ -33,8 +28,9 @@ interface AuthValue {
     avatar?: File | null,
     inviteToken?: string,
   ) => Promise<void>;
-  /** Switch to a remembered account instantly (no password re-entry). */
-  activate: (s: StoredSession) => void;
+  /** Switch to a remembered account by exchanging its access token. Pass `pin`
+   * for a PIN-locked profile; the result asks the UI to collect one if needed. */
+  activate: (s: StoredSession, pin?: string) => Promise<ActivateResult>;
   /** Return to the "Qui regarde ?" picker WITHOUT signing out (keeps remembered
    * accounts, so switching back stays password-free). */
   switchProfile: () => void;
@@ -53,12 +49,18 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const client = useMemo(() => new LumaClient({ baseUrl: apiBase() }), []);
   // Web is SSR-rendered, so hydrate the session in an effect (not synchronously).
   const auth = useAuthSession(client);
+  const router = useRouter();
 
+  // Signing in (or switching account) flips the catalogue from auth-gated-empty
+  // to authorised: re-run the route loaders so the now-authorised data loads. A
+  // reload while already signed in doesn't need this loaders see `isAuthed()`
+  // and fetch normally so we invalidate only on the sign-in transition itself.
   const login = useCallback(
     async (email: string, password: string) => {
       auth.apply(await client.login(email, password));
+      void router.invalidate();
     },
-    [client, auth],
+    [client, auth, router],
   );
 
   const register = useCallback(
@@ -80,8 +82,19 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
           /* avatar is optional keep the account without it */
         }
       }
+      void router.invalidate();
     },
-    [client, auth],
+    [client, auth, router],
+  );
+
+  // Switch into a remembered account, then re-run loaders on success.
+  const activate = useCallback(
+    async (s: StoredSession, pin?: string): Promise<ActivateResult> => {
+      const res = await auth.activate(s, pin);
+      if (res.ok) void router.invalidate();
+      return res;
+    },
+    [auth, router],
   );
 
   const value = useMemo<AuthValue>(
@@ -92,13 +105,13 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       accounts: auth.accounts,
       login,
       register,
-      activate: auth.activate,
+      activate,
       switchProfile: auth.switchProfile,
       forget: auth.forget,
       logout: auth.logout,
       updateUser: auth.updateUser,
     }),
-    [auth, client, login, register],
+    [auth, client, login, register, activate],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

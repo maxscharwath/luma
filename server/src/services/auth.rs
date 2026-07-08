@@ -15,8 +15,12 @@ const PBKDF2_ITERS: u32 = 120_000;
 const SALT_LEN: usize = 16;
 /// SHA-256 block size (HMAC).
 const SHA256_BLOCK: usize = 64;
-/// Session lifetime in seconds (90 days).
-pub const SESSION_TTL_SECS: i64 = 90 * 24 * 3600;
+/// Short-lived session (bearer) token lifetime the client refreshes it from its
+/// access token before/after this lapses (see `/auth/token`).
+pub const SESSION_TTL_SECS: i64 = 3600;
+/// Long-lived access-token lifetime (90 days). Stored on the device; exchanged
+/// for session tokens. This is the credential a logout revokes.
+pub const ACCESS_TTL_SECS: i64 = 90 * 24 * 3600;
 
 // ----- HMAC / PBKDF2 ----------------------------------------------------------
 

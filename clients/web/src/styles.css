@@ -85,6 +85,31 @@
     transform: translate(-50%, -50%) scale(1);
   }
 }
+/* Blinking caret for the OTP / PIN slots (shared/ui/Otp). */
+@keyframes otp-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+/* Horizontal shake for a rejected PIN (keyed re-mount retriggers it). */
+@keyframes otp-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
 
 /* The shared @luma/ui `:focus-visible` amber ring (essential for 10-foot TV
    navigation) is UNLAYERED, so it beats Tailwind's layered utilities and the
@@ -96,5 +121,15 @@
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
+  box-shadow: none;
+}
+
+/* Same for the Radix dropdown menu (the sidebar account menu): it's mouse-driven
+   web UI, and Radix focuses the menu container on open + each highlighted item,
+   which lit up the whole popup and every row with the amber TV ring. The items
+   already signal hover/keyboard focus with a `data-highlighted` background, so
+   suppress only the ring here. */
+[role='menu']:focus-visible,
+[role='menuitem']:focus-visible {
   box-shadow: none;
 }

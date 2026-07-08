@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { episodeTag, metaLine, playerSubtitle } from './format';
-import type { MediaItem } from './types';
+import type { MediaItem } from '@luma/client';
 
 // ----- fixtures --------------------------------------------------------------
 

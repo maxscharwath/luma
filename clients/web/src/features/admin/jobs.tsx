@@ -14,9 +14,9 @@ import {
   IconPlayerStop,
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import { JobDetailPanel } from '#web/features/admin/jobsDetail';
-import { dur, rel } from '#web/features/admin/jobsFormat';
-import { ScheduleModal } from '#web/features/admin/jobsSchedule';
+import { JobDetailPanel } from '#web/features/admin/jobs-detail';
+import { dur, rel } from '#web/features/admin/jobs-format';
+import { ScheduleModal } from '#web/features/admin/jobs-schedule';
 import { PageHeader, useAdmin, useAsyncAction, useCap, usePoll } from '#web/features/admin/shell';
 import { C, Card, Pill, ProgressBar, Section, Toggle } from '#web/features/admin/ui';
 import { apiBase } from '#web/shared/lib/api';

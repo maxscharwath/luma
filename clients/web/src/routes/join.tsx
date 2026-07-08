@@ -2,7 +2,7 @@ import { Logo, useT } from '@luma/ui';
 import { IconPlus } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { avatarGradient, initials } from '#web/features/accounts/UserAvatar';
+import { avatarGradient, initials } from '#web/features/accounts/user-avatar';
 import { useAuth } from '#web/shared/lib/auth';
 
 // Public invitation acceptance page. An admin (with `users.manage`) shares

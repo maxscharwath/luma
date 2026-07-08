@@ -81,7 +81,7 @@ export interface TitleView {
   similar: SimilarTarget[];
 }
 
-function dirsFromCrew(crew: CrewMember[] | undefined): string[] {
+function dirsFromCrew(crew: CrewMember[] | null | undefined): string[] {
   return (crew ?? []).filter((c) => c.job === 'Director' || c.job === 'Creator').map((c) => c.name);
 }
 

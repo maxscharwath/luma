@@ -6,7 +6,7 @@ import type { LlmAdminConfig } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconDeviceFloppy, IconPlus, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import { ProviderCard, type ProviderForm } from '#web/features/admin/aiProviders';
+import { ProviderCard, type ProviderForm } from '#web/features/admin/ai-providers';
 import { Denied, PageHeader, useCap } from '#web/features/admin/shell';
 import { Button, C, Card, Pill, Section, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';

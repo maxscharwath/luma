@@ -333,7 +333,7 @@ export function TvPlayer() {
         hasNext={Boolean(next)}
         showCountdown={showUpNext}
         ringProgress={countdown / AUTO_NEXT}
-        markers={item.markers}
+        markers={item.markers ?? undefined}
         previewTile={previewTile}
         barFocusName={barFocusName}
         mouse={mouse}

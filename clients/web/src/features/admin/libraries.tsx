@@ -20,14 +20,14 @@ import {
   usePoll,
 } from '#web/features/admin/shell';
 import { Card } from '#web/features/admin/ui';
-import { FolderPicker } from '#web/features/admin/FolderPicker';
+import { FolderPicker } from '#web/features/admin/folder-picker';
 import {
   AddLibraryModal,
   type LibKind,
   LibraryTypeSelect,
   ManageLibraryModal,
   normalizeLibKind,
-} from '#web/features/admin/librariesModals';
+} from '#web/features/admin/libraries-modals';
 import { formatBytes, relativeSeen } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
 

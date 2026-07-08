@@ -1,12 +1,10 @@
 //! Library types: a scanned library root and its derived classification.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 /// Library classification, derived from the kinds of items it holds.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-#[ts(export)]
 pub enum LibraryKind {
     Movies,
     Shows,
@@ -14,8 +12,7 @@ pub enum LibraryKind {
 }
 
 /// A scanned library root.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Library {
     pub id: String,
     pub name: String,

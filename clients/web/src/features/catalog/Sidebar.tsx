@@ -1,20 +1,25 @@
 import { hasPermission, LOCALES, type MessageKey } from '@luma/core';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   IconDeviceDesktop,
   IconDeviceTv,
   IconHome,
   IconInbox,
   IconListDetails,
+  IconLogout,
   IconMovie,
   IconSearch,
   IconSettings,
+  IconUserCircle,
   IconUserPlus,
+  IconUsers,
   type TablerIcon,
 } from '@tabler/icons-react';
 import { useLocale, useSetLocale, useT } from '@luma/ui';
-import { Link } from '@tanstack/react-router';
-import { CapabilityChip } from '#web/features/accounts/CapabilityChip';
-import { UserAvatar } from '#web/features/accounts/UserAvatar';
+import { Link, useNavigate } from '@tanstack/react-router';
+import type { ReactNode } from 'react';
+import { CapabilityChip } from '#web/features/accounts/capability-chip';
+import { UserAvatar } from '#web/features/accounts/user-avatar';
 import { Logo } from '#web/shared/ui';
 import { useAuth } from '#web/shared/lib/auth';
 
@@ -151,30 +156,78 @@ function AdminLink() {
   );
 }
 
-/** Current account chip avatar + name; clicking signs out (back to the
- * "Qui regarde ?" picker). Renders nothing until a session is hydrated. */
+const MENU =
+  'z-50 min-w-[204px] rounded-xl border border-white/[0.10] bg-[#16161C] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.45)]';
+
+/** A row inside the account menu. */
+function MenuItem({
+  icon,
+  label,
+  onSelect,
+  danger,
+}: Readonly<{ icon: ReactNode; label: string; onSelect: () => void; danger?: boolean }>) {
+  return (
+    <DropdownMenu.Item
+      onSelect={onSelect}
+      className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-semibold outline-none transition-colors data-highlighted:bg-white/8 ${
+        danger ? 'text-danger' : 'text-text'
+      }`}
+    >
+      {icon}
+      {label}
+    </DropdownMenu.Item>
+  );
+}
+
+/** Current account chip avatar + name; clicking opens a menu (account settings,
+ * switch profile, sign out). Renders nothing until a session is hydrated. */
 function UserChip() {
   const t = useT();
-  const { user, switchProfile } = useAuth();
+  const navigate = useNavigate();
+  const { user, switchProfile, logout } = useAuth();
   if (!user) return null;
   return (
-    <button
-      type="button"
-      onClick={switchProfile}
-      className="mt-2 flex items-center gap-3 rounded-[11px] p-2.5 text-left transition-colors hover:bg-white/4"
-      title={t('nav.changeProfile')}
-    >
-      <UserAvatar
-        name={user.username}
-        avatarUrl={user.avatarUrl}
-        seed={user.id}
-        size={36}
-        radius={9}
-      />
-      <div className="min-w-0">
-        <div className="truncate text-[14px] font-semibold text-text">{user.username}</div>
-        <div className="text-[11px] font-medium text-dim">{t('nav.changeProfile')}</div>
-      </div>
-    </button>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="mt-2 flex items-center gap-3 rounded-[11px] p-2.5 text-left transition-colors hover:bg-white/4 focus:outline-none data-[state=open]:bg-white/4"
+          title={t('nav.account')}
+        >
+          <UserAvatar
+            name={user.username}
+            avatarUrl={user.avatarUrl}
+            seed={user.id}
+            size={36}
+            radius={9}
+          />
+          <div className="min-w-0">
+            <div className="truncate text-[14px] font-semibold text-text">{user.username}</div>
+            <div className="truncate text-[11px] font-medium text-dim">{t('nav.account')}</div>
+          </div>
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content side="top" align="start" sideOffset={6} className={MENU}>
+          <MenuItem
+            icon={<IconUserCircle size={17} />}
+            label={t('nav.accountSettings')}
+            onSelect={() => void navigate({ to: '/account' })}
+          />
+          <MenuItem
+            icon={<IconUsers size={17} />}
+            label={t('nav.changeProfile')}
+            onSelect={switchProfile}
+          />
+          <DropdownMenu.Separator className="my-1 h-px bg-white/[0.07]" />
+          <MenuItem
+            icon={<IconLogout size={17} />}
+            label={t('auth.logout')}
+            onSelect={() => void logout()}
+            danger
+          />
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }

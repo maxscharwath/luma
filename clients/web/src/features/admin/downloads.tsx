@@ -13,10 +13,10 @@ import {
   IconUsersPlus,
 } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { DownloadClientsSection } from '#web/features/admin/downloadClients';
-import { DownloadRowView, type LiveDl } from '#web/features/admin/downloadRow';
-import { ManualGrabModal } from '#web/features/admin/manualGrab';
-import { VpnCard } from '#web/features/admin/vpnCard';
+import { DownloadClientsSection } from '#web/features/admin/download-clients';
+import { DownloadRowView, type LiveDl } from '#web/features/admin/download-row';
+import { ManualGrabModal } from '#web/features/admin/manual-grab';
+import { VpnCard } from '#web/features/admin/vpn-card';
 import { useAdmin, useCap, usePoll } from '#web/features/admin/shell';
 import { Modal, ModalActions, StatCard } from '#web/features/admin/ui';
 import { formatBytes } from '#web/shared/lib/adminFormat';

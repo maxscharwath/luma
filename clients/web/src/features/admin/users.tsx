@@ -10,7 +10,7 @@ import {
   usePoll,
 } from '#web/features/admin/shell';
 import { Avatar, C, Card, Section, StatCard } from '#web/features/admin/ui';
-import { EditUserModal, InviteModal, PendingInvite } from '#web/features/admin/usersModals';
+import { EditUserModal, InviteModal, PendingInvite } from '#web/features/admin/users-modals';
 import { relativeSeen } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
 

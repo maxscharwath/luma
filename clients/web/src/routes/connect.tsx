@@ -2,6 +2,7 @@ import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
+import { Otp } from '#web/shared/ui';
 
 // "Connecter un appareil" the approver side of Quick Connect. A TV shows a
 // short code (or a QR pointing here with `?code=`); a signed-in user enters it
@@ -22,8 +23,8 @@ function ConnectPage() {
   const [status, setStatus] = useState<'idle' | 'ok' | 'err'>('idle');
   const [busy, setBusy] = useState(false);
 
-  async function submit() {
-    const c = code.trim();
+  async function submit(value?: string) {
+    const c = (value ?? code).trim();
     if (!c) return;
     setBusy(true);
     setStatus('idle');
@@ -61,15 +62,16 @@ function ConnectPage() {
             }}
             className="flex flex-col items-center gap-4"
           >
-            <input
+            <Otp
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="1234"
-              // eslint-disable-next-line jsx-a11y/no-autofocus
+              onChange={(v) => {
+                setCode(v);
+                setStatus('idle');
+              }}
+              onComplete={(v) => void submit(v)}
               autoFocus
-              className="w-50 rounded-xl border border-border-strong bg-surface-2 py-4 text-center font-display text-[40px] font-bold tracking-[0.3em] text-text outline-none focus:border-accent"
+              disabled={busy}
+              ariaLabel={t('connect.title')}
             />
             {status === 'err' ? (
               <p className="text-[13px] font-medium text-danger">{t('connect.invalidCode')}</p>

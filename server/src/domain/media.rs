@@ -4,14 +4,12 @@
 //! field names and casing must not drift.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 use crate::domain::metadata::{CastMember, Metadata};
 
 /// What sort of thing a media item is.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, rename = "MediaKind")]
 pub enum Kind {
     Movie,
     Episode,
@@ -19,8 +17,7 @@ pub enum Kind {
 }
 
 /// Video stream description (best-effort; fields may be null when unknown).
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, rename = "VideoTrack")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoStream {
     pub codec: String,
     pub width: Option<u32>,
@@ -34,8 +31,7 @@ pub struct VideoStream {
 /// director's commentary); `index` is the **audio-relative** position (0-based
 /// among audio streams only), which is exactly what ffmpeg's `-map 0:a:<index>`
 /// selector expects when remuxing a chosen track.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, rename = "AudioTrack")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioStream {
     /// Audio-relative stream index (0 = first audio track). Drives track
     /// selection (`-map 0:a:<index>`) on the server's per-track HLS remux.
@@ -54,8 +50,7 @@ pub struct AudioStream {
 }
 
 /// A subtitle track.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubtitleTrack {
     pub language: Option<String>,
     pub codec: String,
@@ -64,8 +59,7 @@ pub struct SubtitleTrack {
 /// One physical file backing a logical [`MediaItem`]. A single item can have
 /// several of these (Director's Cut + Theatrical, 1080p + 4K, …); they all share
 /// the same logical item id but each maps to a distinct file on disk.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaFile {
     /// `short_hash(abs_path)` stable per physical file.
     pub id: String,
@@ -105,8 +99,7 @@ pub struct MediaFile {
 /// `video`/`audio`/`duration_ms`/`container`/`subtitles`/`abs_path` fields mirror
 /// the **representative file** (the highest-resolution probed file) for backward
 /// compatibility with clients that read `item.video.codec` directly.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaItem {
     pub id: String,
     pub title: String,
@@ -165,8 +158,7 @@ pub struct MediaItem {
 }
 
 /// What a [`Marker`] segment is. Serialized lowercase (`"intro"` / `"credits"`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MarkerKind {
     Intro,
@@ -174,8 +166,7 @@ pub enum MarkerKind {
 }
 
 /// One timed segment of an episode (intro / credits), in milliseconds.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Marker {
     pub kind: MarkerKind,
     #[serde(rename = "startMs")]
@@ -185,8 +176,7 @@ pub struct Marker {
 }
 
 /// A TV show aggregate (not a file). Built by grouping episodes during a scan.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Show {
     pub id: String,
     pub title: String,
@@ -212,8 +202,7 @@ pub struct Show {
 }
 
 /// One season's worth of episodes, sorted by episode number.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Season {
     pub number: u32,
     pub episodes: Vec<MediaItem>,
@@ -224,8 +213,7 @@ pub struct Season {
 }
 
 /// `GET /api/shows/:id` payload: a show plus its seasons.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShowDetail {
     pub show: Show,
     pub seasons: Vec<Season>,

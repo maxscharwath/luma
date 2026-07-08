@@ -183,7 +183,6 @@ jpeg-encoder = "0.6"
 # scripts/gen-types.sh). `serde-compat` makes it honor our serde rename/rename_all.
 # Effectively build-time only: the `TS` impls are unused at runtime and dropped by
 # release LTO+strip. Builds cleanly on the pinned rustc 1.81 (only 3 added crates).
-ts-rs = { version = "12.0.1", features = ["serde-compat"] }
 
 # Full-text search engine behind `GET /api/search` (services/search). Lucene-style
 # BM25 + per-term fuzzy matching → typo-tolerant, which matters for the TV's

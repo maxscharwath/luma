@@ -6,15 +6,13 @@
 //! field names and casing must not drift. Timestamps are epoch milliseconds.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 use crate::domain::metadata::{CastMember, CrewMember};
 
 /// What a request targets. Requests key on TMDB ids, so this mirrors TMDB's
 /// movie/tv split under the catalog's own vocabulary (a "show", not a "tv").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-#[ts(export)]
 pub enum RequestKind {
     Movie,
     Show,
@@ -40,9 +38,8 @@ impl RequestKind {
 /// acquisition states (`searching`/`downloading`/`importing`) are derived from
 /// the wanted/downloads ledgers when a view is built, so clients get one enum
 /// for the whole status chip vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[ts(export)]
 pub enum RequestStatus {
     Pending,
     Approved,
@@ -87,9 +84,8 @@ impl RequestStatus {
 
 /// One media request, as listed to clients (the requester sees their own; a
 /// `requests.manage` holder sees everyone's, with the requester hydrated).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct MediaRequest {
     pub id: String,
     pub kind: RequestKind,
@@ -116,9 +112,8 @@ pub struct MediaRequest {
 }
 
 /// Status tallies for the admin queue's filter chips.
-#[derive(Debug, Clone, Default, Serialize, TS)]
+#[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct RequestCounts {
     pub total: u32,
     pub pending: u32,
@@ -129,17 +124,15 @@ pub struct RequestCounts {
 }
 
 /// `GET /api/requests`.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RequestsView {
     pub requests: Vec<MediaRequest>,
     pub counts: RequestCounts,
 }
 
 /// `POST /api/requests` body.
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct CreateRequestBody {
     pub kind: RequestKind,
     pub tmdb_id: u64,
@@ -150,9 +143,8 @@ pub struct CreateRequestBody {
 
 /// One TMDB discovery result, flagged against the local catalog + open
 /// requests so cards can render Play / status chip / request button directly.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DiscoverEntry {
     pub kind: RequestKind,
     pub tmdb_id: u64,
@@ -175,9 +167,8 @@ pub struct DiscoverEntry {
 }
 
 /// `GET /api/discover/search` / `GET /api/discover/trending`.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DiscoverResponse {
     pub results: Vec<DiscoverEntry>,
     pub page: u32,
@@ -185,9 +176,8 @@ pub struct DiscoverResponse {
 }
 
 /// One season row in a show's discovery detail (drives the season picker).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DiscoverSeason {
     pub season: u32,
     pub name: Option<String>,
@@ -202,9 +192,8 @@ pub struct DiscoverSeason {
 }
 
 /// `GET /api/discover/{movie,tv}/:tmdbId`: the request-flow detail page.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DiscoverDetail {
     pub kind: RequestKind,
     pub tmdb_id: u64,

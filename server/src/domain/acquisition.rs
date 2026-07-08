@@ -4,14 +4,12 @@
 //! `crate::services::acquisition`.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 /// One configured Torznab indexer, as listed to admins. The API key is
 /// write-only (mirroring the remote-access token convention): clients only
 /// learn whether one is set.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct IndexerView {
     pub id: String,
     pub name: String,
@@ -27,8 +25,7 @@ pub struct IndexerView {
 }
 
 /// `GET /api/admin/indexers`.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct IndexersView {
     pub indexers: Vec<IndexerView>,
 }
@@ -36,9 +33,8 @@ pub struct IndexersView {
 /// `POST /api/admin/indexers` / `PUT /api/admin/indexers/:id` body. Omitted
 /// fields keep their current value on update; an omitted `api_key` keeps the
 /// stored secret.
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct SaveIndexerBody {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -49,9 +45,8 @@ pub struct SaveIndexerBody {
 }
 
 /// `POST /api/admin/indexers/:id/test` result (a `t=caps` round-trip).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct IndexerTestResult {
     pub ok: bool,
     pub latency_ms: u64,
@@ -62,9 +57,8 @@ pub struct IndexerTestResult {
 }
 
 /// One score-explanation line (mirrors `luma_release::ScoreLine` on the wire).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ScoreLineView {
     pub rule: String,
     pub delta: i32,
@@ -73,9 +67,8 @@ pub struct ScoreLineView {
 
 /// One release from an interactive search, scored (or rejected with the rule
 /// that fired). Sorted accepted-first, best score first.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ScoredReleaseView {
     pub title: String,
     pub guid: String,
@@ -101,9 +94,8 @@ pub struct ScoredReleaseView {
 }
 
 /// `GET /api/requests/:id/search`.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct InteractiveSearchView {
     pub releases: Vec<ScoredReleaseView>,
     /// Indexers that errored during the sweep (name -> message), so an empty
@@ -113,18 +105,16 @@ pub struct InteractiveSearchView {
 
 /// `POST /api/requests/:id/grab` body: pick one release from the last
 /// interactive search (identified the way the search listed it).
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct GrabBody {
     pub guid: String,
     pub indexer_id: String,
 }
 
 /// One configured download client, as listed to admins (password write-only).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DownloadClientView {
     pub id: String,
     /// `rqbit` | `transmission` | `qbittorrent`.
@@ -141,9 +131,8 @@ pub struct DownloadClientView {
 }
 
 /// `GET /api/admin/download-clients`.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DownloadClientsView {
     pub clients: Vec<DownloadClientView>,
     /// Whether the embedded engine is compiled into this build.
@@ -151,9 +140,8 @@ pub struct DownloadClientsView {
 }
 
 /// Create/update body for a download client.
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct SaveDownloadClientBody {
     pub kind: Option<String>,
     pub name: Option<String>,
@@ -166,9 +154,8 @@ pub struct SaveDownloadClientBody {
 }
 
 /// `POST /api/admin/download-clients/:id/test` result.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ClientTestResult {
     pub ok: bool,
     /// Human version string ("Transmission 4.0.5").
@@ -178,9 +165,8 @@ pub struct ClientTestResult {
 
 /// One download (grab), as listed in the admin queue. Live speed/ETA ride the
 /// `download.progress` WS event; this is the durable row.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DownloadView {
     pub id: String,
     pub client_id: String,
@@ -216,9 +202,8 @@ pub struct DownloadView {
 }
 
 /// `GET /api/admin/downloads`.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct DownloadsView {
     pub downloads: Vec<DownloadView>,
     /// VPN seal status (None until a proxy is configured). Fleshed out with
@@ -229,9 +214,8 @@ pub struct DownloadsView {
 /// One release from a free-text manual indexer search. Not scored against a
 /// specific target (the admin picks); carries parsed quality + the link to
 /// grab it, and the parse hints so the add form can pre-fill.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ManualReleaseView {
     pub title: String,
     pub guid: String,
@@ -256,26 +240,23 @@ pub struct ManualReleaseView {
 }
 
 /// `POST /api/admin/downloads/search`.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ManualSearchView {
     pub releases: Vec<ManualReleaseView>,
     pub indexer_errors: Vec<String>,
 }
 
 /// `POST /api/admin/downloads/search` body.
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ManualSearchBody {
     pub query: String,
 }
 
 /// `POST /api/admin/downloads/add` body: grab a magnet / `.torrent` URL (pasted
 /// or from a manual search) and import it as `kind` into the right library.
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ManualAddBody {
     pub magnet_or_url: String,
     /// `movie` | `episode` | `season`.
@@ -297,9 +278,8 @@ pub struct ManualAddBody {
 }
 
 /// One file inside an analyzed torrent, with its detected season/episode.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct TorrentFileView {
     pub index: usize,
     pub path: String,
@@ -311,9 +291,8 @@ pub struct TorrentFileView {
 
 /// `POST /api/admin/downloads/analyze` the torrent's file list + what it holds,
 /// so the admin can pick episodes / confirm the kind before grabbing.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct TorrentAnalysis {
     /// `movie` | `episode` | `season` | `series` | `unknown`.
     pub kind: String,
@@ -322,17 +301,15 @@ pub struct TorrentAnalysis {
 }
 
 /// `POST /api/admin/downloads/analyze` body.
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct AnalyzeBody {
     pub magnet_or_url: String,
 }
 
 /// The kill switch's view of the tunnel.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct VpnStatusView {
     pub connected: bool,
     pub exit_ip: Option<String>,
@@ -343,9 +320,8 @@ pub struct VpnStatusView {
 /// `GET /api/admin/vpn` the VPN configuration card's state. VPN routing is
 /// WireGuard-only: a stored config runs a managed wireproxy bridge the embedded
 /// engine routes through.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct VpnAdminView {
     /// A WireGuard config is stored.
     pub wg_configured: bool,
@@ -358,18 +334,16 @@ pub struct VpnAdminView {
 /// `PUT /api/admin/vpn` body. `wgConfig` is write-only: pass the full
 /// WireGuard config text from any provider (Mullvad, Proton, AirVPN, a
 /// self-hosted peer...), or an empty string to remove it.
-#[derive(Debug, Clone, Deserialize, TS)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct SaveVpnBody {
     pub wg_config: Option<String>,
     pub local_port: Option<u16>,
 }
 
 /// `POST /api/admin/vpn/test` a live probe through (and around) the proxy.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct VpnTestResult {
     pub sealed: bool,
     pub proxied_ip: Option<String>,

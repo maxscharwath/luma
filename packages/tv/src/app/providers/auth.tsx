@@ -78,40 +78,82 @@ export function AuthProvider({
   // Profiles that have already cleared their PIN this session (ref gating reads
   // it at switch-in time, it doesn't drive rendering).
   const unlocked = useRef<Set<string>>(new Set(session ? [keyOf(session)] : []));
+  // The access token we've already exchanged for a bearer. The success path below
+  // mints a new `session` object (re-running the effect); this ref stops it from
+  // re-exchanging in an infinite loop.
+  const exchangedRef = useRef<string | null>(null);
+  // Coalesce concurrent silent refreshes (a poster grid full of 401s → one
+  // exchange, not N — which would trip the brute-force guard and bounce to the
+  // picker).
+  const refreshingRef = useRef<Promise<string | undefined> | null>(null);
 
-  // Keep the active client's bearer token in sync with the active session but
-  // only when the session belongs to the server the client points at (a token for
-  // server A must never ride a request to server B).
+  // Exchange the active account's access token for a short-lived session bearer
+  // and keep it on the client but only when the session belongs to the server
+  // the client points at (a token for server A must never ride a request to
+  // server B). Also installs the 401 silent-refresh handler. The exchange
+  // returns the fresh user, so a change made elsewhere (language, hasPin) reaches
+  // the TV without a separate `me()` call.
   useEffect(() => {
+    if (!client) return;
     const match = session && norm(session.serverUrl) === norm(activeServerUrl);
-    client?.setAuthToken(match ? session.token : undefined);
+    if (!match || !session) {
+      client.setAuthToken(undefined);
+      client.setRefreshHandler(undefined);
+      exchangedRef.current = null;
+      return;
+    }
+    client.setRefreshHandler(() => {
+      if (refreshingRef.current) return refreshingRef.current;
+      const s = loadSession();
+      if (!s) return Promise.resolve(undefined);
+      const p = client
+        .exchangeToken(s.accessToken)
+        .then((r) => r.token as string | undefined)
+        .catch(() => undefined)
+        .finally(() => {
+          refreshingRef.current = null;
+        });
+      refreshingRef.current = p;
+      return p;
+    });
+
+    // Exchange once per access token (the setSession below would otherwise loop).
+    if (exchangedRef.current === session.accessToken) {
+      return () => client.setRefreshHandler(undefined);
+    }
+    exchangedRef.current = session.accessToken;
+
+    let cancelled = false;
+    client
+      .exchangeToken(session.accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        client.setAuthToken(res.token);
+        setSession((cur) =>
+          cur && cur.user.id === res.user.id ? { ...cur, user: res.user } : cur,
+        );
+        saveSession({ ...session, user: res.user });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Can't resume (revoked/expired token, or PIN required after a reset):
+        // drop to the picker instead of a zombie 'signed-in' state with no bearer.
+        client.setAuthToken(undefined);
+        exchangedRef.current = null;
+        unlocked.current.clear();
+        clearSession();
+        setSession(null);
+      });
+    return () => {
+      cancelled = true;
+      client.setRefreshHandler(undefined);
+    };
   }, [client, session, activeServerUrl]);
 
   // Surface sign-in state to the host (gates catalogue + events).
   useEffect(() => {
     onSignedInChange(Boolean(session));
   }, [session, onSignedInChange]);
-
-  // Refresh the signed-in account from its server so a change made elsewhere
-  // (language, hasPin) reaches the TV. Runs once per client.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh once per client.
-  useEffect(() => {
-    if (!client) return;
-    const s = loadSession();
-    if (!s) return;
-    let cancelled = false;
-    client
-      .me()
-      .then(({ user }) => {
-        if (cancelled) return;
-        setSession((cur) => (cur && cur.user.id === user.id ? { ...cur, user } : cur));
-        saveSession({ ...s, user });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
 
   // Persist a (normalized) session, clear its PIN gate for this session, point the
   // client at its server, and sign in. Shared by login (fresh pair) and activate
@@ -129,9 +171,13 @@ export function AuthProvider({
 
   const login = useCallback(
     (res: AuthResult, serverUrl: string) => {
-      enter({ serverUrl: norm(serverUrl), token: res.token, user: res.user });
+      // Set the just-minted bearer immediately, and mark this access token as
+      // already-exchanged so the effect doesn't redundantly re-exchange it.
+      client?.setAuthToken(res.token);
+      exchangedRef.current = res.accessToken;
+      enter({ serverUrl: norm(serverUrl), accessToken: res.accessToken, user: res.user });
     },
-    [enter],
+    [enter, client],
   );
 
   const activate = useCallback(
@@ -166,9 +212,9 @@ export function AuthProvider({
   const logout = useCallback(async () => {
     const active = session;
     try {
-      await client?.logout();
+      await client?.logout(active?.accessToken);
     } catch {
-      /* best-effort server-side invalidation */
+      /* best-effort server-side revocation */
     }
     client?.setAuthToken(undefined);
     if (active?.serverUrl) forgetAccountStore(active.user.id, active.serverUrl);

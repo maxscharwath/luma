@@ -4,12 +4,10 @@
 //! titled row of cards. Adding/retuning sections is therefore a server-only change.
 
 use serde::Serialize;
-use ts_rs::TS;
 
 use crate::domain::media::{MediaItem, Show};
 
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Section {
     /// Stable-ish key for list rendering / focus restoration (e.g.
     /// `"themed:heist"`, `"for-you"`).
@@ -28,9 +26,8 @@ pub struct Section {
 
 /// One rail entry: a movie/video (a [`MediaItem`]) or a whole show (a [`Show`]).
 /// Both are embedded + ranked by the recommender, so a row can mix them.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-#[ts(export)]
 pub enum SectionItem {
     Movie { item: MediaItem },
     Show { show: Show },

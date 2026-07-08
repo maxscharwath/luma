@@ -72,13 +72,10 @@ export function useCatalogue(platform: string): Catalogue {
 
   const client = useMemo<LumaClient | null>(() => {
     if (!activeServerUrl) return null;
-    const token =
-      bootSession && norm(bootSession.serverUrl ?? '') === norm(activeServerUrl)
-        ? bootSession.token
-        : undefined;
-    return new LumaClient({ baseUrl: activeServerUrl, authToken: token });
-    // bootSession is stable; rebuild only when the active server changes.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: bootSession is boot-stable.
+    // No initial bearer: the auth provider exchanges the active account's access
+    // token for a session token and calls `setAuthToken` (+ installs the refresh
+    // handler) once the session belongs to this server.
+    return new LumaClient({ baseUrl: activeServerUrl });
   }, [activeServerUrl]);
 
   // Reported up by the auth provider; gates the catalogue + event stream so the

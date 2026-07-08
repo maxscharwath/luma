@@ -6,9 +6,9 @@ import { type DiscoverType, hasPermission } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconSearch, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
-import { SearchResults } from '#web/features/requests/searchResults';
+import { SearchResults } from '#web/features/requests/search-results';
 import { TrendingBrowse } from '#web/features/requests/trending';
-import { useDiscoverSearch, useTrending } from '#web/features/requests/useDiscoverSearch';
+import { useDiscoverSearch, useTrending } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
 
 const TYPES: { value: DiscoverType; labelKey: 'discover.all' | 'discover.movies' | 'discover.shows' }[] = [

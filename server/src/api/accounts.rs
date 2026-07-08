@@ -15,6 +15,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::api::error::lerr;
+use crate::api::pin;
 use crate::api::util::{blocking, client_ip, query};
 use crate::api::extract::{bearer_from_headers, AuthUser};
 use crate::services::auth;
@@ -25,7 +26,7 @@ use crate::model::{Permission, PublicUser, User};
 use crate::services::quickconnect::PollState;
 use crate::state::SharedState;
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use axum::Router;
 
 /// Auth, sessions, profiles, Quick Connect and the user roster. PIN routes live
@@ -35,8 +36,11 @@ pub fn routes() -> Router<SharedState> {
         .route("/auth/config", get(auth_config))
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
+        .route("/auth/token", post(exchange_token))
+        .route("/auth/relock", post(relock))
         .route("/auth/logout", post(logout))
         .route("/auth/me", get(me).patch(update_me))
+        .route("/auth/me/password", patch(change_password))
         .route("/auth/quickconnect/initiate", post(quick_initiate))
         .route("/auth/quickconnect/authorize", post(quick_authorize))
         .route("/auth/quickconnect/poll", get(quick_poll))
@@ -97,6 +101,16 @@ pub async fn register(
         Err(resp) => return resp,
     }
 
+    // Same for the username taken usernames get a clean 409 instead of a second
+    // account that would make username login ambiguous. Checked before the invite
+    // is consumed, for the same reason as the email pre-check above.
+    let username_check = username.clone();
+    match query(&state.db, move |pool| db::username_taken(&pool, &username_check, None)).await {
+        Ok(true) => return lerr(loc, StatusCode::CONFLICT, "auth.usernameTaken"),
+        Ok(false) => {}
+        Err(resp) => return resp,
+    }
+
     // Decide the granted permissions: bootstrap owner → all; otherwise consume
     // the invite (registration is closed without one). Done after the email check
     // so the invite is only burned once we know the account can be created.
@@ -120,7 +134,7 @@ pub async fn register(
             Ok(u) => u,
             Err(resp) => return resp,
         };
-    issue_session(state, user).await
+    issue_tokens(state, user).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -162,7 +176,7 @@ pub async fn login(
     }
     // A correct login clears the source's failure record.
     loginguard::reset(&ip);
-    issue_session(state, user).await
+    issue_tokens(state, user).await
 }
 
 /// Record a failed login for `ip` and turn it into a response: `429` with a
@@ -186,12 +200,135 @@ fn login_locked(loc: &str, secs: i64) -> Response {
         .into_response()
 }
 
-/// `POST /api/auth/logout` → 204. No-op if the token is missing/unknown.
-pub async fn logout(State(state): State<SharedState>, headers: HeaderMap) -> Response {
+#[derive(Debug, Deserialize, Default)]
+pub struct LogoutBody {
+    /// The device's access token, revoked alongside the session so a full sign-out
+    /// (disconnect) can't be silently re-exchanged.
+    #[serde(rename = "accessToken", default)]
+    pub access_token: Option<String>,
+}
+
+/// `POST /api/auth/logout` → 204. Revokes the current session (bearer) and, when
+/// provided, the device's access token. No-op for missing/unknown tokens.
+pub async fn logout(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    body: Option<Json<LogoutBody>>,
+) -> Response {
     if let Some(token) = bearer_from_headers(&headers) {
         let _ = query(&state.db, move |pool| db::delete_session(&pool, &token)).await;
     }
+    if let Some(access) = body.and_then(|b| b.0.access_token).filter(|t| !t.is_empty()) {
+        let _ = query(&state.db, move |pool| db::delete_access_token(&pool, &access)).await;
+    }
     StatusCode::NO_CONTENT.into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RelockBody {
+    #[serde(rename = "accessToken")]
+    pub access_token: String,
+}
+
+/// `POST /api/auth/relock` `{ accessToken }` → 204. Clears the access token's
+/// PIN-verified flag so the next switch-in re-prompts for the PIN. Called by the
+/// client when returning to the profile picker. Unauthenticated by design (it
+/// only *reduces* the token's privilege).
+pub async fn relock(State(state): State<SharedState>, Json(body): Json<RelockBody>) -> Response {
+    let token = body.access_token.trim().to_string();
+    if !token.is_empty() {
+        let _ = query(&state.db, move |pool| db::set_access_pin_verified(&pool, &token, false)).await;
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExchangeBody {
+    #[serde(rename = "accessToken")]
+    pub access_token: String,
+    /// Required only when the account has a PIN and the access token isn't yet
+    /// PIN-verified (a fresh switch-in). Silent refreshes omit it.
+    #[serde(default)]
+    pub pin: Option<String>,
+}
+
+/// `POST /api/auth/token` `{ accessToken, pin? }` → `{ token, user }`. Exchanges
+/// the long-lived access token for a short-lived session. For a PIN-locked
+/// account whose access token isn't PIN-verified yet, a correct `pin` is required
+/// (rate-limited by the shared PIN guard); a successful PIN marks the token
+/// verified so later silent refreshes skip the prompt until the profile is
+/// switched away (which re-locks it).
+pub async fn exchange_token(
+    State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
+    Json(body): Json<ExchangeBody>,
+) -> Response {
+    let access = body.access_token.trim().to_string();
+    if access.is_empty() {
+        return lerr(loc, StatusCode::UNAUTHORIZED, "auth.tokenInvalid");
+    }
+    let lookup = access.clone();
+    let (user, pin_verified) = match query(&state.db, move |pool| db::access_token_user(&pool, &lookup)).await {
+        Ok(Some(v)) => v,
+        Ok(None) => return lerr(loc, StatusCode::UNAUTHORIZED, "auth.tokenInvalid"),
+        Err(resp) => return resp,
+    };
+
+    // PIN-locked account, not yet verified on this device → demand the PIN.
+    if user.has_pin && !pin_verified {
+        if let Some(secs) = pin::lock_remaining(&user.id) {
+            return pin::locked_response(loc, secs);
+        }
+        let stored = match pin::fetch_hash(&state, &user.id).await {
+            Ok(h) => h,
+            Err(resp) => return resp,
+        };
+        match (body.pin.as_deref(), stored.as_deref()) {
+            // No PIN hash on record → nothing to gate (treat as verified).
+            (_, None) => {}
+            // No PIN supplied → this is a silent refresh / boot probe, NOT a wrong
+            // attempt. Ask for the PIN WITHOUT counting a failure, so background
+            // refreshes can't trip the brute-force lockout. The `pinRequired` flag
+            // lets the client show the PIN screen even if its cached `hasPin` was
+            // stale (a PIN added on another device).
+            (None, Some(_)) => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({ "error": i18n::t(loc, "auth.pinRequired", &[]), "pinRequired": true })),
+                )
+                    .into_response();
+            }
+            // A PIN was supplied verify it, and only THEN a wrong one is penalised.
+            (Some(pin), Some(hash)) => {
+                if !auth::verify_password(pin, hash) {
+                    let locked = pin::record_fail(&user.id);
+                    if locked > 0 {
+                        return pin::locked_response(loc, locked);
+                    }
+                    return lerr(loc, StatusCode::UNAUTHORIZED, "auth.pinIncorrect");
+                }
+            }
+        }
+        pin::reset(&user.id);
+        let tok = access.clone();
+        let _ = query(&state.db, move |pool| db::set_access_pin_verified(&pool, &tok, true)).await;
+    }
+
+    // Best-effort last-seen stamp, then mint a fresh session.
+    let uid = user.id.clone();
+    let _ = query(&state.db, move |pool| {
+        let _ = db::touch_last_seen(&pool, &uid);
+        Ok(())
+    })
+    .await;
+    let token = auth::random_token();
+    let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + auth::SESSION_TTL_SECS;
+    let token_db = token.clone();
+    let uid = user.id.clone();
+    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, expires_at)).await {
+        return resp;
+    }
+    Json(super::dto::SessionResult { token, user }).into_response()
 }
 
 /// `GET /api/auth/config` → `{ publicUserList, hasAccounts }`. Unauthenticated:
@@ -216,41 +353,223 @@ pub async fn me(AuthUser(user): AuthUser) -> Response {
     Json(json!({ "user": user })).into_response()
 }
 
+/// Deserialize helper that distinguishes an **absent** field (leave the value
+/// unchanged) from an explicit `null` (clear it): a missing key stays `None` via
+/// `#[serde(default)]`, `null` becomes `Some(None)`, and a value `Some(Some(v))`.
+/// Lets `PATCH /auth/me` touch only the fields the client actually sent.
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateMeBody {
     /// Preferred UI locale, e.g. `"fr"` | `"en"`. `null` clears it (fall back to
     /// the device locale). Unknown tags are ignored (left unchanged).
-    #[serde(default)]
-    pub language: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub language: Option<Option<String>>,
+    /// New display name. Absent = unchanged; must be non-empty (can't be cleared).
+    #[serde(default, deserialize_with = "double_option")]
+    pub username: Option<Option<String>>,
+    /// New account email. Absent = unchanged; must be a valid, unused address
+    /// (can't be cleared). Stored lower-cased.
+    #[serde(default, deserialize_with = "double_option")]
+    pub email: Option<Option<String>>,
+    /// Preferred audio-track language (ISO code). `null` or empty clears it.
+    #[serde(rename = "audioLanguage", default, deserialize_with = "double_option")]
+    pub audio_language: Option<Option<String>>,
+    /// Preferred subtitle-track language (ISO code, or the sentinel `"off"`).
+    /// `null` or empty clears it.
+    #[serde(rename = "subtitleLanguage", default, deserialize_with = "double_option")]
+    pub subtitle_language: Option<Option<String>>,
 }
 
-/// `PATCH /api/auth/me` (Bearer) `{ language }` → `{ user }`. Persists the
-/// account's preferred UI locale so it follows the profile across devices.
+/// Normalise a playback-language field: trim + lowercase; an empty string clears
+/// it (mapped to `None`). Media languages are free-form ISO codes, so unlike the
+/// UI `language` they're not constrained to the app's catalog.
+fn norm_media_lang(v: Option<String>) -> Option<String> {
+    v.map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty())
+}
+
+/// `PATCH /api/auth/me` (Bearer) → `{ user }`. Self-service profile update. Only
+/// the fields present in the body are touched (see [`double_option`]): display
+/// name, email, preferred UI locale and audio/subtitle playback languages. All
+/// persist server-side so they follow the account across devices.
 pub async fn update_me(
     State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
     AuthUser(mut user): AuthUser,
     Json(body): Json<UpdateMeBody>,
 ) -> Response {
-    // Normalise to a supported code; an unknown/garbage tag leaves it unchanged.
-    let language = body.language.as_deref().and_then(i18n::normalize);
-    let uid = user.id.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::set_user_language(&pool, &uid, language)).await {
-        return resp;
+    // ----- display name -----
+    if let Some(name) = body.username {
+        let name = name.unwrap_or_default().trim().to_string();
+        if name.is_empty() {
+            return lerr(loc, StatusCode::BAD_REQUEST, "auth.usernameInvalid");
+        }
+        // Reject a collision with a *different* account (a no-op keep is allowed).
+        let check = name.clone();
+        let self_id = user.id.clone();
+        match query(&state.db, move |pool| db::username_taken(&pool, &check, Some(&self_id))).await {
+            Ok(true) => return lerr(loc, StatusCode::CONFLICT, "auth.usernameTaken"),
+            Ok(false) => {}
+            Err(resp) => return resp,
+        }
+        let uid = user.id.clone();
+        let n = name.clone();
+        if let Err(resp) = query(&state.db, move |pool| db::set_user_username(&pool, &uid, &n)).await {
+            return resp;
+        }
+        user.username = name;
     }
-    user.language = language.map(str::to_string);
+
+    // ----- email (validated + unique) -----
+    if let Some(email) = body.email {
+        let email = email.unwrap_or_default().trim().to_lowercase();
+        if email.is_empty() || !email.contains('@') {
+            return lerr(loc, StatusCode::BAD_REQUEST, "auth.emailInvalid");
+        }
+        // Reject a collision with a *different* account (a no-op change to the
+        // caller's own current email is allowed).
+        let check = email.clone();
+        match query(&state.db, move |pool| db::find_user_by_email(&pool, &check)).await {
+            Ok(Some((other, _))) if other.id != user.id => {
+                return lerr(loc, StatusCode::CONFLICT, "auth.emailTaken");
+            }
+            Ok(_) => {}
+            Err(resp) => return resp,
+        }
+        let uid = user.id.clone();
+        let e = email.clone();
+        if let Err(resp) = query(&state.db, move |pool| db::set_user_email(&pool, &uid, &e)).await {
+            // The write can still fail on the UNIQUE(email) constraint if a
+            // concurrent request took the address between our check and write.
+            // Re-confirm and surface the clean 409 rather than a generic 500.
+            let check = email.clone();
+            let self_id = user.id.clone();
+            if let Ok(Some((other, _))) =
+                query(&state.db, move |pool| db::find_user_by_email(&pool, &check)).await
+            {
+                if other.id != self_id {
+                    return lerr(loc, StatusCode::CONFLICT, "auth.emailTaken");
+                }
+            }
+            return resp;
+        }
+        user.email = email;
+    }
+
+    // ----- preferred UI locale -----
+    if let Some(lang) = body.language {
+        // Normalise to a supported code; an unknown/garbage tag or an explicit
+        // `null` both clear it (fall back to the device locale).
+        let language = lang.and_then(|tag| i18n::normalize(&tag)).map(|c| c.to_string());
+        let uid = user.id.clone();
+        let l = language.clone();
+        if let Err(resp) = query(&state.db, move |pool| db::set_user_language(&pool, &uid, l.as_deref())).await
+        {
+            return resp;
+        }
+        user.language = language;
+    }
+
+    // ----- preferred audio language -----
+    if let Some(audio) = body.audio_language {
+        let audio = norm_media_lang(audio);
+        let uid = user.id.clone();
+        let a = audio.clone();
+        if let Err(resp) = query(&state.db, move |pool| db::set_user_audio_language(&pool, &uid, a.as_deref())).await
+        {
+            return resp;
+        }
+        user.audio_language = audio;
+    }
+
+    // ----- preferred subtitle language -----
+    if let Some(sub) = body.subtitle_language {
+        let sub = norm_media_lang(sub);
+        let uid = user.id.clone();
+        let s = sub.clone();
+        if let Err(resp) = query(&state.db, move |pool| db::set_user_subtitle_language(&pool, &uid, s.as_deref())).await
+        {
+            return resp;
+        }
+        user.subtitle_language = sub;
+    }
+
     Json(json!({ "user": user })).into_response()
 }
 
-/// Mint a session token for `user` and return `{ token, user }`.
-async fn issue_session(state: SharedState, user: User) -> Response {
-    let token = auth::random_token();
-    let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + auth::SESSION_TTL_SECS;
-    let token_db = token.clone();
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordBody {
+    /// The account's current password (verified before the change).
+    pub current: String,
+    /// The new password (min 4 chars, matching registration).
+    pub next: String,
+}
+
+/// `PATCH /api/auth/me/password` (Bearer) `{ current, next }` → 204. Self-service
+/// password change: verifies `current` against the stored hash, then replaces it.
+/// There is no email-based reset flow (LAN self-hosted, no mail service), so this
+/// is the way an account rotates its own password. The current session stays
+/// valid (the bearer token is unaffected).
+pub async fn change_password(
+    State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
+    AuthUser(user): AuthUser,
+    Json(body): Json<ChangePasswordBody>,
+) -> Response {
+    if body.next.len() < 4 {
+        return lerr(loc, StatusCode::BAD_REQUEST, "auth.passwordTooShort");
+    }
     let uid = user.id.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, expires_at)).await
+    let stored = match query(&state.db, move |pool| db::user_password_hash(&pool, &uid)).await {
+        Ok(Some(h)) => h,
+        Ok(None) => return lerr(loc, StatusCode::NOT_FOUND, "auth.invalidCredentials"),
+        Err(resp) => return resp,
+    };
+    if !auth::verify_password(&body.current, &stored) {
+        return lerr(loc, StatusCode::UNAUTHORIZED, "auth.passwordCurrentWrong");
+    }
+    let hash = auth::hash_password(&body.next);
+    let uid = user.id.clone();
+    if let Err(resp) = query(&state.db, move |pool| db::set_user_password(&pool, &uid, &hash)).await {
+        return resp;
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// Mint a long-lived access token + a short-lived session for a freshly
+/// authenticated `user` (password login / register). The access token is
+/// PIN-verified at birth password auth already proved identity, so silent
+/// refreshes work until the profile is switched away and re-locked.
+async fn issue_tokens(state: SharedState, user: User) -> Response {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    // Access token (device credential, 90d, pin-verified).
+    let access = auth::random_token();
+    let access_db = access.clone();
+    let uid = user.id.clone();
+    let access_exp = now + auth::ACCESS_TTL_SECS;
+    if let Err(resp) =
+        query(&state.db, move |pool| db::create_access_token(&pool, &access_db, &uid, access_exp, true)).await
     {
         return resp;
     }
+
+    // Session token (short-lived bearer, 1h).
+    let token = auth::random_token();
+    let token_db = token.clone();
+    let uid = user.id.clone();
+    let session_exp = now + auth::SESSION_TTL_SECS;
+    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, session_exp)).await
+    {
+        return resp;
+    }
+
     // Best-effort last-seen stamp for the admin members table.
     let uid = user.id.clone();
     let _ = query(&state.db, move |pool| {
@@ -258,7 +577,7 @@ async fn issue_session(state: SharedState, user: User) -> Response {
         Ok(())
     })
     .await;
-    Json(super::dto::AuthResult { token, user }).into_response()
+    Json(super::dto::AuthResult { token, access_token: access, user }).into_response()
 }
 
 // ----- profiles ---------------------------------------------------------------
@@ -347,20 +666,34 @@ pub async fn quick_authorize(
     Json(body): Json<QuickAuthorizeBody>,
 ) -> Response {
     let code = body.code.trim().to_string();
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    // Mint the device's long-lived access token (pin-verified the approver, who
+    // is already signed in, is vouching for this device) plus its first session.
+    let access = auth::random_token();
+    let access_db = access.clone();
+    let uid = user.id.clone();
+    let access_exp = now + auth::ACCESS_TTL_SECS;
+    if let Err(resp) =
+        query(&state.db, move |pool| db::create_access_token(&pool, &access_db, &uid, access_exp, true)).await
+    {
+        return resp;
+    }
     let token = auth::random_token();
-    let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + auth::SESSION_TTL_SECS;
     let token_db = token.clone();
     let uid = user.id.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, expires_at)).await
+    let session_exp = now + auth::SESSION_TTL_SECS;
+    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, session_exp)).await
     {
         return resp;
     }
 
-    if state.quickconnect.authorize(&code, user, token.clone()) {
+    if state.quickconnect.authorize(&code, user, token.clone(), access.clone()) {
         StatusCode::NO_CONTENT.into_response()
     } else {
-        // Unknown/expired code → don't leave the just-created session dangling.
+        // Unknown/expired code → don't leave the just-created tokens dangling.
         let _ = query(&state.db, move |pool| db::delete_session(&pool, &token)).await;
+        let _ = query(&state.db, move |pool| db::delete_access_token(&pool, &access)).await;
         lerr(loc, StatusCode::NOT_FOUND, "connect.invalidCode")
     }
 }
@@ -374,7 +707,9 @@ pub struct QuickPollQuery {
 /// `pending` | `authorized` (then `{ token, user }`) | `expired`.
 pub async fn quick_poll(State(state): State<SharedState>, Query(q): Query<QuickPollQuery>) -> Response {
     let status = match state.quickconnect.poll(&q.secret) {
-        PollState::Authorized { token, user } => super::dto::QuickPoll::Authorized { token, user },
+        PollState::Authorized { token, access_token, user } => {
+            super::dto::QuickPoll::Authorized { token, access_token, user }
+        }
         PollState::Pending => super::dto::QuickPoll::Pending,
         PollState::Unknown => super::dto::QuickPoll::Expired,
     };

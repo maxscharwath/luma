@@ -6,8 +6,8 @@ import { type DiscoverType, type DiscoverEntry } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconChevronRight, IconFlame } from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';
-import { DiscoverCard } from '#web/features/requests/DiscoverCard';
-import { SkeletonRow } from '#web/features/requests/PosterSkeleton';
+import { DiscoverCard } from '#web/features/requests/discover-card';
+import { SkeletonRow } from '#web/features/requests/poster-skeleton';
 import { Rail } from '#web/shared/ui';
 
 const RAIL_HEADING =

@@ -14,12 +14,12 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { PipelineDrawer } from '#web/features/admin/pipelineDrawer';
-import { ElementRowView } from '#web/features/admin/pipelineRow';
+import { PipelineDrawer } from '#web/features/admin/pipeline-drawer';
+import { ElementRowView } from '#web/features/admin/pipeline-row';
 import { useAdmin, useCap, usePoll } from '#web/features/admin/shell';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/InputGroup';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 const PER_PAGE = 30;
 const apiKind = (el: ElementRow): 'item' | 'show' => (el.kind === 'series' ? 'show' : 'item');

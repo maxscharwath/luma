@@ -118,6 +118,24 @@ fn check_current_pin(existing: &Option<String>, current: Option<&str>, loc: &str
     Ok(())
 }
 
+// Thin `pub(crate)` aliases so the token-exchange handler (`api::accounts`) can
+// reuse this module's PIN lockout guard + hash lookup without duplicating them.
+pub(crate) fn lock_remaining(uid: &str) -> Option<i64> {
+    pin_lock_remaining(uid)
+}
+pub(crate) fn record_fail(uid: &str) -> i64 {
+    pin_record_fail(uid)
+}
+pub(crate) fn reset(uid: &str) {
+    pin_reset(uid);
+}
+pub(crate) fn locked_response(loc: &str, secs: i64) -> Response {
+    pin_locked_response(loc, secs)
+}
+pub(crate) async fn fetch_hash(state: &SharedState, uid: &str) -> Result<Option<String>, Response> {
+    fetch_pin_hash(state, uid).await
+}
+
 #[derive(Debug, Deserialize)]
 pub struct VerifyPinBody {
     pub pin: String,
@@ -189,6 +207,10 @@ pub async fn set_pin(
     if let Err(resp) = query(&state.db, move |pool| db::set_user_pin(&pool, &uid, Some(&hash))).await {
         return resp;
     }
+    // Re-lock every remembered device: the new PIN must be re-confirmed on the
+    // next switch-in (their access tokens lose their pin-verified flag).
+    let uid = user.id.clone();
+    let _ = query(&state.db, move |pool| db::reset_access_pin_verified(&pool, &uid)).await;
     pin_reset(&user.id);
     user.has_pin = true;
     Json(json!({ "user": user })).into_response()

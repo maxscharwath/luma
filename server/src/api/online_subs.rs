@@ -21,6 +21,8 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 
 /// On-device subtitle generation (Whisper) plus management of downloaded tracks.
+/// Authenticated subtitle generation/management endpoints (gated by the session
+/// middleware).
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/items/:id/subtitles/generate", post(generate))
@@ -29,7 +31,13 @@ pub fn routes() -> Router<SharedState> {
         .route("/items/:id/subtitles/generations/:gen", delete(cancel_generation))
         .route("/items/:id/subtitles/downloaded", get(list))
         .route("/items/:id/subtitles/downloaded/:dl", delete(delete_downloaded))
-        .route("/items/:id/subtitles/dl/:dl", get(file))
+}
+
+/// Public: serve a generated/downloaded subtitle's WebVTT bytes. The player
+/// fetches this URL as a plain `fetch()` (and can't attach a bearer), so like
+/// the embedded-subtitle + stream byte routes it stays outside the session gate.
+pub fn public_routes() -> Router<SharedState> {
+    Router::new().route("/items/:id/subtitles/dl/:dl", get(file))
 }
 
 /// A generated/cached subtitle as the client sees it, with its WebVTT URL.

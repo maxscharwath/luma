@@ -4,34 +4,29 @@
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use ts_rs::TS;
 
 use crate::i18n;
 
 use super::store::Settings;
 
 /// One editable (or read-only) setting row.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SettingRow {
     pub key: String,
     pub label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub desc: Option<String>,
     /// `toggle` | `select` | `text` | `value`.
-    #[ts(type = "string")]
     pub kind: &'static str,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<String>,
-    #[ts(type = "unknown")]
     pub value: Value,
     /// Whether the server actually enforces this setting (vs. stored-only).
     pub applied: bool,
 }
 
 /// A titled group of rows.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SettingGroup {
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]

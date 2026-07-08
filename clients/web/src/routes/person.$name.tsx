@@ -6,16 +6,17 @@ import {
   type Translate,
 } from '@luma/core';
 import { useT } from '@luma/ui';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { type CatalogEntry, CatalogGrid } from '#web/features/catalog/cards';
 import { initials } from '#web/features/catalog/detail';
-import { imageUrl, lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
+import { imageUrl, isAuthed, lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui';
 
 /** `/person/<name>` every movie + show one cast/crew member is credited in.
  * Reached by selecting a face in a detail page's "Distribution" rail. */
 export const Route = createFileRoute('/person/$name')({
   loader: async ({ params }) => {
+    if (!isAuthed()) throw redirect({ to: '/' });
     const c = lumaClient();
     // TanStack decodes the path param; the API matches the name case-insensitively.
     const name = params.name;

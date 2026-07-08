@@ -8,22 +8,24 @@ import {
 } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AvDrawer } from '#web/features/playback/AvDrawer';
-import { ControlBar } from '#web/features/playback/ControlBar';
+import { AvDrawer } from '#web/features/playback/av-drawer';
+import { ControlBar } from '#web/features/playback/control-bar';
 import { IconBack, IconStopped } from '#web/features/playback/icons';
-import { Toast } from '#web/features/playback/PlayerToast';
-import { SkipIntroButton } from '#web/features/playback/SkipIntroButton';
-import { StatsOverlay } from '#web/features/playback/StatsOverlay';
-import { SubtitleLayer } from '#web/features/playback/SubtitleLayer';
-import { useSubtitleStyle } from '#web/features/playback/subtitleStyle';
-import { UpNextOverlay } from '#web/features/playback/UpNextOverlay';
-import { usePlaybackSession } from '#web/features/playback/usePlaybackSession';
-import { useStoryboard } from '#web/features/playback/useStoryboard';
-import { usePlayerHotkeys } from '#web/features/playback/usePlayerHotkeys';
-import { useResumeProgress } from '#web/features/playback/useResumeProgress';
-import { useUpNext } from '#web/features/playback/useUpNext';
-import { useVideoPlayback } from '#web/features/playback/useVideoPlayback';
+import { Toast } from '#web/features/playback/player-toast';
+import { SkipIntroButton } from '#web/features/playback/skip-intro-button';
+import { StatsOverlay } from '#web/features/playback/stats-overlay';
+import { SubtitleLayer } from '#web/features/playback/subtitle-layer';
+import { useSubtitleStyle } from '#web/features/playback/subtitle-style';
+import { UpNextOverlay } from '#web/features/playback/up-next-overlay';
+import { usePlaybackSession } from '#web/features/playback/use-playback-session';
+import { useStoryboard } from '#web/features/playback/use-storyboard';
+import { usePlayerHotkeys } from '#web/features/playback/use-player-hotkeys';
+import { useResumeProgress } from '#web/features/playback/use-resume-progress';
+import { useUpNext } from '#web/features/playback/use-up-next';
+import { preferredSubIndex } from '#web/features/playback/track-prefs';
+import { useVideoPlayback } from '#web/features/playback/use-video-playback';
 import { lumaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
+import { useAuth } from '#web/shared/lib/auth';
 import type { DownloadedSub } from '@luma/core';
 
 /** Custom fullscreen player: scrub bar with hover preview, ±10s, volume, speed,
@@ -75,6 +77,18 @@ export function Player({
   const [subStyle, setSubStyle] = useSubtitleStyle();
   const [audioWarn, setAudioWarn] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-enable the account's preferred subtitle language once, when the session
+  // has hydrated. Only matches embedded text tracks (see `preferredSubIndex`); an
+  // absent preference or the "off" sentinel leaves subtitles off.
+  const { user } = useAuth();
+  const subPrefApplied = useRef(false);
+  useEffect(() => {
+    if (subPrefApplied.current || !user) return;
+    subPrefApplied.current = true;
+    const idx = preferredSubIndex(item.subs, user.subtitleLanguage);
+    if (idx != null) setActiveSub(idx);
+  }, [user, item.subs]);
 
   const audio = audioSupport(item);
 
@@ -368,7 +382,7 @@ export function Player({
           pb={pb}
           storyboard={storyboard}
           statsOpen={statsOpen}
-          markers={item.markers}
+          markers={item.markers ?? undefined}
           onToggleStats={() => setStatsOpen((s) => !s)}
           onOpenAv={() => setAvOpen(true)}
           onPlayNext={up.canAdvance ? up.advance : undefined}

@@ -149,11 +149,12 @@ pub(crate) fn parse_metadata(json: Option<String>) -> Option<Metadata> {
 }
 
 /// Map a row of
-/// `id,email,username,avatar_url,created_at,permissions,language,has_pin` to a
-/// [`User`]. Column 7 is a boolean (`pin_hash IS NOT NULL`) every SELECT that
-/// feeds this must project it (the password-hash lookups carry it before their
-/// trailing `password_hash`). Column 6 is read as `language`; the admin members
-/// query repurposes it for `last_seen` (which the caller re-reads itself).
+/// `id,email,username,avatar_url,created_at,permissions,language,has_pin,audio_language,subtitle_language`
+/// to a [`User`]. Column 7 is a boolean (`pin_hash IS NOT NULL`) every SELECT
+/// that feeds this must project cols 0..=9 (the password-hash lookups carry them
+/// before their trailing `password_hash`). Column 6 is read as `language`; the
+/// admin members query repurposes it for `last_seen` (which the caller re-reads
+/// itself).
 pub(crate) fn row_to_user(r: &Row) -> rusqlite::Result<User> {
     Ok(User {
         id: r.get(0)?,
@@ -164,6 +165,8 @@ pub(crate) fn row_to_user(r: &Row) -> rusqlite::Result<User> {
         permissions: parse_permissions(&r.get::<_, String>(5)?),
         language: r.get(6)?,
         has_pin: r.get(7)?,
+        audio_language: r.get(8)?,
+        subtitle_language: r.get(9)?,
     })
 }
 

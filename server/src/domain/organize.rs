@@ -2,13 +2,11 @@
 //! (serde + ts-rs); the engine lives in `crate::services::organize`.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 /// The five naming templates (Sonarr/Radarr-style token strings) plus the
 /// global case transform applied to every rendered filename.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct NamingTemplatesView {
     pub movie_folder: String,
     pub movie_file: String,
@@ -20,18 +18,16 @@ pub struct NamingTemplatesView {
 }
 
 /// `GET /api/admin/organize/naming` current templates + a rendered sample.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct NamingView {
     pub templates: NamingTemplatesView,
     pub sample: SampleNames,
 }
 
 /// Example rendered names for the live preview.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct SampleNames {
     /// e.g. `The Matrix (1999)/The Matrix (1999) Bluray-1080p.mkv`
     pub movie: String,
@@ -43,9 +39,8 @@ pub struct SampleNames {
 pub type SampleBody = NamingTemplatesView;
 
 /// One file the rename tool would move.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct OrganizeMove {
     pub title: String,
     /// `movie` | `episode`.
@@ -57,9 +52,8 @@ pub struct OrganizeMove {
 }
 
 /// `GET /api/admin/organize/preview`.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct OrganizePlan {
     pub moves: Vec<OrganizeMove>,
     /// Total library files considered.
@@ -69,9 +63,8 @@ pub struct OrganizePlan {
 }
 
 /// `POST /api/admin/organize/apply` result.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct OrganizeResult {
     pub moved: u32,
     pub failed: u32,

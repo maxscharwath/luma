@@ -29,6 +29,10 @@ mod suggest;
 mod themes;
 mod util;
 
+use axum::extract::{Request, State};
+use axum::http::StatusCode;
+use axum::middleware::{from_fn_with_state, Next};
+use axum::response::Response;
 use axum::Router;
 use tower_http::compression::predicate::{NotForContentType, Predicate};
 use tower_http::compression::{CompressionLayer, DefaultPredicate};
@@ -36,34 +40,72 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
+use crate::api::error::json_error;
+use crate::api::extract::bearer_from_headers;
 use crate::state::SharedState;
+
+/// Require a valid session (bearer) token on the content routes. Rejects a
+/// missing/expired/unknown token with `401` before the handler runs, so the
+/// catalogue can't be listed anonymously. Public routes (auth handshake, roster,
+/// invites, avatars, health, media bytes) are merged OUTSIDE this layer.
+async fn require_session(State(state): State<SharedState>, req: Request, next: Next) -> Response {
+    let Some(token) = bearer_from_headers(req.headers()) else {
+        return json_error(StatusCode::UNAUTHORIZED, "authentication required");
+    };
+    let pool = state.db.clone();
+    let ok = tokio::task::spawn_blocking(move || crate::db::session_user(&pool, &token))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .flatten()
+        .is_some();
+    if ok {
+        next.run(req).await
+    } else {
+        json_error(StatusCode::UNAUTHORIZED, "authentication required")
+    }
+}
 
 /// Build the application router with all `/api` routes plus CORS and tracing.
 pub fn router(state: SharedState) -> Router {
-    // Each feature module owns its routes via a `routes()` function, so adding a
-    // route means editing the module that handles it, not this table. Modules are
-    // flat-merged (their paths span prefixes like `/items` and `/shows`); the
-    // admin subtree gets its own `/admin` prefix via `nest`.
-    let api = Router::new()
+    // Public endpoints reachable before (or without) a session: the auth
+    // handshake + roster + invites, uploaded avatars/art, liveness, and the media
+    // byte streams (a `<video>`/hls element can't attach a bearer these carry no
+    // catalogue listing and stay open under the LAN trust model).
+    let public = Router::new()
+        .merge(accounts::routes())
+        .merge(pin::routes())
+        .merge(invites::routes())
+        .merge(images::routes())
+        .merge(media::public_routes())
+        .merge(stream::routes())
+        .merge(online_subs::public_routes())
+        .merge(themes::routes())
+        .merge(ws::routes());
+
+    // Content endpoints require a valid session: the catalogue listing + detail,
+    // search, people, metadata, discovery/requests, home rows and per-user
+    // playback. Knowing the URL no longer lists the library. `themes` +
+    // downloaded-subtitle bytes are served publicly above they're fetched by an
+    // <audio> element / plain fetch that can't attach a bearer.
+    let content = Router::new()
         .merge(media::routes())
         .merge(search::routes())
         .merge(people::routes())
         .merge(metadata::routes())
-        .merge(images::routes())
-        .merge(stream::routes())
         .merge(recommend::routes())
         .merge(suggest::routes())
         .merge(online_subs::routes())
-        .merge(themes::routes())
         .merge(home::routes())
-        .merge(ws::routes())
         .merge(playback::routes())
-        .merge(accounts::routes())
-        .merge(pin::routes())
-        .merge(invites::routes())
         .merge(discover::routes())
         .merge(requests::routes())
-        .nest("/admin", admin::routes());
+        .route_layer(from_fn_with_state(state.clone(), require_session));
+
+    // Each feature module owns its routes via a `routes()` function. The admin
+    // subtree gets its own `/admin` prefix and self-gates per-handler (permission
+    // checks), so it lives outside the blanket content layer.
+    let api = public.merge(content).nest("/admin", admin::routes());
 
     let mut app = Router::new().nest("/api", api);
 

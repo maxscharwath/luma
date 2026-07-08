@@ -29,7 +29,7 @@ apps/        deployables have an entry point, ship
   web/         Web SPA
   tv/          10-foot TV app
 packages/    shared libraries imported by ≥2 apps
-  core/        @luma/core: pure rules + ts-rs wire types + outbound adapters
+  core/        @luma/core: pure rules + outbound adapters (re-exports @luma/client)
   ui/          @luma/ui: presentational primitives + shared hooks/providers
 clients/     platform shells / packaging that wrap an app for a host
   tizen/  webos/  synology/
@@ -52,7 +52,7 @@ server/src/
 
 **Dependency rule (inward only):** `api → services → {db, infra} → domain`.
 
-- `domain/` may use std/serde/ts-rs only **never** axum/rusqlite/reqwest/process. (CI-guarded.)
+- `domain/` may use std/serde only **never** axum/rusqlite/reqwest/process. (CI-guarded.)
 - `services/` may use db/infra/domain; never api. `api/` translates HTTP↔services, holds no business logic.
 - `main.rs` + `state.rs` are the only composition points.
 - **Cross-cutting joins** are owned by the consuming domain (e.g. `continue_watching` in `db/playback.rs`, admin history in `db/admin.rs`). One Pool; "a domain owns its tables" is a convention, not a wall.
@@ -81,7 +81,7 @@ lockfiles, `*.gen.ts`, irreducible adapters (ffmpeg flag-builders).
 
 | # | Phase | Status |
 |---|-------|--------|
-| 0 | Guardrails (CI: gen-types drift gate ✓ + domain-purity guard) | in progress |
+| 0 | Guardrails (CI: domain-purity guard; zod schemas are the wire-type source of truth) | in progress |
 | 1 | Server god-file split by domain (`db.rs`, `model.rs` → `db/`, `domain/`) | pending |
 | 2 | Server layering (`infra/` + `services/` + `api/` column + `extract.rs`) | pending |
 | 3 | Monorepo move (`packages/tv→apps/tv`, `clients/web→apps/web`, `server→apps/server`) | pending |
@@ -89,4 +89,4 @@ lockfiles, `*.gen.ts`, irreducible adapters (ffmpeg flag-builders).
 | 5 | Hardening (`api.ts` per-domain sub-clients; optional `luma-domain` crate) | pending |
 
 Each phase is independently shippable and verified (`cargo test` · `bun run typecheck`/`build` ·
-`gen:types` no-diff · for Phase 3, a full `.spk` build that serves the SPA).
+for Phase 3, a full `.spk` build that serves the SPA).

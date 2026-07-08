@@ -8,14 +8,11 @@
 use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
-use ts_rs::TS;
 
 /// A snapshot of what the server is doing.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Activity {
     /// `idle` | `scanning` | `enriching` | `ready`.
-    #[ts(type = "string")]
     pub phase: &'static str,
     pub scanning: bool,
     pub libraries: usize,

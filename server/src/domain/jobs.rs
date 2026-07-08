@@ -6,7 +6,6 @@
 //! clients resolve against the shared catalogs.
 
 use serde::Serialize;
-use ts_rs::TS;
 
 // A job's identity is its dotted key, declared per-job in its `SPEC` and modelled
 // as `crate::services::jobs::JobKey` (a pure internal type, not a wire type). On
@@ -14,9 +13,8 @@ use ts_rs::TS;
 
 /// UI grouping bucket for a job. Serializes lowercase (`"maintenance"`), which the
 /// clients turn into the `jobs.cat.{category}` i18n key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
-#[ts(export)]
 pub enum Category {
     Maintenance,
     Library,
@@ -32,9 +30,8 @@ pub enum Category {
 }
 
 /// One recorded execution of a job.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct JobRun {
     pub id: String,
     pub job_key: String,
@@ -53,8 +50,7 @@ pub struct JobRun {
 }
 
 /// One persisted log line of a run.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct JobLog {
     pub ts: i64,
     /// `"info" | "warn" | "error"`.
@@ -63,9 +59,8 @@ pub struct JobLog {
 }
 
 /// A job's definition + current state, as listed in the admin console.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct JobInfo {
     /// Stable dotted key (`"library.scan"`) this job's identity on the wire: the
     /// DB key, the `/api/admin/jobs/:key` URL segment, and the i18n base
@@ -95,15 +90,13 @@ pub struct JobInfo {
 }
 
 /// `GET /api/admin/jobs`.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct JobsView {
     pub jobs: Vec<JobInfo>,
 }
 
 /// `GET /api/admin/jobs/:key` a job plus its recent run history.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct JobDetail {
     pub info: JobInfo,
     pub runs: Vec<JobRun>,

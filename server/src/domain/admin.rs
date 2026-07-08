@@ -2,7 +2,6 @@
 //! raw history/library aggregates that back the dashboard.
 
 use serde::Serialize;
-use ts_rs::TS;
 
 use crate::domain::accounts::Permission;
 use crate::domain::media::Kind;
@@ -10,8 +9,7 @@ use crate::domain::media::Kind;
 /// One account as surfaced to the admin "Membres & partage" table. Unlike
 /// [`User`] this carries the email, a derived role, last-activity and a live
 /// `online` flag (set at request time from the playback registry).
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AdminUser {
     pub id: String,
     pub email: String,
@@ -31,8 +29,7 @@ pub struct AdminUser {
 
 /// Aggregated per-user watch stats over a window (the dashboard "Top des
 /// utilisateurs" cards).
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TopUser {
     pub username: String,
     pub plays: i64,

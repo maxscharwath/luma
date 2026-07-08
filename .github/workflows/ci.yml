@@ -204,14 +204,3 @@ jobs:
             exit 1
           fi
           echo "✓ domain layer is I/O-free"
-
-      # Drift gate: the TS wire types in packages/core/src/generated are generated
-      # from the Rust #[derive(TS)] structs. Regenerate and fail if they differ
-      # from what's committed (someone changed a model but forgot `bun gen:types`).
-      - name: TS bindings up to date (ts-rs)
-        working-directory: ${{ github.workspace }}
-        run: |
-          ./scripts/gen-types.sh
-          git add -A packages/core/src/generated
-          git diff --cached --exit-code -- packages/core/src/generated \
-            || { echo "::error::Generated TS types are stale run 'bun gen:types' and commit packages/core/src/generated."; exit 1; }

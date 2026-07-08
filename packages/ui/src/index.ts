@@ -1,6 +1,6 @@
 export type { UseAiSuggestOptions, UseAiSuggestResult } from './aiSuggest';
 export { useAiSuggest } from './aiSuggest';
-export type { AuthSession } from './auth';
+export type { ActivateResult, AuthSession } from './auth';
 export { useAuthSession } from './auth';
 export type { AvatarProps } from './components/Avatar';
 export { Avatar } from './components/Avatar';

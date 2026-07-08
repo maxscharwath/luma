@@ -2,10 +2,11 @@
 // labelled fields, modal action footer). Split out of `ui.tsx`; the display
 // primitives there re-export these so call sites keep importing everything from
 // `#web/features/admin/ui`.
-import { IconChevronDown } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import { Select as UiSelect } from '#web/shared/ui';
 
-/** Styled native select rendered as the design's value chip. */
+/** Admin value-chip select (label === value), backed by the shared styled
+ * {@link UiSelect}. Keeps the string[] API its call sites already use. */
 export function Select({
   value,
   options,
@@ -15,22 +16,15 @@ export function Select({
   options: string[];
   onChange?: (v: string) => void;
 }>) {
-  const opts = options.length || options.includes(value) ? options : [value];
+  // Keep the current value selectable even if it isn't in the list (empty values
+  // aren't valid Radix items, so they just fall through to the placeholder).
+  const all = value && !options.includes(value) ? [value, ...options] : options;
   return (
-    <span className="relative inline-flex items-center">
-      <select
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        className="cursor-pointer appearance-none rounded-[9px] border border-border-strong bg-surface-2 py-2.25 pl-3.25 pr-9 text-[13.5px] font-semibold text-text outline-none"
-      >
-        {(opts.includes(value) ? opts : [value, ...opts]).map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-      <IconChevronDown className="pointer-events-none absolute right-3" size={13} stroke={2.5} />
-    </span>
+    <UiSelect
+      value={value}
+      onChange={(v) => onChange?.(v)}
+      options={all.map((o) => ({ value: o, label: o }))}
+    />
   );
 }
 

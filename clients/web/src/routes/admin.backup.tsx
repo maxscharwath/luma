@@ -2,7 +2,7 @@ import { useT } from '@luma/ui';
 import { IconAlertTriangle, IconDownload, IconUpload } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
-import { ExportModal, ImportModal, isEncryptedFile } from '#web/features/admin/backupModals';
+import { ExportModal, ImportModal, isEncryptedFile } from '#web/features/admin/backup-modals';
 import { Denied, PageHeader, useCap } from '#web/features/admin/shell';
 import { C, Card, Section } from '#web/features/admin/ui';
 

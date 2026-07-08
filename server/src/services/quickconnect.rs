@@ -32,6 +32,7 @@ struct Pending {
     /// Set once a signed-in user approves the code.
     user: Option<User>,
     token: Option<String>,
+    access_token: Option<String>,
 }
 
 pub struct QuickConnectInner {
@@ -51,7 +52,7 @@ pub struct Initiated {
 /// Result of [`QuickConnectInner::poll`].
 pub enum PollState {
     Pending,
-    Authorized { token: String, user: User },
+    Authorized { token: String, access_token: String, user: User },
     Unknown,
 }
 
@@ -95,20 +96,27 @@ impl QuickConnectInner {
         let secret = random_token();
         map.insert(
             code.clone(),
-            Pending { secret: secret.clone(), created_at: now(), user: None, token: None },
+            Pending {
+                secret: secret.clone(),
+                created_at: now(),
+                user: None,
+                token: None,
+                access_token: None,
+            },
         );
         Initiated { code, secret, expires_in: CODE_TTL_SECS }
     }
 
-    /// Approve a code for `user`, attaching a freshly-minted session `token`.
-    /// Returns false if the code is unknown/expired.
-    pub fn authorize(&self, code: &str, user: User, token: String) -> bool {
+    /// Approve a code for `user`, attaching a freshly-minted session `token` and
+    /// the device's long-lived `access_token`. Returns false if unknown/expired.
+    pub fn authorize(&self, code: &str, user: User, token: String, access_token: String) -> bool {
         let mut map = self.map.lock().unwrap();
         Self::reap(&mut map);
         match map.get_mut(code) {
             Some(p) => {
                 p.user = Some(user);
                 p.token = Some(token);
+                p.access_token = Some(access_token);
                 true
             }
             None => false,
@@ -124,10 +132,10 @@ impl QuickConnectInner {
             return PollState::Unknown;
         };
         let entry = map.get(&code).expect("entry present");
-        match (entry.token.clone(), entry.user.clone()) {
-            (Some(token), Some(user)) => {
+        match (entry.token.clone(), entry.access_token.clone(), entry.user.clone()) {
+            (Some(token), Some(access_token), Some(user)) => {
                 map.remove(&code);
-                PollState::Authorized { token, user }
+                PollState::Authorized { token, access_token, user }
             }
             _ => PollState::Pending,
         }

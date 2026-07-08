@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AudioTrack, MediaItem } from '../types';
+import type { AudioTrack, MediaItem } from '@luma/client';
 import {
   audioTrackId,
   avplayDirectPlayable,

@@ -9,14 +9,12 @@
 //! are individually visible + retriable.
 
 use serde::Serialize;
-use ts_rs::TS;
 
 /// Health counters for one pipeline stage, aggregated from the ledger. Carried by
 /// both the REST view and the throttled `pipeline.stats` WS event, so the
 /// dashboard updates live without polling per-task rows.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct StageStat {
     /// Short stage key (`"probe"`, `"markers"`, …); i18n base `pipeline.stage.{stage}`.
     pub stage: String,
@@ -34,8 +32,7 @@ pub struct StageStat {
 
 /// `GET /api/admin/pipeline`: every stage's health, in DAG order, plus whether the
 /// whole pipeline is currently held by the global admin pause.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PipelineView {
     pub stages: Vec<StageStat>,
     pub paused: bool,
@@ -43,9 +40,8 @@ pub struct PipelineView {
 
 /// The status of one treatment (stage) as applied to a single catalog element,
 /// for the per-element "Traitements" panel on a film/episode/show page.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct Treatment {
     /// Short stage key (`"probe"`, `"metadata"`, `"storyboard"`, `"markers"`, `"embed"`).
     pub key: String,
@@ -59,9 +55,8 @@ pub struct Treatment {
 
 /// Per-series aggregate over its episodes, for the elements list (the client
 /// formats the localized "28 episodes · probed 28/28 · …" line).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct EpStats {
     pub episodes: i64,
     pub probed: i64,
@@ -72,9 +67,8 @@ pub struct EpStats {
 
 /// One catalog element (film / series / episode) with the status of each
 /// treatment applied to it and an overall roll-up, for the pipeline elements list.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ElementRow {
     pub id: String,
     /// `"film" | "series" | "episode"`.
@@ -97,9 +91,8 @@ pub struct ElementRow {
 }
 
 /// Status tally over ALL elements (unfiltered), for the filter chips + header.
-#[derive(Debug, Clone, Default, Serialize, TS)]
+#[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ElementCounts {
     pub total: i64,
     pub ok: i64,
@@ -113,9 +106,8 @@ pub struct ElementCounts {
 
 /// `GET /api/admin/pipeline/elements`: a filtered, paginated page of the catalog
 /// with per-element treatment state, plus the full-catalog counts for the chips.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct PipelineElements {
     pub total: i64,
     pub page: i64,
@@ -128,18 +120,16 @@ pub struct PipelineElements {
 /// element + whether it has been done, derived from the real artifacts (probed
 /// flag, metadata, cached sheet, markers, vector) with the ledger overlaid for
 /// in-progress / failed states.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct ElementProcessing {
     pub treatments: Vec<Treatment>,
 }
 
 /// One failed (or otherwise notable) ledger row, for the stage drill-down. The
 /// human-readable `title` is resolved against the catalog by the API layer.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
 pub struct PipelineTaskView {
     pub stage: String,
     pub subject_kind: String,

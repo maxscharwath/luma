@@ -5,10 +5,11 @@ import { apiErrorText, type NamingTemplatesView, type OrganizePlan } from '@luma
 import { useT } from '@luma/ui';
 import { IconArrowRight, IconBraces, IconLoader2, IconWand } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { NamingTokenModal } from '#web/features/admin/namingTokens';
+import { NamingTokenModal } from '#web/features/admin/naming-tokens';
 import { Denied, PageHeader, useCap } from '#web/features/admin/shell';
 import { Card, Modal, ModalActions, Section } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
+import { Select } from '#web/shared/ui';
 
 type FieldKey = Exclude<keyof NamingTemplatesView, 'case'>;
 
@@ -119,22 +120,21 @@ export function NamingPage() {
               </label>
             ))}
 
-            <label className="block max-w-xs">
+            <div className="block max-w-xs">
               <span className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim">
                 {t('naming.caseLabel')}
               </span>
-              <select
+              <Select
                 value={tpl.case}
-                onChange={(e) => set('case', e.target.value)}
-                className="w-full rounded-[9px] border border-border-strong bg-[#0F0F13] px-3.5 py-2.5 text-[13px] font-semibold text-text outline-none focus:border-accent/60"
-              >
-                {CASES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {t(c.labelKey as Parameters<typeof t>[0])}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(v) => set('case', v)}
+                ariaLabel={t('naming.caseLabel')}
+                block
+                options={CASES.map((c) => ({
+                  value: c.value,
+                  label: t(c.labelKey as Parameters<typeof t>[0]),
+                }))}
+              />
+            </div>
           </div>
         ) : (
           <div className="py-6 text-center text-dim">…</div>
@@ -171,7 +171,9 @@ export function NamingPage() {
       {tpl && openField ? (
         <NamingTokenModal
           fieldKey={openField}
-          fieldLabel={t(FIELDS.find((f) => f.key === openField)?.labelKey as Parameters<typeof t>[0])}
+          fieldLabel={t(
+            FIELDS.find((f) => f.key === openField)?.labelKey as Parameters<typeof t>[0],
+          )}
           value={tpl[openField]}
           onChange={setField(openField)}
           onClose={() => setOpenField(null)}

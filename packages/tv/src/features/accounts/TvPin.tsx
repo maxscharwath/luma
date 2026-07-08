@@ -28,12 +28,10 @@ export function TvPin() {
   const { client: activeClient } = useConnection();
   const { user: activeUser, activate, updateUser } = useAuth();
 
-  // For `verify`, talk to the account's own server with its remembered token.
+  // For `verify`, talk to the account's own server. The bearer is minted on
+  // demand by exchanging the account's access token (see `submit`).
   const verifyClient = useMemo(
-    () =>
-      account?.serverUrl
-        ? new LumaClient({ baseUrl: account.serverUrl, authToken: account.token })
-        : null,
+    () => (account?.serverUrl ? new LumaClient({ baseUrl: account.serverUrl }) : null),
     [account],
   );
 
@@ -87,6 +85,13 @@ export function TvPin() {
     try {
       if (intent === 'verify') {
         if (!verifyClient || !account) return;
+        // Exchange the access token for a session bearer, passing the PIN so a
+        // not-yet-pin-verified token (after a PIN change/reset) doesn't 401 before
+        // we can check it. pinVerify is still the authoritative gate it also
+        // rejects a wrong PIN when the token is already pin-verified server-side
+        // (where the exchange would skip the check).
+        const sess = await verifyClient.exchangeToken(account.accessToken, pin);
+        verifyClient.setAuthToken(sess.token);
         await verifyClient.pinVerify(pin);
         activate(account); // clears the lock + signs in for this session
         nav.home(); // `pin` is allowed while signed in (set/clear), so move on explicitly

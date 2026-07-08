@@ -5,12 +5,10 @@
 //! field names and casing must not drift.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 /// A user account. `password_hash` lives only in the DB layer and is never part
 /// of this (serialized) shape, so a `User` is always safe to send to clients.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: String,
     pub email: String,
@@ -22,6 +20,18 @@ pub struct User {
     /// shared i18n catalogs (`packages/core/src/locales`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Preferred audio-track language for playback (an ISO-639 code such as
+    /// `"en"` | `"fr"` | `"ja"`), synced across devices. `None` → no preference;
+    /// the player falls back to the file's default track. Independent of the UI
+    /// `language` above (you might browse in French but watch in Japanese).
+    #[serde(rename = "audioLanguage", skip_serializing_if = "Option::is_none")]
+    pub audio_language: Option<String>,
+    /// Preferred subtitle-track language for playback. An ISO-639 code selects
+    /// that language when a matching track exists; the sentinel `"off"` forces
+    /// subtitles off; `None` → no preference (leave the player's default). Synced
+    /// across devices.
+    #[serde(rename = "subtitleLanguage", skip_serializing_if = "Option::is_none")]
+    pub subtitle_language: Option<String>,
     /// Granted permissions (capability-based, no roles). The first registered
     /// account (owner) gets every permission; the rest default to `[Playback]`.
     /// Clients unlock pages/actions from this set (admin panel, future stats…).
@@ -47,8 +57,7 @@ impl User {
 /// A granular capability. Stored on each user as a JSON array of the string keys
 /// below. Extend this enum (and the TS mirror in `@luma/core`) to add more
 /// e.g. a `stats.view` for the upcoming stats pages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Permission {
     /// Manage user accounts (the admin panel).
     #[serde(rename = "users.manage")]
@@ -117,8 +126,7 @@ pub fn role_label(perms: &[Permission]) -> &'static str {
 
 /// The publicly-listable subset of a user, surfaced by `GET /api/users` to
 /// populate the "Qui regarde ?" profile picker (no email).
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PublicUser {
     pub id: String,
     pub username: String,
@@ -133,8 +141,7 @@ pub struct PublicUser {
 
 /// A registration invitation created by a user with `users.manage`. After the
 /// bootstrap owner, an invite is the only way to create an account.
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Invite {
     pub token: String,
     /// Permissions the invited account will be granted.
