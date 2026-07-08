@@ -29,10 +29,14 @@ export const User = z.object({
   id: UserId,
   email: z.string(),
   username: z.string(),
-  avatarUrl: z.string().nullable(),
-  language: z.string().nullable(),
-  audioLanguage: z.string().nullable(),
-  subtitleLanguage: z.string().nullable(),
+  // `.nullish()`, not `.nullable()`: the server OMITS these `Option` fields when
+  // unset (`skip_serializing_if = "Option::is_none"`), so the key is absent
+  // (`undefined`), which `.nullable()` (string | null) would reject and throw in
+  // the auth-critical login/exchange path.
+  avatarUrl: z.string().nullish(),
+  language: z.string().nullish(),
+  audioLanguage: z.string().nullish(),
+  subtitleLanguage: z.string().nullish(),
   permissions: z.array(z.string()),
   createdAt: z.string(),
   hasPin: z.boolean(),
@@ -43,7 +47,8 @@ export type User = z.infer<typeof User>;
 export const PublicUser = z.object({
   id: UserId,
   username: z.string(),
-  avatarUrl: z.string().nullable(),
+  // Omitted by the server when unset (see the note on `User.avatarUrl`).
+  avatarUrl: z.string().nullish(),
   hasPin: z.boolean(),
 });
 export type PublicUser = z.infer<typeof PublicUser>;
