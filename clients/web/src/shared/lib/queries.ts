@@ -159,6 +159,19 @@ export const userQueries = {
     queryOptions({ queryKey: ['passkeys'] as const, queryFn: () => lumaClient().listPasskeys() }),
 } as const;
 
+// ---- Server ---------------------------------------------------------------
+
+export const serverQueries = {
+  /** Public `GET /api/health` — server version + basic counts (no auth). Used by
+   * the sidebar to show the server version; cached generously as it rarely moves. */
+  health: () =>
+    queryOptions({
+      queryKey: ['health'] as const,
+      queryFn: () => lumaClient().health(),
+      staleTime: 5 * 60_000,
+    }),
+} as const;
+
 // ---- Discover -------------------------------------------------------------
 
 export const discoverQueries = {

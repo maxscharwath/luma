@@ -1,5 +1,5 @@
-import { hasPermission, LOCALES, type MessageKey } from '@luma/core';
-import { useLocale, useSetLocale, useT } from '@luma/ui';
+import { hasPermission, type MessageKey } from '@luma/core';
+import { useT } from '@luma/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   IconDeviceDesktop,
@@ -16,11 +16,13 @@ import {
   IconUsers,
   type TablerIcon,
 } from '@tabler/icons-react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { CapabilityChip } from '#web/features/accounts/capability-chip';
 import { UserAvatar } from '#web/features/accounts/user-avatar';
 import { useAuth } from '#web/shared/lib/auth';
+import { serverQueries } from '#web/shared/lib/queries';
 import { Logo } from '#web/shared/ui';
 
 const itemCls =
@@ -37,38 +39,49 @@ const NAV: { labelKey: MessageKey; to: string; icon: TablerIcon; exact?: boolean
 export function Sidebar() {
   const t = useT();
   return (
-    <aside className="sticky top-0 flex h-screen flex-col gap-1 border-r border-border bg-[#0C0C0E] px-4.5 py-7">
-      <div className="px-2 pb-4">
-        <Logo size={26} />
+    <aside className="sticky top-0 flex h-screen flex-col self-start border-r border-border bg-[#0C0C0E]">
+      {/* Fixed header: brand */}
+      <div className="shrink-0 px-4.5 pb-2 pt-7">
+        <div className="px-2 pb-2">
+          <Logo size={26} />
+        </div>
       </div>
-      <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={itemCls}
-            activeOptions={{ exact: item.exact ?? false }}
-          >
-            <item.icon size={18} />
-            {t(item.labelKey)}
+      {/* Scroll region: primary nav at the top, account/device block pinned to
+          the bottom via mt-auto. It reads as a fixed footer on a normal window,
+          and scrolls (rather than clipping) when the viewport is too short. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4.5 pb-7 pt-1">
+        <nav className="flex flex-col gap-0.5">
+          {NAV.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={itemCls}
+              activeOptions={{ exact: item.exact ?? false }}
+            >
+              <item.icon size={18} />
+              {t(item.labelKey)}
+            </Link>
+          ))}
+          <RequestsLink />
+        </nav>
+        {/* Footer block: invite / device / admin / account / device prefs */}
+        <div className="mt-auto flex flex-col gap-2.5 pt-6">
+          <InviteLink />
+          <Link to="/connect" className={itemCls}>
+            <IconDeviceDesktop size={18} />
+            {t('nav.connectDevice')}
           </Link>
-        ))}
-        <RequestsLink />
-      </nav>
-      <div className="mt-auto flex flex-col gap-2.5">
-        <InviteLink />
-        <Link to="/connect" className={itemCls}>
-          <IconDeviceDesktop size={18} />
-          {t('nav.connectDevice')}
-        </Link>
-        <AdminLink />
-        <UserChip />
-        <div className="flex flex-col gap-2.5 px-2 pt-2">
-          <span className="text-[11px] font-bold uppercase tracking-[.12em] text-dim">
-            {t('nav.thisDevice')}
-          </span>
-          <CapabilityChip />
-          <LanguageSwitch />
+          <AdminLink />
+          <UserChip />
+          <div className="flex flex-col gap-2 px-2 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[.1em] text-dim">
+                {t('nav.thisDevice')}
+              </span>
+              <CapabilityChip />
+            </div>
+            <VersionInfo />
+          </div>
         </div>
       </div>
     </aside>
@@ -88,29 +101,22 @@ function RequestsLink() {
   );
 }
 
-/** Inline language picker two small pills (French / English) that bubble the
- * choice through `useSetLocale` (persisted + account-synced by LocaleProvider). */
-function LanguageSwitch() {
+/** Client + server versions on one compact line. The client version is injected
+ * at build time (`__APP_VERSION__`); the server version comes from the public
+ * `/api/health` endpoint (falls back to `…` until it resolves). Hover for labels. */
+function VersionInfo() {
   const t = useT();
-  const locale = useLocale();
-  const setLocale = useSetLocale();
+  const { data: health } = useQuery(serverQueries.health());
   return (
-    <div className="flex gap-1.5 rounded-md bg-white/4 p-1" aria-label={t('common.language')}>
-      {LOCALES.map((l) => (
-        <button
-          key={l.code}
-          type="button"
-          onClick={() => setLocale(l.code)}
-          aria-pressed={locale === l.code}
-          className={`flex-1 rounded-[7px] px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
-            locale === l.code
-              ? 'bg-accent-soft text-accent'
-              : 'text-muted hover:bg-white/4 hover:text-text'
-          }`}
-        >
-          {t(l.labelKey)}
-        </button>
-      ))}
+    <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-medium text-dim">
+      <span>
+        {t('nav.versionClient')} <span className="tabular-nums">v{__APP_VERSION__}</span>
+      </span>
+      <span className="opacity-40">·</span>
+      <span>
+        {t('nav.versionServer')}{' '}
+        <span className="tabular-nums">{health ? `v${health.version}` : '…'}</span>
+      </span>
     </div>
   );
 }

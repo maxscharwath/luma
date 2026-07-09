@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import pkg from './package.json' with { type: 'json' };
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -12,6 +13,9 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const apiTarget = process.env.LUMA_SERVER_URL ?? 'http://localhost:4040';
 
 export default defineConfig({
+  // Web client version, injected at build time from package.json so the sidebar
+  // can show it (there's no Node runtime in prod — see the SPA note below).
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   // Tailwind v4 + TanStack Start in SPA mode + React. The build prerenders only an
   // app shell (index.html) and the client renders/loads at runtime so the whole
   // app ships as static files the Rust server serves on the same origin (the

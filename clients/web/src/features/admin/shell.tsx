@@ -19,12 +19,15 @@ import {
   IconDatabase,
   IconDownload,
   IconFileText,
+  IconInbox,
+  IconLayoutDashboard,
   IconLibrary,
   IconMagnet,
   IconSettings,
   IconSitemap,
   IconSparkles,
   IconTransform,
+  IconUsers,
   IconWorld,
   type TablerIcon,
 } from '@tabler/icons-react';
@@ -96,78 +99,89 @@ export function useAdmin(): AdminCtx {
 
 // `cap: null` → visible to any admin (the read-only dashboard panels); otherwise
 // the item is shown only to users holding that specific capability, mirroring the
-// server-side guards in `api/admin.rs`.
-const NAV_GESTION: {
-  to: string;
-  labelKey: MessageKey;
-  exact: boolean;
-  cap: Permission | null;
-}[] = [
-  { to: '/admin', labelKey: 'admin.dashboard', exact: true, cap: null },
-  { to: '/admin/users', labelKey: 'admin.navUsers', exact: false, cap: 'users.manage' },
-  { to: '/admin/requests', labelKey: 'admin.navRequests', exact: false, cap: 'requests.manage' },
-];
-
-const NAV_REGLAGES: {
+// server-side guards in `api/admin.rs`. Each section is dropped entirely when the
+// current user can see none of its items.
+interface NavItem {
   to: string;
   labelKey: MessageKey;
   cap: Permission | null;
   icon: TablerIcon;
-}[] = [
+  exact?: boolean;
+}
+
+const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
   {
-    to: '/admin/general',
-    labelKey: 'admin.navGeneral',
-    cap: 'settings.manage',
-    icon: IconSettings,
-  },
-  { to: '/admin/network', labelKey: 'admin.navNetwork', cap: 'settings.manage', icon: IconWorld },
-  { to: '/admin/remote', labelKey: 'admin.navRemote', cap: 'settings.manage', icon: IconCloud },
-  {
-    to: '/admin/libraries',
-    labelKey: 'admin.navLibraries',
-    cap: 'library.manage',
-    icon: IconLibrary,
-  },
-  {
-    to: '/admin/naming',
-    labelKey: 'admin.navNaming',
-    cap: 'library.manage',
-    icon: IconFileText,
+    labelKey: 'admin.groupManagement',
+    items: [
+      { to: '/admin', labelKey: 'admin.dashboard', exact: true, cap: null, icon: IconLayoutDashboard },
+      { to: '/admin/users', labelKey: 'admin.navUsers', cap: 'users.manage', icon: IconUsers },
+      {
+        to: '/admin/requests',
+        labelKey: 'admin.navRequests',
+        cap: 'requests.manage',
+        icon: IconInbox,
+      },
+    ],
   },
   {
-    to: '/admin/transcoder',
-    labelKey: 'admin.navTranscoder',
-    cap: 'settings.manage',
-    icon: IconTransform,
+    labelKey: 'admin.groupMedia',
+    items: [
+      {
+        to: '/admin/libraries',
+        labelKey: 'admin.navLibraries',
+        cap: 'library.manage',
+        icon: IconLibrary,
+      },
+      { to: '/admin/naming', labelKey: 'admin.navNaming', cap: 'library.manage', icon: IconFileText },
+      {
+        to: '/admin/transcoder',
+        labelKey: 'admin.navTranscoder',
+        cap: 'settings.manage',
+        icon: IconTransform,
+      },
+      { to: '/admin/ai', labelKey: 'admin.navAi', cap: 'settings.manage', icon: IconSparkles },
+    ],
   },
-  { to: '/admin/ai', labelKey: 'admin.navAi', cap: 'settings.manage', icon: IconSparkles },
   {
-    to: '/admin/acquisition',
-    labelKey: 'admin.navAcquisition',
-    cap: 'settings.manage',
-    icon: IconMagnet,
+    labelKey: 'admin.groupAcquisition',
+    items: [
+      {
+        to: '/admin/acquisition',
+        labelKey: 'admin.navAcquisition',
+        cap: 'settings.manage',
+        icon: IconMagnet,
+      },
+      {
+        to: '/admin/indexers',
+        labelKey: 'admin.navIndexers',
+        cap: 'settings.manage',
+        icon: IconAntenna,
+      },
+      { to: '/admin/downloads', labelKey: 'admin.navDownloads', cap: null, icon: IconDownload },
+    ],
   },
   {
-    to: '/admin/indexers',
-    labelKey: 'admin.navIndexers',
-    cap: 'settings.manage',
-    icon: IconAntenna,
+    labelKey: 'admin.groupSystem',
+    items: [
+      { to: '/admin/general', labelKey: 'admin.navGeneral', cap: 'settings.manage', icon: IconSettings },
+      { to: '/admin/network', labelKey: 'admin.navNetwork', cap: 'settings.manage', icon: IconWorld },
+      { to: '/admin/remote', labelKey: 'admin.navRemote', cap: 'settings.manage', icon: IconCloud },
+    ],
   },
   {
-    to: '/admin/downloads',
-    labelKey: 'admin.navDownloads',
-    cap: null,
-    icon: IconDownload,
+    labelKey: 'admin.groupMaintenance',
+    items: [
+      { to: '/admin/jobs', labelKey: 'admin.navJobs', cap: 'settings.manage', icon: IconClockBolt },
+      {
+        to: '/admin/pipeline',
+        labelKey: 'admin.navPipeline',
+        cap: 'settings.manage',
+        icon: IconSitemap,
+      },
+      { to: '/admin/storage', labelKey: 'admin.navStorage', cap: null, icon: IconDatabase },
+      { to: '/admin/backup', labelKey: 'admin.navBackup', cap: 'settings.manage', icon: IconArchive },
+    ],
   },
-  { to: '/admin/jobs', labelKey: 'admin.navJobs', cap: 'settings.manage', icon: IconClockBolt },
-  {
-    to: '/admin/pipeline',
-    labelKey: 'admin.navPipeline',
-    cap: 'settings.manage',
-    icon: IconSitemap,
-  },
-  { to: '/admin/storage', labelKey: 'admin.navStorage', cap: null, icon: IconDatabase },
-  { to: '/admin/backup', labelKey: 'admin.navBackup', cap: 'settings.manage', icon: IconArchive },
 ];
 
 const linkCls =
@@ -178,59 +192,60 @@ function AdminSidebar() {
   const { serverInfo } = useAdmin();
   const { user } = useAuth();
   const visible = (cap: Permission | null) => !cap || (!!user && hasPermission(user, cap));
-  const gestion = NAV_GESTION.filter((n) => visible(n.cap));
-  const reglages = NAV_REGLAGES.filter((n) => visible(n.cap));
+  // Filter each section's items, then drop sections left empty for this user.
+  const groups = NAV_GROUPS.map((g) => ({
+    labelKey: g.labelKey,
+    items: g.items.filter((n) => visible(n.cap)),
+  })).filter((g) => g.items.length > 0);
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-[#0C0C0E] px-3.5 py-6">
-      <div className="mb-5 flex items-center gap-2.5 px-2.5">
-        <Logo markOnly size={25} />
-        <span className="font-display text-[20px] font-extrabold leading-none tracking-[.16em]">
-          LUMA
-        </span>
-        <span className="rounded-[5px] bg-accent px-1.5 py-0.75 text-[8.5px] font-bold tracking-[.13em] text-accent-ink">
-          {t('admin.badge')}
-        </span>
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-[#0C0C0E]">
+      {/* Fixed header: identity + back-to-app link */}
+      <div className="shrink-0 px-3.5 pb-2 pt-6">
+        <div className="mb-4 flex items-center gap-2.5 px-2.5">
+          <Logo markOnly size={25} />
+          <span className="font-display text-[20px] font-extrabold leading-none tracking-[.16em]">
+            LUMA
+          </span>
+          <span className="rounded-[5px] bg-accent px-1.5 py-0.75 text-[8.5px] font-bold tracking-[.13em] text-accent-ink">
+            {t('admin.badge')}
+          </span>
+        </div>
+
+        <Link
+          to="/"
+          className="flex items-center justify-between rounded-[11px] border border-border-strong bg-surface-2 px-3.5 py-2.5 no-underline"
+        >
+          <span className="inline-flex items-center gap-2.5 text-[14px] font-bold text-accent">
+            <Logo markOnly size={17} />
+            {serverInfo?.name ?? 'LUMA'}
+          </span>
+          <IconChevronRight size={17} stroke={1.8} color="#46D08D" />
+        </Link>
       </div>
 
-      <Link
-        to="/"
-        className="mb-2 flex items-center justify-between rounded-[11px] border border-border-strong bg-surface-2 px-3.5 py-2.5 no-underline"
-      >
-        <span className="inline-flex items-center gap-2.5 text-[14px] font-bold text-accent">
-          <Logo markOnly size={17} />
-          {serverInfo?.name ?? 'LUMA'}
-        </span>
-        <IconChevronRight size={17} stroke={1.8} color="#46D08D" />
-      </Link>
+      {/* Scrolling nav: the only part that scrolls when sections overflow */}
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3">
+        {groups.map((g) => (
+          <SidebarGroup key={g.labelKey} label={t(g.labelKey)}>
+            {g.items.map((n) => (
+              <Link
+                key={n.to}
+                to={n.to}
+                className={linkCls}
+                activeOptions={{ exact: n.exact ?? false }}
+              >
+                <n.icon size={18} stroke={1.7} />
+                {t(n.labelKey)}
+              </Link>
+            ))}
+          </SidebarGroup>
+        ))}
+      </nav>
 
-      {gestion.length > 0 ? (
-        <SidebarGroup label={t('admin.groupManagement')}>
-          {gestion.map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              className={linkCls}
-              activeOptions={{ exact: n.exact ?? false }}
-            >
-              <span className="h-1.25 w-1.25 rounded-full bg-current opacity-60" />
-              {t(n.labelKey)}
-            </Link>
-          ))}
-        </SidebarGroup>
-      ) : null}
-
-      {reglages.length > 0 ? (
-        <SidebarGroup label={t('admin.groupSettings')}>
-          {reglages.map((n) => (
-            <Link key={n.to} to={n.to} className={linkCls} activeOptions={{ exact: false }}>
-              <n.icon size={18} stroke={1.7} />
-              {t(n.labelKey)}
-            </Link>
-          ))}
-        </SidebarGroup>
-      ) : null}
-
-      <ServerStatusCard />
+      {/* Fixed footer: live server status */}
+      <div className="shrink-0 px-3.5 pb-6 pt-2">
+        <ServerStatusCard />
+      </div>
     </aside>
   );
 }
@@ -238,7 +253,7 @@ function AdminSidebar() {
 function SidebarGroup({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <>
-      <div className="px-3 pb-2 pt-4.5 text-[10px] font-bold uppercase tracking-[.16em] text-dim">
+      <div className="px-3 pb-2 pt-4.5 text-[10px] font-bold uppercase tracking-[.16em] text-dim first:pt-1">
         {label}
       </div>
       {children}
@@ -250,7 +265,7 @@ function ServerStatusCard() {
   const t = useT();
   const { serverInfo } = useAdmin();
   return (
-    <div className="mt-auto rounded-xl border border-border bg-[#121216] p-3.5">
+    <div className="rounded-xl border border-border bg-[#121216] p-3.5">
       <div className="mb-2 flex items-center gap-2.5">
         <span className="h-2 w-2 animate-[luma-breathe_2s_ease-in-out_infinite] rounded-full bg-success" />
         <span className="text-[13px] font-bold text-success">{t('admin.online')}</span>
