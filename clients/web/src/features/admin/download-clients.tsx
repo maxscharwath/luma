@@ -10,6 +10,7 @@ import { DownloadClientModal } from '#web/features/admin/download-client-modals'
 import { usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Section, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
+import { TableSkeleton } from '#web/shared/ui';
 
 type TestState = { busy?: boolean; result?: ClientTestResult; error?: string };
 
@@ -21,7 +22,11 @@ export function DownloadClientsSection() {
     client: null,
   });
   const [tests, setTests] = useState<Record<string, TestState>>({});
-  const { data, reload } = usePoll(() => api.adminDownloadClients(), 30000, [api]);
+  const { data, reload } = usePoll(
+    ['admin', 'downloadClients'],
+    () => api.adminDownloadClients(),
+    30000,
+  );
   const clients = data?.clients ?? [];
 
   const toggle = (c: DownloadClientView, enabled: boolean) => {
@@ -62,13 +67,18 @@ export function DownloadClientsSection() {
         </button>
       }
     >
+      {data === null ? <TableSkeleton rows={3} /> : null}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {clients.map((c) => (
           <Card key={c.id} className="p-4.5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 flex-[0_0_40px] items-center justify-center rounded-xl border border-border-strong bg-surface-2 text-accent">
-                  {c.builtin ? <IconCpu size={18} stroke={1.8} /> : <IconServer size={18} stroke={1.8} />}
+                  {c.builtin ? (
+                    <IconCpu size={18} stroke={1.8} />
+                  ) : (
+                    <IconServer size={18} stroke={1.8} />
+                  )}
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -91,7 +101,9 @@ export function DownloadClientsSection() {
                   disabled={tests[c.id]?.busy}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-1.5 text-[12px] font-semibold text-white/80 hover:bg-[#222229] disabled:opacity-60"
                 >
-                  {tests[c.id]?.busy ? <IconLoader2 size={12} stroke={2.4} className="animate-spin" /> : null}
+                  {tests[c.id]?.busy ? (
+                    <IconLoader2 size={12} stroke={2.4} className="animate-spin" />
+                  ) : null}
                   {t('dlclients.test')}
                 </button>
                 {!c.builtin ? (
@@ -129,7 +141,9 @@ export function DownloadClientsSection() {
 function TestLine({ test }: Readonly<{ test?: TestState }>) {
   const t = useT();
   if (test?.busy) {
-    return <span className="text-[12px] font-semibold text-white/45">{t('dlclients.testing')}</span>;
+    return (
+      <span className="text-[12px] font-semibold text-white/45">{t('dlclients.testing')}</span>
+    );
   }
   if (test?.error || test?.result?.error) {
     return (
@@ -139,9 +153,7 @@ function TestLine({ test }: Readonly<{ test?: TestState }>) {
     );
   }
   if (test?.result?.ok) {
-    return (
-      <span className="text-[12px] font-semibold text-[#46D08D]">{test.result.version}</span>
-    );
+    return <span className="text-[12px] font-semibold text-[#46D08D]">{test.result.version}</span>;
   }
   return <span className="text-[12px] font-medium text-white/30">{t('dlclients.notTested')}</span>;
 }

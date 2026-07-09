@@ -16,9 +16,21 @@ export default defineConfig({
   // app shell (index.html) and the client renders/loads at runtime so the whole
   // app ships as static files the Rust server serves on the same origin (the
   // single-binary Synology package). No Node runtime needed in production.
-  plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true } }), react()],
-  // `#web/*` → this app's src (mirrors tsconfig.base paths; Vite needs it explicitly).
-  resolve: { alias: { '#web': fileURLToPath(new URL('./src', import.meta.url)) } },
+  plugins: [
+    tailwindcss(),
+    tanstackStart({ spa: { enabled: true } }),
+    // React Compiler auto-memoizes components/hooks (target 19 → uses React's
+    // built-in `react/compiler-runtime`, no extra runtime package). Runs as a
+    // Babel pass, so it also compiles the aliased @luma/ui / @luma/core source.
+    react({ babel: { plugins: [['babel-plugin-react-compiler', { target: '19' }]] } }),
+  ],
+  resolve: {
+    // `#web/*` → this app's src (mirrors tsconfig.base paths; Vite needs it explicitly).
+    alias: { '#web': fileURLToPath(new URL('./src', import.meta.url)) },
+    // One React copy: the other clients stay on their own React, so pin this
+    // bundle to a single react/react-dom (guards against "Invalid hook call").
+    dedupe: ['react', 'react-dom'],
+  },
   server: {
     // Allow importing TS source from the workspace packages (@luma/ui, @luma/core).
     fs: { allow: [repoRoot] },

@@ -2,7 +2,7 @@
 // status (and, on failure, the error + a per-stage retry), a series episode
 // aggregate, and the "reprocess this element" action.
 
-import { type ElementRow, type MessageKey } from '@luma/core';
+import type { ElementRow, MessageKey } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -21,7 +21,12 @@ function DrawerPoster({ el }: Readonly<{ el: ElementRow }>) {
       style={{ background: posterGrad(el.title) }}
     >
       {!broken ? (
-        <img src={src} alt="" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={src}
+          alt=""
+          onError={() => setBroken(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       ) : null}
     </div>
   );
@@ -29,7 +34,9 @@ function DrawerPoster({ el }: Readonly<{ el: ElementRow }>) {
 
 function baseSub(el: ElementRow, dur: string, seasons: string): string {
   if (el.kind === 'series') {
-    return [el.genre, el.seasonCount ? `${el.seasonCount} ${seasons}` : ''].filter(Boolean).join(' · ');
+    return [el.genre, el.seasonCount ? `${el.seasonCount} ${seasons}` : '']
+      .filter(Boolean)
+      .join(' · ');
   }
   if (el.kind === 'episode') return dur;
   return [el.year ? String(el.year) : '', el.genre, dur].filter(Boolean).join(' · ');
@@ -86,7 +93,9 @@ export function PipelineDrawer({
                   >
                     {t(`pipeline.type.${km.typeKey}` as MessageKey)}
                   </span>
-                  <h2 className="mt-2.5 font-display text-[21px] font-bold leading-[1.12]">{el.title}</h2>
+                  <h2 className="mt-2.5 font-display text-[21px] font-bold leading-[1.12]">
+                    {el.title}
+                  </h2>
                   <div className="mt-1.5 text-[12.5px] font-medium text-white/50">
                     {baseSub(el, dur, t('pipeline.seasons'))}
                   </div>
@@ -103,15 +112,23 @@ export function PipelineDrawer({
                   const m = statusMeta(tr.status);
                   const failed = tr.status === 'failed';
                   return (
-                    <div key={tr.key} className="rounded-xl border border-white/[0.07] bg-[#121216] px-4 py-3.5">
+                    <div
+                      key={tr.key}
+                      className="rounded-xl border border-white/[0.07] bg-[#121216] px-4 py-3.5"
+                    >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[14px] font-bold">{t(`pipeline.t.${tr.key}` as MessageKey)}</span>
+                        <span className="text-[14px] font-bold">
+                          {t(`pipeline.t.${tr.key}` as MessageKey)}
+                        </span>
                         <div className="flex items-center gap-2">
                           <span
                             className="inline-flex items-center gap-1.5 rounded-full px-[11px] py-1 text-[11.5px] font-bold"
                             style={{ color: m.color, background: m.bg }}
                           >
-                            <span className={`h-1.5 w-1.5 rounded-full ${m.pulse ? 'animate-pulse' : ''}`} style={{ background: m.dot }} />
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${m.pulse ? 'animate-pulse' : ''}`}
+                              style={{ background: m.dot }}
+                            />
                             {t(`pipeline.st.${tr.status}` as MessageKey)}
                           </span>
                           {/* Run just this stage now, at top priority (also acts as a retry on failure). */}
@@ -122,7 +139,11 @@ export function PipelineDrawer({
                             title={failed ? t('pipeline.retryStage') : t('pipeline.runStage')}
                             className={`flex h-7 w-7 flex-[0_0_28px] items-center justify-center rounded-lg border disabled:opacity-50 ${failed ? 'border-accent/30 bg-accent/10 text-accent' : 'border-white/12 bg-white/[0.06] text-white/65 hover:text-white'}`}
                           >
-                            <IconRefresh size={13} stroke={2.3} className={busy ? 'animate-spin' : ''} />
+                            <IconRefresh
+                              size={13}
+                              stroke={2.3}
+                              className={busy ? 'animate-spin' : ''}
+                            />
                           </button>
                         </div>
                       </div>
@@ -142,9 +163,13 @@ export function PipelineDrawer({
                     {t('pipeline.epsAggregated')}
                   </div>
                   <div className="text-[12.5px] font-semibold leading-[1.5] text-white/70">
-                    {eps.episodes} {t('pipeline.episodesWord')} · {t('pipeline.t.probe')} {eps.probed}/{eps.episodes} · {t('pipeline.t.storyboard')} {eps.storyboarded}/{eps.episodes} · {t('pipeline.t.markers')} {eps.markerSeasons}/{eps.seasons}
+                    {eps.episodes} {t('pipeline.episodesWord')} · {t('pipeline.t.probe')}{' '}
+                    {eps.probed}/{eps.episodes} · {t('pipeline.t.storyboard')} {eps.storyboarded}/
+                    {eps.episodes} · {t('pipeline.t.markers')} {eps.markerSeasons}/{eps.seasons}
                   </div>
-                  <div className="mt-1.5 text-[11.5px] font-medium text-white/[0.42]">{t('pipeline.epsNote')}</div>
+                  <div className="mt-1.5 text-[11.5px] font-medium text-white/[0.42]">
+                    {t('pipeline.epsNote')}
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -156,10 +181,16 @@ export function PipelineDrawer({
                 disabled={busy}
                 className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-accent px-4 py-3.5 text-[14px] font-bold text-[#0A0A0C] transition-colors hover:bg-accent-hover disabled:opacity-60"
               >
-                {busy ? <IconLoader2 size={16} stroke={2.3} className="animate-spin" /> : <IconRefresh size={16} stroke={2.3} />}
+                {busy ? (
+                  <IconLoader2 size={16} stroke={2.3} className="animate-spin" />
+                ) : (
+                  <IconRefresh size={16} stroke={2.3} />
+                )}
                 {t('pipeline.reprocessElement')}
               </button>
-              <div className="mt-2.5 text-center text-[11.5px] font-medium text-white/[0.42]">{t('pipeline.reprocessNote')}</div>
+              <div className="mt-2.5 text-center text-[11.5px] font-medium text-white/[0.42]">
+                {t('pipeline.reprocessNote')}
+              </div>
             </div>
           </>
         ) : null}

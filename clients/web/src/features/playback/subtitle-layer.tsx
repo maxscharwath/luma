@@ -21,7 +21,7 @@ function SubtitleLayerImpl({
   raised,
   baseSec,
 }: Readonly<{
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement | null>;
   rendered: SubtitleView[];
   activeIndex: number | null;
   style: SubtitleStyle;

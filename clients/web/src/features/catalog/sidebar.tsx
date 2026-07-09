@@ -1,4 +1,5 @@
 import { hasPermission, LOCALES, type MessageKey } from '@luma/core';
+import { useLocale, useSetLocale, useT } from '@luma/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   IconDeviceDesktop,
@@ -15,13 +16,12 @@ import {
   IconUsers,
   type TablerIcon,
 } from '@tabler/icons-react';
-import { useLocale, useSetLocale, useT } from '@luma/ui';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { CapabilityChip } from '#web/features/accounts/capability-chip';
 import { UserAvatar } from '#web/features/accounts/user-avatar';
-import { Logo } from '#web/shared/ui';
 import { useAuth } from '#web/shared/lib/auth';
+import { Logo } from '#web/shared/ui';
 
 const itemCls =
   'flex items-center gap-3.5 rounded-[11px] px-3.5 py-3 text-[15px] font-semibold text-muted no-underline transition-colors duration-200 hover:bg-white/4 hover:text-text aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent';
@@ -184,7 +184,9 @@ function MenuItem({
 function UserChip() {
   const t = useT();
   const navigate = useNavigate();
-  const { user, switchProfile, logout } = useAuth();
+  const { user, logout } = useAuth();
+  // Return to the current page after switching profile.
+  const href = useRouterState({ select: (s) => s.location.href });
   if (!user) return null;
   return (
     <DropdownMenu.Root>
@@ -217,7 +219,7 @@ function UserChip() {
           <MenuItem
             icon={<IconUsers size={17} />}
             label={t('nav.changeProfile')}
-            onSelect={switchProfile}
+            onSelect={() => void navigate({ to: '/login', search: { redirect: href } })}
           />
           <DropdownMenu.Separator className="my-1 h-px bg-white/[0.07]" />
           <MenuItem

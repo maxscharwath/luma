@@ -4,40 +4,37 @@
 
 import { hasPermission, type Permission, type User } from '@luma/core';
 import { useT } from '@luma/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type QueryKey, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
 
-/** Poll `fn` every `intervalMs` (and immediately). Re-runs when `deps` change. */
+/** Poll `fn` every `intervalMs` (and immediately), backed by TanStack Query so
+ * results are cached/deduped and the admin shell can invalidate them en masse on
+ * a server event. `key` identifies the cache entry — prefix admin keys with
+ * `'admin'` so the shell's `invalidateQueries(['admin'])` refreshes them all.
+ * Include any varying inputs (page/status/id) in `key` so it refetches on change. */
 export function usePoll<T>(
+  key: QueryKey,
   fn: () => Promise<T>,
   intervalMs: number,
-  deps: unknown[],
 ): { data: T | null; reload: () => void } {
-  const [data, setData] = useState<T | null>(null);
-  const fnRef = useRef(fn);
-  fnRef.current = fn;
-  const reload = useCallback(() => {
-    fnRef
-      .current()
-      .then(setData)
-      .catch(() => undefined);
-  }, []);
-  useEffect(() => {
-    let active = true;
-    const run = () =>
-      fnRef
-        .current()
-        .then((d) => active && setData(d))
-        .catch(() => undefined);
-    run();
-    const iv = setInterval(run, intervalMs);
-    return () => {
-      active = false;
-      clearInterval(iv);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return { data, reload };
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: key,
+    queryFn: fn,
+    refetchInterval: intervalMs,
+    // Admin data is "live": treat it as always stale so a mount/reload refetches.
+    staleTime: 0,
+  });
+  // Stable `reload` identity (some callers put it in effect deps): read the latest
+  // key from a ref so the callback never has to change.
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  const reload = useCallback(
+    () => void queryClient.invalidateQueries({ queryKey: keyRef.current }),
+    [queryClient],
+  );
+  return { data: data ?? null, reload };
 }
 
 /** A busy-tracked async action for modal save/delete handlers. `run(fn, onError?)`

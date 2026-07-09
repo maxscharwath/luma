@@ -2,13 +2,7 @@ import type { AdminUser } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconDots } from '@tabler/icons-react';
 import { useState } from 'react';
-import {
-  Denied,
-  HeaderAction,
-  PageHeader,
-  useCap,
-  usePoll,
-} from '#web/features/admin/shell';
+import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Avatar, C, Card, Section, StatCard } from '#web/features/admin/ui';
 import { EditUserModal, InviteModal, PendingInvite } from '#web/features/admin/users-modals';
 import { relativeSeen } from '#web/shared/lib/adminFormat';
@@ -32,10 +26,12 @@ export function UsersScreen() {
 function UsersPageInner() {
   const t = useT();
   const { client } = useAuth();
-  const { data, reload } = usePoll(() => client.adminUsers(), 8000, [client]);
-  const { data: invitesData, reload: reloadInvites } = usePoll(() => client.invites(), 15000, [
-    client,
-  ]);
+  const { data, reload } = usePoll(['admin', 'users'], () => client.adminUsers(), 8000);
+  const { data: invitesData, reload: reloadInvites } = usePoll(
+    ['admin', 'invites'],
+    () => client.invites(),
+    15000,
+  );
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [inviting, setInviting] = useState(false);
 

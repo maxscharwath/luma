@@ -1,4 +1,4 @@
-import { type AdminUser, type Invite, type Permission, PERMISSIONS } from '@luma/core';
+import { type AdminUser, type Invite, PERMISSIONS, type Permission } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconMail } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -114,17 +114,23 @@ export function EditUserModal({
   }
 
   const save = () =>
-    run(async () => {
-      await client.updateUser(user.id, { permissions: [...perms], username: name.trim() });
-      onSaved();
-    }, () => t('admin.updateFailed'));
+    run(
+      async () => {
+        await client.updateUser(user.id, { permissions: [...perms], username: name.trim() });
+        onSaved();
+      },
+      () => t('admin.updateFailed'),
+    );
 
   const remove = () => {
     if (!confirm(t('admin.confirmDeleteUser', { name: user.username }))) return;
-    run(async () => {
-      await client.deleteUser(user.id);
-      onSaved();
-    }, () => t('admin.deleteFailed'));
+    run(
+      async () => {
+        await client.deleteUser(user.id);
+        onSaved();
+      },
+      () => t('admin.deleteFailed'),
+    );
   };
 
   return (

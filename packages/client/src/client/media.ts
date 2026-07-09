@@ -137,7 +137,13 @@ export function streamUrl(ctx: RequestContext, id: string): string {
  * for runtimes that can't decode the source codec via MSE (AC3/EAC3/DTS on
  * Chrome/webOS); `aac=false` stream-copies them (surround preserved, for
  * native-decode clients). Needs hls.js outside Safari/TV. */
-export function hlsMasterUrl(ctx: RequestContext, id: string, aac = false, startSec = 0, audio = 0): string {
+export function hlsMasterUrl(
+  ctx: RequestContext,
+  id: string,
+  aac = false,
+  startSec = 0,
+  audio = 0,
+): string {
   // One muxed program per (item, mode, ANCHOR, AUDIO). The anchor (input `-ss`)
   // and the audio-relative track index are both in the PATH, so each seek
   // position and each language gets its own session with its own child URLs - no
@@ -169,7 +175,10 @@ export function resolveArt(ctx: RequestContext, url?: string | null): string | n
 
 /** Best poster for a movie/episode: real cached TMDB art if resolved, else the
  * generated SVG placeholder. */
-export function posterFor(ctx: RequestContext, x: { id: string; metadata?: Metadata | null }): string {
+export function posterFor(
+  ctx: RequestContext,
+  x: { id: string; metadata?: Metadata | null },
+): string {
   return resolveArt(ctx, x.metadata?.posterUrl) ?? posterUrl(ctx, x.id);
 }
 

@@ -170,11 +170,18 @@ export function useAuthSession(client: LumaClient | null): AuthSession {
             );
             return { ok: false, needsPin: true, retryAfter, error: apiErrorText(e, '') };
           }
+          // A dead/expired access token is tagged `tokenInvalid` by the server. A
+          // PIN can't rescue it (even for a PIN profile), so DON'T ask for one
+          // report it as a non-PIN failure so the UI routes to a full re-login.
+          const tokenInvalid =
+            (e.body as { tokenInvalid?: boolean } | undefined)?.tokenInvalid === true;
+          if (e.status === 401 && tokenInvalid) {
+            return { ok: false, needsPin: false, error: apiErrorText(e, '') };
+          }
           // A PIN-locked profile 401s until the correct PIN is supplied ask the
           // UI to collect it. Trust the server's `pinRequired` flag (so a PIN
           // added on another device is handled even if our cached `hasPin` is
-          // stale), falling back to that cached flag. Any other 401 is a dead
-          // access token.
+          // stale), falling back to that cached flag.
           const pinRequired =
             (e.body as { pinRequired?: boolean } | undefined)?.pinRequired === true;
           if (e.status === 401 && (pinRequired || s.user.hasPin)) {

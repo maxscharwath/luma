@@ -7,8 +7,9 @@
 import { apiErrorText, formatRuntime } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconLoader2, IconPlus } from '@tabler/icons-react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AiSuggestRail } from '#web/features/catalog/ai-suggest-rail';
 import {
   audioString,
@@ -26,6 +27,7 @@ import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 import { SeasonPicker } from '#web/features/requests/season-picker';
 import { useAuth } from '#web/shared/lib/auth';
 import { useMyList } from '#web/shared/lib/mylist';
+import { userQueries } from '#web/shared/lib/queries';
 import { type TitleView, tmdbMetaLine } from '#web/shared/lib/titleView';
 import { useWatched } from '#web/shared/lib/watched';
 
@@ -47,28 +49,20 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
   if (owned) backTo = view.kind === 'show' ? '/series' : '/';
 
   // Per-episode resume progress for an owned show (one fetch, mapped by item id).
-  const [epProgress, setEpProgress] = useState<Record<string, number>>({});
-  useEffect(() => {
-    if (!user || !localId || view.kind !== 'show') return;
-    let cancelled = false;
-    client
-      .progress()
-      .then((entries) => {
-        if (cancelled) return;
-        const map: Record<string, number> = {};
-        for (const e of entries) {
-          const dur = e.durationMs ?? 0;
-          if (dur > 0 && e.positionMs > 0) {
-            map[e.itemId] = Math.min(100, Math.round((e.positionMs / dur) * 100));
-          }
+  const { data: epProgress = {} } = useQuery({
+    ...userQueries.progress(),
+    enabled: !!user && !!localId && view.kind === 'show',
+    select: (entries) => {
+      const map: Record<string, number> = {};
+      for (const e of entries) {
+        const dur = e.durationMs ?? 0;
+        if (dur > 0 && e.positionMs > 0) {
+          map[e.itemId] = Math.min(100, Math.round((e.positionMs / dur) * 100));
         }
-        setEpProgress(map);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client, user, localId, view.kind]);
+      }
+      return map;
+    },
+  });
 
   const play = (id: string) => navigate({ to: '/watch/$id', params: { id } });
 

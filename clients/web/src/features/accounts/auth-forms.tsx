@@ -4,7 +4,7 @@
 
 import { isEmail, isPassword, isUsername, type PublicUser } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconPlus } from '@tabler/icons-react';
+import { IconInfoCircle, IconKey, IconPlus } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { avatarGradient, initials, UserAvatar } from '#web/features/accounts/user-avatar';
 
@@ -15,18 +15,27 @@ export function LoginForm({
   profile,
   busy,
   error,
+  notice = null,
   canGoBack = true,
+  canUsePasskey = false,
   onBack,
   onSubmit,
+  onPasskey,
 }: Readonly<{
   profile: PublicUser | null;
   busy: boolean;
   error: string | null;
+  /** A calm, non-error info line (e.g. "your session expired") shown above the
+   * fields distinct from the red `error`. */
+  notice?: string | null;
   /** Hide the back link when sign-in is the root screen (roster hidden, no
    * picker to return to). Defaults to shown. */
   canGoBack?: boolean;
+  /** Show the "sign in with a passkey" button (secure context + a handler). */
+  canUsePasskey?: boolean;
   onBack: () => void;
   onSubmit: (identifier: string, password: string) => void;
+  onPasskey?: () => void;
 }>) {
   const t = useT();
   const [identifier, setIdentifier] = useState(profile?.username ?? '');
@@ -51,6 +60,13 @@ export function LoginForm({
       <h1 className="font-display text-[28px] font-semibold">
         {profile ? profile.username : t('auth.signinTitle')}
       </h1>
+
+      {notice ? (
+        <div className="flex w-full items-center gap-2.5 rounded-md border border-accent/25 bg-accent-soft px-3.5 py-2.5 text-[13.5px] font-medium text-accent">
+          <IconInfoCircle size={17} stroke={1.9} className="flex-none" />
+          <span>{notice}</span>
+        </div>
+      ) : null}
 
       {profile ? null : (
         <input
@@ -82,6 +98,17 @@ export function LoginForm({
       >
         {busy ? t('auth.loggingIn') : t('auth.login')}
       </button>
+      {canUsePasskey && onPasskey ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onPasskey()}
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-border-strong py-3 text-[14px] font-semibold text-text transition-colors hover:bg-white/5 disabled:opacity-50"
+        >
+          <IconKey size={17} stroke={1.8} />
+          {t('auth.passkeyLogin')}
+        </button>
+      ) : null}
       {canGoBack ? (
         <button
           type="button"

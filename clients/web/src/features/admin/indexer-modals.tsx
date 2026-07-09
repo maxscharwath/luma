@@ -37,29 +37,35 @@ export function IndexerModal({
   const [priority, setPriority] = useState(String(indexer?.priority ?? 0));
 
   const save = () =>
-    run(async () => {
-      const body: SaveIndexerBody = {
-        name: name.trim() || null,
-        url: url.trim() || null,
-        // Empty = keep the stored secret on edit / no key on create.
-        apiKey: apiKey.trim() || null,
-        categories: parseCats(cats),
-        enabled: null,
-        priority: Number.parseInt(priority, 10) || 0,
-      };
-      if (indexer) await client.updateIndexer(indexer.id, body);
-      else await client.createIndexer(body);
-      onSaved();
-      onClose();
-    }, (e) => apiErrorText(e, t('requests.actionFailed')));
+    run(
+      async () => {
+        const body: SaveIndexerBody = {
+          name: name.trim() || null,
+          url: url.trim() || null,
+          // Empty = keep the stored secret on edit / no key on create.
+          apiKey: apiKey.trim() || null,
+          categories: parseCats(cats),
+          enabled: null,
+          priority: Number.parseInt(priority, 10) || 0,
+        };
+        if (indexer) await client.updateIndexer(indexer.id, body);
+        else await client.createIndexer(body);
+        onSaved();
+        onClose();
+      },
+      (e) => apiErrorText(e, t('requests.actionFailed')),
+    );
 
   const remove = () =>
-    run(async () => {
-      if (!indexer) return;
-      await client.deleteIndexer(indexer.id);
-      onSaved();
-      onClose();
-    }, (e) => apiErrorText(e, t('requests.actionFailed')));
+    run(
+      async () => {
+        if (!indexer) return;
+        await client.deleteIndexer(indexer.id);
+        onSaved();
+        onClose();
+      },
+      (e) => apiErrorText(e, t('requests.actionFailed')),
+    );
 
   return (
     <Modal title={t(indexer ? 'indexers.edit' : 'indexers.add')} onClose={onClose}>
@@ -88,9 +94,7 @@ export function IndexerModal({
           <TextInput value={priority} onChange={setPriority} className="w-full min-w-0" />
         </Field>
       </div>
-      {error ? (
-        <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p>
-      ) : null}
+      {error ? <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p> : null}
       <ModalActions
         onCancel={onClose}
         cancelLabel={t('common.cancel')}

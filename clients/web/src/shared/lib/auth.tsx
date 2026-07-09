@@ -10,6 +10,8 @@ import { type ActivateResult, useAuthSession } from '@luma/ui';
 import { useRouter } from '@tanstack/react-router';
 import { createContext, type ReactNode, useCallback, useContext, useMemo } from 'react';
 import { apiBase } from '#web/shared/lib/api';
+import { queryClient } from '#web/shared/lib/query';
+import { getPasskey } from '#web/shared/lib/webauthn';
 
 interface AuthValue {
   /** Logged-in user, or null when signed out. */
@@ -21,6 +23,9 @@ interface AuthValue {
   /** Accounts already signed-in on this device switchable without a password. */
   accounts: StoredSession[];
   login: (email: string, password: string) => Promise<void>;
+  /** Usernameless passwordless sign-in: runs a discoverable WebAuthn assertion
+   * (the browser picks the account) and applies the resulting session. */
+  loginPasskey: () => Promise<void>;
   register: (
     email: string,
     username: string,
@@ -58,10 +63,23 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const login = useCallback(
     async (email: string, password: string) => {
       auth.apply(await client.login(email, password));
+      // Re-run loaders AND drop cached (signed-out-empty) query data so per-user
+      // catalogue/home/continue refetch with the new session.
       void router.invalidate();
+      void queryClient.invalidateQueries();
     },
     [client, auth, router],
   );
+
+  // Usernameless sign-in: run a discoverable WebAuthn assertion (the browser
+  // shows the account picker), then apply the issued session like a login.
+  const loginPasskey = useCallback(async () => {
+    const { ceremonyId, options } = await client.passkeyAuthStart();
+    const credential = await getPasskey(options);
+    auth.apply(await client.passkeyAuthFinish({ ceremonyId, credential }));
+    void router.invalidate();
+    void queryClient.invalidateQueries();
+  }, [client, auth, router]);
 
   const register = useCallback(
     async (
@@ -83,6 +101,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         }
       }
       void router.invalidate();
+      void queryClient.invalidateQueries();
     },
     [client, auth, router],
   );
@@ -91,11 +110,26 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const activate = useCallback(
     async (s: StoredSession, pin?: string): Promise<ActivateResult> => {
       const res = await auth.activate(s, pin);
-      if (res.ok) void router.invalidate();
+      if (res.ok) {
+        void router.invalidate();
+        void queryClient.invalidateQueries();
+      }
       return res;
     },
     [auth, router],
   );
+
+  // Leaving the current account (full sign-out or back to the profile picker)
+  // must drop every cached per-user entry so nothing leaks into the next session.
+  const logout = useCallback(async () => {
+    await auth.logout();
+    queryClient.clear();
+  }, [auth]);
+
+  const switchProfile = useCallback(() => {
+    auth.switchProfile();
+    queryClient.clear();
+  }, [auth]);
 
   const value = useMemo<AuthValue>(
     () => ({
@@ -104,14 +138,15 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       client,
       accounts: auth.accounts,
       login,
+      loginPasskey,
       register,
       activate,
-      switchProfile: auth.switchProfile,
+      switchProfile,
       forget: auth.forget,
-      logout: auth.logout,
+      logout,
       updateUser: auth.updateUser,
     }),
-    [auth, client, login, register, activate],
+    [auth, client, login, loginPasskey, register, activate, logout, switchProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

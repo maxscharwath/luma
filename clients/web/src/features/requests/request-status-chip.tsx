@@ -22,7 +22,15 @@ function Ring({ value, size, color }: Readonly<{ value: number; size: number; co
       className="-rotate-90 shrink-0"
       aria-hidden
     >
-      <circle cx={c} cy={c} r={r} fill="none" stroke="currentColor" strokeWidth={sw} opacity={0.28} />
+      <circle
+        cx={c}
+        cy={c}
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={sw}
+        opacity={0.28}
+      />
       <circle
         cx={c}
         cy={c}

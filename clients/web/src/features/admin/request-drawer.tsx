@@ -92,7 +92,9 @@ export function RequestDrawer({
     client
       .grabRelease(req.id, { guid: release.guid, indexerId: release.indexerId })
       .then(() => setGrabbed({ title: release.title, error: false }))
-      .catch((e) => setGrabbed({ title: apiErrorText(e, t('requests.actionFailed')), error: true }));
+      .catch((e) =>
+        setGrabbed({ title: apiErrorText(e, t('requests.actionFailed')), error: true }),
+      );
   };
 
   const seasons = req ? seasonsSummary(req.seasons) : null;

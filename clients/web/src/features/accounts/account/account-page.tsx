@@ -1,38 +1,106 @@
-// The `/account` settings page: profile (avatar/name/email), security (password)
-// and playback preferences (UI/audio/subtitle language). Everything here acts on
-// the signed-in account only and syncs across devices via the server.
+// The `/account` settings page, laid out to the LUMA "Mon profil" design: a
+// title + sections (photo, personal info, language & preferences, security),
+// with a sticky save bar that batches the editable profile fields (name, email,
+// audio/subtitle prefs) into one `PATCH /auth/me`. The photo uploads on pick,
+// and password / PIN keep their own action buttons everything acts on the
+// signed-in account and syncs across devices via the server.
 
+import type { AccountPatch } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconLogout } from '@tabler/icons-react';
+import { IconAt, IconCheck, IconDeviceFloppy, IconLogout, IconMail } from '@tabler/icons-react';
+import { useState } from 'react';
+import { PasskeysCard } from '#web/features/accounts/account/passkeys-card';
 import { PinCard } from '#web/features/accounts/account/pin-card';
-import { PreferencesCard } from '#web/features/accounts/account/preferences-card';
-import { ProfileCard } from '#web/features/accounts/account/profile-card';
+import { NONE, PreferencesCard } from '#web/features/accounts/account/preferences-card';
+import { PhotoCard } from '#web/features/accounts/account/profile-card';
 import { SecurityCard } from '#web/features/accounts/account/security-card';
-import { UserAvatar } from '#web/features/accounts/user-avatar';
+import { SessionsCard } from '#web/features/accounts/account/sessions-card';
+import { LabeledInput, Panel, Section, useSave } from '#web/features/accounts/account/ui';
 import { useAuth } from '#web/shared/lib/auth';
 import { Button } from '#web/shared/ui';
 
 export function AccountPage() {
   const t = useT();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   if (!user) {
     return (
-      <main className="max-w-4xl px-(--gutter-web) pb-16 pt-10">
+      <main className="mx-auto w-full max-w-[900px] px-(--gutter-web) pb-16 pt-10">
         <p className="text-[15px] text-muted">{t('account.signedOut')}</p>
       </main>
     );
   }
 
+  // Keyed by account id so switching profiles remounts the editor and re-seeds
+  // its pending-edit state from the fresh account.
+  return <ProfileEditor key={user.id} />;
+}
+
+function ProfileEditor() {
+  const t = useT();
+  const { user, client, updateUser, logout } = useAuth();
+
+  // Pending edits for the batch-saved fields, seeded once from the account.
+  const [username, setUsername] = useState(user?.username ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [audio, setAudio] = useState(user?.audioLanguage ?? NONE);
+  const [subtitle, setSubtitle] = useState(user?.subtitleLanguage ?? NONE);
+  const save = useSave();
+
+  if (!user) return null;
+
+  const trimmedName = username.trim();
+  const trimmedEmail = email.trim();
+  const dirty =
+    trimmedName !== user.username ||
+    trimmedEmail !== user.email ||
+    audio !== (user.audioLanguage ?? NONE) ||
+    subtitle !== (user.subtitleLanguage ?? NONE);
+  const canSave = dirty && trimmedName.length > 0 && trimmedEmail.length > 0;
+
+  const reset = () => {
+    setUsername(user.username);
+    setEmail(user.email);
+    setAudio(user.audioLanguage ?? NONE);
+    setSubtitle(user.subtitleLanguage ?? NONE);
+  };
+
+  const saveProfile = () => {
+    if (!canSave) return;
+    const patch: AccountPatch = {};
+    if (trimmedName !== user.username) patch.username = trimmedName;
+    if (trimmedEmail !== user.email) patch.email = trimmedEmail;
+    if (audio !== (user.audioLanguage ?? NONE)) patch.audioLanguage = audio === NONE ? null : audio;
+    if (subtitle !== (user.subtitleLanguage ?? NONE))
+      patch.subtitleLanguage = subtitle === NONE ? null : subtitle;
+
+    save.run(async () => {
+      const { user: u } = await client.updateAccount(patch);
+      updateUser({
+        username: u.username,
+        email: u.email,
+        audioLanguage: u.audioLanguage ?? null,
+        subtitleLanguage: u.subtitleLanguage ?? null,
+      });
+      // Mirror the server's normalisation (e.g. lower-cased email) back into the
+      // fields so the form settles to "no unsaved changes".
+      setUsername(u.username);
+      setEmail(u.email);
+      setAudio(u.audioLanguage ?? NONE);
+      setSubtitle(u.subtitleLanguage ?? NONE);
+    }, t('account.saveFailed'));
+  };
+
   return (
-    <main className="mx-auto w-full max-w-3xl px-(--gutter-web) pb-20 pt-10">
-      <header className="mb-8 flex items-center gap-4">
-        <UserAvatar name={user.username} avatarUrl={user.avatarUrl} seed={user.id} size={64} />
+    <main className="mx-auto w-full max-w-[900px] px-(--gutter-web) pt-10">
+      <header className="mb-2 flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-display text-[28px] font-bold tracking-[-.02em]">
-            {user.username}
+          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-.02em]">
+            {t('account.title')}
           </h1>
-          <p className="truncate text-[14px] text-muted">{user.email}</p>
+          <p className="mt-2 max-w-[560px] text-[14.5px] font-medium text-muted">
+            {t('account.subtitle')}
+          </p>
         </div>
         <Button
           variant="ghost"
@@ -44,12 +112,96 @@ export function AccountPage() {
         </Button>
       </header>
 
-      <div className="flex flex-col gap-5">
-        <ProfileCard />
+      <Section title={t('account.sectionPhoto')}>
+        <PhotoCard />
+      </Section>
+
+      <Section title={t('account.sectionInfo')}>
+        <Panel className="grid grid-cols-1 gap-4.5 p-5.5 sm:grid-cols-2">
+          <LabeledInput
+            label={t('auth.username')}
+            autoComplete="nickname"
+            leading={<IconAt size={17} className="text-dim" stroke={1.8} />}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <LabeledInput
+            className="sm:col-span-2"
+            label={t('auth.email')}
+            type="email"
+            autoComplete="email"
+            leading={<IconMail size={17} className="text-dim" stroke={1.8} />}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Panel>
+      </Section>
+
+      <Section title={t('account.sectionPrefs')}>
+        <PreferencesCard
+          audio={audio}
+          subtitle={subtitle}
+          onAudio={setAudio}
+          onSubtitle={setSubtitle}
+        />
+      </Section>
+
+      <Section title={t('account.sectionSecurity')}>
         <SecurityCard />
         <PinCard />
-        <PreferencesCard />
+        <PasskeysCard />
+        <SessionsCard />
+      </Section>
+
+      {/* Sticky save bar batches the editable profile fields above. */}
+      <div className="sticky bottom-0 mt-6 bg-gradient-to-t from-bg via-bg/90 to-transparent pb-5 pt-6">
+        {dirty || save.status !== 'idle' ? (
+          <div className="flex items-center justify-between gap-4 rounded-[14px] border border-border-strong bg-surface-2 py-3 pl-5 pr-3 shadow-pop">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <SaveStatusLabel dirty={dirty} status={save.status} error={save.error} />
+            </div>
+            <div className="flex flex-none gap-2.5">
+              <Button variant="glass" size="sm" onClick={reset} disabled={!dirty}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                icon={<IconDeviceFloppy size={16} />}
+                onClick={saveProfile}
+                disabled={!canSave || save.status === 'saving'}
+              >
+                {save.status === 'saving' ? t('common.saving') : t('common.save')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );
+}
+
+/** The left side of the save bar: saved ✓ / error / unsaved dot. */
+function SaveStatusLabel({
+  dirty,
+  status,
+  error,
+}: Readonly<{ dirty: boolean; status: string; error: string | null }>) {
+  const t = useT();
+  if (status === 'saved')
+    return (
+      <span className="inline-flex items-center gap-2 text-[13.5px] font-bold text-success">
+        <IconCheck size={16} stroke={2.4} />
+        {t('account.profileSaved')}
+      </span>
+    );
+  if (status === 'error')
+    return <span className="text-[13.5px] font-semibold text-danger">{error}</span>;
+  if (dirty)
+    return (
+      <span className="inline-flex items-center gap-2.5 text-[13.5px] font-semibold text-muted">
+        <span className="size-[7px] rounded-full bg-accent" />
+        {t('account.unsaved')}
+      </span>
+    );
+  return null;
 }

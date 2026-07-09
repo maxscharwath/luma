@@ -16,7 +16,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { PipelineDrawer } from '#web/features/admin/pipeline-drawer';
 import { ElementRowView } from '#web/features/admin/pipeline-row';
-import { useAdmin, useCap, usePoll } from '#web/features/admin/shell';
+import { useCap, usePoll } from '#web/features/admin/shell';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
@@ -27,7 +27,6 @@ const apiKind = (el: ElementRow): 'item' | 'show' => (el.kind === 'series' ? 'sh
 export function PipelinePage() {
   const t = useT();
   const { client } = useAuth();
-  const { tick } = useAdmin();
   const canManage = useCap('settings.manage');
 
   const [status, setStatus] = useState('attention');
@@ -52,9 +51,9 @@ export function PipelinePage() {
   // Refresh is event-driven (WS push), with a slow poll only as a reconnect/
   // missed-event safety net, not a tight interval hammering the endpoint.
   const { data, reload } = usePoll(
+    ['admin', 'pipeline', 'elements', status, kind, dq, page],
     () => client.pipelineElements({ status, kind, q: dq, page, limit: PER_PAGE }),
     30000,
-    [client, tick, status, kind, dq, page],
   );
 
   // Throttle event-driven reloads: a draining stage fires pipeline.stats ~1/s and
@@ -96,7 +95,11 @@ export function PipelinePage() {
   // The global pause flag lives on the pipeline-health endpoint; poll it (on the
   // admin shell's tick) so another admin's toggle shows, and mirror it into local
   // state so the toggle can update optimistically.
-  const { data: health } = usePoll(() => client.adminPipeline(), 30000, [client, tick]);
+  const { data: health } = usePoll(
+    ['admin', 'pipeline', 'health'],
+    () => client.adminPipeline(),
+    30000,
+  );
   useEffect(() => {
     if (health) setPaused(health.paused);
   }, [health]);
@@ -161,7 +164,8 @@ export function PipelinePage() {
           </h1>
           <p className="mt-2 text-[14.5px] font-medium text-white/50">
             <span className="font-bold text-white">{total.toLocaleString()}</span>{' '}
-            {t('pipeline.trackedLabel')} · <span className="font-bold text-accent">{attention.toLocaleString()}</span>{' '}
+            {t('pipeline.trackedLabel')} ·{' '}
+            <span className="font-bold text-accent">{attention.toLocaleString()}</span>{' '}
             {t('pipeline.needActionLabel')}
           </p>
         </div>
@@ -177,7 +181,11 @@ export function PipelinePage() {
                   : 'border-white/12 bg-[#1A1A20] text-white/80 hover:bg-[#222229]'
               }`}
             >
-              {paused ? <IconPlayerPlay size={15} stroke={2} /> : <IconPlayerPause size={15} stroke={2} />}
+              {paused ? (
+                <IconPlayerPlay size={15} stroke={2} />
+              ) : (
+                <IconPlayerPause size={15} stroke={2} />
+              )}
               {t(paused ? 'pipeline.resume' : 'pipeline.pause')}
             </button>
           ) : null}
@@ -193,7 +201,11 @@ export function PipelinePage() {
                 className="text-[14px] font-semibold"
               />
               {q ? (
-                <button type="button" onClick={() => setQ('')} className="shrink-0 text-white/50 hover:text-white">
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  className="shrink-0 text-white/50 hover:text-white"
+                >
                   <IconX size={16} stroke={2.2} />
                 </button>
               ) : null}
@@ -212,17 +224,82 @@ export function PipelinePage() {
 
       {/* filters */}
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
-        <Chip label={t('pipeline.filter.attention')} count={attention} dot="#F4B642" on={status === 'attention'} tone="accent" onClick={() => pick(setStatus)('attention')} />
-        <Chip label={t('pipeline.filter.failed')} count={c?.failed} dot="#E8536A" on={status === 'failed'} tone="accent" onClick={() => pick(setStatus)('failed')} />
-        <Chip label={t('pipeline.filter.running')} count={c?.running} dot="#F4B642" on={status === 'running'} tone="accent" onClick={() => pick(setStatus)('running')} />
-        <Chip label={t('pipeline.filter.pending')} count={c?.pending} dot="rgba(244,243,240,.45)" on={status === 'pending'} tone="accent" onClick={() => pick(setStatus)('pending')} />
-        <Chip label={t('pipeline.filter.ok')} count={c?.ok} dot="#46D08D" on={status === 'ok'} tone="accent" onClick={() => pick(setStatus)('ok')} />
-        <Chip label={t('pipeline.filter.all')} count={total} on={status === 'all'} tone="accent" onClick={() => pick(setStatus)('all')} />
+        <Chip
+          label={t('pipeline.filter.attention')}
+          count={attention}
+          dot="#F4B642"
+          on={status === 'attention'}
+          tone="accent"
+          onClick={() => pick(setStatus)('attention')}
+        />
+        <Chip
+          label={t('pipeline.filter.failed')}
+          count={c?.failed}
+          dot="#E8536A"
+          on={status === 'failed'}
+          tone="accent"
+          onClick={() => pick(setStatus)('failed')}
+        />
+        <Chip
+          label={t('pipeline.filter.running')}
+          count={c?.running}
+          dot="#F4B642"
+          on={status === 'running'}
+          tone="accent"
+          onClick={() => pick(setStatus)('running')}
+        />
+        <Chip
+          label={t('pipeline.filter.pending')}
+          count={c?.pending}
+          dot="rgba(244,243,240,.45)"
+          on={status === 'pending'}
+          tone="accent"
+          onClick={() => pick(setStatus)('pending')}
+        />
+        <Chip
+          label={t('pipeline.filter.ok')}
+          count={c?.ok}
+          dot="#46D08D"
+          on={status === 'ok'}
+          tone="accent"
+          onClick={() => pick(setStatus)('ok')}
+        />
+        <Chip
+          label={t('pipeline.filter.all')}
+          count={total}
+          on={status === 'all'}
+          tone="accent"
+          onClick={() => pick(setStatus)('all')}
+        />
         <span className="mx-1 h-[22px] w-px bg-white/12" />
-        <Chip label={t('pipeline.filter.allTypes')} count={total} on={kind === 'all'} tone="blue" onClick={() => pick(setKind)('all')} />
-        <Chip label={t('pipeline.filter.films')} count={c?.film} on={kind === 'film'} tone="blue" onClick={() => pick(setKind)('film')} />
-        <Chip label={t('pipeline.filter.series')} count={c?.series} on={kind === 'series'} tone="blue" onClick={() => pick(setKind)('series')} />
-        <Chip label={t('pipeline.filter.episodes')} count={c?.episode} on={kind === 'episode'} tone="blue" onClick={() => pick(setKind)('episode')} />
+        <Chip
+          label={t('pipeline.filter.allTypes')}
+          count={total}
+          on={kind === 'all'}
+          tone="blue"
+          onClick={() => pick(setKind)('all')}
+        />
+        <Chip
+          label={t('pipeline.filter.films')}
+          count={c?.film}
+          on={kind === 'film'}
+          tone="blue"
+          onClick={() => pick(setKind)('film')}
+        />
+        <Chip
+          label={t('pipeline.filter.series')}
+          count={c?.series}
+          on={kind === 'series'}
+          tone="blue"
+          onClick={() => pick(setKind)('series')}
+        />
+        <Chip
+          label={t('pipeline.filter.episodes')}
+          count={c?.episode}
+          on={kind === 'episode'}
+          tone="blue"
+          onClick={() => pick(setKind)('episode')}
+        />
       </div>
 
       {/* table */}
@@ -235,18 +312,27 @@ export function PipelinePage() {
         </div>
 
         {rows.map((el) => (
-          <ElementRowView key={`${el.kind}-${el.id}`} el={el} onOpen={() => setDrawer(el)} onReprocess={() => reprocess(el)} />
+          <ElementRowView
+            key={`${el.kind}-${el.id}`}
+            el={el}
+            onOpen={() => setDrawer(el)}
+            onReprocess={() => reprocess(el)}
+          />
         ))}
 
         {data && rows.length === 0 ? (
-          <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">{t('pipeline.noMatch')}</div>
+          <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">
+            {t('pipeline.noMatch')}
+          </div>
         ) : null}
 
         {rows.length > 0 ? (
           <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] bg-[#0F0F13] px-5 py-3.5">
             <div className="flex items-center gap-4">
               <span className="text-[12.5px] font-semibold tabular-nums text-white/60">
-                {(start + 1).toLocaleString()}–{Math.min(start + PER_PAGE, data?.total ?? 0).toLocaleString()} / {(data?.total ?? 0).toLocaleString()}
+                {(start + 1).toLocaleString()}–
+                {Math.min(start + PER_PAGE, data?.total ?? 0).toLocaleString()} /{' '}
+                {(data?.total ?? 0).toLocaleString()}
               </span>
               <div className="hidden items-center gap-3 md:flex">
                 <Legend color="#46D08D" label={t('pipeline.st.done')} />
@@ -256,11 +342,21 @@ export function PipelinePage() {
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <Pager dir="prev" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))} label={t('pipeline.prev')} />
+              <Pager
+                dir="prev"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                label={t('pipeline.prev')}
+              />
               <span className="text-[12.5px] font-semibold tabular-nums text-white/55">
                 {t('pipeline.page')} {page + 1} / {(data?.pages ?? 1).toLocaleString()}
               </span>
-              <Pager dir="next" disabled={page >= (data?.pages ?? 1) - 1} onClick={() => setPage((p) => p + 1)} label={t('pipeline.next')} />
+              <Pager
+                dir="next"
+                disabled={page >= (data?.pages ?? 1) - 1}
+                onClick={() => setPage((p) => p + 1)}
+                label={t('pipeline.next')}
+              />
             </div>
           </div>
         ) : null}
@@ -277,7 +373,10 @@ export function PipelinePage() {
       {/* toast */}
       <div
         className="pointer-events-none fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 transition-all duration-200"
-        style={{ opacity: toast.on ? 1 : 0, transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)` }}
+        style={{
+          opacity: toast.on ? 1 : 0,
+          transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)`,
+        }}
       >
         <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#1C1C22] px-[18px] py-2.5 shadow-[0_20px_50px_rgba(0,0,0,.55)]">
           <span className="h-2 w-2 flex-[0_0_8px] rounded-full bg-accent" />
@@ -289,7 +388,11 @@ export function PipelinePage() {
 }
 
 function Head({ children }: Readonly<{ children: ReactNode }>) {
-  return <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">{children}</span>;
+  return (
+    <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">
+      {children}
+    </span>
+  );
 }
 
 function Legend({ color, label }: Readonly<{ color: string; label: string }>) {
@@ -308,7 +411,14 @@ function Chip({
   on,
   tone,
   onClick,
-}: Readonly<{ label: string; count?: number; dot?: string; on: boolean; tone: 'accent' | 'blue'; onClick: () => void }>) {
+}: Readonly<{
+  label: string;
+  count?: number;
+  dot?: string;
+  on: boolean;
+  tone: 'accent' | 'blue';
+  onClick: () => void;
+}>) {
   const active =
     tone === 'accent'
       ? 'border-accent/35 bg-accent/[0.14] text-accent'
@@ -321,12 +431,19 @@ function Chip({
     >
       {dot ? <span className="h-[7px] w-[7px] rounded-full" style={{ background: dot }} /> : null}
       {label}
-      {count != null ? <span className="tabular-nums opacity-60">{count.toLocaleString()}</span> : null}
+      {count != null ? (
+        <span className="tabular-nums opacity-60">{count.toLocaleString()}</span>
+      ) : null}
     </button>
   );
 }
 
-function Pager({ dir, disabled, onClick, label }: Readonly<{ dir: 'prev' | 'next'; disabled: boolean; onClick: () => void; label: string }>) {
+function Pager({
+  dir,
+  disabled,
+  onClick,
+  label,
+}: Readonly<{ dir: 'prev' | 'next'; disabled: boolean; onClick: () => void; label: string }>) {
   return (
     <button
       type="button"

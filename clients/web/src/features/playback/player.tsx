@@ -1,3 +1,4 @@
+import type { DownloadedSub } from '@luma/core';
 import {
   audioSupport,
   audioTrackLabel,
@@ -16,17 +17,16 @@ import { SkipIntroButton } from '#web/features/playback/skip-intro-button';
 import { StatsOverlay } from '#web/features/playback/stats-overlay';
 import { SubtitleLayer } from '#web/features/playback/subtitle-layer';
 import { useSubtitleStyle } from '#web/features/playback/subtitle-style';
+import { preferredSubIndex } from '#web/features/playback/track-prefs';
 import { UpNextOverlay } from '#web/features/playback/up-next-overlay';
 import { usePlaybackSession } from '#web/features/playback/use-playback-session';
-import { useStoryboard } from '#web/features/playback/use-storyboard';
 import { usePlayerHotkeys } from '#web/features/playback/use-player-hotkeys';
 import { useResumeProgress } from '#web/features/playback/use-resume-progress';
+import { useStoryboard } from '#web/features/playback/use-storyboard';
 import { useUpNext } from '#web/features/playback/use-up-next';
-import { preferredSubIndex } from '#web/features/playback/track-prefs';
 import { useVideoPlayback } from '#web/features/playback/use-video-playback';
 import { lumaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
-import type { DownloadedSub } from '@luma/core';
 
 /** Custom fullscreen player: scrub bar with hover preview, ±10s, volume, speed,
  * PiP, fullscreen, auto-hiding controls, full keyboard control, an audio/
@@ -126,7 +126,9 @@ export function Player({
           return cur;
         });
       }
-      void lumaClient().deleteSubtitle(item.id, subId).catch(() => undefined);
+      void lumaClient()
+        .deleteSubtitle(item.id, subId)
+        .catch(() => undefined);
     },
     [item.id, downloaded],
   );
@@ -168,7 +170,10 @@ export function Player({
     playing: pb.playing,
     waiting: pb.waiting,
     mode: playbackMode,
-    audioLabel: audioTrackLabel(t, pb.audioTracks.find((a) => a.index === pb.audioIndex)),
+    audioLabel: audioTrackLabel(
+      t,
+      pb.audioTracks.find((a) => a.index === pb.audioIndex),
+    ),
     subtitleLabel,
     onTerminated: (message) => {
       try {

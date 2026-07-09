@@ -19,14 +19,14 @@
     "@luma/core": "workspace:*",
     "@luma/tv": "workspace:*",
     "@luma/ui": "workspace:*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",
     "@types/node": "^22.10.2",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.3.4",
     "lightningcss": "^1.27.0",
     "tailwindcss": "^4",

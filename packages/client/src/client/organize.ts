@@ -17,7 +17,10 @@ export function adminNaming(ctx: RequestContext): Promise<NamingView> {
 }
 
 /** Render a sample for the given (unsaved) templates, for the live preview. */
-export function namingSample(ctx: RequestContext, templates: NamingTemplatesView): Promise<SampleNames> {
+export function namingSample(
+  ctx: RequestContext,
+  templates: NamingTemplatesView,
+): Promise<SampleNames> {
   return ctx.json<SampleNames>('/admin/organize/sample', {
     method: 'POST',
     headers: JSON_HEADERS,

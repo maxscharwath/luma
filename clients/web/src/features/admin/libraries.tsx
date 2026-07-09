@@ -12,14 +12,6 @@ import {
   type TablerIcon,
 } from '@tabler/icons-react';
 import { useState } from 'react';
-import {
-  Denied,
-  HeaderAction,
-  PageHeader,
-  useCap,
-  usePoll,
-} from '#web/features/admin/shell';
-import { Card } from '#web/features/admin/ui';
 import { FolderPicker } from '#web/features/admin/folder-picker';
 import {
   AddLibraryModal,
@@ -28,8 +20,11 @@ import {
   ManageLibraryModal,
   normalizeLibKind,
 } from '#web/features/admin/libraries-modals';
+import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
+import { Card } from '#web/features/admin/ui';
 import { formatBytes, relativeSeen } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
+import { TableSkeleton } from '#web/shared/ui';
 
 const ICONS: Record<string, TablerIcon> = {
   film: IconMovie,
@@ -46,7 +41,7 @@ export function LibrariesScreen() {
 function LibrariesPageInner() {
   const t = useT();
   const { client } = useAuth();
-  const { data, reload } = usePoll(() => client.adminLibraries(), 8000, [client]);
+  const { data, reload } = usePoll(['admin', 'libraries'], () => client.adminLibraries(), 8000);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<AdminLibrary | null>(null);
 
@@ -59,6 +54,8 @@ function LibrariesPageInner() {
         subtitle={t('admin.librariesSub')}
         action={<HeaderAction label={t('admin.addLibrary')} onClick={() => setAdding(true)} />}
       />
+
+      {data === null ? <TableSkeleton rows={4} /> : null}
 
       <div className="mt-6 grid grid-cols-2 gap-4">
         {libraries.map((l) => (
@@ -174,7 +171,10 @@ function LibraryCard({
         <div className="text-[9.5px] font-bold uppercase tracking-[.12em] text-text/38">
           {t('admin.libraryType')}
         </div>
-        <LibraryTypeSelect value={normalizeLibKind(lib.kind)} onChange={(k) => void changeKind(k)} />
+        <LibraryTypeSelect
+          value={normalizeLibKind(lib.kind)}
+          onChange={(k) => void changeKind(k)}
+        />
       </div>
 
       <div className="flex flex-col gap-2.5 border-b border-white/5 px-5 pb-4 pt-3.5">

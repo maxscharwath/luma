@@ -1,8 +1,8 @@
 import {
   apiErrorText,
+  type GenQuality,
   GEN_LANGS as LANGS,
   GEN_QUALITIES as QUALITIES,
-  type GenQuality,
   type SubCapabilities,
 } from '@luma/core';
 import { useT } from '@luma/ui';
@@ -41,7 +41,11 @@ export function SubtitleGenerate({
   const [error, setError] = useState<string | null>(null);
 
   const qualityLabel = (q: GenQuality) =>
-    q === 'fast' ? t('player.subQualityFast') : q === 'accurate' ? t('player.subQualityAccurate') : t('player.subQualityBalanced');
+    q === 'fast'
+      ? t('player.subQualityFast')
+      : q === 'accurate'
+        ? t('player.subQualityAccurate')
+        : t('player.subQualityBalanced');
 
   const run = async () => {
     setBusy(true);
@@ -108,8 +112,16 @@ export function SubtitleGenerate({
       </div>
 
       <div className="mb-4 flex gap-2">
-        <Tab m="transcribe" label={t('player.subModeTranscribe')} hint={t('player.subModeTranscribeHint')} />
-        <Tab m="translate" label={t('player.subModeTranslate')} hint={t('player.subModeTranslateHint')} />
+        <Tab
+          m="transcribe"
+          label={t('player.subModeTranscribe')}
+          hint={t('player.subModeTranscribeHint')}
+        />
+        <Tab
+          m="translate"
+          label={t('player.subModeTranslate')}
+          hint={t('player.subModeTranslateHint')}
+        />
       </div>
 
       {mode === 'translate' ? (
@@ -136,7 +148,9 @@ export function SubtitleGenerate({
       ) : null}
 
       <div className="mb-4">
-        <div className={`mb-2 ${FIELD}`}>{mode === 'transcribe' ? t('player.subSpokenLang') : t('player.subtitles')}</div>
+        <div className={`mb-2 ${FIELD}`}>
+          {mode === 'transcribe' ? t('player.subSpokenLang') : t('player.subtitles')}
+        </div>
         <Select
           value={lang}
           onChange={setLang}
@@ -164,8 +178,14 @@ export function SubtitleGenerate({
         </div>
       ) : null}
 
-      <p className="mb-3 text-[12px] leading-relaxed text-white/40">{t('player.subGenBackground')}</p>
-      {error ? <div className="mb-3 rounded-lg bg-red-500/15 px-3 py-2 text-[13px] text-red-300">{error}</div> : null}
+      <p className="mb-3 text-[12px] leading-relaxed text-white/40">
+        {t('player.subGenBackground')}
+      </p>
+      {error ? (
+        <div className="mb-3 rounded-lg bg-red-500/15 px-3 py-2 text-[13px] text-red-300">
+          {error}
+        </div>
+      ) : null}
       <button
         onClick={() => void run()}
         disabled={busy || (mode === 'translate' && !sources.length)}

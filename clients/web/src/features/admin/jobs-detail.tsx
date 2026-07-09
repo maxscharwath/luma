@@ -7,23 +7,22 @@ import type { JobLog, JobRun, MessageKey } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useState } from 'react';
 import { clock, dur, rel } from '#web/features/admin/jobs-format';
-import { useAdmin, usePoll } from '#web/features/admin/shell';
+import { usePoll } from '#web/features/admin/shell';
 import { C } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
 
 export function JobDetailPanel({ jobKey }: Readonly<{ jobKey: string }>) {
   const t = useT();
   const { client } = useAuth();
-  const { tick } = useAdmin();
-  const { data } = usePoll(() => client.adminJob(jobKey), 4000, [client, jobKey, tick]);
+  const { data } = usePoll(['admin', 'job', jobKey], () => client.adminJob(jobKey), 4000);
   const runs = data?.runs ?? [];
 
   const [selected, setSelected] = useState<string | null>(null);
   const runId = selected ?? runs[0]?.id ?? null;
   const { data: logsData } = usePoll(
+    ['admin', 'jobRunLogs', runId ?? 'none'],
     () => (runId ? client.jobRunLogs(runId) : Promise.resolve({ logs: [] as JobLog[] })),
     2500,
-    [client, runId, tick],
   );
   const logs = logsData?.logs ?? [];
 

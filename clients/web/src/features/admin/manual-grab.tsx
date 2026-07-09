@@ -186,11 +186,15 @@ export function ManualGrabModal({
             {t('manual.search')}
           </button>
         </div>
-        {searchErr ? <p className="mt-1.5 text-[12px] font-semibold text-[#F4B642]">{searchErr}</p> : null}
+        {searchErr ? (
+          <p className="mt-1.5 text-[12px] font-semibold text-[#F4B642]">{searchErr}</p>
+        ) : null}
         {results ? (
           <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-white/[0.07] bg-[#0F0F13]">
             {results.length === 0 ? (
-              <div className="px-3 py-4 text-center text-[12.5px] font-medium text-dim">{t('manual.noResults')}</div>
+              <div className="px-3 py-4 text-center text-[12.5px] font-medium text-dim">
+                {t('manual.noResults')}
+              </div>
             ) : (
               results.map((r) => (
                 <ResultRow key={`${r.indexerName}-${r.guid}`} r={r} onPick={() => pick(r)} />
@@ -219,12 +223,18 @@ export function ManualGrabModal({
             disabled={analyzing || !magnet.trim()}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border border-white/12 bg-[#1A1A20] px-3.5 text-[13px] font-semibold text-white/80 hover:bg-[#222229] disabled:opacity-50"
           >
-            {analyzing ? <IconLoader2 size={14} stroke={2.4} className="animate-spin" /> : <IconWand size={14} stroke={2} />}
+            {analyzing ? (
+              <IconLoader2 size={14} stroke={2.4} className="animate-spin" />
+            ) : (
+              <IconWand size={14} stroke={2} />
+            )}
             {t('manual.analyze')}
           </button>
         </div>
       </Field>
-      {analyzeErr ? <p className="-mt-2 mb-3 text-[12px] font-semibold text-[#EF8091]">{analyzeErr}</p> : null}
+      {analyzeErr ? (
+        <p className="-mt-2 mb-3 text-[12px] font-semibold text-[#EF8091]">{analyzeErr}</p>
+      ) : null}
 
       {/* analysis result: detected kind + file selection */}
       {analysis ? (
@@ -232,16 +242,23 @@ export function ManualGrabModal({
           <div className="mb-2 flex items-center justify-between">
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[.06em]"
-              style={{ color: KIND_COLOR[analysis.kind], background: `${KIND_COLOR[analysis.kind]}1f` }}
+              style={{
+                color: KIND_COLOR[analysis.kind],
+                background: `${KIND_COLOR[analysis.kind]}1f`,
+              }}
             >
               {t(`manual.detected.${analysis.kind}` as Parameters<typeof t>[0])}
-              {analysis.seasons.length > 0 ? ` · ${analysis.seasons.map((s) => `S${s}`).join(' ')}` : ''}
+              {analysis.seasons.length > 0
+                ? ` · ${analysis.seasons.map((s) => `S${s}`).join(' ')}`
+                : ''}
             </span>
             {videoFiles.length > 1 ? (
               <button
                 type="button"
                 onClick={() =>
-                  setSelected(allVideoSelected ? new Set() : new Set(videoFiles.map((f) => f.index)))
+                  setSelected(
+                    allVideoSelected ? new Set() : new Set(videoFiles.map((f) => f.index)),
+                  )
                 }
                 className="text-[12px] font-semibold text-accent hover:underline"
               >
@@ -251,12 +268,20 @@ export function ManualGrabModal({
           </div>
           <div className="max-h-52 overflow-y-auto">
             {analysis.files.map((f) => (
-              <FileRow key={f.index} f={f} checked={selected.has(f.index)} onToggle={() => toggleFile(f.index)} />
+              <FileRow
+                key={f.index}
+                f={f}
+                checked={selected.has(f.index)}
+                onToggle={() => toggleFile(f.index)}
+              />
             ))}
           </div>
           {videoFiles.length > 1 ? (
             <div className="mt-2 text-[11.5px] font-medium text-dim">
-              {t('manual.selectedCount', { n: String(selected.size), total: String(videoFiles.length) })}
+              {t('manual.selectedCount', {
+                n: String(selected.size),
+                total: String(videoFiles.length),
+              })}
             </div>
           ) : null}
         </div>
@@ -276,20 +301,40 @@ export function ManualGrabModal({
       </Field>
       <div className="grid grid-cols-[1fr_100px] gap-4">
         <Field label={t('manual.titleLabel')} hint={t('manual.titleHint')}>
-          <TextInput value={title} onChange={setTitle} placeholder="The Matrix" className="w-full min-w-0" />
+          <TextInput
+            value={title}
+            onChange={setTitle}
+            placeholder="The Matrix"
+            className="w-full min-w-0"
+          />
         </Field>
         <Field label={t('manual.year')}>
-          <TextInput value={year} onChange={setYear} placeholder="1999" className="w-full min-w-0" />
+          <TextInput
+            value={year}
+            onChange={setYear}
+            placeholder="1999"
+            className="w-full min-w-0"
+          />
         </Field>
       </div>
       {kind !== 'movie' ? (
         <div className="grid grid-cols-2 gap-4">
           <Field label={t('manual.season')}>
-            <TextInput value={season} onChange={setSeason} placeholder="1" className="w-full min-w-0" />
+            <TextInput
+              value={season}
+              onChange={setSeason}
+              placeholder="1"
+              className="w-full min-w-0"
+            />
           </Field>
           {kind === 'episode' ? (
             <Field label={t('manual.episode')}>
-              <TextInput value={episode} onChange={setEpisode} placeholder="1" className="w-full min-w-0" />
+              <TextInput
+                value={episode}
+                onChange={setEpisode}
+                placeholder="1"
+                className="w-full min-w-0"
+              />
             </Field>
           ) : null}
         </div>
@@ -328,10 +373,15 @@ function FileRow({
         onChange={onToggle}
         className="h-3.5 w-3.5 accent-(--luma-accent)"
       />
-      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/75" title={f.path}>
+      <span
+        className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/75"
+        title={f.path}
+      >
         {f.path.split('/').pop()}
       </span>
-      {label ? <span className="shrink-0 text-[11px] font-bold text-[#86A8FF]">{label}</span> : null}
+      {label ? (
+        <span className="shrink-0 text-[11px] font-bold text-[#86A8FF]">{label}</span>
+      ) : null}
       <span className="shrink-0 text-[11px] tabular-nums text-dim">{formatBytes(f.sizeBytes)}</span>
     </label>
   );
@@ -355,9 +405,13 @@ function ResultRow({ r, onPick }: Readonly<{ r: ManualReleaseView; onPick: () =>
           {r.codec ? <span className="text-[#C792EA]">{r.codec}</span> : null}
           {r.sizeBytes != null ? <span>{formatBytes(r.sizeBytes)}</span> : null}
           {r.seeders != null ? (
-            <span className="text-[#46D08D]">{t('requests.seedersN', { n: String(r.seeders) })}</span>
+            <span className="text-[#46D08D]">
+              {t('requests.seedersN', { n: String(r.seeders) })}
+            </span>
           ) : null}
-          {r.detailsUrl ? <span className="text-white/30">· {t('downloads.hasTrackerPage')}</span> : null}
+          {r.detailsUrl ? (
+            <span className="text-white/30">· {t('downloads.hasTrackerPage')}</span>
+          ) : null}
         </div>
       </div>
       <IconDownload size={15} stroke={2.2} className="shrink-0 text-accent" />

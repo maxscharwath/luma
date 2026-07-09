@@ -16,17 +16,17 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { DownloadClientsSection } from '#web/features/admin/download-clients';
 import { DownloadRowView, type LiveDl } from '#web/features/admin/download-row';
 import { ManualGrabModal } from '#web/features/admin/manual-grab';
-import { VpnCard } from '#web/features/admin/vpn-card';
-import { useAdmin, useCap, usePoll } from '#web/features/admin/shell';
+import { useCap, usePoll } from '#web/features/admin/shell';
 import { Modal, ModalActions, StatCard } from '#web/features/admin/ui';
+import { VpnCard } from '#web/features/admin/vpn-card';
 import { formatBytes } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import { TableSkeleton } from '#web/shared/ui';
 
 export function DownloadsPage() {
   const t = useT();
   const { client } = useAuth();
-  const { tick } = useAdmin();
   const canSettings = useCap('settings.manage');
   const canQueue = useCap('requests.manage') || canSettings;
 
@@ -37,7 +37,7 @@ export function DownloadsPage() {
   const [manual, setManual] = useState(false);
 
   // Slow poll = reconnect/missed-event safety net; progress rides the WS.
-  const { data, reload } = usePoll(() => client.adminDownloads(), 10000, [client, tick]);
+  const { data, reload } = usePoll(['admin', 'downloads'], () => client.adminDownloads(), 10000);
 
   const lastReloadRef = useRef(0);
   const throttledReload = useCallback(() => {
@@ -62,7 +62,11 @@ export function DownloadsPage() {
               state: e.state,
             },
           }));
-        } else if (e.type === 'download.completed' || e.type === 'request.updated' || e.type === 'vpn.status') {
+        } else if (
+          e.type === 'download.completed' ||
+          e.type === 'request.updated' ||
+          e.type === 'vpn.status'
+        ) {
           throttledReload();
         }
       },
@@ -82,8 +86,12 @@ export function DownloadsPage() {
   };
 
   const downloads = data?.downloads ?? [];
-  const activeRows = downloads.filter((d) => ['queued', 'downloading', 'seeding', 'paused'].includes(d.status));
-  const doneRows = downloads.filter((d) => !['queued', 'downloading', 'seeding', 'paused'].includes(d.status));
+  const activeRows = downloads.filter((d) =>
+    ['queued', 'downloading', 'seeding', 'paused'].includes(d.status),
+  );
+  const doneRows = downloads.filter(
+    (d) => !['queued', 'downloading', 'seeding', 'paused'].includes(d.status),
+  );
   const totalDown = Object.entries(live)
     .filter(([id]) => activeRows.some((d) => d.id === id))
     .reduce((sum, [, l]) => sum + l.downBps, 0);
@@ -123,7 +131,11 @@ export function DownloadsPage() {
               : 'border-[#F4B642]/30 bg-[#F4B642]/[0.10] text-[#F4B642]'
           }`}
         >
-          {vpn.connected ? <IconShieldCheck size={15} stroke={2} /> : <IconShieldX size={15} stroke={2} />}
+          {vpn.connected ? (
+            <IconShieldCheck size={15} stroke={2} />
+          ) : (
+            <IconShieldX size={15} stroke={2} />
+          )}
           {vpn.connected
             ? t('downloads.vpnOk', { ip: vpn.exitIp ?? '?' })
             : vpn.paused
@@ -180,6 +192,7 @@ export function DownloadsPage() {
             }}
           />
         ))}
+        {data === null ? <TableSkeleton rows={6} /> : null}
         {data && downloads.length === 0 ? (
           <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">
             <IconDownload size={26} stroke={1.6} className="mx-auto mb-2.5 text-white/30" />
@@ -218,15 +231,17 @@ export function DownloadsPage() {
         </Modal>
       ) : null}
 
-      {manual ? (
-        <ManualGrabModal onClose={() => setManual(false)} onAdded={reload} />
-      ) : null}
+      {manual ? <ManualGrabModal onClose={() => setManual(false)} onAdded={reload} /> : null}
     </main>
   );
 }
 
 function Head({ children }: Readonly<{ children: ReactNode }>) {
-  return <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">{children}</span>;
+  return (
+    <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">
+      {children}
+    </span>
+  );
 }
 
 function BulkBtn({

@@ -63,8 +63,7 @@ export function DownloadClientModal({
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
 
-  const placeholder =
-    kind === 'transmission' ? 'http://nas:9091' : 'http://nas:8080';
+  const placeholder = kind === 'transmission' ? 'http://nas:9091' : 'http://nas:8080';
 
   return (
     <Modal title={t(client ? 'dlclients.edit' : 'dlclients.add')} onClose={onClose}>
@@ -94,7 +93,12 @@ export function DownloadClientModal({
           label={t('dlclients.password')}
           hint={client?.hasPassword ? t('dlclients.passwordKept') : undefined}
         >
-          <TextInput value={password} onChange={setPassword} type="password" className="w-full min-w-0" />
+          <TextInput
+            value={password}
+            onChange={setPassword}
+            type="password"
+            className="w-full min-w-0"
+          />
         </Field>
       </div>
       {error ? <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p> : null}

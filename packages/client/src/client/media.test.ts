@@ -11,15 +11,23 @@ describe('hlsMasterUrl', () => {
   });
 
   it('emits the aac program for the AAC variant', () => {
-    expect(hlsMasterUrl(ctx, 'abc', true)).toBe('http://luma.test/api/items/abc/hls/aac/0/0/index.m3u8');
+    expect(hlsMasterUrl(ctx, 'abc', true)).toBe(
+      'http://luma.test/api/items/abc/hls/aac/0/0/index.m3u8',
+    );
   });
 
   it('puts the anchor (rounded, clamped) and audio track in the path', () => {
-    expect(hlsMasterUrl(ctx, 'abc', false, 600.4, 1)).toBe('http://luma.test/api/items/abc/hls/copy/600/1/index.m3u8');
-    expect(hlsMasterUrl(ctx, 'abc', false, -5, 0)).toBe('http://luma.test/api/items/abc/hls/copy/0/0/index.m3u8');
+    expect(hlsMasterUrl(ctx, 'abc', false, 600.4, 1)).toBe(
+      'http://luma.test/api/items/abc/hls/copy/600/1/index.m3u8',
+    );
+    expect(hlsMasterUrl(ctx, 'abc', false, -5, 0)).toBe(
+      'http://luma.test/api/items/abc/hls/copy/0/0/index.m3u8',
+    );
   });
 
   it('url-encodes the item id', () => {
-    expect(hlsMasterUrl(ctx, 'a b/c', true, 0, 2)).toBe('http://luma.test/api/items/a%20b%2Fc/hls/aac/0/2/index.m3u8');
+    expect(hlsMasterUrl(ctx, 'a b/c', true, 0, 2)).toBe(
+      'http://luma.test/api/items/a%20b%2Fc/hls/aac/0/2/index.m3u8',
+    );
   });
 });

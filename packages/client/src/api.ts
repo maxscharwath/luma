@@ -57,6 +57,7 @@ import type {
   NamingView,
   OrganizePlan,
   OrganizeResult,
+  PasskeyInfo,
   Permission,
   PersonResponse,
   PipelineElements,
@@ -76,6 +77,7 @@ import type {
   SearchResponse,
   Section,
   ServerInfo,
+  SessionInfo,
   SettingsView,
   Show,
   ShowDetail,
@@ -88,6 +90,7 @@ import type {
   VpnTestResult,
 } from './types';
 
+export type { AccountPatch, WebAuthnCredential, WebAuthnOptions } from './client/accounts';
 export type {
   AdminFsEntry,
   AdminFsList,
@@ -397,6 +400,37 @@ export class LumaClient {
   }
   changePassword(current: string, next: string): Promise<void> {
     return accounts.changePassword(this.ctx, current, next);
+  }
+  listSessions(): Promise<SessionInfo[]> {
+    return accounts.sessions(this.ctx);
+  }
+  revokeSession(id: string): Promise<void> {
+    return accounts.revokeSession(this.ctx, id);
+  }
+  passkeyRegisterStart(): Promise<{ ceremonyId: string; options: accounts.WebAuthnOptions }> {
+    return accounts.passkeyRegisterStart(this.ctx);
+  }
+  passkeyRegisterFinish(body: {
+    ceremonyId: string;
+    name: string;
+    credential: accounts.WebAuthnCredential;
+  }): Promise<PasskeyInfo> {
+    return accounts.passkeyRegisterFinish(this.ctx, body);
+  }
+  listPasskeys(): Promise<PasskeyInfo[]> {
+    return accounts.passkeys(this.ctx);
+  }
+  deletePasskey(id: string): Promise<void> {
+    return accounts.deletePasskey(this.ctx, id);
+  }
+  passkeyAuthStart(): Promise<{ ceremonyId: string; options: accounts.WebAuthnOptions }> {
+    return accounts.passkeyAuthStart(this.ctx);
+  }
+  passkeyAuthFinish(body: {
+    ceremonyId: string;
+    credential: accounts.WebAuthnCredential;
+  }): Promise<AuthResult> {
+    return accounts.passkeyAuthFinish(this.ctx, body);
   }
   users(): Promise<PublicUser[]> {
     return accounts.users(this.ctx);

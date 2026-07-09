@@ -16,9 +16,9 @@ import { lumaClient, type MovieView } from '#web/shared/lib/api';
 type HlsInstance = import('hls.js').default;
 
 export interface VideoPlayback {
-  videoRef: React.RefObject<HTMLVideoElement>;
-  containerRef: React.RefObject<HTMLDivElement>;
-  barRef: React.RefObject<HTMLDivElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  barRef: React.RefObject<HTMLDivElement | null>;
   playing: boolean;
   waiting: boolean;
   /** True once the element can play (canplay/loadedmetadata). */
@@ -109,14 +109,25 @@ export function bindMediaEvents(
   setters: MediaEventSetters,
   baseSec = 0,
 ): () => void {
-  const { setCur, setDur, setBufEnd, setPlaying, setWaiting, setVolume, setMuted, setRate, setReady } = setters;
+  const {
+    setCur,
+    setDur,
+    setBufEnd,
+    setPlaying,
+    setWaiting,
+    setVolume,
+    setMuted,
+    setRate,
+    setReady,
+  } = setters;
   const onTime = () => setCur(baseSec + v.currentTime);
   const onDur = () => {
     const total = item.durationMs ? item.durationMs / 1000 : 0;
     if (total > 0) setDur(total);
     else if (Number.isFinite(v.duration)) setDur(baseSec + v.duration);
   };
-  const onProg = () => setBufEnd(v.buffered.length ? baseSec + v.buffered.end(v.buffered.length - 1) : 0);
+  const onProg = () =>
+    setBufEnd(v.buffered.length ? baseSec + v.buffered.end(v.buffered.length - 1) : 0);
   const onPause = () => setPlaying(false);
   const onWaiting = () => setWaiting(true);
   const onPlaying = () => setWaiting(false);
@@ -261,4 +272,3 @@ export function attachMediaSource(opts: AttachSourceOptions): () => void {
     v.load();
   };
 }
-

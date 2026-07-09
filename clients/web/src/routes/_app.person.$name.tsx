@@ -6,37 +6,23 @@ import {
   type Translate,
 } from '@luma/core';
 import { useT } from '@luma/ui';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { type CatalogEntry, CatalogGrid } from '#web/features/catalog/cards';
 import { initials } from '#web/features/catalog/detail';
 import { imageUrl, isAuthed, lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
-import { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui';
+import { catalogQueries } from '#web/shared/lib/queries';
+import { Avatar, AvatarFallback, AvatarImage, PageSkeleton } from '#web/shared/ui';
 
 /** `/person/<name>` every movie + show one cast/crew member is credited in.
  * Reached by selecting a face in a detail page's "Distribution" rail. */
-export const Route = createFileRoute('/person/$name')({
-  loader: async ({ params }) => {
+export const Route = createFileRoute('/_app/person/$name')({
+  loader: async ({ params, context: { queryClient } }) => {
     if (!isAuthed()) throw redirect({ to: '/' });
-    const c = lumaClient();
     // TanStack decodes the path param; the API matches the name case-insensitively.
-    const name = params.name;
-    const { results } = await c.personCredits(name);
-    const entries: CatalogEntry[] = results.map((hit) =>
-      hit.type === 'show'
-        ? { kind: 'show', show: toShowView(c, hit.show) }
-        : { kind: 'movie', movie: toMovieView(c, hit.item) },
-    );
-    // Cast/crew (and the best profile photo) ride along in each result's metadata,
-    // so the header's name/photo/roles are derived client-side no extra request.
-    const metas = results.map((hit) =>
-      hit.type === 'show' ? hit.show.metadata : hit.item.metadata,
-    );
-    return {
-      name: personDisplayName(metas, name),
-      entries,
-      involvement: personInvolvement(metas, name),
-    };
+    await queryClient.ensureQueryData(catalogQueries.personCredits(params.name));
   },
+  pendingComponent: () => <PageSkeleton rails={0} />,
   component: PersonPage,
 });
 
@@ -64,7 +50,20 @@ function jobLabel(t: Translate, job: string): string {
 
 function PersonPage() {
   const t = useT();
-  const { name, entries, involvement } = Route.useLoaderData();
+  const { name: rawName } = Route.useParams();
+  const { data } = useSuspenseQuery(catalogQueries.personCredits(rawName));
+  const c = lumaClient();
+  const results = data.results;
+  const entries: CatalogEntry[] = results.map((hit) =>
+    hit.type === 'show'
+      ? { kind: 'show', show: toShowView(c, hit.show) }
+      : { kind: 'movie', movie: toMovieView(c, hit.item) },
+  );
+  // Cast/crew (and the best profile photo) ride along in each result's metadata,
+  // so the header's name/photo/roles are derived client-side no extra request.
+  const metas = results.map((hit) => (hit.type === 'show' ? hit.show.metadata : hit.item.metadata));
+  const name = personDisplayName(metas, rawName);
+  const involvement = personInvolvement(metas, rawName);
   const photo = imageUrl(involvement.profileUrl);
   const [g1, g2] = posterColors(name);
   const roles = roleLabels(t, involvement);

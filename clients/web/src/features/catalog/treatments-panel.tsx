@@ -6,14 +6,16 @@
 import { hasPermission, type MessageKey, type Treatment } from '@luma/core';
 import { useT } from '@luma/ui';
 import {
-  type Icon as TablerIcon,
   IconAlertTriangleFilled,
   IconCircle,
   IconCircleCheckFilled,
   IconLoader2,
   IconRefresh,
+  type Icon as TablerIcon,
 } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { lumaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
 type Kind = 'item' | 'show';
@@ -29,26 +31,25 @@ const STATUS = {
 export function TreatmentsPanel({ kind, id }: Readonly<{ kind: Kind; id: string }>) {
   const t = useT();
   const { user, client } = useAuth();
-  const [treatments, setTreatments] = useState<Treatment[] | null>(null);
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const admin = !!user && hasPermission(user, 'settings.manage');
 
-  const load = useCallback(() => {
-    (kind === 'show' ? client.showProcessing(id) : client.itemProcessing(id))
-      .then((r) => setTreatments(r.treatments))
-      .catch(() => setTreatments(null));
-  }, [client, kind, id]);
-
-  useEffect(() => {
-    if (admin) load();
-  }, [admin, load]);
-
-  // Refresh while anything is still processing.
-  useEffect(() => {
-    if (!admin || !treatments?.some((x) => x.status === 'running' || x.status === 'pending')) return;
-    const iv = setInterval(load, 3000);
-    return () => clearInterval(iv);
-  }, [admin, treatments, load]);
+  const queryKey = ['treatments', kind, id] as const;
+  const { data: treatments = null } = useQuery({
+    queryKey,
+    queryFn: async (): Promise<Treatment[]> => {
+      const c = lumaClient();
+      const r = await (kind === 'show' ? c.showProcessing(id) : c.itemProcessing(id));
+      return r.treatments;
+    },
+    enabled: admin,
+    // Keep polling while anything is still processing, then stop.
+    refetchInterval: (query) =>
+      query.state.data?.some((x) => x.status === 'running' || x.status === 'pending')
+        ? 3000
+        : false,
+  });
 
   if (!admin || !treatments) return null;
 
@@ -56,7 +57,7 @@ export function TreatmentsPanel({ kind, id }: Readonly<{ kind: Kind; id: string 
     setBusy(true);
     client
       .reprocessSubject(kind, id)
-      .then(() => setTimeout(load, 1500))
+      .then(() => setTimeout(() => queryClient.invalidateQueries({ queryKey }), 1500))
       .catch(() => {})
       .finally(() => setTimeout(() => setBusy(false), 1500));
   };

@@ -1,6 +1,6 @@
 import { Logo, useT } from '@luma/ui';
 import { IconPlus } from '@tabler/icons-react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { avatarGradient, initials } from '#web/features/accounts/user-avatar';
 import { useAuth } from '#web/shared/lib/auth';
@@ -23,6 +23,7 @@ function JoinPage() {
   const t = useT();
   const { invite } = Route.useSearch();
   const { client, register } = useAuth();
+  const navigate = useNavigate();
 
   const [status, setStatus] = useState<'checking' | 'invalid' | 'ok'>('checking');
   const [email, setEmail] = useState('');
@@ -75,8 +76,9 @@ function JoinPage() {
     setError(null);
     try {
       await register(email.trim(), username.trim(), password, avatar, invite);
-      // On success the AuthProvider signs us in; navigating home drops the gate.
-      window.location.assign('/');
+      // register() signs us in and invalidates the router, so a plain navigation
+      // home lands in the (now authenticated) app shell no full reload needed.
+      void navigate({ to: '/' });
     } catch (e) {
       let msg = t('auth.registerFailed');
       if (e instanceof Error && /403|invalid|expir/i.test(e.message)) msg = t('auth.inviteInvalid');

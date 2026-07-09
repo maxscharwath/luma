@@ -5,33 +5,30 @@
 import { LumaEvents, type MediaRequest, posterColors, sizedImageUrl } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconInbox, IconLoader2, IconX } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useRef, useState } from 'react';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 import { seasonsSummary } from '#web/features/requests/status';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import { userQueries } from '#web/shared/lib/queries';
+import { Skeleton } from '#web/shared/ui';
 
 export function MyRequestsPage() {
   const t = useT();
   const { client } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [requests, setRequests] = useState<MediaRequest[] | null>(null);
+  // Slow background poll; the SSE stream below invalidates on push for freshness.
+  const requestsQuery = userQueries.myRequests();
+  const { data: requests, isPending } = useQuery({
+    ...requestsQuery,
+    refetchInterval: 15000,
+    select: (v) => v.requests,
+  });
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  const reload = useCallback(() => {
-    client
-      .listRequests({ mine: true })
-      .then((v) => setRequests(v.requests))
-      .catch(() => undefined);
-  }, [client]);
-
-  useEffect(() => {
-    reload();
-    const iv = setInterval(reload, 15000);
-    return () => clearInterval(iv);
-  }, [reload]);
 
   const lastReloadRef = useRef(0);
   useEffect(() => {
@@ -41,7 +38,7 @@ export function MyRequestsPage() {
           const now = Date.now();
           if (now - lastReloadRef.current > 1200) {
             lastReloadRef.current = now;
-            reload();
+            void queryClient.invalidateQueries({ queryKey: requestsQuery.queryKey });
           }
         } else if (e.type === 'download.progress' && e.requestId) {
           setProgress((p) => ({ ...p, [e.requestId as string]: e.progress }));
@@ -50,13 +47,13 @@ export function MyRequestsPage() {
     });
     ev.connect();
     return () => ev.close();
-  }, [reload]);
+  }, [queryClient, requestsQuery.queryKey]);
 
   const cancel = (req: MediaRequest) => {
     setBusyId(req.id);
     client
       .deleteRequest(req.id)
-      .then(reload)
+      .then(() => queryClient.invalidateQueries({ queryKey: requestsQuery.queryKey }))
       .catch(() => undefined)
       .finally(() => setBusyId(null));
   };
@@ -67,6 +64,15 @@ export function MyRequestsPage() {
         {t('requests.myTitle')}
       </h1>
       <p className="mt-1.5 text-[14.5px] font-medium text-dim">{t('requests.mySubtitle')}</p>
+
+      {isPending ? (
+        <div className="mt-6 flex flex-col gap-2.5">
+          {Array.from({ length: 4 }, (_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
+            <Skeleton key={i} className="h-[92px] rounded-2xl" />
+          ))}
+        </div>
+      ) : null}
 
       {requests && requests.length === 0 ? (
         <div className="mt-16 flex flex-col items-center text-center">
@@ -97,7 +103,10 @@ export function MyRequestsPage() {
               } else {
                 navigate({
                   to: '/discover/$type/$tmdbId',
-                  params: { type: req.kind === 'show' ? 'tv' : 'movie', tmdbId: String(req.tmdbId) },
+                  params: {
+                    type: req.kind === 'show' ? 'tv' : 'movie',
+                    tmdbId: String(req.tmdbId),
+                  },
                 });
               }
             }}
@@ -142,11 +151,16 @@ function RequestRow({
         <div className="min-w-0">
           <div className="truncate text-[15px] font-bold">{req.title}</div>
           <div className="mt-0.5 text-[12.5px] font-medium text-dim">
-            {[req.year ? String(req.year) : '', req.kind === 'show' ? (seasons ?? t('requests.allSeasons')) : '']
+            {[
+              req.year ? String(req.year) : '',
+              req.kind === 'show' ? (seasons ?? t('requests.allSeasons')) : '',
+            ]
               .filter(Boolean)
               .join(' · ')}
           </div>
-          {req.note ? <div className="mt-1 text-[12px] font-semibold text-[#EF8091]">{req.note}</div> : null}
+          {req.note ? (
+            <div className="mt-1 text-[12px] font-semibold text-[#EF8091]">{req.note}</div>
+          ) : null}
         </div>
       </button>
       <RequestStatusChip status={req.status} progress={progress ?? req.progress ?? null} />
@@ -158,7 +172,11 @@ function RequestRow({
           title={t('requests.cancel')}
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#1A1A20] text-white/55 hover:text-[#E8536A] disabled:opacity-50"
         >
-          {busy ? <IconLoader2 size={15} stroke={2.4} className="animate-spin" /> : <IconX size={15} stroke={2.2} />}
+          {busy ? (
+            <IconLoader2 size={15} stroke={2.4} className="animate-spin" />
+          ) : (
+            <IconX size={15} stroke={2.2} />
+          )}
         </button>
       ) : null}
     </div>

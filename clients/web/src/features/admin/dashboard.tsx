@@ -2,10 +2,7 @@ import type { MetricsSnapshot, PlaybackSession, TopUser } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useMemo, useState } from 'react';
 import { HistoryBars, MetricsChart } from '#web/features/admin/charts';
-import {
-  NowPlayingCard,
-  StopStreamModal,
-} from '#web/features/admin/dashboard-now-playing';
+import { NowPlayingCard, StopStreamModal } from '#web/features/admin/dashboard-now-playing';
 import { PageHeader, useAdmin, usePoll } from '#web/features/admin/shell';
 import { Avatar, C, Card, FilterLabel, Section } from '#web/features/admin/ui';
 import { decimal, formatDuration, formatMbps } from '#web/shared/lib/adminFormat';
@@ -14,22 +11,26 @@ import { useAuth } from '#web/shared/lib/auth';
 export function DashboardScreen() {
   const t = useT();
   const { client } = useAuth();
-  const { serverInfo, tick } = useAdmin();
+  const { serverInfo } = useAdmin();
 
   const { data: sessionsData, reload: reloadSessions } = usePoll(
+    ['admin', 'sessions'],
     () => client.adminSessions(),
     3000,
-    [client, tick],
   );
   // The server samples every 3s; polling faster only redraws identical charts.
-  const { data: metrics } = usePoll(() => client.adminMetrics(), 5000, [client]);
-  const { data: top } = usePoll(() => client.topUsers(7), 30000, [client, tick]);
-  const { data: history } = usePoll(() => client.playHistory(28), 60000, [client, tick]);
+  const { data: metrics } = usePoll(['admin', 'metrics'], () => client.adminMetrics(), 5000);
+  const { data: top } = usePoll(['admin', 'topUsers', 7], () => client.topUsers(7), 30000);
+  const { data: history } = usePoll(
+    ['admin', 'playHistory', 28],
+    () => client.playHistory(28),
+    60000,
+  );
   // Avatars for the now-playing cards come from the authenticated admin roster,
   // not the public `/users` picker list (which the `publicUserList` setting can
   // hide). Needs `users.manage`; without it the map stays empty (cards fall back
   // to name-based avatars), which is harmless.
-  const { data: usersData } = usePoll(() => client.adminUsers(), 60000, [client, tick]);
+  const { data: usersData } = usePoll(['admin', 'users'], () => client.adminUsers(), 60000);
 
   const [stopTarget, setStopTarget] = useState<PlaybackSession | null>(null);
   const sessions = sessionsData?.sessions ?? [];

@@ -10,6 +10,7 @@ import { IndexerModal } from '#web/features/admin/indexer-modals';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
+import { TableSkeleton } from '#web/shared/ui';
 
 type TestState = { busy?: boolean; result?: IndexerTestResult; error?: string };
 
@@ -23,14 +24,21 @@ export function IndexersPage() {
   });
   const [tests, setTests] = useState<Record<string, TestState>>({});
 
-  const { data, reload } = usePoll(() => client.adminIndexers(), 30000, [client]);
+  const { data, reload } = usePoll(['admin', 'indexers'], () => client.adminIndexers(), 30000);
 
   if (!canManage) return <Denied />;
   const indexers = data?.indexers ?? [];
 
   const toggle = (ix: IndexerView, enabled: boolean) => {
     client
-      .updateIndexer(ix.id, { name: null, url: null, apiKey: null, categories: null, enabled, priority: null })
+      .updateIndexer(ix.id, {
+        name: null,
+        url: null,
+        apiKey: null,
+        categories: null,
+        enabled,
+        priority: null,
+      })
       .then(reload)
       .catch(() => reload());
   };
@@ -40,7 +48,9 @@ export function IndexersPage() {
     client
       .testIndexer(ix.id)
       .then((result) => setTests((s) => ({ ...s, [ix.id]: { result } })))
-      .catch((e) => setTests((s) => ({ ...s, [ix.id]: { error: apiErrorText(e, t('indexers.testFailed')) } })))
+      .catch((e) =>
+        setTests((s) => ({ ...s, [ix.id]: { error: apiErrorText(e, t('indexers.testFailed')) } })),
+      )
       .finally(reload);
   };
 
@@ -50,9 +60,14 @@ export function IndexersPage() {
         title={t('admin.indexersTitle')}
         subtitle={t('admin.indexersSub')}
         action={
-          <HeaderAction label={t('indexers.add')} onClick={() => setModal({ open: true, indexer: null })} />
+          <HeaderAction
+            label={t('indexers.add')}
+            onClick={() => setModal({ open: true, indexer: null })}
+          />
         }
       />
+
+      {data === null ? <TableSkeleton rows={5} /> : null}
 
       {indexers.length === 0 && data ? (
         <Card className="mt-4 px-8 py-12 text-center">
@@ -112,7 +127,9 @@ function IndexerCard({
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <span className="truncate text-[15.5px] font-bold">{ix.name}</span>
-              {!ix.enabled ? <Pill color="rgba(244,243,240,.55)">{t('indexers.disabled')}</Pill> : null}
+              {!ix.enabled ? (
+                <Pill color="rgba(244,243,240,.55)">{t('indexers.disabled')}</Pill>
+              ) : null}
             </div>
             <div className="mt-0.5 truncate text-[12.5px] font-medium text-dim">{ix.url}</div>
           </div>
@@ -122,7 +139,9 @@ function IndexerCard({
 
       <div className="mt-3.5 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-white/55">
         <Pill color="#86A8FF">{t('indexers.cats', { cats: ix.categories.join(', ') })}</Pill>
-        {ix.priority !== 0 ? <Pill color="#C792EA">{t('indexers.prio', { prio: String(ix.priority) })}</Pill> : null}
+        {ix.priority !== 0 ? (
+          <Pill color="#C792EA">{t('indexers.prio', { prio: String(ix.priority) })}</Pill>
+        ) : null}
         {ix.hasApiKey ? <Pill color="#46D08D">{t('indexers.keySet')}</Pill> : null}
       </div>
 
@@ -155,7 +174,9 @@ function IndexerCard({
 function TestLine({ ix, test }: Readonly<{ ix: IndexerView; test?: TestState }>) {
   const t = useT();
   if (test?.busy) {
-    return <span className="text-[12.5px] font-semibold text-white/45">{t('indexers.testing')}</span>;
+    return (
+      <span className="text-[12.5px] font-semibold text-white/45">{t('indexers.testing')}</span>
+    );
   }
   if (test?.error || test?.result?.error) {
     return (
@@ -176,7 +197,11 @@ function TestLine({ ix, test }: Readonly<{ ix: IndexerView; test?: TestState }>)
     );
   }
   if (ix.lastError) {
-    return <span className="min-w-0 truncate text-[12.5px] font-semibold text-[#EF8091]">{ix.lastError}</span>;
+    return (
+      <span className="min-w-0 truncate text-[12.5px] font-semibold text-[#EF8091]">
+        {ix.lastError}
+      </span>
+    );
   }
   if (ix.lastOkAt) {
     return (
@@ -185,5 +210,7 @@ function TestLine({ ix, test }: Readonly<{ ix: IndexerView; test?: TestState }>)
       </span>
     );
   }
-  return <span className="text-[12.5px] font-medium text-white/35">{t('indexers.neverTested')}</span>;
+  return (
+    <span className="text-[12.5px] font-medium text-white/35">{t('indexers.neverTested')}</span>
+  );
 }

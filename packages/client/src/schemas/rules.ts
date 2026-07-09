@@ -7,7 +7,11 @@
 import { z } from 'zod';
 
 /** Email: trimmed + lower-cased, then a real email check (zod's `z.email`). */
-export const emailRule = z.string().trim().toLowerCase().pipe(z.email({ error: 'auth.emailInvalid' }));
+export const emailRule = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email({ error: 'auth.emailInvalid' }));
 
 /** Password: at least 4 characters (server: `password.len() < 4` → reject). */
 export const passwordRule = z.string().min(4, { message: 'auth.passwordTooShort' });

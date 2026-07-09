@@ -129,7 +129,7 @@ select:focus-visible {
    which lit up the whole popup and every row with the amber TV ring. The items
    already signal hover/keyboard focus with a `data-highlighted` background, so
    suppress only the ring here. */
-[role='menu']:focus-visible,
-[role='menuitem']:focus-visible {
+[role="menu"]:focus-visible,
+[role="menuitem"]:focus-visible {
   box-shadow: none;
 }

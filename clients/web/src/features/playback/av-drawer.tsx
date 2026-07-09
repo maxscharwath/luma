@@ -1,12 +1,16 @@
-import type { AudioTrack, DownloadedSub, SubCapabilities, SubtitleGeneration, Translate } from '@luma/core';
+import type {
+  AudioTrack,
+  DownloadedSub,
+  SubCapabilities,
+  SubtitleGeneration,
+  Translate,
+} from '@luma/core';
 import { channelLabel, subtitleEtaTime, subtitleStageKey } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { langName } from '#web/features/catalog/detail';
 import { IconCheck, IconClose, IconSparkles, IconTrash } from '#web/features/playback/icons';
 import { SubtitleGenerate } from '#web/features/playback/subtitle-generate';
-import { useSubtitleGenerations } from '#web/features/playback/use-subtitle-generations';
-import { lumaClient } from '#web/shared/lib/api';
 import {
   SUB_COLORS,
   type SubEdge,
@@ -14,7 +18,9 @@ import {
   type SubtitleStyle,
   subtitleCss,
 } from '#web/features/playback/subtitle-style';
+import { useSubtitleGenerations } from '#web/features/playback/use-subtitle-generations';
 import type { MovieView, SubtitleView } from '#web/shared/lib/api';
+import { lumaClient } from '#web/shared/lib/api';
 
 /** Track language name, or the localized "Unknown" when no code is present. */
 function trackLang(t: Translate, code: string | null): string {
@@ -59,7 +65,9 @@ function Row({
           IA
         </span>
       ) : tag ? (
-        <span className="rounded bg-white/8 px-2 py-0.75 text-[10px] font-bold text-white/70">{tag}</span>
+        <span className="rounded bg-white/8 px-2 py-0.75 text-[10px] font-bold text-white/70">
+          {tag}
+        </span>
       ) : null}
       {active ? (
         <span className="text-accent">

@@ -20,9 +20,9 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useState } from 'react';
+import { HeroBackdrop } from '#web/features/catalog/hero-backdrop';
 import { imageUrl } from '#web/shared/lib/api';
 import { Avatar, AvatarFallback, AvatarImage, Badge, Button, Poster, Rail } from '#web/shared/ui';
-import { HeroBackdrop } from '#web/features/catalog/hero-backdrop';
 
 export type QualityTone = '4K' | 'HDR' | 'H.265';
 

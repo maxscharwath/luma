@@ -2,7 +2,7 @@
 // so the discovery page is a place to browse, not just a search box. Filtered
 // by the active type chip.
 
-import { type DiscoverType, type DiscoverEntry } from '@luma/core';
+import type { DiscoverEntry, DiscoverType } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconChevronRight, IconFlame } from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';

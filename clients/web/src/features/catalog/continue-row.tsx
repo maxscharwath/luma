@@ -2,37 +2,34 @@
 // this is per-user so it loads client-side once a session is hydrated, then
 // renders resumable items with a progress bar straight to the player.
 
-import { type ContinueItem, episodeTag, posterColors } from '@luma/core';
+import { episodeTag, posterColors } from '@luma/core';
 import { useT } from '@luma/ui';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import { Poster, Rail } from '#web/shared/ui';
+import { Suspense } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
+import { userQueries } from '#web/shared/lib/queries';
+import { Poster, Rail, RailSkeleton } from '#web/shared/ui';
 
 const SECTION_TITLE = 'mb-5 mt-10 font-display text-[22px] font-bold tracking-[-.02em] text-text';
 
 export function ContinueRow() {
-  const t = useT();
-  const { user, ready, client } = useAuth();
-  const [items, setItems] = useState<ContinueItem[]>([]);
-  const navigate = useNavigate();
+  const { user, ready } = useAuth();
+  // Per-user data: don't fetch behind the login gate. A skeleton fills the rail
+  // while it loads, then collapses to nothing if there's nothing to resume.
+  if (!ready || !user) return null;
+  return (
+    <Suspense fallback={<RailSkeleton count={6} />}>
+      <ContinueRail />
+    </Suspense>
+  );
+}
 
-  useEffect(() => {
-    if (!ready || !user) {
-      setItems([]);
-      return;
-    }
-    let cancelled = false;
-    client
-      .continueWatching()
-      .then((r) => {
-        if (!cancelled) setItems(r);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [ready, user, client]);
+function ContinueRail() {
+  const t = useT();
+  const { client } = useAuth();
+  const navigate = useNavigate();
+  const { data: items } = useSuspenseQuery(userQueries.continueWatching());
 
   if (items.length === 0) return null;
 

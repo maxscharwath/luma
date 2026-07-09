@@ -2,8 +2,8 @@ import { metaLine, posterColors, type Section } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { memo } from 'react';
-import { useAuth } from '#web/shared/lib/auth';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
+import { useAuth } from '#web/shared/lib/auth';
 import { useWatched } from '#web/shared/lib/watched';
 import { Badge, Button, Poster, Rail } from '#web/shared/ui';
 

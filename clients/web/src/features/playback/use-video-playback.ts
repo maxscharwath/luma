@@ -1,8 +1,20 @@
-import { capabilities, type EngineDecision, MSE_CAPS, masterNeedsAac, type PlayEnv, SAFARI_CAPS, selectEngine } from '@luma/core';
-import { audioTracksOf } from '@luma/core';
+import {
+  audioTracksOf,
+  capabilities,
+  type EngineDecision,
+  MSE_CAPS,
+  masterNeedsAac,
+  type PlayEnv,
+  SAFARI_CAPS,
+  selectEngine,
+} from '@luma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { attachMediaSource, bindMediaEvents, type VideoPlayback } from '#web/features/playback/video-engine';
 import { preferredAudioIndex } from '#web/features/playback/track-prefs';
+import {
+  attachMediaSource,
+  bindMediaEvents,
+  type VideoPlayback,
+} from '#web/features/playback/video-engine';
 import { lumaClient, type MovieView } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
@@ -18,7 +30,8 @@ export type { VideoPlayback } from '#web/features/playback/video-engine';
 function detectWebEnv(): PlayEnv {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const safari =
-    /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(ua) || /iP(ad|hone|od)/i.test(ua);
+    /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(ua) ||
+    /iP(ad|hone|od)/i.test(ua);
   return { platform: 'web', safari, runtimeCaps: capabilities() };
 }
 
@@ -121,7 +134,10 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   const [forceHls, setForceHls] = useState(false);
   const decision = useMemo<EngineDecision>(() => {
     if (forceHls) {
-      return { kind: 'web-mse', aacMaster: masterNeedsAac(item, env.safari ? SAFARI_CAPS : MSE_CAPS) };
+      return {
+        kind: 'web-mse',
+        aacMaster: masterNeedsAac(item, env.safari ? SAFARI_CAPS : MSE_CAPS),
+      };
     }
     return selectEngine(item, env);
   }, [item, env, forceHls]);

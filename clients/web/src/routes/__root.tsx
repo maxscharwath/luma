@@ -1,15 +1,29 @@
-import { createRootRoute, HeadContent, Scripts, useRouterState } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
-import { AuthGate } from '#web/features/accounts/auth-gate';
+import type { QueryClient } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createRootRouteWithContext, HeadContent, Scripts } from '@tanstack/react-router';
+import { lazy, type ReactNode, Suspense } from 'react';
 import { Intro } from '#web/features/catalog/intro';
-import { Sidebar } from '#web/features/catalog/sidebar';
-import { AuthProvider, useAuth } from '#web/shared/lib/auth';
+import { AuthProvider } from '#web/shared/lib/auth';
 import { LocaleProvider } from '#web/shared/lib/locale';
 import { MyListProvider } from '#web/shared/lib/mylist';
+import { queryClient } from '#web/shared/lib/query';
 import { WatchedProvider } from '#web/shared/lib/watched';
 import appCss from '#web/styles.css?url';
 
-export const Route = createRootRoute({
+// Dev-only: lazy so the devtools bundle never ships in the packaged SPA.
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools })),
+    )
+  : () => null;
+
+// The router context every route (incl. loaders) receives; carries the shared
+// TanStack Query client for `ensureQueryData` prefetch.
+export interface RouterContext {
+  queryClient: QueryClient;
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
   // No apiBase injection: the SPA resolves the API origin at runtime (same origin
   // in the packaged build, VITE_LUMA_SERVER in dev see lib/api `apiBase`).
   head: () => ({
@@ -32,42 +46,25 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       <body className="bg-bg text-text">
-        <AuthProvider>
-          <WatchedProvider>
-            <MyListProvider>
-              <LocaleProvider>
-                <AuthGate />
-                <AppShell>{children}</AppShell>
-              </LocaleProvider>
-            </MyListProvider>
-          </WatchedProvider>
-        </AuthProvider>
-        {/* Brand intro overlay sits above everything, plays once per session. */}
-        <Intro />
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <WatchedProvider>
+              <MyListProvider>
+                {/* Each route picks its own frame: the `_app` layout wraps
+                    authenticated pages in the sidebar shell + login gate; login,
+                    join and the admin console own their chrome. */}
+                <LocaleProvider>{children}</LocaleProvider>
+              </MyListProvider>
+            </WatchedProvider>
+          </AuthProvider>
+          {/* Brand intro overlay sits above everything, plays once per session. */}
+          <Intro />
+          <Suspense fallback={null}>
+            <ReactQueryDevtools buttonPosition="bottom-left" />
+          </Suspense>
+        </QueryClientProvider>
         <Scripts />
       </body>
     </html>
-  );
-}
-
-/** Renders the routed app, but only once a session exists so per-user route
- * components (which fetch auth-gated data on mount) never run behind the login
- * gate. Public pages the gate lets through (e.g. `/join`) still render signed
- * out. The gate overlay covers the empty signed-out state. */
-function AppShell({ children }: Readonly<{ children: ReactNode }>) {
-  const { user, ready } = useAuth();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isAdmin = pathname.startsWith('/admin');
-  const isPublic = pathname === '/join';
-
-  if (!isPublic && !(ready && user)) return null;
-  // The admin console brings its own full-screen sidebar, so it escapes the
-  // main app's two-column grid.
-  if (isAdmin) return <>{children}</>;
-  return (
-    <div className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)]">
-      <Sidebar />
-      {children}
-    </div>
   );
 }

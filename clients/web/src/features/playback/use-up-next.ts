@@ -33,7 +33,7 @@ export function useUpNext({
   dur: number;
   scrubbing: boolean;
   terminated: boolean;
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement | null>;
 }>) {
   const [cancelled, setCancelled] = useState(false);
   const advancedRef = useRef(false);

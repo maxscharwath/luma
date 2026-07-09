@@ -170,6 +170,20 @@ pub fn find_user_by_login(pool: &Pool, identifier: &str) -> Result<Option<(User,
     }
 }
 
+/// Fetch a full account by id (e.g. to mint tokens after a passkey assertion
+/// resolves which user signed in). `None` if unknown.
+pub fn user_by_id(pool: &Pool, id: &str) -> Result<Option<User>> {
+    let conn = pool.get()?;
+    let user = conn
+        .query_row(
+            "SELECT id,email,username,avatar_url,created_at,permissions,language,(pin_hash IS NOT NULL),audio_language,subtitle_language FROM users WHERE id = ?1",
+            params![id],
+            row_to_user,
+        )
+        .optional()?;
+    Ok(user)
+}
+
 /// All users as the public (no-email) shape, for the profile picker.
 pub fn list_users(pool: &Pool) -> Result<Vec<PublicUser>> {
     let conn = pool.get()?;
@@ -320,14 +334,38 @@ pub fn set_user_pin(pool: &Pool, user_id: &str, pin_hash: Option<&str>) -> Resul
 }
 
 /// Persist a new session token (expiry as a unix-seconds integer for robust
-/// comparison).
-pub fn create_session(pool: &Pool, token: &str, user_id: &str, expires_at: i64) -> Result<()> {
+/// comparison). `access_token` records the device credential this session was
+/// minted from, so the account's session list can flag the current device.
+pub fn create_session(
+    pool: &Pool,
+    token: &str,
+    user_id: &str,
+    expires_at: i64,
+    access_token: Option<&str>,
+) -> Result<()> {
     let conn = pool.get()?;
     conn.execute(
-        "INSERT INTO sessions (token,user_id,created_at,expires_at) VALUES (?1,?2,?3,?4)",
-        params![token, user_id, now_or_blank(), expires_at],
+        "INSERT INTO sessions (token,user_id,created_at,expires_at,access_token) VALUES (?1,?2,?3,?4,?5)",
+        params![token, user_id, now_or_blank(), expires_at, access_token],
     )?;
     Ok(())
+}
+
+/// The non-secret id (`short_hash`) of the device credential a live session was
+/// minted from. Lets the sessions endpoint flag the caller's current device
+/// without exposing (or re-hashing) the raw token in the handler. `None` when
+/// the session predates parent-token tracking.
+pub fn session_device_id(pool: &Pool, token: &str) -> Result<Option<String>> {
+    let conn = pool.get()?;
+    let access = conn
+        .query_row(
+            "SELECT access_token FROM sessions WHERE token = ?1",
+            params![token],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()?
+        .flatten();
+    Ok(access.map(|t| luma_primitives::short_hash(&t)))
 }
 
 /// Resolve a session token to its (non-expired) user.
@@ -364,14 +402,68 @@ pub fn create_access_token(
     user_id: &str,
     expires_at: i64,
     pin_verified: bool,
+    user_agent: Option<&str>,
 ) -> Result<()> {
     let conn = pool.get()?;
     conn.execute(
-        "INSERT INTO access_tokens (token,user_id,created_at,expires_at,pin_verified,last_seen) \
-         VALUES (?1,?2,?3,?4,?5,?3)",
-        params![token, user_id, now_or_blank(), expires_at, pin_verified as i64],
+        "INSERT INTO access_tokens (token,user_id,created_at,expires_at,pin_verified,last_seen,user_agent) \
+         VALUES (?1,?2,?3,?4,?5,?3,?6)",
+        params![token, user_id, now_or_blank(), expires_at, pin_verified as i64, user_agent],
     )?;
     Ok(())
+}
+
+/// One device credential in the account's session list.
+pub struct AccessTokenRow {
+    /// A stable, non-secret id for the token (a short hash) safe to expose to the
+    /// client and to revoke by, without leaking the token itself.
+    pub id: String,
+    /// The device's captured User-Agent (may be empty/unknown).
+    pub user_agent: Option<String>,
+    pub created_at: String,
+    pub last_seen: Option<String>,
+}
+
+/// List a user's live (non-expired) device credentials, newest first, each with
+/// a non-secret id (`short_hash(token)`) for display + revocation.
+pub fn list_access_tokens(pool: &Pool, user_id: &str) -> Result<Vec<AccessTokenRow>> {
+    let conn = pool.get()?;
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    let mut stmt = conn.prepare(
+        "SELECT token,created_at,last_seen,user_agent FROM access_tokens \
+         WHERE user_id = ?1 AND expires_at > ?2 ORDER BY created_at DESC",
+    )?;
+    let rows = stmt.query_map(params![user_id, now], |r| {
+        let token: String = r.get(0)?;
+        Ok(AccessTokenRow {
+            id: luma_primitives::short_hash(&token),
+            created_at: r.get(1)?,
+            last_seen: r.get(2)?,
+            user_agent: r.get(3)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// Revoke one of a user's device credentials by its non-secret id
+/// (`short_hash(token)`), also deleting any live sessions minted from it so the
+/// device is signed out immediately. Returns whether a matching token was found.
+/// Scoped to `user_id` so a caller can only revoke their own devices.
+pub fn delete_access_token_by_id(pool: &Pool, user_id: &str, id: &str) -> Result<bool> {
+    let conn = pool.get()?;
+    // Tokens are opaque and only reversible by hashing, so find the owner's token
+    // whose short-hash matches, then delete it + its sessions.
+    let mut stmt =
+        conn.prepare("SELECT token FROM access_tokens WHERE user_id = ?1")?;
+    let tokens = stmt
+        .query_map(params![user_id], |r| r.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let Some(token) = tokens.into_iter().find(|t| luma_primitives::short_hash(t) == id) else {
+        return Ok(false);
+    };
+    conn.execute("DELETE FROM sessions WHERE access_token = ?1", params![token])?;
+    conn.execute("DELETE FROM access_tokens WHERE token = ?1", params![token])?;
+    Ok(true)
 }
 
 /// Resolve a (non-expired) access token to its user plus the stored

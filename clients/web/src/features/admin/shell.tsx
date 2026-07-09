@@ -19,8 +19,8 @@ import {
   IconDatabase,
   IconDownload,
   IconFileText,
-  IconMagnet,
   IconLibrary,
+  IconMagnet,
   IconSettings,
   IconSitemap,
   IconSparkles,
@@ -28,8 +28,10 @@ import {
   IconWorld,
   type TablerIcon,
 } from '@tabler/icons-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect } from 'react';
+import { usePoll } from '#web/features/admin/hooks';
 import { formatUptime } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
@@ -43,49 +45,34 @@ export { Denied, isAnyAdmin, useAsyncAction, useCap, usePoll } from '#web/featur
 
 interface AdminCtx {
   serverInfo: ServerInfo | null;
-  /** Bumps on every server event depend on it to refetch live. */
-  tick: number;
 }
 
 const AdminContext = createContext<AdminCtx | null>(null);
 
 export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { client } = useAuth();
-  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
-  const [tick, setTick] = useState(0);
+  const queryClient = useQueryClient();
+  // Server info (uptime etc.) as a plain admin poll it refetches on the 15s tick
+  // and whenever the event stream below invalidates the `['admin']` namespace.
+  const { data: serverInfo } = usePoll(['admin', 'server'], () => client.adminServer(), 15000);
 
-  const loadServer = useCallback(() => {
-    client
-      .adminServer()
-      .then(setServerInfo)
-      .catch(() => undefined);
-  }, [client]);
-
-  // Reload server info initially, every 15s (uptime), and on each event.
-  useEffect(() => {
-    loadServer();
-    const iv = setInterval(loadServer, 15000);
-    return () => clearInterval(iv);
-  }, [loadServer, tick]);
-
-  // Live event stream → tick. Skip the high-frequency per-line `job.log` and
-  // `job.progress` frames: bumping `tick` re-runs every admin `usePoll`, and a
-  // verbose job would otherwise storm the admin endpoints. The jobs page consumes
-  // those two on its own stream for smooth progress; start/finish still tick.
-  // Remaining events are COALESCED (one bump per window): an enrich pass emits
-  // one `item.updated` per title, which would otherwise refetch every admin
-  // panel hundreds of times in a row.
+  // Live event stream → invalidate every admin query (they share the `['admin']`
+  // key prefix). Skip the high-frequency per-line `job.log` / `job.progress` /
+  // `download.progress` frames (the jobs page streams those itself for smooth
+  // progress); a verbose job would otherwise storm the admin endpoints. Remaining
+  // events are COALESCED (one refresh per window): an enrich pass emits one
+  // `item.updated` per title, which would otherwise refetch every panel hundreds
+  // of times in a row.
   useEffect(() => {
     let pending: ReturnType<typeof setTimeout> | null = null;
     const ev = new LumaEvents(apiBase(), {
       onEvent: (e) => {
-        // download.progress joins the skip list: several active torrents emit
-        // ~1 frame/s each, which would re-tick every admin poll continuously.
-        if (e.type === 'job.log' || e.type === 'job.progress' || e.type === 'download.progress') return;
+        if (e.type === 'job.log' || e.type === 'job.progress' || e.type === 'download.progress')
+          return;
         if (pending) return;
         pending = setTimeout(() => {
           pending = null;
-          setTick((t) => t + 1);
+          void queryClient.invalidateQueries({ queryKey: ['admin'] });
         }, 1500);
       },
     });
@@ -94,9 +81,9 @@ export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
       if (pending) clearTimeout(pending);
       ev.close();
     };
-  }, []);
+  }, [queryClient]);
 
-  return <AdminContext.Provider value={{ serverInfo, tick }}>{children}</AdminContext.Provider>;
+  return <AdminContext.Provider value={{ serverInfo }}>{children}</AdminContext.Provider>;
 }
 
 export function useAdmin(): AdminCtx {

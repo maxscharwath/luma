@@ -11,7 +11,10 @@ import { TrendingBrowse } from '#web/features/requests/trending';
 import { useDiscoverSearch, useTrending } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
 
-const TYPES: { value: DiscoverType; labelKey: 'discover.all' | 'discover.movies' | 'discover.shows' }[] = [
+const TYPES: {
+  value: DiscoverType;
+  labelKey: 'discover.all' | 'discover.movies' | 'discover.shows';
+}[] = [
   { value: 'all', labelKey: 'discover.all' },
   { value: 'movie', labelKey: 'discover.movies' },
   { value: 'tv', labelKey: 'discover.shows' },
@@ -42,7 +45,10 @@ export function SearchPage() {
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <label className="group/search relative flex h-14 w-full max-w-2xl items-center rounded-2xl border border-border-strong bg-surface-1 px-4 shadow-card transition-colors focus-within:border-accent/60">
-              <IconSearch size={20} className="shrink-0 text-dim transition-colors group-focus-within/search:text-accent" />
+              <IconSearch
+                size={20}
+                className="shrink-0 text-dim transition-colors group-focus-within/search:text-accent"
+              />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}

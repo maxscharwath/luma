@@ -72,6 +72,27 @@ export const SessionResult = z.object({
   user: User,
 });
 
+/** One signed-in device from `GET /auth/me/sessions`. `id` is a non-secret
+ * handle used to revoke it; `current` marks the device making the request.
+ * `userAgent`/`lastSeen` are `.nullish()` (server omits when unknown). */
+export const SessionInfo = z.object({
+  id: z.string(),
+  userAgent: z.string().nullish(),
+  createdAt: z.string(),
+  lastSeen: z.string().nullish(),
+  current: z.boolean(),
+});
+export type SessionInfo = z.infer<typeof SessionInfo>;
+
+/** One registered passkey from `GET /auth/me/passkeys`. `id` revokes it. */
+export const PasskeyInfo = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+  lastUsed: z.string().nullish(),
+});
+export type PasskeyInfo = z.infer<typeof PasskeyInfo>;
+
 /** `POST /auth/quickconnect/initiate` a device-pairing request. */
 export const QuickConnectInit = z.object({
   code: z.string(),

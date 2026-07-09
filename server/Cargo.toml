@@ -23,7 +23,9 @@ members = ["crates/*"]
 # under crates/ are versioned independently of the server binary.
 [workspace.package]
 edition = "2021"
-rust-version = "1.86"
+# Raised from 1.86 to accommodate webauthn-rs (passkeys), whose dep graph
+# (uuid >= 1.19) needs a newer Rust. Local + Docker builds run 1.96.
+rust-version = "1.88"
 license = "MIT"
 
 # Single source of truth for versions shared across workspace members. The root
@@ -77,10 +79,13 @@ jpeg-encoder = "0.6"
 # In-RAM full-text search (services/search). default-features off drops mmap.
 tantivy = { version = "0.22", default-features = false, features = ["lz4-compression"] }
 rusty-chromaprint = "0.3.0"
-# Transitive edition2024-on-1.81 pins (see the binary's note); declared so the
-# lockfile holds the whole graph at the last 2021-edition release.
-uuid = "=1.11.0"
+# jobserver held at its last 2021-edition release for the tantivy graph. uuid is
+# no longer pinned down: webauthn-rs (passkeys) needs uuid >= 1.19.
+uuid = "1.19"
 jobserver = "=0.1.32"
+# WebAuthn / passkeys relying-party. Requires uuid >= 1.19 (see the pin above)
+# and rust >= 1.88. Pulls openssl transitively (see the binary dep + Dockerfile).
+webauthn-rs = "0.5.5"
 # musl allocator (Linux only; see the binary's #[global_allocator]).
 mimalloc = { version = "0.1", default-features = false }
 # In-workspace crates, referenced by path so a member bumping its own version
@@ -164,11 +169,17 @@ tiny-skia = { workspace = true }
 fontdue = { workspace = true }
 jpeg-encoder = { workspace = true }
 
-# Transitive edition2024-on-1.81 pins for the tantivy graph (pulled in by
-# luma-engine): hold uuid/jobserver at their last 2021-edition release. Declared
-# here (unused directly) so the lockfile pins the whole graph.
-uuid = { workspace = true }
+# jobserver held at its last 2021-edition release for the tantivy graph (pulled
+# in by luma-engine). Declared here (unused directly) so the lockfile pins it.
 jobserver = { workspace = true }
+# WebAuthn / passkeys relying-party (api/passkeys). `conditional-ui` unlocks the
+# discoverable (usernameless) authentication API. Pulls openssl (dynamic) the
+# Dockerfile builder has libssl-dev; the runtime installs libssl3.
+webauthn-rs = { workspace = true, features = ["conditional-ui"] }
+# `v5` for the deterministic per-account WebAuthn user handle (api/passkeys
+# derives it from the account id). Enabled on the bin dep so it's present in the
+# real build, not only when dev-deps happen to pull it in.
+uuid = { workspace = true, features = ["v5"] }
 
 # musl's malloc serializes under our thread mix (tokio + rayon + candle + tantivy);
 # mimalloc removes that contention. Linux-only; macOS dev keeps the system

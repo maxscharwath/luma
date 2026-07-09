@@ -6,7 +6,7 @@ import type { MovieView } from '#web/shared/lib/api';
  * wiring, pulled out of `Player.tsx`. */
 export function usePlayerHotkeys(
   o: Readonly<{
-    videoRef: React.RefObject<HTMLVideoElement>;
+    videoRef: React.RefObject<HTMLVideoElement | null>;
     togglePlay: () => void;
     skip: (delta: number) => void;
     setVol: (val: number) => void;

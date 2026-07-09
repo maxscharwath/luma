@@ -15,7 +15,7 @@ export const Route = createFileRoute('/admin/storage')({
 function StoragePage() {
   const t = useT();
   const { client } = useAuth();
-  const { data, reload } = usePoll(() => client.adminStorage(), 10000, [client]);
+  const { data, reload } = usePoll(['admin', 'storage'], () => client.adminStorage(), 10000);
   const [clearing, setClearing] = useState(false);
   const [resetting, setResetting] = useState(false);
 

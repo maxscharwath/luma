@@ -642,6 +642,27 @@ fn migrate(conn: &Connection) {
         "ALTER TABLE curated_sections DROP COLUMN reason_en",
         "ALTER TABLE item_suggestions DROP COLUMN reason_fr",
         "ALTER TABLE item_suggestions DROP COLUMN reason_en",
+        // ----- session management ------------------------------------------------
+        // The device's User-Agent captured when its access token is minted, so the
+        // account's session list can label each device. NULL for tokens created
+        // before this column (or by clients that send no UA).
+        "ALTER TABLE access_tokens ADD COLUMN user_agent TEXT",
+        // The parent access token a session was minted from, so the account can
+        // tell which listed device is the one making the current request. NULL for
+        // sessions created before this column.
+        "ALTER TABLE sessions ADD COLUMN access_token TEXT",
+        // ----- passkeys (WebAuthn credentials) -----------------------------------
+        // One row per registered authenticator. `id` is the credential id
+        // (base64url) from the authenticator; `credential` is the serialized
+        // webauthn-rs `Passkey` (JSON). Idempotent for DBs created before it.
+        "CREATE TABLE IF NOT EXISTS passkeys (\
+            id          TEXT PRIMARY KEY,\
+            user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\
+            name        TEXT NOT NULL,\
+            credential  TEXT NOT NULL,\
+            created_at  TEXT NOT NULL,\
+            last_used   TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)",
     ] {
         let _ = conn.execute(sql, []);
     }

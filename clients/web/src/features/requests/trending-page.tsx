@@ -9,7 +9,10 @@ import { Link } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { DiscoverCard } from '#web/features/requests/discover-card';
 import { SkeletonRow } from '#web/features/requests/poster-skeleton';
-import { type TrendingPageState, useTrendingPage } from '#web/features/requests/use-discover-search';
+import {
+  type TrendingPageState,
+  useTrendingPage,
+} from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
 
 const GRID = 'mt-8 flex flex-wrap gap-x-4.5 gap-y-6';

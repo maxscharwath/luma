@@ -1,5 +1,5 @@
 package="luma"
-version="@VERSION@-@BUILD@"
+version="@INFO_VERSION@"
 os_min_ver="7.0-40000"
 description="LUMA - self-hosted, direct-play HEVC media streaming. One package: the API and streaming server plus the web UI, served on a single port. No extra dependencies."
 arch="@ARCH@"

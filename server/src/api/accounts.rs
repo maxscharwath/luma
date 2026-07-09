@@ -7,7 +7,7 @@
 use std::net::SocketAddr;
 
 use axum::body::Bytes;
-use axum::extract::{ConnectInfo, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -41,6 +41,8 @@ pub fn routes() -> Router<SharedState> {
         .route("/auth/logout", post(logout))
         .route("/auth/me", get(me).patch(update_me))
         .route("/auth/me/password", patch(change_password))
+        .route("/auth/me/sessions", get(list_sessions))
+        .route("/auth/me/sessions/:id", axum::routing::delete(revoke_session))
         .route("/auth/quickconnect/initiate", post(quick_initiate))
         .route("/auth/quickconnect/authorize", post(quick_authorize))
         .route("/auth/quickconnect/poll", get(quick_poll))
@@ -75,6 +77,7 @@ pub struct RegisterBody {
 pub async fn register(
     State(state): State<SharedState>,
     ReqLocale(loc): ReqLocale,
+    headers: HeaderMap,
     Json(body): Json<RegisterBody>,
 ) -> Response {
     let email = body.email.trim().to_lowercase();
@@ -134,7 +137,7 @@ pub async fn register(
             Ok(u) => u,
             Err(resp) => return resp,
         };
-    issue_tokens(state, user).await
+    issue_tokens(state, user, user_agent(&headers)).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -176,7 +179,17 @@ pub async fn login(
     }
     // A correct login clears the source's failure record.
     loginguard::reset(&ip);
-    issue_tokens(state, user).await
+    issue_tokens(state, user, user_agent(&headers)).await
+}
+
+/// The request's `User-Agent`, trimmed empty → `None`. Stored on a device's
+/// access token to label it in the account's session list.
+pub(crate) fn user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 /// Record a failed login for `ip` and turn it into a response: `429` with a
@@ -196,6 +209,17 @@ fn login_locked(loc: &str, secs: i64) -> Response {
     (
         StatusCode::TOO_MANY_REQUESTS,
         Json(json!({ "error": i18n::t(loc, "auth.loginLocked", &[]), "retryAfter": secs })),
+    )
+        .into_response()
+}
+
+/// A `401` for a dead/expired access token, tagged `tokenInvalid` so the client
+/// can distinguish it from a wrong-PIN 401 (retryable) and send the user to
+/// re-login with their password instead of looping on the PIN screen.
+fn token_invalid(loc: &str) -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({ "error": i18n::t(loc, "auth.tokenInvalid", &[]), "tokenInvalid": true })),
     )
         .into_response()
 }
@@ -265,12 +289,12 @@ pub async fn exchange_token(
 ) -> Response {
     let access = body.access_token.trim().to_string();
     if access.is_empty() {
-        return lerr(loc, StatusCode::UNAUTHORIZED, "auth.tokenInvalid");
+        return token_invalid(loc);
     }
     let lookup = access.clone();
     let (user, pin_verified) = match query(&state.db, move |pool| db::access_token_user(&pool, &lookup)).await {
         Ok(Some(v)) => v,
-        Ok(None) => return lerr(loc, StatusCode::UNAUTHORIZED, "auth.tokenInvalid"),
+        Ok(None) => return token_invalid(loc),
         Err(resp) => return resp,
     };
 
@@ -325,7 +349,12 @@ pub async fn exchange_token(
     let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + auth::SESSION_TTL_SECS;
     let token_db = token.clone();
     let uid = user.id.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, expires_at)).await {
+    let sess_access = access.clone();
+    if let Err(resp) = query(&state.db, move |pool| {
+        db::create_session(&pool, &token_db, &uid, expires_at, Some(&sess_access))
+    })
+    .await
+    {
         return resp;
     }
     Json(super::dto::SessionResult { token, user }).into_response()
@@ -542,11 +571,68 @@ pub async fn change_password(
     StatusCode::NO_CONTENT.into_response()
 }
 
+// ----- session management -----------------------------------------------------
+
+/// `GET /api/auth/me/sessions` (Bearer) → `SessionInfo[]`. The account's live
+/// signed-in devices (its non-expired access tokens), newest first, with the
+/// device making this request flagged `current`.
+pub async fn list_sessions(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    AuthUser(user): AuthUser,
+) -> Response {
+    let uid = user.id.clone();
+    let rows = match query(&state.db, move |pool| db::list_access_tokens(&pool, &uid)).await {
+        Ok(r) => r,
+        Err(resp) => return resp,
+    };
+    // The current device is the access token our bearer session was minted from.
+    let current_id = match bearer_from_headers(&headers) {
+        Some(bearer) => {
+            match query(&state.db, move |pool| db::session_device_id(&pool, &bearer)).await {
+                Ok(id) => id,
+                Err(resp) => return resp,
+            }
+        }
+        None => None,
+    };
+    let out: Vec<super::dto::SessionInfo> = rows
+        .into_iter()
+        .map(|r| super::dto::SessionInfo {
+            current: current_id.as_deref() == Some(r.id.as_str()),
+            id: r.id,
+            user_agent: r.user_agent,
+            created_at: r.created_at,
+            last_seen: r.last_seen,
+        })
+        .collect();
+    Json(out).into_response()
+}
+
+/// `DELETE /api/auth/me/sessions/:id` (Bearer) → 204. Revoke one of the account's
+/// own devices by its non-secret id, signing it out (its access token and any
+/// live sessions are deleted). `404` if the id isn't one of the caller's devices.
+pub async fn revoke_session(
+    State(state): State<SharedState>,
+    ReqLocale(loc): ReqLocale,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+) -> Response {
+    let uid = user.id.clone();
+    match query(&state.db, move |pool| db::delete_access_token_by_id(&pool, &uid, &id)).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => lerr(loc, StatusCode::NOT_FOUND, "auth.sessionNotFound"),
+        Err(resp) => resp,
+    }
+}
+
 /// Mint a long-lived access token + a short-lived session for a freshly
 /// authenticated `user` (password login / register). The access token is
 /// PIN-verified at birth password auth already proved identity, so silent
-/// refreshes work until the profile is switched away and re-locked.
-async fn issue_tokens(state: SharedState, user: User) -> Response {
+/// refreshes work until the profile is switched away and re-locked. `user_agent`
+/// (the device's UA header) is stored on the access token to label it in the
+/// account's session list.
+pub(crate) async fn issue_tokens(state: SharedState, user: User, user_agent: Option<String>) -> Response {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     // Access token (device credential, 90d, pin-verified).
@@ -554,18 +640,25 @@ async fn issue_tokens(state: SharedState, user: User) -> Response {
     let access_db = access.clone();
     let uid = user.id.clone();
     let access_exp = now + auth::ACCESS_TTL_SECS;
-    if let Err(resp) =
-        query(&state.db, move |pool| db::create_access_token(&pool, &access_db, &uid, access_exp, true)).await
+    let ua = user_agent;
+    if let Err(resp) = query(&state.db, move |pool| {
+        db::create_access_token(&pool, &access_db, &uid, access_exp, true, ua.as_deref())
+    })
+    .await
     {
         return resp;
     }
 
-    // Session token (short-lived bearer, 1h).
+    // Session token (short-lived bearer, 1h), tied to the access token above.
     let token = auth::random_token();
     let token_db = token.clone();
     let uid = user.id.clone();
     let session_exp = now + auth::SESSION_TTL_SECS;
-    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, session_exp)).await
+    let sess_access = access.clone();
+    if let Err(resp) = query(&state.db, move |pool| {
+        db::create_session(&pool, &token_db, &uid, session_exp, Some(&sess_access))
+    })
+    .await
     {
         return resp;
     }
@@ -674,8 +767,12 @@ pub async fn quick_authorize(
     let access_db = access.clone();
     let uid = user.id.clone();
     let access_exp = now + auth::ACCESS_TTL_SECS;
-    if let Err(resp) =
-        query(&state.db, move |pool| db::create_access_token(&pool, &access_db, &uid, access_exp, true)).await
+    // The paired device isn't the one making this request, so its UA is unknown
+    // here (NULL); it will re-stamp last-seen on use.
+    if let Err(resp) = query(&state.db, move |pool| {
+        db::create_access_token(&pool, &access_db, &uid, access_exp, true, None)
+    })
+    .await
     {
         return resp;
     }
@@ -683,7 +780,11 @@ pub async fn quick_authorize(
     let token_db = token.clone();
     let uid = user.id.clone();
     let session_exp = now + auth::SESSION_TTL_SECS;
-    if let Err(resp) = query(&state.db, move |pool| db::create_session(&pool, &token_db, &uid, session_exp)).await
+    let sess_access = access.clone();
+    if let Err(resp) = query(&state.db, move |pool| {
+        db::create_session(&pool, &token_db, &uid, session_exp, Some(&sess_access))
+    })
+    .await
     {
         return resp;
     }

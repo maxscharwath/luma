@@ -5,37 +5,42 @@
 // account semantics: selecting a profile asks for its password, and new accounts
 // are created with email + username + password + an optional uploaded avatar.
 
-import { type PublicUser, type StoredSession, UserId } from '@luma/core';
-import { apiErrorText, LumaApiError } from '@luma/core';
+import {
+  apiErrorText,
+  LumaApiError,
+  type PublicUser,
+  type StoredSession,
+  UserId,
+} from '@luma/core';
 import { type ActivateResult, Logo, useT } from '@luma/ui';
 import { IconLock, IconPlus } from '@tabler/icons-react';
-import { useLocation } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { LoginForm, RegisterForm } from '#web/features/accounts/auth-forms';
 import { UserAvatar } from '#web/features/accounts/user-avatar';
 import { useAuth } from '#web/shared/lib/auth';
+import { passkeysSupported } from '#web/shared/lib/webauthn';
 import { Otp } from '#web/shared/ui';
 
 type Mode =
+  // `expired` marks a re-login after a remembered profile's session lapsed, so
+  // the form can explain (calmly) why they're being asked to sign in again.
   | { kind: 'pick' }
-  | { kind: 'login'; user: PublicUser | null }
+  | { kind: 'login'; user: PublicUser | null; expired?: boolean }
   | { kind: 'register' }
   | { kind: 'pin'; account: StoredSession };
 
-const RADIAL = 'radial-gradient(120% 90% at 50% 0%, #15131C, #0A0A0C 70%)';
+export const RADIAL = 'radial-gradient(120% 90% at 50% 0%, #15131C, #0A0A0C 70%)';
 
-export function AuthGate() {
-  const { user, ready } = useAuth();
-  const { pathname } = useLocation();
-
-  // Logged in → the gate is invisible and the app shows through.
-  if (ready && user) return null;
-  // The public join page (invitees aren't users yet) must not be gated.
-  if (pathname === '/join') return null;
-
+/** The full-screen login gate: the "Qui regarde ?" picker / sign-in / register
+ * flow. Rendered as page content by the layouts that require a session (the
+ * `_app` shell and the admin console) in place of their content while signed
+ * out so the URL is preserved and revealed once a session exists and by the
+ * dedicated `/login` route. */
+export function LoginGate() {
+  const { ready } = useAuth();
   return (
     <div
-      className="fixed inset-0 z-100 flex flex-col items-center justify-center overflow-y-auto px-6 py-12"
+      className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto px-6 py-12"
       style={{ background: RADIAL }}
     >
       <Brand />
@@ -44,7 +49,7 @@ export function AuthGate() {
   );
 }
 
-function Brand() {
+export function Brand() {
   return (
     <div className="mb-12 flex items-center gap-2.5">
       <Logo markOnly size={30} />
@@ -53,15 +58,28 @@ function Brand() {
   );
 }
 
-function Spinner() {
+export function Spinner() {
   return (
     <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/15 border-t-accent" />
   );
 }
 
-function GateBody() {
+/** Full-screen loader shown by authenticated layouts while the session hydrates
+ * or a redirect to /login is in flight (see {@link useRequireAuth}). */
+export function GateLoading() {
+  return (
+    <div
+      className="flex min-h-screen w-full items-center justify-center"
+      style={{ background: RADIAL }}
+    >
+      <Spinner />
+    </div>
+  );
+}
+
+export function GateBody() {
   const t = useT();
-  const { client, accounts, login, register, activate, forget } = useAuth();
+  const { client, accounts, login, loginPasskey, register, activate, forget } = useAuth();
   const [profiles, setProfiles] = useState<PublicUser[]>([]);
   const [mode, setMode] = useState<Mode>({ kind: 'pick' });
   // Whether the profile picker is available (the `publicUserList` setting). When
@@ -130,6 +148,23 @@ function GateBody() {
     }
   }
 
+  async function doPasskeyLogin() {
+    setBusy(true);
+    setError(null);
+    try {
+      await loginPasskey();
+    } catch (e) {
+      // A user dismissing the browser prompt (DOMException) isn't a real error.
+      if (e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'AbortError')) {
+        return;
+      }
+      console.error('passkey sign-in failed', e);
+      fail(e, t('auth.passkeyLoginFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function doRegister(
     email: string,
     username: string,
@@ -157,12 +192,15 @@ function GateBody() {
         profile={mode.user}
         busy={busy}
         error={error}
+        notice={mode.expired ? t('auth.sessionExpiredHint') : null}
         canGoBack={canPick}
+        canUsePasskey={passkeysSupported()}
         onBack={() => {
           setError(null);
           setMode({ kind: 'pick' });
         }}
         onSubmit={doLogin}
+        onPasskey={doPasskeyLogin}
       />
     );
   }
@@ -192,6 +230,10 @@ function GateBody() {
           setMode({ kind: 'pick' });
         }}
         onSubmit={(pin) => activate(account, pin)}
+        onExpired={() => {
+          setError(null);
+          setMode({ kind: 'login', user: account.user, expired: true });
+        }}
       />
     );
   }
@@ -256,18 +298,22 @@ function GateBody() {
                   });
                   return;
                 }
-                // We already know from the stored user whether this profile has a
-                // PIN, so route straight there no throwaway no-PIN exchange first.
-                if (acc.user.hasPin) {
+                // Probe with a no-PIN exchange to let the SERVER decide what's
+                // needed rather than trusting the cached `hasPin`. A dead token
+                // can't be rescued by a PIN, so this lets us skip the PIN screen
+                // and go straight to re-login instead of trapping the user there.
+                const r = await activate(acc);
+                if (r.ok) return; // token still live (+ pin-verified) → signed in
+                if (r.needsPin) {
+                  // Live token, PIN required (or wrong-cached state) collect it.
                   setMode({ kind: 'pin', account: acc });
                   return;
                 }
-                // No PIN on record → try a silent exchange. If that stored state
-                // was stale and the server now demands a PIN, show the PIN screen.
-                const r = await activate(acc);
-                if (r.ok) return;
-                if (r.needsPin) setMode({ kind: 'pin', account: acc });
-                else setError(r.error || t('auth.loginFailed'));
+                // The remembered session is dead (expired/revoked). Send them to
+                // this profile's sign-in form (pre-filled) with a calm "session
+                // expired" note no dead-end PIN prompt or error on the picker.
+                setError(null);
+                setMode({ kind: 'login', user: acc.user, expired: true });
               }}
               className="group flex flex-col items-center gap-3.5 focus:outline-none"
             >
@@ -337,10 +383,14 @@ function PinEntry({
   account,
   onBack,
   onSubmit,
+  onExpired,
 }: Readonly<{
   account: StoredSession;
   onBack: () => void;
   onSubmit: (pin: string) => Promise<ActivateResult>;
+  /** Called when the exchange fails because the token is dead (not a wrong PIN),
+   * so the parent can route to a full re-login instead of looping here. */
+  onExpired: () => void;
 }>) {
   const t = useT();
   const [pin, setPin] = useState('');
@@ -365,6 +415,12 @@ function PinEntry({
     const r = await onSubmit(value);
     setBusy(false);
     if (r.ok) return; // the gate unmounts on success
+    // The token died (expired/revoked) rather than a wrong PIN a PIN can't fix
+    // it, so leave the PIN screen for a full re-login.
+    if (!r.needsPin) {
+      onExpired();
+      return;
+    }
     setPin('');
     if (r.retryAfter) setCooldown(r.retryAfter);
     setError(r.error || t('auth.pinIncorrect'));

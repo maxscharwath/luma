@@ -15,7 +15,7 @@ export function VpnCard() {
   const { client } = useAuth();
   const [modal, setModal] = useState(false);
   const [test, setTest] = useState<{ busy?: boolean; result?: VpnTestResult; error?: string }>({});
-  const { data, reload } = usePoll(() => client.adminVpn(), 30000, [client]);
+  const { data, reload } = usePoll(['admin', 'vpn'], () => client.adminVpn(), 30000);
 
   const runTest = () => {
     setTest({ busy: true });
@@ -42,7 +42,11 @@ export function VpnCard() {
           <span
             className="flex h-10 w-10 flex-[0_0_40px] items-center justify-center rounded-xl border border-border-strong bg-surface-2"
             style={{
-              color: !configured ? 'rgba(244,243,240,.5)' : state?.status?.connected ? '#46D08D' : '#F4B642',
+              color: !configured
+                ? 'rgba(244,243,240,.5)'
+                : state?.status?.connected
+                  ? '#46D08D'
+                  : '#F4B642',
             }}
           >
             {icon}
@@ -95,9 +99,7 @@ export function VpnCard() {
               {test.result.directIp ? ` · ${t('vpn.directIp', { ip: test.result.directIp })}` : ''}
             </span>
           ) : (
-            <span className="text-[#F4B642]">
-              {test.result?.error ?? t('vpn.notSealed')}
-            </span>
+            <span className="text-[#F4B642]">{test.result?.error ?? t('vpn.notSealed')}</span>
           )}
         </div>
       ) : null}
@@ -142,7 +144,9 @@ function VpnConfigModal({
       <textarea
         value={config}
         onChange={(e) => setConfig(e.target.value)}
-        placeholder={'[Interface]\nPrivateKey = ...\nAddress = 10.2.0.2/32\n\n[Peer]\nPublicKey = ...\nEndpoint = ...:51820\nAllowedIPs = 0.0.0.0/0'}
+        placeholder={
+          '[Interface]\nPrivateKey = ...\nAddress = 10.2.0.2/32\n\n[Peer]\nPublicKey = ...\nEndpoint = ...:51820\nAllowedIPs = 0.0.0.0/0'
+        }
         rows={9}
         className="w-full rounded-[9px] border border-border-strong bg-[#0F0F13] px-3.5 py-2.5 font-mono text-[12px] leading-relaxed text-text outline-none placeholder:text-white/25 focus:border-accent/60"
       />

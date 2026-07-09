@@ -41,7 +41,7 @@ export function StatsOverlay({
   hlsRef,
   onClose,
 }: Readonly<{
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement | null>;
   item: MovieView;
   cur: number;
   dur: number;

@@ -1,4 +1,4 @@
-import { hasPermission, type Invite, type Permission, PERMISSIONS } from '@luma/core';
+import { hasPermission, type Invite, PERMISSIONS, type Permission } from '@luma/core';
 import { useT } from '@luma/ui';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
@@ -6,7 +6,7 @@ import { useAuth } from '#web/shared/lib/auth';
 
 // Admin page to invite users. Gated by the `users.manage` permission the only
 // way (besides the bootstrap owner) to create accounts is via these invites.
-export const Route = createFileRoute('/invite')({
+export const Route = createFileRoute('/_app/invite')({
   component: InvitePage,
 });
 

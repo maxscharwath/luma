@@ -11,8 +11,19 @@ export type { OtpProps } from '#web/shared/ui/otp';
 export { Otp } from '#web/shared/ui/otp';
 export type { PosterProps } from '#web/shared/ui/poster';
 export { Poster } from '#web/shared/ui/poster';
-export type { SelectOption, SelectProps } from '#web/shared/ui/select';
-export { Select } from '#web/shared/ui/select';
 export type { RailProps } from '#web/shared/ui/rail';
 export { Rail } from '#web/shared/ui/rail';
+export type { SelectOption, SelectProps } from '#web/shared/ui/select';
+export { Select } from '#web/shared/ui/select';
 export { Sheet } from '#web/shared/ui/sheet';
+export {
+  CardSkeleton,
+  DetailSkeleton,
+  PageSkeleton,
+  PosterSkeleton,
+  RailSkeleton,
+  Skeleton,
+  SkeletonRow,
+  SkeletonText,
+  TableSkeleton,
+} from '#web/shared/ui/skeleton';

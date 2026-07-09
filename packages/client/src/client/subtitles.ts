@@ -89,7 +89,11 @@ export interface SubtitleGeneration {
 
 /** Start a generation. Returns immediately with a `genId`; poll
  * {@link subtitleGenerations} for progress, then refresh the downloaded list. */
-export function generateSubtitle(ctx: RequestContext, id: string, req: GenerateReq): Promise<{ genId: string }> {
+export function generateSubtitle(
+  ctx: RequestContext,
+  id: string,
+  req: GenerateReq,
+): Promise<{ genId: string }> {
   return ctx.json<{ genId: string }>(`/items/${encodeURIComponent(id)}/subtitles/generate`, {
     method: 'POST',
     headers: JSON_HEADERS,
@@ -98,7 +102,10 @@ export function generateSubtitle(ctx: RequestContext, id: string, req: GenerateR
 }
 
 /** Live + recently-finished generations for this item. */
-export function subtitleGenerations(ctx: RequestContext, id: string): Promise<SubtitleGeneration[]> {
+export function subtitleGenerations(
+  ctx: RequestContext,
+  id: string,
+): Promise<SubtitleGeneration[]> {
   return ctx.json<SubtitleGeneration[]>(`/items/${encodeURIComponent(id)}/subtitles/generations`);
 }
 

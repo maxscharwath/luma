@@ -4,12 +4,7 @@
 // presses "use this folder". Browsing state is internal (seeded from `value`).
 import type { AdminFsList } from '@luma/core';
 import { useT } from '@luma/ui';
-import {
-  IconCheck,
-  IconChevronRight,
-  IconCornerLeftUp,
-  IconFolder,
-} from '@tabler/icons-react';
+import { IconCheck, IconChevronRight, IconCornerLeftUp, IconFolder } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { lumaClient } from '#web/shared/lib/api';
 

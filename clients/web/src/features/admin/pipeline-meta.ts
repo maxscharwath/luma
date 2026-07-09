@@ -22,21 +22,53 @@ const PENDING: Meta = {
 
 /** Per-treatment status (a stage applied to one element). */
 const STATUS_META: Record<string, Meta> = {
-  done: { color: '#46D08D', bg: 'rgba(70,208,141,.13)', ring: 'rgba(70,208,141,.4)', dot: '#46D08D' },
-  running: { color: '#F4B642', bg: 'rgba(242,180,66,.15)', ring: 'rgba(242,180,66,.5)', dot: '#F4B642', pulse: true },
-  failed: { color: '#E8536A', bg: 'rgba(232,83,106,.13)', ring: 'rgba(232,83,106,.45)', dot: '#E8536A' },
+  done: {
+    color: '#46D08D',
+    bg: 'rgba(70,208,141,.13)',
+    ring: 'rgba(70,208,141,.4)',
+    dot: '#46D08D',
+  },
+  running: {
+    color: '#F4B642',
+    bg: 'rgba(242,180,66,.15)',
+    ring: 'rgba(242,180,66,.5)',
+    dot: '#F4B642',
+    pulse: true,
+  },
+  failed: {
+    color: '#E8536A',
+    bg: 'rgba(232,83,106,.13)',
+    ring: 'rgba(232,83,106,.45)',
+    dot: '#E8536A',
+  },
   pending: PENDING,
   missing: PENDING,
 };
 export const statusMeta = (s: string): Meta => STATUS_META[s] ?? PENDING;
 
 /** An element's overall roll-up. */
-const OVERALL_PENDING: Meta = { ...PENDING, color: 'rgba(244,243,240,.7)', bg: 'rgba(255,255,255,.06)', dot: 'rgba(244,243,240,.45)' };
+const OVERALL_PENDING: Meta = {
+  ...PENDING,
+  color: 'rgba(244,243,240,.7)',
+  bg: 'rgba(255,255,255,.06)',
+  dot: 'rgba(244,243,240,.45)',
+};
 const OVERALL_META: Record<string, Meta> = {
   ok: { color: '#46D08D', bg: 'rgba(70,208,141,.13)', ring: 'rgba(70,208,141,.4)', dot: '#46D08D' },
-  running: { color: '#F4B642', bg: 'rgba(242,180,66,.14)', ring: 'rgba(242,180,66,.5)', dot: '#F4B642', pulse: true },
+  running: {
+    color: '#F4B642',
+    bg: 'rgba(242,180,66,.14)',
+    ring: 'rgba(242,180,66,.5)',
+    dot: '#F4B642',
+    pulse: true,
+  },
   pending: OVERALL_PENDING,
-  failed: { color: '#E8536A', bg: 'rgba(232,83,106,.13)', ring: 'rgba(232,83,106,.45)', dot: '#E8536A' },
+  failed: {
+    color: '#E8536A',
+    bg: 'rgba(232,83,106,.13)',
+    ring: 'rgba(232,83,106,.45)',
+    dot: '#E8536A',
+  },
 };
 export const overallMeta = (s: string): Meta => OVERALL_META[s] ?? OVERALL_PENDING;
 

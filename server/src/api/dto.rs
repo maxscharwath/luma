@@ -41,6 +41,31 @@ pub struct SessionResult {
     pub user: User,
 }
 
+/// One signed-in device in `GET /auth/me/sessions`. `id` is a non-secret handle
+/// (a short hash of the device's access token) used to revoke it; `current`
+/// marks the device making the request.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInfo {
+    pub id: String,
+    /// The device's captured User-Agent, if any (the client derives a label).
+    pub user_agent: Option<String>,
+    pub created_at: String,
+    pub last_seen: Option<String>,
+    pub current: bool,
+}
+
+/// One registered passkey in `GET /auth/me/passkeys`. `id` is the credential's
+/// stable handle (used to revoke it).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasskeyInfo {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub last_used: Option<String>,
+}
+
 /// `GET /api/auth/config` the public login-gate configuration, read before any
 /// credential so the client knows what to render.
 #[derive(Serialize)]

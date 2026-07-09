@@ -22,15 +22,20 @@ set -euo pipefail
 _CARGO_TOML="$(cd "$(dirname "$0")/../.." && pwd)/server/Cargo.toml"
 CARGO_VERSION="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$_CARGO_TOML" | head -1)"
 VERSION="${1:-${CARGO_VERSION:-0.1.0}}"
-# INFO's version is `X.Y.Z-BUILD`. IMPORTANT: DSM's Manual-Install *upgrade* check
-# compares only the X.Y.Z upstream version - the `-BUILD` suffix is build metadata,
-# NOT an ordering component. So two builds that share X.Y.Z (e.g. two 0.1.2-* spks)
-# read as "the same version already installed" and DSM refuses the in-place upgrade
-# ("not valid"), forcing a delete + reinstall that wipes var (config, DB, cache,
-# Whisper model). => To ship a user-updatable release you MUST bump X.Y.Z in
-# server/Cargo.toml; the build number below only keeps each CI artifact unique and
-# time-ordered. BUILD = minutes since 2020-01-01 UTC (always increasing, 32-bit).
-# Override with BUILD=... if you need a specific number.
+# DSM's Manual-Install *upgrade* check rejects any package whose version is not
+# STRICTLY GREATER than the installed one; a same-or-lower version is treated as a
+# downgrade and surfaces as the misleading "not a valid package" error, forcing a
+# delete + reinstall that wipes var (config, DB, cache, Whisper model). Which parts
+# of `[feature]-[build]` DSM weighs has varied across DSM builds (some compare the
+# whole string incl. the build suffix, others only the X.Y.Z feature version), so
+# to be upgradable regardless we fold the monotonic BUILD into a 4th *feature*
+# segment: INFO version becomes `X.Y.Z.BUILD-BUILD`. DSM compares feature segments
+# left-to-right, so `0.1.3.<newer>` > `0.1.3.<older>` even on a feature-only DSM,
+# and a real X.Y.Z bump still wins at the 3rd segment before the 4th matters. Net:
+# every fresh build installs in place over the previous one, no manual bump needed;
+# bumping X.Y.Z in server/Cargo.toml is now only for human-visible release numbers.
+# BUILD = minutes since 2020-01-01 UTC (always increasing, 32-bit). Override with
+# BUILD=... if you need a specific number.
 BUILD="${BUILD:-$(( ( $(date -u +%s) - 1577836800 ) / 60 ))}"
 ARCH="x86_64"
 TARGET="x86_64-unknown-linux-musl"
@@ -119,9 +124,12 @@ cp -R "$SKEL/scripts" "$SKEL/conf" "$SKEL/WIZARD_UIFILES" "$SPK/"
 chmod 755 "$SPK/scripts/"*
 cp "$WORK/package.tgz" "$SPK/package.tgz"
 EXT_SIZE="$(gzip -dc "$WORK/package.tgz" | wc -c | tr -d ' ')"
-sed -e "s/@VERSION@/$VERSION/g" -e "s/@BUILD@/$BUILD/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
+# `X.Y.Z.BUILD-BUILD`: BUILD sits in a 4th feature segment so DSM sees every build
+# as strictly newer (see the version note above), then repeats as the build suffix.
+INFO_VERSION="$VERSION.$BUILD-$BUILD"
+sed -e "s/@INFO_VERSION@/$INFO_VERSION/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
   "$SKEL/INFO.template" > "$SPK/INFO"
-say "DSM package version: $VERSION-$BUILD (build number auto-increments so upgrades install in place)"
+say "DSM package version: $INFO_VERSION (build auto-increments in the feature version so upgrades install in place)"
 # Icons: the LUMA brand mark (gold ring + dot), checked in alongside the skeleton.
 cp "$SKEL/PACKAGE_ICON.PNG" "$SKEL/PACKAGE_ICON_256.PNG" "$SPK/"
 

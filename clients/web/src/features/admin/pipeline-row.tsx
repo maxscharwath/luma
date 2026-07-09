@@ -2,22 +2,37 @@
 // (metadata, or the failing/running stage), the treatment "flow" of status dots,
 // the overall status pill, and a reprocess shortcut.
 
-import { type ElementRow, type MessageKey, type Translate, type Treatment } from '@luma/core';
+import type { ElementRow, MessageKey, Translate, Treatment } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconCheck, IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
-import { fmtDur, kindMeta, overallMeta, posterGrad, statusMeta } from '#web/features/admin/pipeline-meta';
+import {
+  fmtDur,
+  kindMeta,
+  overallMeta,
+  posterGrad,
+  statusMeta,
+} from '#web/features/admin/pipeline-meta';
 import { useAuth } from '#web/shared/lib/auth';
 
 /** The secondary line: on failure/run it names the stage(s); otherwise metadata. */
 function subLine(t: Translate, el: ElementRow): { text: string; color: string } {
   const names = (pred: (x: Treatment) => boolean) =>
-    el.treatments.filter(pred).map((x) => t(`pipeline.t.${x.key}` as MessageKey)).join(', ');
+    el.treatments
+      .filter(pred)
+      .map((x) => t(`pipeline.t.${x.key}` as MessageKey))
+      .join(', ');
   if (el.overall === 'failed') {
-    return { text: `${t('pipeline.st.failed')} : ${names((x) => x.status === 'failed')}`, color: '#EF8091' };
+    return {
+      text: `${t('pipeline.st.failed')} : ${names((x) => x.status === 'failed')}`,
+      color: '#EF8091',
+    };
   }
   if (el.overall === 'running') {
-    return { text: `${t('pipeline.st.running')} : ${names((x) => x.status === 'running')}`, color: 'rgba(244,243,240,.6)' };
+    return {
+      text: `${t('pipeline.st.running')} : ${names((x) => x.status === 'running')}`,
+      color: 'rgba(244,243,240,.6)',
+    };
   }
   const dur = fmtDur(el.durationMs);
   let text: string;
@@ -86,7 +101,9 @@ function FlowDots({ treatments }: Readonly<{ treatments: Treatment[] }>) {
             >
               {tr.status === 'done' ? <IconCheck size={11} stroke={3.2} /> : null}
               {tr.status === 'failed' ? <IconX size={10} stroke={3.4} /> : null}
-              {tr.status === 'running' ? <IconLoader2 size={11} stroke={2.8} className="animate-spin" /> : null}
+              {tr.status === 'running' ? (
+                <IconLoader2 size={11} stroke={2.8} className="animate-spin" />
+              ) : null}
               {tr.status === 'pending' || tr.status === 'missing' ? (
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />
               ) : null}

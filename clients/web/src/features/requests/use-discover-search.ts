@@ -1,14 +1,24 @@
 // Debounced dual search: the local catalog (always) + TMDB discovery (gated
-// on requests.create). Latest-wins via a sequence ref, mirroring TvSearch.
+// on requests.create). Backed by TanStack Query (dedup + cache); latest-wins is
+// handled by the query key changing per (query, type).
 
-import {
-  type DiscoverEntry,
-  type DiscoverType,
-  hasPermission,
-  type SearchHit,
-} from '@luma/core';
-import { useEffect, useRef, useState } from 'react';
+import { type DiscoverEntry, type DiscoverType, hasPermission, type SearchHit } from '@luma/core';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { lumaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import { discoverQueries } from '#web/shared/lib/queries';
+
+/** Value that only updates after it stops changing for `ms` — debounces the
+ * search box so a keystroke burst issues a single query. */
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const h = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(h);
+  }, [value, ms]);
+  return debounced;
+}
 
 export interface DiscoverSearchState {
   loading: boolean;
@@ -19,45 +29,44 @@ export interface DiscoverSearchState {
 }
 
 export function useDiscoverSearch(query: string, type: DiscoverType): DiscoverSearchState {
-  const { client, user } = useAuth();
+  const { user } = useAuth();
   const canDiscover = !!user && hasPermission(user, 'requests.create');
-  const [state, setState] = useState<DiscoverSearchState>({
-    loading: false,
-    local: [],
-    discover: [],
-    canDiscover,
+  const q = useDebouncedValue(query.trim(), 250);
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['discoverSearch', q, type, canDiscover],
+    queryFn: async () => {
+      const c = lumaClient();
+      const [local, discover] = await Promise.all([
+        c
+          .search(q, { limit: 24 })
+          .then((r) => r.results)
+          .catch(() => [] as SearchHit[]),
+        canDiscover
+          ? c
+              .discoverSearch(q, { type })
+              .then((r) => r.results)
+              .catch(() => [] as DiscoverEntry[])
+          : Promise.resolve<DiscoverEntry[]>([]),
+      ]);
+      // The type filter also narrows the local library hits: `movie` keeps
+      // movies; `tv` keeps shows + episodes; `all` keeps everything.
+      const filteredLocal =
+        type === 'all'
+          ? local
+          : local.filter((h) => (type === 'movie' ? h.type === 'movie' : h.type !== 'movie'));
+      return { local: filteredLocal, discover };
+    },
+    enabled: q.length > 0,
+    placeholderData: keepPreviousData,
   });
-  const seq = useRef(0);
 
-  useEffect(() => {
-    const q = query.trim();
-    if (!q) {
-      setState({ loading: false, local: [], discover: [], canDiscover });
-      return;
-    }
-    const mine = ++seq.current;
-    setState((s) => ({ ...s, loading: true, canDiscover }));
-    const handle = setTimeout(() => {
-      const localP = client.search(q, { limit: 24 }).then((r) => r.results).catch(() => []);
-      const discoverP = canDiscover
-        ? client.discoverSearch(q, { type }).then((r) => r.results).catch(() => [])
-        : Promise.resolve<DiscoverEntry[]>([]);
-      Promise.all([localP, discoverP]).then(([local, discover]) => {
-        // Drop stale answers: only the most recent query may commit.
-        if (mine !== seq.current) return;
-        // The type filter also narrows the local library hits: `movie` keeps
-        // movies; `tv` keeps shows + episodes; `all` keeps everything.
-        const filteredLocal =
-          type === 'all'
-            ? local
-            : local.filter((h) => (type === 'movie' ? h.type === 'movie' : h.type !== 'movie'));
-        setState({ loading: false, local: filteredLocal, discover, canDiscover });
-      });
-    }, 250);
-    return () => clearTimeout(handle);
-  }, [query, type, client, canDiscover]);
-
-  return state;
+  return {
+    loading: q.length > 0 && isFetching,
+    local: data?.local ?? [],
+    discover: data?.discover ?? [],
+    canDiscover,
+  };
 }
 
 export interface TrendingState {
@@ -69,30 +78,13 @@ export interface TrendingState {
  * Fetched once when `enabled` (the user can discover); flagged against the
  * library + open requests the same as search results. */
 export function useTrending(enabled: boolean): TrendingState {
-  const { client } = useAuth();
-  const [state, setState] = useState<TrendingState>({ loading: enabled, entries: [] });
-
-  useEffect(() => {
-    if (!enabled) {
-      setState({ loading: false, entries: [] });
-      return;
-    }
-    let active = true;
-    setState((s) => ({ ...s, loading: true }));
-    client
-      .discoverTrending()
-      .then((r) => {
-        if (active) setState({ loading: false, entries: r.results });
-      })
-      .catch(() => {
-        if (active) setState({ loading: false, entries: [] });
-      });
-    return () => {
-      active = false;
-    };
-  }, [enabled, client]);
-
-  return state;
+  const { data, isFetching } = useQuery({
+    queryKey: ['discover', 'trending', 'all'],
+    queryFn: () => lumaClient().discoverTrending(),
+    enabled,
+    select: (r) => r.results,
+  });
+  return { loading: enabled && isFetching && data === undefined, entries: data ?? [] };
 }
 
 export interface TrendingPageState {
@@ -102,39 +94,21 @@ export interface TrendingPageState {
 }
 
 /** One page of trending titles for a single kind (`movie` | `tv`), backing the
- * full "trending movies" / "trending shows" pages. Latest-wins via a sequence
- * ref so fast paging never commits a stale page. */
+ * full "trending movies" / "trending shows" pages. `keepPreviousData` retains
+ * the prior page (and its total) while the next one loads. */
 export function useTrendingPage(
   type: 'movie' | 'tv',
   page: number,
   enabled: boolean,
 ): TrendingPageState {
-  const { client } = useAuth();
-  const [state, setState] = useState<TrendingPageState>({
-    loading: enabled,
-    entries: [],
-    totalPages: 1,
+  const { data, isFetching } = useQuery({
+    ...discoverQueries.trending(type, page),
+    enabled,
+    placeholderData: keepPreviousData,
   });
-  const seq = useRef(0);
-
-  useEffect(() => {
-    if (!enabled) {
-      setState({ loading: false, entries: [], totalPages: 1 });
-      return;
-    }
-    const mine = ++seq.current;
-    setState((s) => ({ ...s, loading: true }));
-    client
-      .discoverTrending({ type, page })
-      .then((r) => {
-        if (mine !== seq.current) return;
-        setState({ loading: false, entries: r.results, totalPages: r.totalPages });
-      })
-      .catch(() => {
-        if (mine !== seq.current) return;
-        setState({ loading: false, entries: [], totalPages: 1 });
-      });
-  }, [type, page, enabled, client]);
-
-  return state;
+  return {
+    loading: enabled && isFetching,
+    entries: data?.results ?? [],
+    totalPages: data?.totalPages ?? 1,
+  };
 }

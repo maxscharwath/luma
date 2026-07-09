@@ -17,10 +17,11 @@ import { useEffect, useState } from 'react';
 import { JobDetailPanel } from '#web/features/admin/jobs-detail';
 import { dur, rel } from '#web/features/admin/jobs-format';
 import { ScheduleModal } from '#web/features/admin/jobs-schedule';
-import { PageHeader, useAdmin, useAsyncAction, useCap, usePoll } from '#web/features/admin/shell';
+import { PageHeader, useAsyncAction, useCap, usePoll } from '#web/features/admin/shell';
 import { C, Card, Pill, ProgressBar, Section, Toggle } from '#web/features/admin/ui';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import { TableSkeleton } from '#web/shared/ui';
 
 /** Live progress pushed over the WS bus, keyed by job key. */
 type LiveProgress = Record<string, { done: number; total: number }>;
@@ -28,8 +29,7 @@ type LiveProgress = Record<string, { done: number; total: number }>;
 export function JobsPage() {
   const t = useT();
   const { client } = useAuth();
-  const { tick } = useAdmin();
-  const { data, reload } = usePoll(() => client.adminJobs(), 6000, [client, tick]);
+  const { data, reload } = usePoll(['admin', 'jobs'], () => client.adminJobs(), 6000);
   const [live, setLive] = useState<LiveProgress>({});
 
   // A page-scoped event stream for smooth progress + immediate reloads on
@@ -56,6 +56,7 @@ export function JobsPage() {
   return (
     <>
       <PageHeader title={t('admin.jobsTitle')} subtitle={t('admin.jobsSub')} realtime />
+      {data === null ? <TableSkeleton rows={6} /> : null}
       {categories.map((cat) => (
         <Section key={cat} title={t(`jobs.cat.${cat}` as MessageKey)}>
           <div className="flex flex-col gap-3.5">

@@ -4,8 +4,9 @@
 // which verify the current PIN when one is already set.
 
 import { useT } from '@luma/ui';
+import { IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
-import { Card, StatusText, useSave } from '#web/features/accounts/account/ui';
+import { Panel, StatusText, useSave } from '#web/features/accounts/account/ui';
 import { useAuth } from '#web/shared/lib/auth';
 import { Button, Otp } from '#web/shared/ui';
 
@@ -17,7 +18,7 @@ function PinField({
 }: Readonly<{ label: string; value: string; onChange: (v: string) => void }>) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[13px] font-semibold text-muted">{label}</span>
+      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-dim">{label}</span>
       <Otp value={value} onChange={onChange} mask ariaLabel={label} />
     </div>
   );
@@ -68,7 +69,19 @@ export function PinCard() {
   };
 
   return (
-    <Card title={t('account.pin')} desc={hasPin ? t('account.pinSubSet') : t('account.pinSub')}>
+    <Panel className="p-5.5">
+      <div className="mb-4 flex items-center gap-3.5">
+        <span className="flex size-10 flex-none items-center justify-center rounded-[11px] bg-accent-soft text-accent">
+          <IconLock size={20} stroke={1.8} />
+        </span>
+        <div className="min-w-0">
+          <div className="font-display text-[15px] font-bold text-text">{t('account.pin')}</div>
+          <div className="mt-0.5 text-[12.5px] text-muted">
+            {hasPin ? t('account.pinSubSet') : t('account.pinSub')}
+          </div>
+        </div>
+      </div>
+
       <form onSubmit={submit} className="flex flex-col gap-4">
         {hasPin ? (
           <PinField label={t('account.currentPin')} value={current} onChange={setCurrent} />
@@ -110,6 +123,6 @@ export function PinCard() {
           )}
         </div>
       </form>
-    </Card>
+    </Panel>
   );
 }

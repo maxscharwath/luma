@@ -8,16 +8,21 @@ import { IconSearch, IconX } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { RequestDrawer } from '#web/features/admin/request-drawer';
 import { RequestRowView } from '#web/features/admin/request-row';
-import { useAdmin, useCap, usePoll } from '#web/features/admin/shell';
+import { useCap, usePoll } from '#web/features/admin/shell';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import { TableSkeleton } from '#web/shared/ui';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 /** Filter-chip buckets over the wire statuses. */
 const BUCKETS: Record<string, (s: RequestStatus) => boolean> = {
   pending: (s) => s === 'pending',
   active: (s) =>
-    s === 'approved' || s === 'searching' || s === 'downloading' || s === 'importing' || s === 'partially_available',
+    s === 'approved' ||
+    s === 'searching' ||
+    s === 'downloading' ||
+    s === 'importing' ||
+    s === 'partially_available',
   available: (s) => s === 'available',
   closed: (s) => s === 'denied' || s === 'failed',
   all: () => true,
@@ -26,7 +31,6 @@ const BUCKETS: Record<string, (s: RequestStatus) => boolean> = {
 export function RequestsQueuePage() {
   const t = useT();
   const { client } = useAuth();
-  const { tick } = useAdmin();
   const canReview = useCap('requests.manage');
 
   const [bucket, setBucket] = useState('pending');
@@ -35,7 +39,11 @@ export function RequestsQueuePage() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; on: boolean }>({ text: '', on: false });
 
-  const { data, reload } = usePoll(() => client.listRequests(), 30000, [client, tick]);
+  const { data, reload } = usePoll(
+    ['admin', 'requests', 'all'],
+    () => client.listRequests(),
+    30000,
+  );
 
   // Event-driven refresh, coalesced (request.updated is low-frequency, but an
   // approval fans out into several transitions in a row).
@@ -124,7 +132,11 @@ export function RequestsQueuePage() {
               className="text-[14px] font-semibold"
             />
             {q ? (
-              <button type="button" onClick={() => setQ('')} className="shrink-0 text-white/50 hover:text-white">
+              <button
+                type="button"
+                onClick={() => setQ('')}
+                className="shrink-0 text-white/50 hover:text-white"
+              >
                 <IconX size={16} stroke={2.2} />
               </button>
             ) : null}
@@ -133,11 +145,40 @@ export function RequestsQueuePage() {
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
-        <Chip label={t('requests.filter.pending')} count={c?.pending} dot="rgba(244,243,240,.45)" on={bucket === 'pending'} onClick={() => setBucket('pending')} />
-        <Chip label={t('requests.filter.active')} count={c?.active} dot="#F4B642" on={bucket === 'active'} onClick={() => setBucket('active')} />
-        <Chip label={t('requests.filter.available')} count={c?.available} dot="#46D08D" on={bucket === 'available'} onClick={() => setBucket('available')} />
-        <Chip label={t('requests.filter.closed')} count={(c?.denied ?? 0) + (c?.failed ?? 0)} dot="#E8536A" on={bucket === 'closed'} onClick={() => setBucket('closed')} />
-        <Chip label={t('requests.filter.all')} count={c?.total} on={bucket === 'all'} onClick={() => setBucket('all')} />
+        <Chip
+          label={t('requests.filter.pending')}
+          count={c?.pending}
+          dot="rgba(244,243,240,.45)"
+          on={bucket === 'pending'}
+          onClick={() => setBucket('pending')}
+        />
+        <Chip
+          label={t('requests.filter.active')}
+          count={c?.active}
+          dot="#F4B642"
+          on={bucket === 'active'}
+          onClick={() => setBucket('active')}
+        />
+        <Chip
+          label={t('requests.filter.available')}
+          count={c?.available}
+          dot="#46D08D"
+          on={bucket === 'available'}
+          onClick={() => setBucket('available')}
+        />
+        <Chip
+          label={t('requests.filter.closed')}
+          count={(c?.denied ?? 0) + (c?.failed ?? 0)}
+          dot="#E8536A"
+          on={bucket === 'closed'}
+          onClick={() => setBucket('closed')}
+        />
+        <Chip
+          label={t('requests.filter.all')}
+          count={c?.total}
+          on={bucket === 'all'}
+          onClick={() => setBucket('all')}
+        />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
@@ -160,6 +201,8 @@ export function RequestsQueuePage() {
           />
         ))}
 
+        {data === null ? <TableSkeleton rows={8} /> : null}
+
         {data && rows.length === 0 ? (
           <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">
             {all.length === 0 ? t('requests.empty') : t('requests.noMatch')}
@@ -179,7 +222,10 @@ export function RequestsQueuePage() {
 
       <div
         className="pointer-events-none fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 transition-all duration-200"
-        style={{ opacity: toast.on ? 1 : 0, transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)` }}
+        style={{
+          opacity: toast.on ? 1 : 0,
+          transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)`,
+        }}
       >
         <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#1C1C22] px-[18px] py-2.5 shadow-[0_20px_50px_rgba(0,0,0,.55)]">
           <span className="h-2 w-2 flex-[0_0_8px] rounded-full bg-accent" />
@@ -191,7 +237,11 @@ export function RequestsQueuePage() {
 }
 
 function Head({ children }: Readonly<{ children: ReactNode }>) {
-  return <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">{children}</span>;
+  return (
+    <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">
+      {children}
+    </span>
+  );
 }
 
 function Chip({
@@ -209,7 +259,9 @@ function Chip({
     >
       {dot ? <span className="h-[7px] w-[7px] rounded-full" style={{ background: dot }} /> : null}
       {label}
-      {count != null ? <span className="tabular-nums opacity-60">{count.toLocaleString()}</span> : null}
+      {count != null ? (
+        <span className="tabular-nums opacity-60">{count.toLocaleString()}</span>
+      ) : null}
     </button>
   );
 }

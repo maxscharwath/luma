@@ -15,7 +15,10 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 
 /** Own requests, or everyone's for a `requests.manage` holder. Pass
  * `mine: true` to force own-only (the user-facing "Mes demandes" page). */
-export function listRequests(ctx: RequestContext, opts?: { mine?: boolean }): Promise<RequestsView> {
+export function listRequests(
+  ctx: RequestContext,
+  opts?: { mine?: boolean },
+): Promise<RequestsView> {
   const qs = opts?.mine ? '?mine=true' : '';
   return ctx.json<RequestsView>(`/requests${qs}`);
 }

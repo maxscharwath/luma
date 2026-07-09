@@ -24,6 +24,7 @@ mod recommend;
 mod requests;
 mod search;
 mod online_subs;
+mod passkeys;
 mod stream;
 mod suggest;
 mod themes;
@@ -74,6 +75,7 @@ pub fn router(state: SharedState) -> Router {
     // catalogue listing and stay open under the LAN trust model).
     let public = Router::new()
         .merge(accounts::routes())
+        .merge(passkeys::routes())
         .merge(pin::routes())
         .merge(invites::routes())
         .merge(images::routes())

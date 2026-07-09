@@ -49,9 +49,10 @@ RUN cd server && touch src/main.rs && cargo build --release
 # ---- 3) Runtime ------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 # ffmpeg = ffprobe (metadata) + remux/HLS; curl = TMDB lookups + artwork + the
-# managed-cloudflared download; ca-certificates for outbound TLS.
+# managed-cloudflared download; ca-certificates for outbound TLS; libssl3 for the
+# dynamically-linked openssl the passkeys (webauthn-rs) dep pulls in.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /src/server/target/release/luma-server /usr/local/bin/luma-server

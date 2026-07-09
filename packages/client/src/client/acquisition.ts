@@ -12,10 +12,10 @@ import type {
   IndexerView,
   ManualAddBody,
   ManualSearchView,
-  TorrentAnalysis,
   SaveDownloadClientBody,
   SaveIndexerBody,
   SaveVpnBody,
+  TorrentAnalysis,
   VpnAdminView,
   VpnTestResult,
 } from '../types';
@@ -120,7 +120,9 @@ export function retryDownload(ctx: RequestContext, id: string): Promise<void> {
 
 /** Force a tracker/DHT re-announce ("ask more peers") for one download. */
 export function reannounceDownload(ctx: RequestContext, id: string): Promise<void> {
-  return ctx.json<void>(`/admin/downloads/${encodeURIComponent(id)}/reannounce`, { method: 'POST' });
+  return ctx.json<void>(`/admin/downloads/${encodeURIComponent(id)}/reannounce`, {
+    method: 'POST',
+  });
 }
 
 export function removeDownload(
@@ -185,7 +187,10 @@ export function adminVpn(ctx: RequestContext): Promise<VpnAdminView> {
 
 /** Store the WireGuard config (write-only; "" removes it) and restart the
  * bridge + embedded engine. */
-export function saveVpn(ctx: RequestContext, body: SaveVpnBody): Promise<{ wgConfigured: boolean }> {
+export function saveVpn(
+  ctx: RequestContext,
+  body: SaveVpnBody,
+): Promise<{ wgConfigured: boolean }> {
   return ctx.json<{ wgConfigured: boolean }>('/admin/vpn', {
     method: 'PUT',
     headers: JSON_HEADERS,

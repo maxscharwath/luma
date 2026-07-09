@@ -1,6 +1,6 @@
 import { usePlaybackHeartbeat } from '@luma/ui';
-import { apiBase } from '#web/shared/lib/api';
 import type { MovieView } from '#web/shared/lib/api';
+import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
 // Web adapter over the shared playback heartbeat (@luma/ui): supplies the signed-in

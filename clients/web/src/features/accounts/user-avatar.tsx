@@ -1,5 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui';
 import { imageUrl } from '#web/shared/lib/api';
+import { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui';
 
 // Vivid two-stop gradients lifted from the LUMA design (LUMA.dc.html profiles),
 // picked deterministically from a seed so a given account keeps its colour.

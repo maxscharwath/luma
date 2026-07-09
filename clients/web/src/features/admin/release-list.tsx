@@ -42,7 +42,13 @@ export function ReleaseList({
         </div>
       ) : null}
       {accepted.map((r) => (
-        <ReleaseRow key={`${r.indexerId}-${r.guid}`} r={r} canGrab={canGrab} busy={busy} onGrab={onGrab} />
+        <ReleaseRow
+          key={`${r.indexerId}-${r.guid}`}
+          r={r}
+          canGrab={canGrab}
+          busy={busy}
+          onGrab={onGrab}
+        />
       ))}
       {rejected.length > 0 ? (
         <div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/35">
@@ -50,7 +56,13 @@ export function ReleaseList({
         </div>
       ) : null}
       {rejected.slice(0, 30).map((r) => (
-        <ReleaseRow key={`${r.indexerId}-${r.guid}`} r={r} canGrab={false} busy={busy} onGrab={onGrab} />
+        <ReleaseRow
+          key={`${r.indexerId}-${r.guid}`}
+          r={r}
+          canGrab={false}
+          busy={busy}
+          onGrab={onGrab}
+        />
       ))}
     </div>
   );
@@ -129,7 +141,9 @@ function ReleaseRow({
         ) : null}
         {r.target !== 'movie' ? (
           <span className="text-[#86A8FF]">
-            {r.target === 'season' ? `S${String(r.season ?? 0).padStart(2, '0')} pack` : `S${String(r.season ?? 0).padStart(2, '0')}E${String(r.episodes?.[0] ?? 0).padStart(2, '0')}`}
+            {r.target === 'season'
+              ? `S${String(r.season ?? 0).padStart(2, '0')} pack`
+              : `S${String(r.season ?? 0).padStart(2, '0')}E${String(r.episodes?.[0] ?? 0).padStart(2, '0')}`}
           </span>
         ) : null}
         {r.rejected ? <span className="text-[#EF8091]">{r.rejected}</span> : null}
@@ -138,7 +152,10 @@ function ReleaseRow({
       {open && r.breakdown.length > 0 ? (
         <div className="mt-2 flex flex-col gap-1 border-t border-white/[0.05] pl-[23px] pt-2">
           {r.breakdown.map((l) => (
-            <div key={`${l.rule}-${l.note}`} className="flex items-center justify-between gap-3 text-[11px]">
+            <div
+              key={`${l.rule}-${l.note}`}
+              className="flex items-center justify-between gap-3 text-[11px]"
+            >
               <span className="min-w-0 truncate font-medium text-white/55">
                 {l.rule} · {l.note}
               </span>

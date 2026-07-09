@@ -8,7 +8,7 @@ import { Otp } from '#web/shared/ui';
 // short code (or a QR pointing here with `?code=`); a signed-in user enters it
 // to grant that device a session for their account. The global AuthGate already
 // ensures the user is logged in before this page is usable.
-export const Route = createFileRoute('/connect')({
+export const Route = createFileRoute('/_app/connect')({
   validateSearch: (s: Record<string, unknown>): { code?: string } => ({
     code: typeof s.code === 'string' ? s.code : undefined,
   }),

@@ -84,7 +84,8 @@ export function NowPlayingCard({
     bg: 'rgba(70,208,141,.14)',
     label: t('admin.directPlay'),
   };
-  if (transcode) pipe = { color: C.accent, bg: 'rgba(242,180,66,.14)', label: t('admin.audioTranscode') };
+  if (transcode)
+    pipe = { color: C.accent, bg: 'rgba(242,180,66,.14)', label: t('admin.audioTranscode') };
   else if (remux) pipe = { color: C.blue, bg: 'rgba(92,141,246,.14)', label: t('admin.remux') };
   let sub = '';
   if (s.kind === 'episode' && s.season != null)

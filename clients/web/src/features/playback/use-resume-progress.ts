@@ -17,7 +17,7 @@ export interface ResumeProgress {
  * progress every 10 s / on pause / on close clearing it once ~finished.
  */
 export function useResumeProgress(
-  videoRef: React.RefObject<HTMLVideoElement>,
+  videoRef: React.RefObject<HTMLVideoElement | null>,
   item: MovieView,
   // Offset-aware position control from useVideoPlayback: `seekTo` an absolute
   // second (re-`-ss`-es the seamless stream so resume is instantly available),
