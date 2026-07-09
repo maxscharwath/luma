@@ -173,9 +173,13 @@ jpeg-encoder = { workspace = true }
 # in by luma-engine). Declared here (unused directly) so the lockfile pins it.
 jobserver = { workspace = true }
 # WebAuthn / passkeys relying-party (api/passkeys). `conditional-ui` unlocks the
-# discoverable (usernameless) authentication API. Pulls openssl (dynamic) the
-# Dockerfile builder has libssl-dev; the runtime installs libssl3.
+# discoverable (usernameless) authentication API.
 webauthn-rs = { workspace = true, features = ["conditional-ui"] }
+# webauthn-rs pulls openssl. Force the `vendored` feature so openssl-sys compiles
+# it from source and links it statically instead of hunting for a system libssl.
+# This is what makes the x86_64-musl Synology build (no musl libssl) link, and it
+# keeps the glibc Docker/CI builds independent of libssl-dev too.
+openssl = { version = "0.10", features = ["vendored"] }
 # `v5` for the deterministic per-account WebAuthn user handle (api/passkeys
 # derives it from the account id). Enabled on the bin dep so it's present in the
 # real build, not only when dev-deps happen to pull it in.
