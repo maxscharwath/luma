@@ -7,6 +7,8 @@ import type {
   DownloadClientsView,
   DownloadClientView,
   DownloadsView,
+  IndexerDefinitionDetailView,
+  IndexerDefinitionsView,
   IndexersView,
   IndexerTestResult,
   IndexerView,
@@ -15,6 +17,7 @@ import type {
   SaveDownloadClientBody,
   SaveIndexerBody,
   SaveVpnBody,
+  SyncDefinitionsResult,
   TorrentAnalysis,
   VpnAdminView,
   VpnTestResult,
@@ -58,6 +61,28 @@ export function testIndexer(ctx: RequestContext, id: string): Promise<IndexerTes
   return ctx.json<IndexerTestResult>(`/admin/indexers/${encodeURIComponent(id)}/test`, {
     method: 'POST',
   });
+}
+
+// ----- built-in definition catalog ------------------------------------------------
+
+/** Browse the cached Cardigann definition catalog (built-in indexers). */
+export function adminIndexerDefinitions(ctx: RequestContext): Promise<IndexerDefinitionsView> {
+  return ctx.json<IndexerDefinitionsView>('/admin/indexers/definitions');
+}
+
+/** The settings schema for one definition (drives the add form). */
+export function indexerDefinitionDetail(
+  ctx: RequestContext,
+  id: string,
+): Promise<IndexerDefinitionDetailView> {
+  return ctx.json<IndexerDefinitionDetailView>(
+    `/admin/indexers/definitions/${encodeURIComponent(id)}`,
+  );
+}
+
+/** Fetch the current definition set from upstream into the local cache. */
+export function syncIndexerDefinitions(ctx: RequestContext): Promise<SyncDefinitionsResult> {
+  return ctx.json<SyncDefinitionsResult>('/admin/indexers/definitions/sync', { method: 'POST' });
 }
 
 // ----- download clients ---------------------------------------------------------

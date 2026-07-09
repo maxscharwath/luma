@@ -89,3 +89,167 @@ pub fn invalidate_caps(indexer_id: &str) {
         map.retain(|k, _| !k.starts_with(&format!("{indexer_id}|")));
     }
 }
+
+// ----- built-in (native Cardigann) engine dispatch --------------------------------
+
+/// `kind` value for a native-engine indexer row.
+pub const KIND_BUILTIN: &str = "builtin";
+
+/// The runtime definition cache (lives under the data dir).
+pub fn definition_store(state: &SharedState) -> luma_indexer::store::DefinitionStore {
+    luma_indexer::store::DefinitionStore::new(&state.config.data_dir)
+}
+
+/// Build a live [`luma_indexer::Session`] for a `builtin` indexer row: load its
+/// definition, seed the config from the stored settings JSON + chosen base
+/// link, and wire optional VPN / FlareSolverr transport.
+pub fn build_builtin_session(state: &SharedState, row: &IndexerRow) -> anyhow::Result<luma_indexer::Session> {
+    let def_id = row
+        .definition_id
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("built-in indexer '{}' has no definition", row.name))?;
+    let def = definition_store(state).load(def_id)?;
+    let settings: std::collections::HashMap<String, String> =
+        serde_json::from_str(&row.settings).unwrap_or_default();
+    let cfg = luma_indexer::IndexerConfig { base_url: row.url.clone(), settings };
+
+    // Route search traffic through the VPN bridge only when the admin opted in
+    // (a downed tunnel must not silently break search otherwise).
+    let socks5 = (state.settings.get_bool("acqIndexersUseVpn", false)
+        && crate::services::vpn::Vpn::wg_configured(state))
+    .then(|| crate::services::vpn::Vpn::local_proxy_url(state));
+    let flaresolverr = {
+        let url = state.settings.get_str("acqFlaresolverrUrl", "");
+        (!url.trim().is_empty()).then(|| url.trim().to_string())
+    };
+
+    Ok(luma_indexer::Session::new(
+        &state.config.data_dir,
+        &row.id,
+        def,
+        cfg,
+        socks5,
+        flaresolverr,
+    ))
+}
+
+/// Map a Torznab query onto the indexer-engine query (same shapes).
+fn to_indexer_query(q: &luma_torznab::Query) -> luma_indexer::Query {
+    match q {
+        luma_torznab::Query::Movie { tmdb_id, imdb_id, title, year } => luma_indexer::Query::Movie {
+            tmdb_id: *tmdb_id,
+            imdb_id: imdb_id.clone(),
+            title: title.clone(),
+            year: *year,
+        },
+        luma_torznab::Query::Episode { tmdb_id, title, season, episode } => {
+            luma_indexer::Query::Episode {
+                tmdb_id: *tmdb_id,
+                title: title.clone(),
+                season: *season,
+                episode: *episode,
+            }
+        }
+        luma_torznab::Query::Season { tmdb_id, title, season } => luma_indexer::Query::Season {
+            tmdb_id: *tmdb_id,
+            title: title.clone(),
+            season: *season,
+        },
+    }
+}
+
+/// Normalize a native-engine release into the Torznab release shape the scoring
+/// pipeline already consumes.
+fn release_from_indexer(r: luma_indexer::Release) -> luma_torznab::Release {
+    luma_torznab::Release {
+        title: r.title,
+        guid: r.guid,
+        link: r.link,
+        magnet: r.magnet,
+        info_hash: r.info_hash,
+        size_bytes: r.size_bytes,
+        seeders: r.seeders,
+        leechers: r.leechers,
+        tmdb_id: r.tmdb_id,
+        imdb_id: r.imdb_id,
+        published_at: r.published_at,
+        details_url: r.details_url,
+    }
+}
+
+/// Run one query against one indexer, whatever its kind, returning normalized
+/// releases. This is the single dispatch point the search pipelines call.
+pub fn search_indexer(
+    state: &SharedState,
+    row: &IndexerRow,
+    query: &luma_torznab::Query,
+) -> anyhow::Result<Vec<luma_torznab::Release>> {
+    if row.kind == KIND_BUILTIN {
+        let session = build_builtin_session(state, row)?;
+        let outcome = session.search(&to_indexer_query(query), &row.categories);
+        let note_ok = outcome.errors.is_empty();
+        let _ = crate::db::note_indexer_result(
+            &state.db,
+            &row.id,
+            note_ok,
+            outcome.errors.first().map(String::as_str),
+            now_ms(),
+        );
+        // Surface an all-error, no-result sweep as an error (so it reads as a
+        // broken indexer, not "nothing found").
+        if outcome.releases.is_empty() && !outcome.errors.is_empty() {
+            anyhow::bail!("{}", outcome.errors.join("; "));
+        }
+        Ok(outcome.releases.into_iter().map(release_from_indexer).collect())
+    } else {
+        let caps = indexer_caps(state, row)?;
+        luma_torznab::search(&endpoint_of(row), query, &caps)
+    }
+}
+
+/// Resolve the grabbable target (magnet / .torrent URL) for a built-in
+/// release, following the definition's `download` block if the search row
+/// carried no direct link.
+pub fn resolve_builtin_download(
+    state: &SharedState,
+    row: &IndexerRow,
+    title: &str,
+    details_url: Option<&str>,
+    magnet_or_url: &str,
+) -> anyhow::Result<String> {
+    // A magnet is already grabbable as-is.
+    if magnet_or_url.starts_with("magnet:") {
+        return Ok(magnet_or_url.to_string());
+    }
+    let session = build_builtin_session(state, row)?;
+    let release = luma_indexer::Release {
+        title: title.to_string(),
+        magnet: magnet_or_url.starts_with("magnet:").then(|| magnet_or_url.to_string()),
+        link: (magnet_or_url.starts_with("http")).then(|| magnet_or_url.to_string()),
+        details_url: details_url.map(str::to_string),
+        ..Default::default()
+    };
+    match session.resolve_download(&release)? {
+        luma_indexer::DownloadTarget::Magnet(m) => Ok(m),
+        luma_indexer::DownloadTarget::TorrentUrl(u) => Ok(u),
+    }
+}
+
+/// Capabilities for any indexer kind (native ones derive from the definition;
+/// no network round-trip).
+pub fn any_indexer_caps(state: &SharedState, row: &IndexerRow) -> anyhow::Result<Caps> {
+    if row.kind == KIND_BUILTIN {
+        let def = definition_store(state).load(
+            row.definition_id.as_deref().ok_or_else(|| anyhow::anyhow!("no definition"))?,
+        )?;
+        let c = luma_indexer::Caps::from_definition(&def);
+        Ok(Caps {
+            search_tmdb: c.search_tmdb,
+            search_imdb: c.search_imdb,
+            tv_search_tmdb: c.tv_search_tmdb,
+            server_title: c.server_title,
+        })
+    } else {
+        indexer_caps(state, row)
+    }
+}

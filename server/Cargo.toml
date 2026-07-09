@@ -37,6 +37,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 quick-xml = "0.37"
+# Cardigann indexer engine (luma-indexer): YAML definitions, HTML scraping with
+# CSS selectors, regex-driven field filters, and flexible date parsing. XPath
+# support (libxml, C) is feature-gated on the crate so the default musl build
+# stays pure-Rust.
+serde_yaml = "0.9"
+scraper = "0.20"
+regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+libxml = "0.3"
+# Insertion-order-preserving map: Cardigann `fields` reference earlier fields
+# (`.Result.x`), so field order is load-bearing.
+indexmap = { version = "2", features = ["serde"] }
 # Candle ML stack + tokenizer, shared by luma-whisper (whisper) and luma-vector
 # (semantic). CPU-only pure-Rust by default (default-features off) so the musl
 # single binary keeps linking; the macos target block in each crate adds `metal`.
@@ -98,6 +110,7 @@ luma-db = { path = "crates/luma-db" }
 luma-http = { path = "crates/luma-http" }
 luma-scene = { path = "crates/luma-scene" }
 luma-torznab = { path = "crates/luma-torznab" }
+luma-indexer = { path = "crates/luma-indexer" }
 luma-torrent = { path = "crates/luma-torrent" }
 luma-whisper = { path = "crates/luma-whisper" }
 luma-vector = { path = "crates/luma-vector" }

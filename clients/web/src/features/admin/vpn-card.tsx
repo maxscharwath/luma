@@ -6,9 +6,27 @@ import { apiErrorText, type VpnTestResult } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconLoader2, IconShield, IconShieldCheck, IconShieldX } from '@tabler/icons-react';
 import { useState } from 'react';
-import { useAsyncAction, usePoll } from '#web/features/admin/shell';
+import { SettingsPage } from '#web/features/admin/settings';
+import { Denied, PageHeader, useAsyncAction, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Modal, ModalActions, Pill } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
+
+// The dedicated VPN admin section. The VPN is global to several flows (torrent
+// downloads and, optionally, indexer searches), so it lives on its own page:
+// the WireGuard config card + the network-wide toggles (kill switch, route
+// indexers through the tunnel).
+export function VpnPage() {
+  const t = useT();
+  if (!useCap('settings.manage')) return <Denied />;
+  return (
+    <>
+      <PageHeader title={t('admin.vpnTitle')} subtitle={t('admin.vpnSub')} />
+      <div className="mt-6" />
+      <VpnCard />
+      <SettingsPage view="vpn" titleKey="admin.vpnTitle" subtitleKey="admin.vpnSub" embedded />
+    </>
+  );
+}
 
 export function VpnCard() {
   const t = useT();

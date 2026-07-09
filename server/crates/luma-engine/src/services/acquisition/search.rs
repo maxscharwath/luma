@@ -211,15 +211,8 @@ pub fn interactive_search(state: &SharedState, request_id: &str) -> Result<Inter
     let mut errors: Vec<String> = Vec::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
     for indexer in &indexers {
-        let caps = match super::indexer_caps(state, indexer) {
-            Ok(c) => c,
-            Err(e) => {
-                errors.push(format!("{}: {e:#}", indexer.name));
-                continue;
-            }
-        };
         for st in &targets {
-            match luma_torznab::search(&super::endpoint_of(indexer), &st.query, &caps) {
+            match super::search_indexer(state, indexer, &st.query) {
                 Ok(found) => {
                     for release in found {
                         if seen.insert((indexer.id.clone(), release.guid.clone())) {
@@ -270,7 +263,25 @@ pub fn grab_cached(
             })?
         }
     };
-    if cached.magnet_or_url.is_empty() {
+    // Resolve the grabbable target. A built-in indexer may need a details-page
+    // fetch (the definition's `download` block) to turn a search row into a
+    // magnet / .torrent link.
+    let magnet_or_url = {
+        let conn = state.db.get()?;
+        let row = db::get_indexer(&conn, &cached.view.indexer_id)?;
+        drop(conn);
+        match row {
+            Some(r) if r.kind == super::KIND_BUILTIN => super::resolve_builtin_download(
+                state,
+                &r,
+                &cached.view.title,
+                cached.view.details_url.as_deref(),
+                &cached.magnet_or_url,
+            )?,
+            _ => cached.magnet_or_url.clone(),
+        }
+    };
+    if magnet_or_url.is_empty() {
         return Err(anyhow!("release has no magnet or download link"));
     }
     // Grabbing a release implies approval. A still-pending request has no wanted
@@ -294,7 +305,7 @@ pub fn grab_cached(
     let wanted_ids = wanted_ids_for(&wanted, &cached.view);
     let spec = crate::services::downloads::GrabSpec::from_release(
         &cached.view,
-        &cached.magnet_or_url,
+        &magnet_or_url,
         cached.tmdb_id,
         Some(req.title),
         req.year,
@@ -330,15 +341,9 @@ pub fn manual_search(state: &SharedState, query: &str) -> Result<crate::model::M
     let mut errors: Vec<String> = Vec::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
     for indexer in &indexers {
-        let caps = match super::indexer_caps(state, indexer) {
-            Ok(c) => c,
-            Err(e) => {
-                errors.push(format!("{}: {e:#}", indexer.name));
-                continue;
-            }
-        };
-        // t=search free text; the Movie query's last attempt is the q fallback.
-        match luma_torznab::search(&super::endpoint_of(indexer), &torznab_query, &caps) {
+        // Free text: the Movie query's last attempt is the `q` fallback (torznab)
+        // / the keywords search (built-in).
+        match super::search_indexer(state, indexer, &torznab_query) {
             Ok(found) => {
                 for r in found {
                     if !seen.insert((indexer.id.clone(), r.guid.clone())) {

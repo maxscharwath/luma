@@ -391,17 +391,24 @@ pub(crate) const SCHEMA: &str = "
 
     -- Torznab indexers (Jackett / Prowlarr endpoints). `categories` is a comma
     -- list; `priority` is a flat score tiebreak in the decision engine.
+    -- `kind` is 'torznab' (external Jackett/Prowlarr endpoint; url+api_key) or
+    -- 'builtin' (native Cardigann engine: `definition_id` names the definition,
+    -- `settings` is a JSON map of the admin-entered per-indexer config incl.
+    -- credentials, and `url` is the chosen base link).
     CREATE TABLE IF NOT EXISTS indexers (
-        id         TEXT PRIMARY KEY,
-        name       TEXT NOT NULL,
-        url        TEXT NOT NULL,
-        api_key    TEXT NOT NULL DEFAULT '',
-        categories TEXT NOT NULL DEFAULT '2000,5000',
-        enabled    INTEGER NOT NULL DEFAULT 1,
-        priority   INTEGER NOT NULL DEFAULT 0,
-        last_ok_at INTEGER,
-        last_error TEXT,
-        created_at INTEGER NOT NULL
+        id            TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        url           TEXT NOT NULL,
+        api_key       TEXT NOT NULL DEFAULT '',
+        categories    TEXT NOT NULL DEFAULT '2000,5000',
+        enabled       INTEGER NOT NULL DEFAULT 1,
+        priority      INTEGER NOT NULL DEFAULT 0,
+        kind          TEXT NOT NULL DEFAULT 'torznab',
+        definition_id TEXT,
+        settings      TEXT NOT NULL DEFAULT '{}',
+        last_ok_at    INTEGER,
+        last_error    TEXT,
+        created_at    INTEGER NOT NULL
     );
 
     -- Download clients (torrent engines). The embedded rqbit engine is seeded
@@ -663,6 +670,12 @@ fn migrate(conn: &Connection) {
             created_at  TEXT NOT NULL,\
             last_used   TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)",
+        // ----- built-in (native Cardigann) indexers ------------------------------
+        // Coexists with external Torznab rows via a `kind` discriminator; the
+        // native engine reads `definition_id` + the JSON `settings` map.
+        "ALTER TABLE indexers ADD COLUMN kind TEXT NOT NULL DEFAULT 'torznab'",
+        "ALTER TABLE indexers ADD COLUMN definition_id TEXT",
+        "ALTER TABLE indexers ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'",
     ] {
         let _ = conn.execute(sql, []);
     }

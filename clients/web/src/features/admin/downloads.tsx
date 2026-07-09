@@ -18,7 +18,6 @@ import { DownloadRowView, type LiveDl } from '#web/features/admin/download-row';
 import { ManualGrabModal } from '#web/features/admin/manual-grab';
 import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Modal, ModalActions, StatCard } from '#web/features/admin/ui';
-import { VpnCard } from '#web/features/admin/vpn-card';
 import { formatBytes } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
@@ -121,8 +120,6 @@ export function DownloadsPage() {
 
       {/* spacer to match the standard PageHeader → content rhythm */}
       <div className="mt-6" />
-
-      {canSettings ? <VpnCard /> : null}
 
       {vpn ? (
         <div
@@ -239,12 +236,11 @@ export function DownloadsPage() {
   );
 }
 
-function Head({
-  children,
-  className = '',
-}: Readonly<{ children: ReactNode; className?: string }>) {
+function Head({ children, className = '' }: Readonly<{ children: ReactNode; className?: string }>) {
   return (
-    <span className={`text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40 ${className}`}>
+    <span
+      className={`text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40 ${className}`}
+    >
       {children}
     </span>
   );

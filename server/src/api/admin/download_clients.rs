@@ -124,6 +124,30 @@ pub async fn update(
     if !updated {
         return Err(lerr(loc, StatusCode::NOT_FOUND, "error.clientNotFound"));
     }
+    // Toggling the embedded engine fully starts/stops its BitTorrent session, so
+    // "disabled" means zero traffic (no download, no seed, no DHT), not just a
+    // gate on new grabs.
+    if body.enabled.is_some() && id == crate::db::EMBEDDED_CLIENT_ID {
+        let enabled = body.enabled.unwrap();
+        if enabled {
+            state.downloads.start_rqbit(&state).await;
+            let downloads = state.downloads.clone();
+            let state2 = state.clone();
+            blocking(move || {
+                downloads.resume_after_enable(&state2);
+                Ok(())
+            })
+            .await?;
+        } else {
+            let downloads = state.downloads.clone();
+            let state2 = state.clone();
+            blocking(move || {
+                downloads.disable_embedded(&state2);
+                Ok(())
+            })
+            .await?;
+        }
+    }
     let id3 = id.clone();
     let row = query(&state.db, move |pool| {
         let conn = pool.get()?;

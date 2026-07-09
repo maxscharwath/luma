@@ -13,6 +13,9 @@ interface SettingsPageProps {
   view: string;
   titleKey: MessageKey;
   subtitleKey: MessageKey;
+  /** Render only the setting groups (no page header), to embed under another
+   * page (e.g. the VPN section below its config card). */
+  embedded?: boolean;
 }
 
 export function SettingsPage(props: Readonly<SettingsPageProps>) {
@@ -22,7 +25,7 @@ export function SettingsPage(props: Readonly<SettingsPageProps>) {
   return <SettingsPageInner {...props} />;
 }
 
-function SettingsPageInner({ view, titleKey, subtitleKey }: Readonly<SettingsPageProps>) {
+function SettingsPageInner({ view, titleKey, subtitleKey, embedded }: Readonly<SettingsPageProps>) {
   const t = useT();
   const { client } = useAuth();
   const [groups, setGroups] = useState<SettingGroup[]>([]);
@@ -57,16 +60,18 @@ function SettingsPageInner({ view, titleKey, subtitleKey }: Readonly<SettingsPag
 
   return (
     <>
-      <PageHeader
-        title={t(titleKey)}
-        subtitle={t(subtitleKey)}
-        action={
-          <span className="shrink-0 text-[13px] font-semibold text-success">
-            {saved ? t('admin.saved') : ''}
-          </span>
-        }
-      />
-      <div className="mt-6 flex flex-col gap-5.5">
+      {embedded ? null : (
+        <PageHeader
+          title={t(titleKey)}
+          subtitle={t(subtitleKey)}
+          action={
+            <span className="shrink-0 text-[13px] font-semibold text-success">
+              {saved ? t('admin.saved') : ''}
+            </span>
+          }
+        />
+      )}
+      <div className={`${embedded ? '' : 'mt-6 '}flex flex-col gap-5.5`}>
         {groups.map((g) => (
           <Card key={g.title} className="overflow-hidden">
             <div className="border-b border-border px-5.5 py-4.25">

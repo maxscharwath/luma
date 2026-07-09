@@ -144,16 +144,22 @@ pub fn groups(
                     row("rqbitUpKbps", t("admin.rqbitUpKbps"), Some(t("admin.rqbitRateHint")), "text", &[], g("rqbitUpKbps"), true),
                 ],
             ),
+        ]
+        }
+        // The VPN is global to several flows (torrent downloads + optional
+        // indexer routing), so its toggles live in their own section (the
+        // WireGuard config itself is the dedicated `/admin/vpn` API).
+        "vpn" => vec![
             group(
                 "admin.acqVpn",
                 Some("admin.acqVpnDesc"),
                 vec![
                     row("vpnKillSwitch", t("admin.vpnKillSwitch"), Some(t("admin.vpnKillSwitchHint")), "toggle", &[], g("vpnKillSwitch"), true),
                     row("vpnCheckUrl", t("admin.vpnCheckUrl"), None, "text", &[], g("vpnCheckUrl"), true),
+                    row("acqIndexersUseVpn", t("admin.vpnRouteIndexers"), Some(t("admin.vpnRouteIndexersHint")), "toggle", &[], g("acqIndexersUseVpn"), true),
                 ],
             ),
-        ]
-        }
+        ],
         _ => Vec::new(),
     }
 }

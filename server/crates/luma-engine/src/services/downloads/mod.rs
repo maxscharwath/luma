@@ -38,6 +38,9 @@ pub struct DownloadManager {
     /// Download refs the kill switch paused (so recovery resumes exactly
     /// those, never a user-paused torrent).
     paused_by_killswitch: Mutex<Vec<String>>,
+    /// Download refs paused because the embedded engine was disabled in the
+    /// admin UI (resumed on re-enable; never resumes a user-paused torrent).
+    paused_by_disable: Mutex<Vec<String>>,
     /// Scratch dir (qBittorrent cookie jars).
     state_dir: PathBuf,
     /// Root for per-download output folders of the embedded engine.
@@ -57,6 +60,7 @@ impl DownloadManager {
             vpn_fail_streak: AtomicU32::new(0),
             vpn_status: Mutex::new(None),
             paused_by_killswitch: Mutex::new(Vec::new()),
+            paused_by_disable: Mutex::new(Vec::new()),
             downloads_dir: state_dir.join("downloads"),
             state_dir,
         })
@@ -70,6 +74,18 @@ impl DownloadManager {
     /// the old. A failed restart therefore leaves the previous engine running
     /// instead of killing downloads.
     pub async fn start_rqbit(&self, state: &SharedState) {
+        // Hard-off must survive restarts + setting/VPN changes: never bring the
+        // engine up while the embedded client is disabled. (A missing row = first
+        // boot before seeding = treated as enabled.)
+        if let Ok(conn) = state.db.get() {
+            if let Ok(Some(c)) = db::get_download_client(&conn, db::EMBEDDED_CLIENT_ID) {
+                if !c.enabled {
+                    drop(conn);
+                    self.stop_rqbit();
+                    return;
+                }
+            }
+        }
         let cfg = RqbitConfig {
             session_dir: self.state_dir.join("session"),
             download_dir: self.downloads_dir.clone(),
@@ -207,6 +223,49 @@ impl DownloadManager {
         }
         for id in held {
             let _ = self.resume(state, &id);
+        }
+    }
+
+    /// Hard-stop the embedded engine: drop the session so **all** BitTorrent
+    /// activity ceases (no download, no upload/seed, no DHT, listen sockets
+    /// closed). Idempotent.
+    pub fn stop_rqbit(&self) {
+        if let Some(engine) = self.rqbit.write().unwrap().take() {
+            engine.stop();
+            tracing::info!("embedded torrent engine stopped");
+        }
+    }
+
+    /// Disable the embedded engine (admin toggle): mark its active downloads
+    /// paused (for the UI) and tear the session down entirely, so nothing is
+    /// left listening or transferring. `start_rqbit` will refuse to come back up
+    /// until it is re-enabled, so this survives restarts.
+    pub fn disable_embedded(&self, state: &SharedState) {
+        let mut held = Vec::new();
+        if let Ok(conn) = state.db.get() {
+            if let Ok(rows) = db::active_downloads(&conn) {
+                drop(conn);
+                for row in rows {
+                    if row.client_id == db::EMBEDDED_CLIENT_ID && row.status != "paused" {
+                        let _ = db::set_download_status(&state.db, &row.id, "paused", None);
+                        held.push(row.id);
+                    }
+                }
+            }
+        }
+        *self.paused_by_disable.lock().unwrap() = held;
+        self.stop_rqbit();
+        tracing::warn!("embedded engine disabled: session stopped, downloads paused");
+    }
+
+    /// Re-enable after [`disable_embedded`]: the caller has already restarted the
+    /// session ([`start_rqbit`], which reloads the persisted torrents), so just
+    /// flip the rows we paused back to active — the monitor reconciles the exact
+    /// status (downloading vs seeding) from the live engine.
+    pub fn resume_after_enable(&self, state: &SharedState) {
+        let held = std::mem::take(&mut *self.paused_by_disable.lock().unwrap());
+        for id in held {
+            let _ = db::set_download_status(&state.db, &id, "downloading", None);
         }
     }
 

@@ -228,6 +228,12 @@ export const IndexerView = z.object({
   categories: z.array(z.number()),
   enabled: z.boolean(),
   priority: z.number(),
+  /** `torznab` (external Jackett/Prowlarr) or `builtin` (native Cardigann). */
+  kind: z.string(),
+  /** Cardigann definition id (built-in indexers only). */
+  definitionId: z.string().nullable(),
+  /** Names of settings that currently hold a value (secrets never returned). */
+  configuredSettings: z.array(z.string()),
   lastOkAt: z.number().nullable(),
   lastError: z.string().nullable(),
   createdAt: z.number(),
@@ -259,5 +265,59 @@ export const SaveIndexerBody = z.object({
   categories: z.array(z.number()).nullable(),
   enabled: z.boolean().nullable(),
   priority: z.number().nullable(),
+  /** `builtin` to create a native Cardigann indexer (default `torznab`). */
+  kind: z.string().nullable().optional(),
+  /** Cardigann definition id (built-in create). */
+  definitionId: z.string().nullable().optional(),
+  /** Per-indexer settings (credentials + toggles). */
+  settings: z.record(z.string(), z.string()).nullable().optional(),
 });
 export type SaveIndexerBody = z.infer<typeof SaveIndexerBody>;
+
+// ── Built-in definition catalog ─────────────────────────────────────────────
+
+/** One Cardigann definition in the browse list. */
+export const IndexerDefinitionView = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.string(),
+  description: z.string(),
+  links: z.array(z.string()),
+});
+export type IndexerDefinitionView = z.infer<typeof IndexerDefinitionView>;
+
+/** `GET /api/admin/indexers/definitions`. */
+export const IndexerDefinitionsView = z.object({
+  definitions: z.array(IndexerDefinitionView),
+  synced: z.boolean(),
+});
+export type IndexerDefinitionsView = z.infer<typeof IndexerDefinitionsView>;
+
+/** One configurable setting of a definition (for the add form). */
+export const IndexerDefinitionSettingView = z.object({
+  name: z.string(),
+  kind: z.string(),
+  label: z.string(),
+  default: z.string().nullable(),
+  /** For `select`: ordered [value, label] pairs. */
+  options: z.array(z.tuple([z.string(), z.string()])),
+});
+export type IndexerDefinitionSettingView = z.infer<typeof IndexerDefinitionSettingView>;
+
+/** `GET /api/admin/indexers/definitions/:id`. */
+export const IndexerDefinitionDetailView = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.string(),
+  description: z.string(),
+  links: z.array(z.string()),
+  settings: z.array(IndexerDefinitionSettingView),
+});
+export type IndexerDefinitionDetailView = z.infer<typeof IndexerDefinitionDetailView>;
+
+/** `POST /api/admin/indexers/definitions/sync` result. */
+export const SyncDefinitionsResult = z.object({
+  count: z.number(),
+  version: z.string(),
+});
+export type SyncDefinitionsResult = z.infer<typeof SyncDefinitionsResult>;

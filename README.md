@@ -4,8 +4,10 @@
 
 <br/>
 
-**A personal Netflix/Plex you run on your own NAS.**
-Rust server · web + TV clients · one cinematic design language.
+**Your own Netflix — everything built in, on hardware you own.**
+Find it, download it, organize it, stream it. One blazing-fast Rust binary:
+indexers · torrent engine · VPN + kill switch · AI · player · web & TV clients.
+No Sonarr, no Radarr, no Jackett, no qBittorrent, no Gluetun — **just LUMA.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4B642.svg?style=flat-square)](LICENSE)
 [![Bun ≥ 1.3](https://img.shields.io/badge/Bun-%E2%89%A5%201.3-0A0A0C.svg?style=flat-square&logo=bun&logoColor=F4B642)](https://bun.sh)
@@ -18,11 +20,37 @@ Rust server · web + TV clients · one cinematic design language.
 
 ---
 
-LUMA is a self-hosted, multi-platform **video streaming** stack. It scans your
-media library (Plex-style **movie / TV-show detection**, grouping episodes into
-shows → seasons), persists it in **SQLite**, enriches it from **TMDB**, and
-streams the original files to a web app and to your living-room TV all wrapped
-in one calm, cinematic, amber-on-charcoal design language.
+LUMA is a self-hosted, multi-platform **media stack that does the whole job** —
+the *arr suite, your indexer aggregator, your torrent client, your VPN wrapper
+and your media server, collapsed into **one Rust binary**. Request a title and
+LUMA searches your trackers, scores the releases, grabs the best one through its
+built-in torrent engine (tunneled through your VPN, behind a kill switch),
+imports and renames it Plex-style, enriches it from **TMDB**, and direct-play
+streams it to the web, your phone and your living-room TV — wrapped in one calm,
+cinematic, amber-on-charcoal design language.
+
+**No moving parts to wire together.** Where a typical setup bolts together
+Sonarr + Radarr + Prowlarr/Jackett + qBittorrent + Gluetun + Jellyfin + Overseerr
+(six containers, six configs, six things that break), LUMA is a single process
+that starts in milliseconds, sips RAM, and has no transcode farm to keep warm —
+because Rust is fast and the video is never re-encoded.
+
+### Everything built in
+
+| | | |
+| --- | --- | --- |
+| 🔎 **Indexers** | native Cardigann engine (runs Jackett/Prowlarr tracker definitions directly) **+** Torznab | no aggregator to run |
+| ⬇️ **Downloader** | embedded BitTorrent engine (librqbit, in-process) **+** Transmission / qBittorrent | no separate client |
+| 🧠 **Acquisition** | requests, automatic wanted-list, a quality decision-engine that scores + picks releases | no Sonarr/Radarr |
+| 🔒 **VPN + kill switch** | managed WireGuard→SOCKS5 bridge; downloads pause the instant the tunnel drops | no Gluetun |
+| ▶️ **Player** | direct-play, HEVC-first — original files range-streamed, decoded natively | no transcode farm |
+| 📺 **Clients** | web, mobile-responsive web, Samsung, LG, Android TV, desktop | one codebase |
+| ✨ **AI** | on-device recommendations + semantic search, Whisper subtitle generation, optional LLM | no cloud |
+| 👥 **Multi-user** | accounts, profiles, PIN locks, passkeys, invites, per-user permissions | share safely |
+| 📊 **Statistics** | live download/library/watch dashboards over a real-time WebSocket bus | at a glance |
+
+All of it self-hosted, private, and offline-capable: your library and your
+activity never leave your network.
 
 > **Playback is direct-play, HEVC-first.** The server never transcodes video: it
 > **range-streams the original files** and every client decodes HEVC/H.265 (incl.
@@ -70,6 +98,32 @@ in one calm, cinematic, amber-on-charcoal design language.
 
 ## Features
 
+- **Blazing fast, single binary** the whole stack is one Rust process (axum +
+  SQLite, embedded torrent engine, in-process ML) — boots in milliseconds, idles
+  near-zero CPU, no JVM, no container orchestra, no transcode farm to keep warm.
+- **Built-in indexer engine** a native reimplementation of **Cardigann** runs the
+  same community-maintained tracker definitions Jackett/Prowlarr use — fetched at
+  runtime, HTML/JSON/XML scraping, logins, Cloudflare (FlareSolverr) — so you
+  search real trackers with **no aggregator to install**. Torznab endpoints still
+  work side by side.
+- **Built-in torrent engine** an embedded BitTorrent client (librqbit, in-process)
+  grabs releases directly; Transmission / qBittorrent are supported too. Disable
+  it and active downloads pause on the spot.
+- **Automatic acquisition** request a movie or show and LUMA searches every
+  indexer, **scores each release** against a quality profile (resolution, codec,
+  size, seeders, keywords), grabs the best, then imports + renames it into the
+  library. Manual search + one-click grab (with override) for the picky.
+- **VPN with a real kill switch** paste a WireGuard config and LUMA runs a managed
+  WireGuard→SOCKS5 bridge; all torrent traffic is tunneled, and a failed tunnel
+  check **pauses every download instantly** — no leaks, no Gluetun sidecar.
+- **On-device AI** recommendations and semantic "themed" rows from local content
+  embeddings + watch history, typo-tolerant full-text search, and **Whisper**
+  subtitle generation — all on your box, no cloud, no per-user training.
+- **Multi-user & private** accounts, profiles, PIN-locked profiles, WebAuthn
+  passkeys, invite links, per-user permissions, resume-anywhere and Quick Connect
+  QR pairing for TVs.
+- **Live everything** a WebSocket bus streams scan/enrich/library and
+  download progress + speed/ETA to admin dashboards and clients in real time.
 - **Direct-play, HEVC-first** original files are range-streamed; clients decode
   HEVC/H.265, AV1, H.264 themselves. No transcode pipeline, no hot NAS.
 - **Plex-style library scan** detects movies vs. TV shows, parses `S01E02` /

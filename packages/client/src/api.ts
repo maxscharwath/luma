@@ -36,6 +36,8 @@ import type {
   GrabBody,
   Health,
   HistoryStats,
+  IndexerDefinitionDetailView,
+  IndexerDefinitionsView,
   IndexersView,
   IndexerTestResult,
   IndexerView,
@@ -82,6 +84,7 @@ import type {
   Show,
   ShowDetail,
   StorageInfo,
+  SyncDefinitionsResult,
   TopUser,
   TorrentAnalysis,
   UpNext,
@@ -583,6 +586,15 @@ export class LumaClient {
   }
   testIndexer(id: string): Promise<IndexerTestResult> {
     return acquisition.testIndexer(this.ctx, id);
+  }
+  adminIndexerDefinitions(): Promise<IndexerDefinitionsView> {
+    return acquisition.adminIndexerDefinitions(this.ctx);
+  }
+  indexerDefinitionDetail(id: string): Promise<IndexerDefinitionDetailView> {
+    return acquisition.indexerDefinitionDetail(this.ctx, id);
+  }
+  syncIndexerDefinitions(): Promise<SyncDefinitionsResult> {
+    return acquisition.syncIndexerDefinitions(this.ctx);
   }
   adminDownloadClients(): Promise<DownloadClientsView> {
     return acquisition.adminDownloadClients(this.ctx);

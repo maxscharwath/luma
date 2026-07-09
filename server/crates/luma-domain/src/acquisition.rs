@@ -19,6 +19,13 @@ pub struct IndexerView {
     pub enabled: bool,
     /// Flat score bonus in the decision engine (tiebreak between indexers).
     pub priority: i32,
+    /// `torznab` (external Jackett/Prowlarr) or `builtin` (native Cardigann).
+    pub kind: String,
+    /// The Cardigann definition id (built-in indexers only).
+    pub definition_id: Option<String>,
+    /// Names of the settings that currently have a value (secrets never leave
+    /// the server; the edit form re-renders the schema and blanks secrets).
+    pub configured_settings: Vec<String>,
     pub last_ok_at: Option<i64>,
     pub last_error: Option<String>,
     pub created_at: i64,
@@ -42,6 +49,72 @@ pub struct SaveIndexerBody {
     pub categories: Option<Vec<u32>>,
     pub enabled: Option<bool>,
     pub priority: Option<i32>,
+    /// `builtin` to create a native-Cardigann indexer (default `torznab`).
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// The Cardigann definition id (built-in create).
+    #[serde(default)]
+    pub definition_id: Option<String>,
+    /// Per-indexer settings (credentials + toggles). Merged into the stored
+    /// map on update; an omitted secret keeps its stored value.
+    #[serde(default)]
+    pub settings: Option<std::collections::HashMap<String, String>>,
+}
+
+// ----- built-in definition catalog ------------------------------------------------
+
+/// One Cardigann definition in the admin's browse list.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexerDefinitionView {
+    pub id: String,
+    pub name: String,
+    /// `public` | `private` | `semi-private`.
+    pub kind: String,
+    pub description: String,
+    pub links: Vec<String>,
+}
+
+/// `GET /api/admin/indexers/definitions`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexerDefinitionsView {
+    pub definitions: Vec<IndexerDefinitionView>,
+    /// Whether the definition set has been fetched yet.
+    pub synced: bool,
+}
+
+/// One configurable setting of a definition, for rendering the add form.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexerDefinitionSettingView {
+    pub name: String,
+    /// `text` | `password` | `checkbox` | `select` | `info`.
+    pub kind: String,
+    pub label: String,
+    pub default: Option<String>,
+    /// For `select`: ordered (value, label) pairs.
+    pub options: Vec<(String, String)>,
+}
+
+/// `GET /api/admin/indexers/definitions/:id` — the schema needed to add it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexerDefinitionDetailView {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub description: String,
+    pub links: Vec<String>,
+    pub settings: Vec<IndexerDefinitionSettingView>,
+}
+
+/// `POST /api/admin/indexers/definitions/sync` result.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncDefinitionsResult {
+    pub count: usize,
+    pub version: String,
 }
 
 /// `POST /api/admin/indexers/:id/test` result (a `t=caps` round-trip).

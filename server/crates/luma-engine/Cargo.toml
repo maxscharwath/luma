@@ -27,6 +27,7 @@ luma-i18n = { workspace = true }
 luma-http = { workspace = true }
 luma-scene = { workspace = true }
 luma-torznab = { workspace = true }
+luma-indexer = { workspace = true }
 luma-torrent = { workspace = true }
 # Heavy/optional adapters (aliased in infra/mod.rs as crate::infra::{whisper,embed,discovery}).
 luma-whisper = { workspace = true }

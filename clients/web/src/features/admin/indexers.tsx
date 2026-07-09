@@ -6,7 +6,11 @@ import { apiErrorText, type IndexerTestResult, type IndexerView } from '@luma/co
 import { useT } from '@luma/ui';
 import { IconAntenna, IconLoader2, IconPencil } from '@tabler/icons-react';
 import { useState } from 'react';
-import { IndexerModal } from '#web/features/admin/indexer-modals';
+import {
+  BuiltinIndexerModal,
+  DefinitionPickerModal,
+  IndexerModal,
+} from '#web/features/admin/indexer-modals';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
@@ -22,6 +26,8 @@ export function IndexersPage() {
     open: false,
     indexer: null,
   });
+  const [picker, setPicker] = useState(false);
+  const [builtinCreate, setBuiltinCreate] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
 
   const { data, reload } = usePoll(['admin', 'indexers'], () => client.adminIndexers(), 30000);
@@ -60,10 +66,13 @@ export function IndexersPage() {
         title={t('admin.indexersTitle')}
         subtitle={t('admin.indexersSub')}
         action={
-          <HeaderAction
-            label={t('indexers.add')}
-            onClick={() => setModal({ open: true, indexer: null })}
-          />
+          <div className="flex items-center gap-2">
+            <HeaderAction label={t('indexers.addBuiltin')} onClick={() => setPicker(true)} />
+            <HeaderAction
+              label={t('indexers.add')}
+              onClick={() => setModal({ open: true, indexer: null })}
+            />
+          </div>
         }
       />
 
@@ -100,6 +109,25 @@ export function IndexersPage() {
         <IndexerModal
           indexer={modal.indexer}
           onClose={() => setModal({ open: false, indexer: null })}
+          onSaved={reload}
+        />
+      ) : null}
+
+      {picker ? (
+        <DefinitionPickerModal
+          onClose={() => setPicker(false)}
+          onPick={(defId) => {
+            setPicker(false);
+            setBuiltinCreate(defId);
+          }}
+        />
+      ) : null}
+
+      {builtinCreate ? (
+        <BuiltinIndexerModal
+          definitionId={builtinCreate}
+          indexer={null}
+          onClose={() => setBuiltinCreate(null)}
           onSaved={reload}
         />
       ) : null}
@@ -142,6 +170,9 @@ function IndexerCard({
       </div>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-white/55">
+        <Pill color={ix.kind === 'builtin' ? '#F0A868' : '#86A8FF'}>
+          {ix.kind === 'builtin' ? t('indexers.builtin') : t('indexers.torznab')}
+        </Pill>
         <Pill color="#86A8FF">{t('indexers.cats', { cats: ix.categories.join(', ') })}</Pill>
         {ix.priority !== 0 ? (
           <Pill color="#C792EA">{t('indexers.prio', { prio: String(ix.priority) })}</Pill>

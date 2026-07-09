@@ -14,13 +14,19 @@ pub struct IndexerRow {
     pub categories: Vec<u32>,
     pub enabled: bool,
     pub priority: i32,
+    /// `torznab` (external Jackett/Prowlarr) or `builtin` (native Cardigann).
+    pub kind: String,
+    /// The Cardigann definition id (file stem) for `builtin` rows.
+    pub definition_id: Option<String>,
+    /// JSON map of per-indexer settings (credentials + toggles) for `builtin`.
+    pub settings: String,
     pub last_ok_at: Option<i64>,
     pub last_error: Option<String>,
     pub created_at: i64,
 }
 
-const INDEXER_COLS: &str =
-    "id, name, url, api_key, categories, enabled, priority, last_ok_at, last_error, created_at";
+const INDEXER_COLS: &str = "id, name, url, api_key, categories, enabled, priority, \
+    kind, definition_id, settings, last_ok_at, last_error, created_at";
 
 fn row_to_indexer(r: &Row) -> rusqlite::Result<IndexerRow> {
     let cats: String = r.get(4)?;
@@ -35,9 +41,12 @@ fn row_to_indexer(r: &Row) -> rusqlite::Result<IndexerRow> {
             .collect(),
         enabled: r.get::<_, i64>(5)? != 0,
         priority: r.get(6)?,
-        last_ok_at: r.get(7)?,
-        last_error: r.get(8)?,
-        created_at: r.get(9)?,
+        kind: r.get(7)?,
+        definition_id: r.get(8)?,
+        settings: r.get(9)?,
+        last_ok_at: r.get(10)?,
+        last_error: r.get(11)?,
+        created_at: r.get(12)?,
     })
 }
 
@@ -66,9 +75,13 @@ pub fn insert_indexer(pool: &Pool, row: &IndexerRow) -> Result<()> {
     let conn = pool.get()?;
     let cats = row.categories.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
     conn.execute(
-        "INSERT INTO indexers (id, name, url, api_key, categories, enabled, priority, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![row.id, row.name, row.url, row.api_key, cats, row.enabled as i64, row.priority, row.created_at],
+        "INSERT INTO indexers \
+            (id, name, url, api_key, categories, enabled, priority, kind, definition_id, settings, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![
+            row.id, row.name, row.url, row.api_key, cats, row.enabled as i64, row.priority,
+            row.kind, row.definition_id, row.settings, row.created_at
+        ],
     )?;
     Ok(())
 }
@@ -84,6 +97,7 @@ pub fn update_indexer(
     categories: Option<&[u32]>,
     enabled: Option<bool>,
     priority: Option<i32>,
+    settings: Option<&str>,
 ) -> Result<bool> {
     let conn = pool.get()?;
     let cats = categories.map(|c| c.iter().map(u32::to_string).collect::<Vec<_>>().join(","));
@@ -94,9 +108,10 @@ pub fn update_indexer(
             api_key = COALESCE(?4, api_key), \
             categories = COALESCE(?5, categories), \
             enabled = COALESCE(?6, enabled), \
-            priority = COALESCE(?7, priority) \
+            priority = COALESCE(?7, priority), \
+            settings = COALESCE(?8, settings) \
          WHERE id = ?1",
-        params![id, name, url, api_key, cats, enabled.map(|e| e as i64), priority],
+        params![id, name, url, api_key, cats, enabled.map(|e| e as i64), priority, settings],
     )?;
     Ok(n > 0)
 }

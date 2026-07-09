@@ -1,0 +1,27 @@
+[package]
+name = "luma-indexer"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Native Cardigann indexer engine: runs Jackett/Prowlarr YAML definitions directly (no external Torznab aggregator)"
+license.workspace = true
+
+[dependencies]
+luma-http = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+scraper = { workspace = true }
+quick-xml = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+indexmap = { workspace = true }
+# XPath selectors (libxml2, C). A minority of definitions use `selector`s in
+# XPath; the engine falls back to a clear error when they are hit without this
+# feature, so the default build stays pure-Rust and musl-friendly.
+libxml = { workspace = true, optional = true }
+
+[features]
+default = []
+xpath = ["dep:libxml"]

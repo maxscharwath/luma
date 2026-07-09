@@ -59,9 +59,10 @@ export function ReleaseList({
         <ReleaseRow
           key={`${r.indexerId}-${r.guid}`}
           r={r}
-          canGrab={false}
+          canGrab={canGrab}
           busy={busy}
           onGrab={onGrab}
+          override
         />
       ))}
     </div>
@@ -73,11 +74,15 @@ function ReleaseRow({
   canGrab,
   busy,
   onGrab,
+  override = false,
 }: Readonly<{
   r: ScoredReleaseView;
   canGrab: boolean;
   busy: boolean;
   onGrab: (release: ScoredReleaseView) => void;
+  /** This row was rejected by the decision engine; grabbing it is a manual
+   * override (shown with a distinct style + tooltip). */
+  override?: boolean;
 }>) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -112,8 +117,12 @@ function ReleaseRow({
             type="button"
             disabled={busy}
             onClick={() => onGrab(r)}
-            title={t('requests.grab')}
-            className="flex h-7 w-7 flex-[0_0_28px] items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50"
+            title={override ? t('requests.grabAnyway') : t('requests.grab')}
+            className={`flex h-7 w-7 flex-[0_0_28px] items-center justify-center rounded-lg border disabled:opacity-50 ${
+              override
+                ? 'border-[#F4B642]/35 bg-[#F4B642]/10 text-[#F4B642] hover:bg-[#F4B642]/20'
+                : 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20'
+            }`}
           >
             <IconDownload size={13} stroke={2.3} />
           </button>

@@ -26,6 +26,7 @@ import {
   IconMagnet,
   IconMenu2,
   IconSettings,
+  IconShieldLock,
   IconSitemap,
   IconSparkles,
   IconTransform,
@@ -116,7 +117,13 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
   {
     labelKey: 'admin.groupManagement',
     items: [
-      { to: '/admin', labelKey: 'admin.dashboard', exact: true, cap: null, icon: IconLayoutDashboard },
+      {
+        to: '/admin',
+        labelKey: 'admin.dashboard',
+        exact: true,
+        cap: null,
+        icon: IconLayoutDashboard,
+      },
       { to: '/admin/users', labelKey: 'admin.navUsers', cap: 'users.manage', icon: IconUsers },
       {
         to: '/admin/requests',
@@ -135,7 +142,12 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
         cap: 'library.manage',
         icon: IconLibrary,
       },
-      { to: '/admin/naming', labelKey: 'admin.navNaming', cap: 'library.manage', icon: IconFileText },
+      {
+        to: '/admin/naming',
+        labelKey: 'admin.navNaming',
+        cap: 'library.manage',
+        icon: IconFileText,
+      },
       {
         to: '/admin/transcoder',
         labelKey: 'admin.navTranscoder',
@@ -161,13 +173,24 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
         icon: IconAntenna,
       },
       { to: '/admin/downloads', labelKey: 'admin.navDownloads', cap: null, icon: IconDownload },
+      { to: '/admin/vpn', labelKey: 'admin.navVpn', cap: 'settings.manage', icon: IconShieldLock },
     ],
   },
   {
     labelKey: 'admin.groupSystem',
     items: [
-      { to: '/admin/general', labelKey: 'admin.navGeneral', cap: 'settings.manage', icon: IconSettings },
-      { to: '/admin/network', labelKey: 'admin.navNetwork', cap: 'settings.manage', icon: IconWorld },
+      {
+        to: '/admin/general',
+        labelKey: 'admin.navGeneral',
+        cap: 'settings.manage',
+        icon: IconSettings,
+      },
+      {
+        to: '/admin/network',
+        labelKey: 'admin.navNetwork',
+        cap: 'settings.manage',
+        icon: IconWorld,
+      },
       { to: '/admin/remote', labelKey: 'admin.navRemote', cap: 'settings.manage', icon: IconCloud },
     ],
   },
@@ -182,7 +205,12 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
         icon: IconSitemap,
       },
       { to: '/admin/storage', labelKey: 'admin.navStorage', cap: null, icon: IconDatabase },
-      { to: '/admin/backup', labelKey: 'admin.navBackup', cap: 'settings.manage', icon: IconArchive },
+      {
+        to: '/admin/backup',
+        labelKey: 'admin.navBackup',
+        cap: 'settings.manage',
+        icon: IconArchive,
+      },
     ],
   },
 ];

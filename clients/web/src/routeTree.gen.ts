@@ -15,6 +15,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AdminVpnRouteImport } from './routes/admin.vpn'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder'
 import { Route as AdminStorageRouteImport } from './routes/admin.storage'
@@ -74,6 +75,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
+} as any)
+const AdminVpnRoute = AdminVpnRouteImport.update({
+  id: '/vpn',
+  path: '/vpn',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
@@ -255,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/admin/storage': typeof AdminStorageRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/vpn': typeof AdminVpnRoute
   '/admin/': typeof AdminIndexRoute
   '/movie/$id': typeof AppMovieIdRoute
   '/person/$name': typeof AppPersonNameRoute
@@ -290,6 +297,7 @@ export interface FileRoutesByTo {
   '/admin/storage': typeof AdminStorageRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/vpn': typeof AdminVpnRoute
   '/': typeof AppIndexRoute
   '/admin': typeof AdminIndexRoute
   '/movie/$id': typeof AppMovieIdRoute
@@ -329,6 +337,7 @@ export interface FileRoutesById {
   '/admin/storage': typeof AdminStorageRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/vpn': typeof AdminVpnRoute
   '/_app/': typeof AppIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/_app/movie/$id': typeof AppMovieIdRoute
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/admin/storage'
     | '/admin/transcoder'
     | '/admin/users'
+    | '/admin/vpn'
     | '/admin/'
     | '/movie/$id'
     | '/person/$name'
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/storage'
     | '/admin/transcoder'
     | '/admin/users'
+    | '/admin/vpn'
     | '/'
     | '/admin'
     | '/movie/$id'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/admin/storage'
     | '/admin/transcoder'
     | '/admin/users'
+    | '/admin/vpn'
     | '/_app/'
     | '/admin/'
     | '/_app/movie/$id'
@@ -502,6 +514,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/admin/vpn': {
+      id: '/admin/vpn'
+      path: '/vpn'
+      fullPath: '/admin/vpn'
+      preLoaderRoute: typeof AdminVpnRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/users': {
       id: '/admin/users'
@@ -771,6 +790,7 @@ interface AdminRouteChildren {
   AdminStorageRoute: typeof AdminStorageRoute
   AdminTranscoderRoute: typeof AdminTranscoderRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  AdminVpnRoute: typeof AdminVpnRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -791,6 +811,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminStorageRoute: AdminStorageRoute,
   AdminTranscoderRoute: AdminTranscoderRoute,
   AdminUsersRoute: AdminUsersRoute,
+  AdminVpnRoute: AdminVpnRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 

@@ -86,14 +86,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
             // Sweep the indexers for this target and keep the best candidate.
             let mut best: Option<(super::search::CachedRelease, i32)> = None;
             for indexer in &indexers {
-                let caps = match super::indexer_caps(state, indexer) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        summary.errors.push(format!("{}: {e:#}", indexer.name));
-                        continue;
-                    }
-                };
-                let found = match luma_torznab::search(&super::endpoint_of(indexer), &st.query, &caps) {
+                let found = match super::search_indexer(state, indexer, &st.query) {
                     Ok(f) => f,
                     Err(e) => {
                         summary.errors.push(format!("{}: {e:#}", indexer.name));
