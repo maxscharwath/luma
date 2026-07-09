@@ -93,7 +93,7 @@ export function NamingPage() {
     <>
       <PageHeader title={t('admin.namingTitle')} subtitle={t('admin.namingSub')} />
 
-      <Card className="mt-4 p-6">
+      <Card className="mt-6 p-6">
         {tpl ? (
           <div className="flex flex-col gap-4">
             {FIELDS.map((f) => (

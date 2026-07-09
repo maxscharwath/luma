@@ -1,12 +1,13 @@
 import { ItemId, ShowId } from '@luma/core';
 import { useT } from '@luma/ui';
+import { IconListDetails } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { type CatalogEntry, CatalogGrid } from '#web/features/catalog/cards';
 import { isAuthed } from '#web/shared/lib/api';
 import { useMyList } from '#web/shared/lib/mylist';
 import { catalogQueries } from '#web/shared/lib/queries';
-import { SkeletonRow } from '#web/shared/ui';
+import { EmptyState, PAGE_MAIN, PAGE_TITLE, SkeletonRow } from '#web/shared/ui';
 
 export const Route = createFileRoute('/_app/mylist')({
   // The catalogue is public/SSR; the per-user list is hydrated client-side, so we
@@ -25,11 +26,11 @@ export const Route = createFileRoute('/_app/mylist')({
 function MyListPending() {
   const t = useT();
   return (
-    <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
-      <h2 className="mb-6 mt-2 font-display text-[28px] font-bold tracking-[-.02em]">
-        {t('nav.myList')}
-      </h2>
-      <SkeletonRow count={10} />
+    <main className={PAGE_MAIN}>
+      <h1 className={PAGE_TITLE}>{t('nav.myList')}</h1>
+      <div className="mt-6">
+        <SkeletonRow count={10} />
+      </div>
     </main>
   );
 }
@@ -56,14 +57,17 @@ function MyListPage() {
   }
 
   return (
-    <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
-      <h2 className="mb-6 mt-2 font-display text-[28px] font-bold tracking-[-.02em]">
-        {t('nav.myList')}
-      </h2>
+    <main className={PAGE_MAIN}>
+      <h1 className={PAGE_TITLE}>{t('nav.myList')}</h1>
       {ready && entries.length === 0 ? (
-        <p className="text-[15px] text-muted">{t('content.myListEmpty')}</p>
+        <EmptyState
+          icon={<IconListDetails size={32} stroke={1.5} />}
+          title={t('content.myListEmpty')}
+        />
       ) : (
-        <CatalogGrid entries={entries} />
+        <div className="mt-6">
+          <CatalogGrid entries={entries} />
+        </div>
       )}
     </main>
   );

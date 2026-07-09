@@ -1,8 +1,10 @@
 import { hasPermission, type Invite, PERMISSIONS, type Permission } from '@luma/core';
 import { useT } from '@luma/ui';
+import { IconLock } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState, PAGE_MAIN, PAGE_SUBTITLE, PAGE_TITLE } from '#web/shared/ui';
 
 // Admin page to invite users. Gated by the `users.manage` permission the only
 // way (besides the bootstrap owner) to create accounts is via these invites.
@@ -37,8 +39,11 @@ function InvitePage() {
 
   if (!allowed) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6">
-        <p className="text-[15px] text-muted">{t('admin.noUsersPermission')}</p>
+      <main className={PAGE_MAIN}>
+        <EmptyState
+          icon={<IconLock size={32} stroke={1.5} />}
+          title={t('admin.noUsersPermission')}
+        />
       </main>
     );
   }
@@ -77,11 +82,11 @@ function InvitePage() {
   }
 
   return (
-    <main className="mx-auto max-w-170 px-(--gutter-web) py-12">
-      <h1 className="mb-2 font-display text-[30px] font-bold">{t('nav.inviteUser')}</h1>
-      <p className="mb-8 text-[14px] text-muted">{t('admin.inviteIntro')}</p>
+    <main className={PAGE_MAIN}>
+      <h1 className={PAGE_TITLE}>{t('nav.inviteUser')}</h1>
+      <p className={PAGE_SUBTITLE}>{t('admin.inviteIntro')}</p>
 
-      <div className="rounded-2xl border border-border bg-surface-1 p-6">
+      <div className="mt-6 rounded-2xl border border-border bg-surface-1 p-6">
         <div className="mb-4 text-[12px] font-bold uppercase tracking-[.12em] text-dim">
           {t('admin.permissions')}
         </div>

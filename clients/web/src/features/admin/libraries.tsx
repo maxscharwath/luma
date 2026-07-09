@@ -3,6 +3,7 @@ import { useT } from '@luma/ui';
 import {
   IconDeviceTv,
   IconFolder,
+  IconLibrary,
   IconMovie,
   IconMusic,
   IconPhoto,
@@ -24,7 +25,7 @@ import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features
 import { Card } from '#web/features/admin/ui';
 import { formatBytes, relativeSeen } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
-import { TableSkeleton } from '#web/shared/ui';
+import { EmptyState, TableSkeleton } from '#web/shared/ui';
 
 const ICONS: Record<string, TablerIcon> = {
   film: IconMovie,
@@ -57,16 +58,20 @@ function LibrariesPageInner() {
 
       {data === null ? <TableSkeleton rows={4} /> : null}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-        {libraries.map((l) => (
-          <LibraryCard key={l.id} lib={l} onChanged={reload} onManage={() => setEditing(l)} />
-        ))}
-        {data && libraries.length === 0 ? (
-          <Card className="px-6 py-10 text-center text-[14px] text-dim md:col-span-2">
-            {t('admin.noLibraries')}
-          </Card>
-        ) : null}
-      </div>
+      {libraries.length > 0 ? (
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {libraries.map((l) => (
+            <LibraryCard key={l.id} lib={l} onChanged={reload} onManage={() => setEditing(l)} />
+          ))}
+        </div>
+      ) : null}
+      {data && libraries.length === 0 ? (
+        <EmptyState
+          icon={<IconLibrary size={32} stroke={1.5} />}
+          title={t('admin.noLibraries')}
+          action={<HeaderAction label={t('admin.addLibrary')} onClick={() => setAdding(true)} />}
+        />
+      ) : null}
 
       {adding ? (
         <AddLibraryModal

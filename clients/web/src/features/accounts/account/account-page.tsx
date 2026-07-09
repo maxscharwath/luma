@@ -7,7 +7,14 @@
 
 import type { AccountPatch } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconAt, IconCheck, IconDeviceFloppy, IconLogout, IconMail } from '@tabler/icons-react';
+import {
+  IconAt,
+  IconCheck,
+  IconDeviceFloppy,
+  IconLogout,
+  IconMail,
+  IconUserOff,
+} from '@tabler/icons-react';
 import { useState } from 'react';
 import { PasskeysCard } from '#web/features/accounts/account/passkeys-card';
 import { PinCard } from '#web/features/accounts/account/pin-card';
@@ -17,7 +24,7 @@ import { SecurityCard } from '#web/features/accounts/account/security-card';
 import { SessionsCard } from '#web/features/accounts/account/sessions-card';
 import { LabeledInput, Panel, Section, useSave } from '#web/features/accounts/account/ui';
 import { useAuth } from '#web/shared/lib/auth';
-import { Button } from '#web/shared/ui';
+import { Button, EmptyState, PAGE_SUBTITLE, PAGE_TITLE } from '#web/shared/ui';
 
 export function AccountPage() {
   const t = useT();
@@ -25,8 +32,8 @@ export function AccountPage() {
 
   if (!user) {
     return (
-      <main className="mx-auto w-full max-w-[900px] px-(--gutter-web) pb-16 pt-10">
-        <p className="text-[15px] text-muted">{t('account.signedOut')}</p>
+      <main className="min-w-0 px-(--gutter-web) pb-20 pt-9">
+        <EmptyState icon={<IconUserOff size={32} stroke={1.5} />} title={t('account.signedOut')} />
       </main>
     );
   }
@@ -92,15 +99,11 @@ function ProfileEditor() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[900px] px-(--gutter-web) pt-10">
+    <main className="min-w-0 px-(--gutter-web) pb-20 pt-9">
       <header className="mb-2 flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-.02em]">
-            {t('account.title')}
-          </h1>
-          <p className="mt-2 max-w-[560px] text-[14.5px] font-medium text-muted">
-            {t('account.subtitle')}
-          </p>
+          <h1 className={PAGE_TITLE}>{t('account.title')}</h1>
+          <p className={`max-w-[560px] ${PAGE_SUBTITLE}`}>{t('account.subtitle')}</p>
         </div>
         <Button
           variant="ghost"

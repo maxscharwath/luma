@@ -6,13 +6,22 @@ import {
   type Translate,
 } from '@luma/core';
 import { useT } from '@luma/ui';
+import { IconUserX } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { type CatalogEntry, CatalogGrid } from '#web/features/catalog/cards';
 import { initials } from '#web/features/catalog/detail';
 import { imageUrl, isAuthed, lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
 import { catalogQueries } from '#web/shared/lib/queries';
-import { Avatar, AvatarFallback, AvatarImage, PageSkeleton } from '#web/shared/ui';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  EmptyState,
+  PAGE_MAIN,
+  PAGE_TITLE,
+  PageSkeleton,
+} from '#web/shared/ui';
 
 /** `/person/<name>` every movie + show one cast/crew member is credited in.
  * Reached by selecting a face in a detail page's "Distribution" rail. */
@@ -69,7 +78,7 @@ function PersonPage() {
   const roles = roleLabels(t, involvement);
 
   return (
-    <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
+    <main className={PAGE_MAIN}>
       <header className="mb-9 flex items-center gap-5.5">
         <Avatar className="h-20 w-20 rounded-full shadow-[0_8px_22px_rgba(0,0,0,.45)] sm:h-26 sm:w-26">
           {photo ? <AvatarImage src={photo} alt={name} decoding="async" draggable={false} /> : null}
@@ -82,7 +91,7 @@ function PersonPage() {
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold tracking-[-.02em]">{name}</h1>
+          <h1 className={PAGE_TITLE}>{name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[14px] font-medium text-muted">
             {roles.length ? (
               <>
@@ -97,7 +106,7 @@ function PersonPage() {
       {entries.length ? (
         <CatalogGrid entries={entries} />
       ) : (
-        <p className="text-[15px] font-medium text-muted">{t('person.empty')}</p>
+        <EmptyState icon={<IconUserX size={32} stroke={1.5} />} title={t('person.empty')} />
       )}
     </main>
   );

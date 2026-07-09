@@ -5,6 +5,7 @@
 import { useT } from '@luma/ui';
 import { IconPlus } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import { PAGE_SUBTITLE, PAGE_TITLE } from '#web/shared/ui';
 
 export function PageHeader({
   title,
@@ -23,12 +24,10 @@ export function PageHeader({
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-6">
       <div className="min-w-0">
-        <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
+        <h1 className={PAGE_TITLE}>
           {title} {suffix ? <span className="font-normal text-text/40">{suffix}</span> : null}
         </h1>
-        {subtitle ? (
-          <p className="mt-2 max-w-140 text-[14.5px] font-medium text-text/50">{subtitle}</p>
-        ) : null}
+        {subtitle ? <p className={PAGE_SUBTITLE}>{subtitle}</p> : null}
       </div>
       {realtime ? (
         <div className="flex shrink-0 items-center gap-2.5 rounded-full border border-border bg-[#121216] px-4 py-2">

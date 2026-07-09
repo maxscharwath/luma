@@ -8,6 +8,7 @@ import { useT } from '@luma/ui';
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconInbox,
   IconPlayerPause,
   IconPlayerPlay,
   IconSearch,
@@ -16,9 +17,10 @@ import {
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { PipelineDrawer } from '#web/features/admin/pipeline-drawer';
 import { ElementRowView } from '#web/features/admin/pipeline-row';
-import { useCap, usePoll } from '#web/features/admin/shell';
+import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState } from '#web/shared/ui';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 const PER_PAGE = 30;
@@ -155,64 +157,61 @@ export function PipelinePage() {
   };
 
   return (
-    <div className="min-w-0 max-w-[1280px] pb-20 pt-[30px]">
-      {/* header */}
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-6">
-        <div className="min-w-0">
-          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
-            {t('admin.pipelineTitle')}
-          </h1>
-          <p className="mt-2 text-[14.5px] font-medium text-white/50">
-            <span className="font-bold text-white">{total.toLocaleString()}</span>{' '}
-            {t('pipeline.trackedLabel')} ·{' '}
-            <span className="font-bold text-accent">{attention.toLocaleString()}</span>{' '}
-            {t('pipeline.needActionLabel')}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          {canManage ? (
-            <button
-              type="button"
-              onClick={togglePause}
-              title={t(paused ? 'pipeline.resumeHint' : 'pipeline.pauseHint')}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-[13.5px] font-semibold transition-colors ${
-                paused
-                  ? 'border-[#46D08D]/40 bg-[#46D08D]/[0.14] text-[#46D08D] hover:bg-[#46D08D]/20'
-                  : 'border-white/12 bg-[#1A1A20] text-white/80 hover:bg-[#222229]'
-              }`}
-            >
-              {paused ? (
-                <IconPlayerPlay size={15} stroke={2} />
-              ) : (
-                <IconPlayerPause size={15} stroke={2} />
-              )}
-              {t(paused ? 'pipeline.resume' : 'pipeline.pause')}
-            </button>
-          ) : null}
-          <div className="w-80 max-w-full">
-            <InputGroup className="h-11">
-              <InputGroupAddon>
-                <IconSearch size={17} />
-              </InputGroupAddon>
-              <InputGroupInput
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={t('pipeline.searchPlaceholder')}
-                className="text-[14px] font-semibold"
-              />
-              {q ? (
-                <button
-                  type="button"
-                  onClick={() => setQ('')}
-                  className="shrink-0 text-white/50 hover:text-white"
-                >
-                  <IconX size={16} stroke={2.2} />
-                </button>
-              ) : null}
-            </InputGroup>
+    <>
+      <PageHeader
+        title={t('admin.pipelineTitle')}
+        action={
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            {canManage ? (
+              <button
+                type="button"
+                onClick={togglePause}
+                title={t(paused ? 'pipeline.resumeHint' : 'pipeline.pauseHint')}
+                className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-[13.5px] font-semibold transition-colors ${
+                  paused
+                    ? 'border-[#46D08D]/40 bg-[#46D08D]/[0.14] text-[#46D08D] hover:bg-[#46D08D]/20'
+                    : 'border-white/12 bg-[#1A1A20] text-white/80 hover:bg-[#222229]'
+                }`}
+              >
+                {paused ? (
+                  <IconPlayerPlay size={15} stroke={2} />
+                ) : (
+                  <IconPlayerPause size={15} stroke={2} />
+                )}
+                {t(paused ? 'pipeline.resume' : 'pipeline.pause')}
+              </button>
+            ) : null}
+            <div className="w-80 max-w-full">
+              <InputGroup className="h-11">
+                <InputGroupAddon>
+                  <IconSearch size={17} />
+                </InputGroupAddon>
+                <InputGroupInput
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={t('pipeline.searchPlaceholder')}
+                  className="text-[14px] font-semibold"
+                />
+                {q ? (
+                  <button
+                    type="button"
+                    onClick={() => setQ('')}
+                    className="shrink-0 text-white/50 hover:text-white"
+                  >
+                    <IconX size={16} stroke={2.2} />
+                  </button>
+                ) : null}
+              </InputGroup>
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
+      <p className="mb-5 mt-1.5 text-[14.5px] font-medium text-dim">
+        <span className="font-bold text-white">{total.toLocaleString()}</span>{' '}
+        {t('pipeline.trackedLabel')} ·{' '}
+        <span className="font-bold text-accent">{attention.toLocaleString()}</span>{' '}
+        {t('pipeline.needActionLabel')}
+      </p>
 
       {/* paused banner */}
       {paused ? (
@@ -321,8 +320,11 @@ export function PipelinePage() {
         ))}
 
         {data && rows.length === 0 ? (
-          <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">
-            {t('pipeline.noMatch')}
+          <div className="py-6">
+            <EmptyState
+              icon={<IconInbox size={32} stroke={1.5} />}
+              title={t('pipeline.noMatch')}
+            />
           </div>
         ) : null}
 
@@ -383,7 +385,7 @@ export function PipelinePage() {
           <span className="text-[13.5px] font-semibold text-white">{toast.text}</span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

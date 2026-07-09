@@ -35,7 +35,7 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
 
   return (
     <div
-      className="relative -mx-(--gutter-web) -mt-10 mb-8 flex min-h-[52vw] flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-10 sm:min-h-115 sm:pt-16"
+      className="relative -mx-(--gutter-web) -mt-9 mb-8 flex min-h-[52vw] flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-10 sm:min-h-115 sm:pt-16"
       style={{ backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center 18%' }}
     >
       <div className="pointer-events-none absolute inset-0 animate-[luma-breathe_7s_var(--ease-out)_infinite] bg-[radial-gradient(58%_68%_at_72%_32%,rgba(242,180,66,.16),transparent_62%)]" />

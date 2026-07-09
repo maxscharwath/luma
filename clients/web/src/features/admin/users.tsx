@@ -1,12 +1,13 @@
 import type { AdminUser } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconDots } from '@tabler/icons-react';
+import { IconDots, IconUsers } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Avatar, C, Card, Section, StatCard } from '#web/features/admin/ui';
 import { EditUserModal, InviteModal, PendingInvite } from '#web/features/admin/users-modals';
 import { relativeSeen } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState } from '#web/shared/ui';
 
 // Roles arrive already localized from the server (Accept-Language synced), so we
 // match both locale spellings to keep the accent color right regardless of UI lang.
@@ -122,6 +123,16 @@ function UsersPageInner() {
               </div>
             );
           })}
+          {data && users.length === 0 ? (
+            <EmptyState
+              icon={<IconUsers size={32} stroke={1.5} />}
+              title={t('admin.usersEmpty')}
+              hint={t('admin.usersEmptyHint')}
+              action={
+                <HeaderAction label={t('nav.inviteUser')} onClick={() => setInviting(true)} />
+              }
+            />
+          ) : null}
         </Card>
       </Section>
 

@@ -1,5 +1,6 @@
 import type { MetricsSnapshot, PlaybackSession, TopUser } from '@luma/core';
 import { useT } from '@luma/ui';
+import { IconPlayerPlay, IconUsers } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { HistoryBars, MetricsChart } from '#web/features/admin/charts';
 import { NowPlayingCard, StopStreamModal } from '#web/features/admin/dashboard-now-playing';
@@ -7,6 +8,7 @@ import { PageHeader, useAdmin, usePoll } from '#web/features/admin/shell';
 import { Avatar, C, Card, FilterLabel, Section } from '#web/features/admin/ui';
 import { decimal, formatDuration, formatMbps } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState } from '#web/shared/ui';
 
 export function DashboardScreen() {
   const t = useT();
@@ -47,9 +49,10 @@ export function DashboardScreen() {
 
       <Section title={t('admin.nowPlaying')}>
         {sessions.length === 0 ? (
-          <Card className="px-6 py-10 text-center text-[14px] text-dim">
-            {t('admin.noPlayback')}
-          </Card>
+          <EmptyState
+            icon={<IconPlayerPlay size={32} stroke={1.5} />}
+            title={t('admin.noPlayback')}
+          />
         ) : (
           <div className="flex flex-col gap-3.5">
             {sessions.map((s) => (
@@ -90,7 +93,7 @@ export function DashboardScreen() {
             ))}
           </div>
         ) : (
-          <Card className="px-6 py-8 text-center text-[14px] text-dim">{t('admin.noHistory')}</Card>
+          <EmptyState icon={<IconUsers size={32} stroke={1.5} />} title={t('admin.noHistory')} />
         )}
       </Section>
 

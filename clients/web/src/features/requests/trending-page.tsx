@@ -4,7 +4,13 @@
 
 import { hasPermission } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconFlame } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconChevronLeft,
+  IconChevronRight,
+  IconFlame,
+  IconMoodEmpty,
+} from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { DiscoverCard } from '#web/features/requests/discover-card';
@@ -14,6 +20,7 @@ import {
   useTrendingPage,
 } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState, PAGE_MAIN, PAGE_TITLE } from '#web/shared/ui';
 
 // Same auto-fill poster grid as the catalogue (see cards.tsx GRID).
 const GRID =
@@ -36,7 +43,7 @@ export function TrendingPage({ type }: Readonly<{ type: 'movie' | 'tv' }>) {
   };
 
   return (
-    <main ref={topRef} className="min-w-0 px-(--gutter-web) pb-20 pt-12">
+    <main ref={topRef} className={PAGE_MAIN}>
       <Link
         to="/search"
         className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-dim transition-colors hover:text-text"
@@ -45,15 +52,13 @@ export function TrendingPage({ type }: Readonly<{ type: 'movie' | 'tv' }>) {
         {t('discover.back')}
       </Link>
 
-      <h1 className="flex items-center gap-2.5 font-display text-[clamp(26px,5vw,34px)] font-bold leading-tight tracking-[-.02em]">
+      <h1 className={`flex items-center gap-2.5 ${PAGE_TITLE}`}>
         <IconFlame size={26} stroke={2} className="text-accent" />
         {title}
       </h1>
 
       {!canDiscover ? (
-        <div className="mt-20 text-center text-[15px] font-medium text-dim">
-          {t('discover.empty')}
-        </div>
+        <EmptyState icon={<IconMoodEmpty size={32} stroke={1.5} />} title={t('discover.empty')} />
       ) : (
         <>
           <Body state={state} />
@@ -80,9 +85,7 @@ function Body({ state }: Readonly<{ state: TrendingPageState }>) {
   }
   if (state.entries.length === 0) {
     return (
-      <div className="mt-20 text-center text-[15px] font-medium text-dim">
-        {t('discover.noResults')}
-      </div>
+      <EmptyState icon={<IconMoodEmpty size={32} stroke={1.5} />} title={t('discover.noResults')} />
     );
   }
   return (

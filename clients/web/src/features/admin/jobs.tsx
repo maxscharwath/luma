@@ -10,6 +10,7 @@ import {
   IconCalendarClock,
   IconChevronDown,
   IconClock,
+  IconClockBolt,
   IconPlayerPlay,
   IconPlayerStop,
 } from '@tabler/icons-react';
@@ -21,7 +22,7 @@ import { PageHeader, useAsyncAction, useCap, usePoll } from '#web/features/admin
 import { C, Card, Pill, ProgressBar, Section, Toggle } from '#web/features/admin/ui';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
-import { TableSkeleton } from '#web/shared/ui';
+import { EmptyState, TableSkeleton } from '#web/shared/ui';
 
 /** Live progress pushed over the WS bus, keyed by job key. */
 type LiveProgress = Record<string, { done: number; total: number }>;
@@ -69,7 +70,7 @@ export function JobsPage() {
         </Section>
       ))}
       {data && jobs.length === 0 ? (
-        <Card className="mt-6 px-6 py-10 text-center text-[14px] text-dim">{t('jobs.empty')}</Card>
+        <EmptyState icon={<IconClockBolt size={32} stroke={1.5} />} title={t('jobs.empty')} />
       ) : null}
     </>
   );

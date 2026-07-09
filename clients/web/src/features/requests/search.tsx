@@ -4,12 +4,13 @@
 
 import { type DiscoverType, hasPermission } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconSearch, IconX } from '@tabler/icons-react';
+import { IconMoodEmpty, IconSearch, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { SearchResults } from '#web/features/requests/search-results';
 import { TrendingBrowse } from '#web/features/requests/trending';
 import { useDiscoverSearch, useTrending } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState, PAGE_SUBTITLE, PAGE_TITLE } from '#web/shared/ui';
 
 const TYPES: {
   value: DiscoverType;
@@ -33,13 +34,11 @@ export function SearchPage() {
   return (
     <main className="min-w-0 pb-20">
       {/* discovery hero: title + prominent search + type filter */}
-      <div className="relative overflow-hidden px-(--gutter-web) pt-12">
+      <div className="relative overflow-hidden px-(--gutter-web) pt-9">
         <div className="pointer-events-none absolute inset-x-0 -top-20 h-72 bg-[radial-gradient(48%_60%_at_28%_20%,rgba(242,180,66,.10),transparent_70%)]" />
         <div className="relative">
-          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-tight tracking-[-.02em]">
-            {t('discover.title')}
-          </h1>
-          <p className="mt-1.5 text-[14.5px] font-medium text-dim max-sm:text-[15.5px]">
+          <h1 className={PAGE_TITLE}>{t('discover.title')}</h1>
+          <p className={PAGE_SUBTITLE}>
             {canDiscover ? t('discover.subtitle') : t('discover.subtitleLocal')}
           </p>
 
@@ -93,9 +92,7 @@ export function SearchPage() {
         ) : canDiscover ? (
           <TrendingBrowse entries={trending.entries} loading={trending.loading} type={type} />
         ) : (
-          <div className="mt-20 text-center text-[15px] font-medium text-dim">
-            {t('discover.empty')}
-          </div>
+          <EmptyState icon={<IconMoodEmpty size={32} stroke={1.5} />} title={t('discover.empty')} />
         )}
       </div>
     </main>

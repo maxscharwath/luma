@@ -10,7 +10,7 @@ import { DownloadClientModal } from '#web/features/admin/download-client-modals'
 import { usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Section, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
-import { TableSkeleton } from '#web/shared/ui';
+import { EmptyState, TableSkeleton } from '#web/shared/ui';
 
 type TestState = { busy?: boolean; result?: ClientTestResult; error?: string };
 
@@ -120,12 +120,23 @@ export function DownloadClientsSection() {
             </div>
           </Card>
         ))}
-        {data && clients.length === 0 ? (
-          <Card className="p-6 text-center text-[13px] font-medium text-white/45">
-            {t('dlclients.empty')}
-          </Card>
-        ) : null}
       </div>
+      {data && clients.length === 0 ? (
+        <EmptyState
+          icon={<IconServer size={32} stroke={1.5} />}
+          title={t('dlclients.empty')}
+          action={
+            <button
+              type="button"
+              onClick={() => setModal({ open: true, client: null })}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
+            >
+              <IconPlus size={14} stroke={2.4} />
+              {t('dlclients.add')}
+            </button>
+          }
+        />
+      ) : null}
 
       {modal.open ? (
         <DownloadClientModal

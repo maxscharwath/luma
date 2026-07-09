@@ -4,14 +4,14 @@
 
 import { LumaEvents, type MediaRequest, type RequestStatus } from '@luma/core';
 import { useT } from '@luma/ui';
-import { IconSearch, IconX } from '@tabler/icons-react';
+import { IconInbox, IconSearch, IconX } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { RequestDrawer } from '#web/features/admin/request-drawer';
 import { RequestRowView } from '#web/features/admin/request-row';
-import { useCap, usePoll } from '#web/features/admin/shell';
+import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
-import { TableSkeleton } from '#web/shared/ui';
+import { EmptyState, TableSkeleton } from '#web/shared/ui';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 /** Filter-chip buckets over the wire statuses. */
@@ -107,42 +107,40 @@ export function RequestsQueuePage() {
   );
 
   return (
-    <div className="min-w-0 max-w-[1280px] pb-20 pt-[30px]">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-6">
-        <div className="min-w-0">
-          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
-            {t('admin.requestsTitle')}
-          </h1>
-          <p className="mt-2 text-[14.5px] font-medium text-white/50">
-            <span className="font-bold text-white">{(c?.total ?? 0).toLocaleString()}</span>{' '}
-            {t('requests.totalLabel')} ·{' '}
-            <span className="font-bold text-accent">{(c?.pending ?? 0).toLocaleString()}</span>{' '}
-            {t('requests.pendingLabel')}
-          </p>
-        </div>
-        <div className="w-80 max-w-full">
-          <InputGroup className="h-11">
-            <InputGroupAddon>
-              <IconSearch size={17} />
-            </InputGroupAddon>
-            <InputGroupInput
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t('requests.searchPlaceholder')}
-              className="text-[14px] font-semibold"
-            />
-            {q ? (
-              <button
-                type="button"
-                onClick={() => setQ('')}
-                className="shrink-0 text-white/50 hover:text-white"
-              >
-                <IconX size={16} stroke={2.2} />
-              </button>
-            ) : null}
-          </InputGroup>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title={t('admin.requestsTitle')}
+        action={
+          <div className="w-80 max-w-full">
+            <InputGroup className="h-11">
+              <InputGroupAddon>
+                <IconSearch size={17} />
+              </InputGroupAddon>
+              <InputGroupInput
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('requests.searchPlaceholder')}
+                className="text-[14px] font-semibold"
+              />
+              {q ? (
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  className="shrink-0 text-white/50 hover:text-white"
+                >
+                  <IconX size={16} stroke={2.2} />
+                </button>
+              ) : null}
+            </InputGroup>
+          </div>
+        }
+      />
+      <p className="mb-5 mt-1.5 text-[14.5px] font-medium text-dim">
+        <span className="font-bold text-white">{(c?.total ?? 0).toLocaleString()}</span>{' '}
+        {t('requests.totalLabel')} ·{' '}
+        <span className="font-bold text-accent">{(c?.pending ?? 0).toLocaleString()}</span>{' '}
+        {t('requests.pendingLabel')}
+      </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
         <Chip
@@ -204,8 +202,11 @@ export function RequestsQueuePage() {
         {data === null ? <TableSkeleton rows={8} /> : null}
 
         {data && rows.length === 0 ? (
-          <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">
-            {all.length === 0 ? t('requests.empty') : t('requests.noMatch')}
+          <div className="py-6">
+            <EmptyState
+              icon={<IconInbox size={32} stroke={1.5} />}
+              title={all.length === 0 ? t('requests.empty') : t('requests.noMatch')}
+            />
           </div>
         ) : null}
       </div>
@@ -232,7 +233,7 @@ export function RequestsQueuePage() {
           <span className="text-[13.5px] font-semibold text-white">{toast.text}</span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

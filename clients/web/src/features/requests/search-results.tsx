@@ -11,6 +11,7 @@ import { DiscoverCard } from '#web/features/requests/discover-card';
 import { SkeletonRow } from '#web/features/requests/poster-skeleton';
 import type { DiscoverSearchState } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState } from '#web/shared/ui';
 import { Poster } from '#web/shared/ui/poster';
 
 // Same auto-fill poster grid as the catalogue (see cards.tsx GRID).
@@ -75,11 +76,11 @@ export function SearchResults({ state }: Readonly<{ state: DiscoverSearchState }
   const nothing = state.local.length === 0 && state.discover.length === 0;
   if (nothing) {
     return (
-      <div className="mt-20 flex flex-col items-center text-center">
-        <IconMoodEmpty size={34} stroke={1.5} className="mb-3 text-dim" />
-        <div className="text-[15.5px] font-semibold">{t('discover.noResults')}</div>
-        <p className="mt-1 text-[13.5px] text-dim">{t('discover.noResultsHint')}</p>
-      </div>
+      <EmptyState
+        icon={<IconMoodEmpty size={32} stroke={1.5} />}
+        title={t('discover.noResults')}
+        hint={t('discover.noResultsHint')}
+      />
     );
   }
 

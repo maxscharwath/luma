@@ -16,13 +16,13 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { DownloadClientsSection } from '#web/features/admin/download-clients';
 import { DownloadRowView, type LiveDl } from '#web/features/admin/download-row';
 import { ManualGrabModal } from '#web/features/admin/manual-grab';
-import { useCap, usePoll } from '#web/features/admin/shell';
+import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Modal, ModalActions, StatCard } from '#web/features/admin/ui';
 import { VpnCard } from '#web/features/admin/vpn-card';
 import { formatBytes } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
-import { TableSkeleton } from '#web/shared/ui';
+import { EmptyState, TableSkeleton } from '#web/shared/ui';
 
 export function DownloadsPage() {
   const t = useT();
@@ -103,23 +103,24 @@ export function DownloadsPage() {
   if (!canQueue) return null;
 
   return (
-    <div className="min-w-0 max-w-[1280px]">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
-            {t('admin.downloadsTitle')}
-          </h1>
-          <p className="mt-2 text-[14.5px] font-medium text-white/50">{t('admin.downloadsSub')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setManual(true)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-accent px-4.5 py-2.75 text-[14px] font-bold text-accent-ink transition-colors hover:bg-accent-hover"
-        >
-          <IconDownload size={16} stroke={2.4} />
-          {t('manual.title')}
-        </button>
-      </div>
+    <>
+      <PageHeader
+        title={t('admin.downloadsTitle')}
+        subtitle={t('admin.downloadsSub')}
+        action={
+          <button
+            type="button"
+            onClick={() => setManual(true)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-accent px-4.5 py-2.75 text-[14px] font-bold text-accent-ink transition-colors hover:bg-accent-hover"
+          >
+            <IconDownload size={16} stroke={2.4} />
+            {t('manual.title')}
+          </button>
+        }
+      />
+
+      {/* spacer to match the standard PageHeader → content rhythm */}
+      <div className="mt-6" />
 
       {canSettings ? <VpnCard /> : null}
 
@@ -194,9 +195,11 @@ export function DownloadsPage() {
         ))}
         {data === null ? <TableSkeleton rows={6} /> : null}
         {data && downloads.length === 0 ? (
-          <div className="px-5 py-14 text-center text-[14px] font-medium text-white/45">
-            <IconDownload size={26} stroke={1.6} className="mx-auto mb-2.5 text-white/30" />
-            {t('downloads.empty')}
+          <div className="py-6">
+            <EmptyState
+              icon={<IconDownload size={32} stroke={1.5} />}
+              title={t('downloads.empty')}
+            />
           </div>
         ) : null}
       </div>
@@ -232,7 +235,7 @@ export function DownloadsPage() {
       ) : null}
 
       {manual ? <ManualGrabModal onClose={() => setManual(false)} onAdded={reload} /> : null}
-    </div>
+    </>
   );
 }
 

@@ -68,7 +68,7 @@ export function RailSkeleton({ count = 7 }: Readonly<{ count?: number }>) {
 /** The home / list route shell: a hero band followed by a few rails. */
 export function PageSkeleton({ rails = 3 }: Readonly<{ rails?: number }>) {
   return (
-    <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
+    <main className="min-w-0 px-(--gutter-web) pb-20 pt-9">
       <Skeleton className="h-[46vh] min-h-80 w-full rounded-2xl" />
       {Array.from({ length: rails }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rails
@@ -85,7 +85,7 @@ export function DetailSkeleton() {
       <div className="relative h-[56vh] min-h-96 w-full overflow-hidden">
         <Skeleton className="h-full w-full rounded-none" />
       </div>
-      <div className="max-w-400 px-(--gutter-web)">
+      <div className="px-(--gutter-web)">
         <Skeleton className="-mt-24 h-10 w-2/5" />
         <div className="mt-4 flex gap-3">
           <Skeleton className="h-6 w-16" />

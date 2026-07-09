@@ -116,7 +116,7 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
   }));
 
   return (
-    <main className="min-w-0 animate-[fade-in_.4s_ease] pb-16">
+    <main className="min-w-0 animate-[fade-in_.4s_ease] pb-20">
       <DetailHero
         art={{
           id: localId ?? String(view.tmdbId ?? view.title),

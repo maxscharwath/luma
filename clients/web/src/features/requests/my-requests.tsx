@@ -13,7 +13,7 @@ import { seasonsSummary } from '#web/features/requests/status';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { userQueries } from '#web/shared/lib/queries';
-import { Skeleton } from '#web/shared/ui';
+import { EmptyState, PAGE_MAIN, PAGE_SUBTITLE, PAGE_TITLE, Skeleton } from '#web/shared/ui';
 
 export function MyRequestsPage() {
   const t = useT();
@@ -59,13 +59,9 @@ export function MyRequestsPage() {
   };
 
   return (
-    <main className="min-w-0 px-(--gutter-web) pb-20 pt-9">
-      <h1 className="font-display text-[clamp(26px,5vw,32px)] font-bold leading-tight tracking-[-.02em]">
-        {t('requests.myTitle')}
-      </h1>
-      <p className="mt-1.5 text-[14.5px] font-medium text-dim max-sm:text-[15.5px]">
-        {t('requests.mySubtitle')}
-      </p>
+    <main className={PAGE_MAIN}>
+      <h1 className={PAGE_TITLE}>{t('requests.myTitle')}</h1>
+      <p className={PAGE_SUBTITLE}>{t('requests.mySubtitle')}</p>
 
       {isPending ? (
         <div className="mt-6 flex flex-col gap-2.5">
@@ -77,17 +73,19 @@ export function MyRequestsPage() {
       ) : null}
 
       {requests && requests.length === 0 ? (
-        <div className="mt-16 flex flex-col items-center text-center">
-          <IconInbox size={30} stroke={1.5} className="mb-3 text-dim" />
-          <div className="text-[15px] font-semibold">{t('requests.myEmpty')}</div>
-          <button
-            type="button"
-            onClick={() => navigate({ to: '/search' })}
-            className="mt-4 rounded-xl bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink hover:bg-accent-hover"
-          >
-            {t('requests.myEmptyCta')}
-          </button>
-        </div>
+        <EmptyState
+          icon={<IconInbox size={32} stroke={1.5} />}
+          title={t('requests.myEmpty')}
+          action={
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/search' })}
+              className="mt-4 rounded-xl bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink hover:bg-accent-hover"
+            >
+              {t('requests.myEmptyCta')}
+            </button>
+          }
+        />
       ) : null}
 
       <div className="mt-6 flex flex-col gap-2.5">

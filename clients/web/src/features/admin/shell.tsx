@@ -361,9 +361,10 @@ export function AdminLayout({ children }: Readonly<{ children: ReactNode }>) {
       <div className="flex min-h-screen w-full flex-col bg-bg text-text lg:flex-row">
         <AdminSidebar />
         <AdminMobileTopbar />
-        <main className="min-w-0 flex-1 px-4 pb-16 pt-7.5 sm:px-6 lg:px-11">
-          <div className="max-w-375">{children}</div>
-        </main>
+        {/* Same gutter + vertical rhythm as the catalogue pages (PAGE_MAIN) so
+            every page in the app aligns; pages render their PageHeader + content
+            directly into this. */}
+        <main className="min-w-0 flex-1 px-(--gutter-web) pb-20 pt-9">{children}</main>
       </div>
     </AdminProvider>
   );

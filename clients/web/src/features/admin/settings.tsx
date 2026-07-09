@@ -66,7 +66,7 @@ function SettingsPageInner({ view, titleKey, subtitleKey }: Readonly<SettingsPag
           </span>
         }
       />
-      <div className="mt-6 flex max-w-230 flex-col gap-5.5">
+      <div className="mt-6 flex flex-col gap-5.5">
         {groups.map((g) => (
           <Card key={g.title} className="overflow-hidden">
             <div className="border-b border-border px-5.5 py-4.25">

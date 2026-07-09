@@ -7,6 +7,7 @@ import { PageHeader, usePoll } from '#web/features/admin/shell';
 import { C, Card, ProgressBar, Section, Select, StatCard } from '#web/features/admin/ui';
 import { formatBytes } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
+import { EmptyState } from '#web/shared/ui';
 
 export const Route = createFileRoute('/admin/storage')({
   component: StoragePage,
@@ -69,9 +70,10 @@ function StoragePage() {
             <VolumeCard key={v.mount} v={v} />
           ))}
           {data && data.volumes.length === 0 ? (
-            <Card className="px-6 py-8 text-center text-[14px] text-dim">
-              {t('admin.noVolumes')}
-            </Card>
+            <EmptyState
+              icon={<IconDatabase size={32} stroke={1.5} />}
+              title={t('admin.noVolumes')}
+            />
           ) : null}
         </div>
       </Section>

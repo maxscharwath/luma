@@ -10,7 +10,7 @@ import { IndexerModal } from '#web/features/admin/indexer-modals';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
-import { TableSkeleton } from '#web/shared/ui';
+import { EmptyState, TableSkeleton } from '#web/shared/ui';
 
 type TestState = { busy?: boolean; result?: IndexerTestResult; error?: string };
 
@@ -70,16 +70,20 @@ export function IndexersPage() {
       {data === null ? <TableSkeleton rows={5} /> : null}
 
       {indexers.length === 0 && data ? (
-        <Card className="mt-4 px-8 py-12 text-center">
-          <IconAntenna size={28} stroke={1.6} className="mx-auto mb-3 text-white/35" />
-          <div className="text-[15px] font-bold">{t('indexers.emptyTitle')}</div>
-          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] leading-relaxed text-dim">
-            {t('indexers.emptyBody')}
-          </p>
-        </Card>
+        <EmptyState
+          icon={<IconAntenna size={32} stroke={1.5} />}
+          title={t('indexers.emptyTitle')}
+          hint={t('indexers.emptyBody')}
+          action={
+            <HeaderAction
+              label={t('indexers.add')}
+              onClick={() => setModal({ open: true, indexer: null })}
+            />
+          }
+        />
       ) : null}
 
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
         {indexers.map((ix) => (
           <IndexerCard
             key={ix.id}
