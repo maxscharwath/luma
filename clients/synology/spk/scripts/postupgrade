@@ -1,0 +1,5 @@
+#!/bin/sh
+# No-op: DSM 7's package lifecycle expects the full script set (pre/post
+# install, uninstall, upgrade); shipping stubs keeps install, in-place upgrade
+# and uninstall from tripping on a missing hook.
+exit 0
