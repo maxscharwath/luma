@@ -175,7 +175,7 @@ export function StatsOverlay({
   ];
 
   return (
-    <div className="pointer-events-auto absolute left-8 top-24 z-65 w-82.5 rounded-xl border border-white/10 bg-black/72 p-3.5 font-mono text-[12px] text-white/85 shadow-pop backdrop-blur-md">
+    <div className="pointer-events-auto absolute left-4 top-24 z-65 w-[min(20.625rem,calc(100vw-2rem))] rounded-xl border border-white/10 bg-black/72 p-3.5 font-mono text-[12px] text-white/85 shadow-pop backdrop-blur-md sm:left-8">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-[.14em] text-accent">
           {t('stats.title')}

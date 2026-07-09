@@ -91,102 +91,106 @@ function JoinPage() {
 
   return (
     <main
-      className="fixed inset-0 z-100 flex flex-col items-center justify-center overflow-y-auto px-6 py-12"
+      className="fixed inset-0 z-100 flex flex-col overflow-y-auto px-6 py-12"
       style={{ background: RADIAL }}
     >
-      <div className="mb-10 flex items-center gap-2.5">
-        <Logo markOnly size={30} />
-        <span className="font-display text-[24px] font-extrabold tracking-[.16em]">LUMA</span>
-      </div>
-
-      {status === 'checking' ? (
-        <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/15 border-t-accent" />
-      ) : null}
-      {status === 'invalid' ? (
-        <div className="text-center">
-          <h1 className="mb-2 font-display text-[28px] font-bold">
-            {t('auth.inviteInvalidTitle')}
-          </h1>
-          <p className="text-[14px] text-muted">{t('auth.inviteInvalidDesc')}</p>
+      {/* Auto margins (not justify-center) so a form taller than a small phone
+          viewport scrolls instead of clipping its top. */}
+      <div className="m-auto flex w-full flex-col items-center">
+        <div className="mb-10 flex items-center gap-2.5">
+          <Logo markOnly size={30} />
+          <span className="font-display text-[24px] font-extrabold tracking-[.16em]">LUMA</span>
         </div>
-      ) : null}
-      {status === 'ok' ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-          className="flex w-full max-w-95 flex-col items-center gap-5"
-        >
-          <h1 className="font-display text-[28px] font-semibold">{t('auth.joinLuma')}</h1>
 
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="group relative h-28 w-28 overflow-hidden rounded-xl focus:outline-none"
-            aria-label={t('auth.chooseAvatar')}
+        {status === 'checking' ? (
+          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/15 border-t-accent" />
+        ) : null}
+        {status === 'invalid' ? (
+          <div className="text-center">
+            <h1 className="mb-2 font-display text-[28px] font-bold">
+              {t('auth.inviteInvalidTitle')}
+            </h1>
+            <p className="text-[14px] text-muted">{t('auth.inviteInvalidDesc')}</p>
+          </div>
+        ) : null}
+        {status === 'ok' ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit();
+            }}
+            className="flex w-full max-w-95 flex-col items-center gap-5"
           >
-            {preview ? (
-              <img src={preview} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center text-white/85"
-                style={{ background: avatarGradient(username || email || 'new') }}
-              >
-                {username.trim() ? (
-                  <span className="font-display text-[40px] font-bold">{initials(username)}</span>
-                ) : (
-                  <IconPlus size={34} stroke={1.6} />
-                )}
-              </div>
-            )}
-            <span className="absolute inset-x-0 bottom-0 bg-black/55 py-1 text-center text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
-              {t('common.photo')}
-            </span>
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-          />
+            <h1 className="font-display text-[28px] font-semibold">{t('auth.joinLuma')}</h1>
 
-          <input
-            className={INPUT}
-            type="email"
-            placeholder={t('auth.email')}
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            className={INPUT}
-            placeholder={t('auth.username')}
-            autoComplete="nickname"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-          <input
-            className={INPUT}
-            type="password"
-            placeholder={t('auth.passwordHint')}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="group relative h-28 w-28 overflow-hidden rounded-xl focus:outline-none"
+              aria-label={t('auth.chooseAvatar')}
+            >
+              {preview ? (
+                <img src={preview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center text-white/85"
+                  style={{ background: avatarGradient(username || email || 'new') }}
+                >
+                  {username.trim() ? (
+                    <span className="font-display text-[40px] font-bold">{initials(username)}</span>
+                  ) : (
+                    <IconPlus size={34} stroke={1.6} />
+                  )}
+                </div>
+              )}
+              <span className="absolute inset-x-0 bottom-0 bg-black/55 py-1 text-center text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {t('common.photo')}
+              </span>
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            />
 
-          {error ? <p className="text-[13px] font-medium text-danger">{error}</p> : null}
+            <input
+              className={INPUT}
+              type="email"
+              placeholder={t('auth.email')}
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <input
+              className={INPUT}
+              placeholder={t('auth.username')}
+              autoComplete="nickname"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <input
+              className={INPUT}
+              type="password"
+              placeholder={t('auth.passwordHint')}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
-          <button
-            type="submit"
-            disabled={busy || !valid}
-            className="mt-1 w-full rounded-md bg-accent py-3.5 text-[15px] font-bold text-accent-ink transition-colors hover:bg-accent-hover disabled:opacity-50"
-          >
-            {busy ? t('auth.creating') : t('auth.createMyAccount')}
-          </button>
-        </form>
-      ) : null}
+            {error ? <p className="text-[13px] font-medium text-danger">{error}</p> : null}
+
+            <button
+              type="submit"
+              disabled={busy || !valid}
+              className="mt-1 w-full rounded-md bg-accent py-3.5 text-[15px] font-bold text-accent-ink transition-colors hover:bg-accent-hover disabled:opacity-50"
+            >
+              {busy ? t('auth.creating') : t('auth.createMyAccount')}
+            </button>
+          </form>
+        ) : null}
+      </div>
     </main>
   );
 }

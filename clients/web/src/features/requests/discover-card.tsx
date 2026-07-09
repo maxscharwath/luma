@@ -11,13 +11,14 @@ import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 
 export function DiscoverCard({
   entry,
-  width = 208,
+  width,
 }: Readonly<{ entry: DiscoverEntry; width?: number }>) {
   const t = useT();
   const navigate = useNavigate();
   const [imgOk, setImgOk] = useState(true);
   const [c1, c2] = posterColors(String(entry.tmdbId));
-  const art = sizedImageUrl(entry.posterUrl, width);
+  // 208 = the fluid --card-w maximum, so the art stays sharp at every size.
+  const art = sizedImageUrl(entry.posterUrl, width ?? 208);
   const showImg = Boolean(art) && imgOk;
   const owned = entry.inLibrary && entry.localId;
   const canRequest = !owned && !entry.requestStatus;
@@ -38,7 +39,7 @@ export function DiscoverCard({
 
   return (
     <div
-      style={{ width }}
+      style={{ width: width ?? 'var(--card-w)' }}
       className="group/card relative block shrink-0 text-left transition-transform duration-200 ease-(--ease-out) hover:-translate-y-1.5"
     >
       <button type="button" onClick={open} className="block w-full text-left focus:outline-none">
@@ -63,7 +64,7 @@ export function DiscoverCard({
           )}
 
           {/* top gradient scrim keeps the chips legible over bright art */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/55 to-transparent opacity-0 transition-opacity group-hover/card:opacity-100" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/55 to-transparent opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 pointer-coarse:opacity-100" />
 
           <div className="absolute left-2 top-2 flex flex-col gap-1.5">
             {owned ? (
@@ -87,7 +88,7 @@ export function DiscoverCard({
           {/* hover request hint (visual only; the click opens the detail where the
               real request action lives) */}
           {canRequest ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent pb-3 pt-8 text-[12.5px] font-bold text-white opacity-0 transition-all duration-200 group-hover/card:translate-y-0 group-hover/card:opacity-100">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent pb-3 pt-8 text-[12.5px] font-bold text-white opacity-0 transition-all duration-200 group-hover/card:translate-y-0 group-hover/card:opacity-100 group-focus-within/card:translate-y-0 group-focus-within/card:opacity-100 pointer-coarse:translate-y-0 pointer-coarse:opacity-100">
               <IconPlus size={14} stroke={2.6} />
               {t('discover.request')}
             </div>

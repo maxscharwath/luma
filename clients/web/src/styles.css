@@ -58,6 +58,28 @@
   }
 }
 
+/* Phones: form fields at 16px minimum. Below that iOS Safari force-zooms the
+   page on focus, and the app's 13-15px field text reads tiny on a handset.
+   `1em` keeps fields that are already larger untouched. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Fluid layout tokens (unlayered so they beat @luma/ui's :root defaults, which
+   are desktop/TV constants). Every `px-(--gutter-web)` page wrapper and every
+   default-width poster tile scales from phone to desktop through these two
+   values instead of per-page breakpoints. */
+:root {
+  /* Page side padding: 16px on a phone → 56px on desktop. */
+  --gutter-web: clamp(1rem, 4vw, 3.5rem);
+  /* Default poster tile width: 132px on a phone → 208px on desktop. */
+  --card-w: clamp(8.25rem, 30vw, 13rem);
+}
+
 @keyframes luma-breathe {
   0%,
   100% {

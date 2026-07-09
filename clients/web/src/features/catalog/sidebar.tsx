@@ -1,5 +1,6 @@
 import { hasPermission, type MessageKey } from '@luma/core';
 import { useT } from '@luma/ui';
+import * as Dialog from '@radix-ui/react-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   IconDeviceDesktop,
@@ -8,17 +9,20 @@ import {
   IconInbox,
   IconListDetails,
   IconLogout,
+  IconMenu2,
   IconMovie,
   IconSearch,
   IconSettings,
   IconUserCircle,
   IconUserPlus,
   IconUsers,
+  IconX,
   type TablerIcon,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
+import buildInfo from 'virtual:build-info';
 import { CapabilityChip } from '#web/features/accounts/capability-chip';
 import { UserAvatar } from '#web/features/accounts/user-avatar';
 import { useAuth } from '#web/shared/lib/auth';
@@ -26,7 +30,7 @@ import { serverQueries } from '#web/shared/lib/queries';
 import { Logo } from '#web/shared/ui';
 
 const itemCls =
-  'flex items-center gap-3.5 rounded-[11px] px-3.5 py-3 text-[15px] font-semibold text-muted no-underline transition-colors duration-200 hover:bg-white/4 hover:text-text aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent';
+  'flex items-center gap-3.5 rounded-[11px] px-3.5 py-3 text-[15px] max-lg:text-[16px] font-semibold text-muted no-underline transition-colors duration-200 hover:bg-white/4 hover:text-text aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent';
 
 const NAV: { labelKey: MessageKey; to: string; icon: TablerIcon; exact?: boolean }[] = [
   { labelKey: 'nav.home', to: '/', icon: IconHome, exact: true },
@@ -37,54 +41,113 @@ const NAV: { labelKey: MessageKey; to: string; icon: TablerIcon; exact?: boolean
 ];
 
 export function Sidebar() {
-  const t = useT();
   return (
-    <aside className="sticky top-0 flex h-screen flex-col self-start border-r border-border bg-[#0C0C0E]">
+    <aside className="sticky top-0 hidden h-screen flex-col self-start border-r border-border bg-[#0C0C0E] lg:flex">
       {/* Fixed header: brand */}
       <div className="shrink-0 px-4.5 pb-2 pt-7">
         <div className="px-2 pb-2">
           <Logo size={26} />
         </div>
       </div>
-      {/* Scroll region: primary nav at the top, account/device block pinned to
-          the bottom via mt-auto. It reads as a fixed footer on a normal window,
-          and scrolls (rather than clipping) when the viewport is too short. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4.5 pb-7 pt-1">
-        <nav className="flex flex-col gap-0.5">
-          {NAV.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={itemCls}
-              activeOptions={{ exact: item.exact ?? false }}
-            >
-              <item.icon size={18} />
-              {t(item.labelKey)}
-            </Link>
-          ))}
-          <RequestsLink />
-        </nav>
-        {/* Footer block: invite / device / admin / account / device prefs */}
-        <div className="mt-auto flex flex-col gap-2.5 pt-6">
-          <InviteLink />
-          <Link to="/connect" className={itemCls}>
-            <IconDeviceDesktop size={18} />
-            {t('nav.connectDevice')}
+      <SidebarBody />
+    </aside>
+  );
+}
+
+/** Scroll region shared by the desktop rail and the mobile drawer: primary nav
+ * at the top, account/device block pinned to the bottom via mt-auto. It reads
+ * as a fixed footer on a normal window, and scrolls (rather than clipping)
+ * when the viewport is too short. */
+function SidebarBody() {
+  const t = useT();
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4.5 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-1">
+      <nav className="flex flex-col gap-0.5">
+        {NAV.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={itemCls}
+            activeOptions={{ exact: item.exact ?? false }}
+          >
+            <item.icon size={18} />
+            {t(item.labelKey)}
           </Link>
-          <AdminLink />
-          <UserChip />
-          <div className="flex flex-col gap-2 px-2 pt-1">
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-[.1em] text-dim">
-                {t('nav.thisDevice')}
-              </span>
-              <CapabilityChip />
-            </div>
-            <VersionInfo />
+        ))}
+        <RequestsLink />
+      </nav>
+      {/* Footer block: invite / device / admin / account / device prefs */}
+      <div className="mt-auto flex flex-col gap-2.5 pt-6">
+        <InviteLink />
+        <Link to="/connect" className={itemCls}>
+          <IconDeviceDesktop size={18} />
+          {t('nav.connectDevice')}
+        </Link>
+        <AdminLink />
+        <UserChip />
+        <div className="flex flex-col gap-2 px-2 pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[.1em] text-dim">
+              {t('nav.thisDevice')}
+            </span>
+            <CapabilityChip />
           </div>
+          <VersionInfo />
         </div>
       </div>
-    </aside>
+    </div>
+  );
+}
+
+/** Compact top bar shown below the `lg` breakpoint: brand + hamburger opening
+ * the nav as a left drawer (same SidebarBody as the desktop rail). The drawer
+ * closes itself on navigation rather than intercepting each link click. */
+export function MobileTopbar() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => setOpen(false), [pathname]);
+  return (
+    <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-[#0C0C0E]/95 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
+      <Link to="/" aria-label="LUMA">
+        <Logo size={22} />
+      </Link>
+      <Dialog.Root open={open} onOpenChange={setOpen}>
+        <Dialog.Trigger asChild>
+          <button
+            type="button"
+            aria-label={t('nav.menu')}
+            className="flex h-10 w-10 items-center justify-center rounded-[11px] text-muted transition-colors hover:bg-white/4 hover:text-text"
+          >
+            <IconMenu2 size={22} />
+          </button>
+        </Dialog.Trigger>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 animate-[fade-in_.2s_var(--ease-out)] lg:hidden" />
+          <Dialog.Content
+            className="fixed inset-y-0 left-0 z-50 flex w-full flex-col border-border bg-[#0C0C0E] outline-none sm:w-[min(19rem,85vw)] sm:border-r lg:hidden"
+            aria-describedby={undefined}
+          >
+            <Dialog.Title className="sr-only">LUMA</Dialog.Title>
+            <div className="flex shrink-0 items-center justify-between px-4.5 pb-2 pt-[max(1.75rem,env(safe-area-inset-top))]">
+              <div className="px-2 pb-2">
+                <Logo size={26} />
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  aria-label={t('common.close')}
+                  className="flex h-10 w-10 items-center justify-center rounded-[11px] text-muted transition-colors hover:bg-white/4 hover:text-text"
+                >
+                  <IconX size={20} />
+                </button>
+              </Dialog.Close>
+            </div>
+            <SidebarBody />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </header>
   );
 }
 
@@ -101,16 +164,17 @@ function RequestsLink() {
   );
 }
 
-/** Client + server versions on one compact line. The client version is injected
- * at build time (`__APP_VERSION__`); the server version comes from the public
- * `/api/health` endpoint (falls back to `…` until it resolves). Hover for labels. */
+/** Client + server versions on one compact line. The client version + commit come
+ * from the build-time `virtual:build-info` module (hover for commit/date); the
+ * server version is the public `/api/health` endpoint (`…` until it resolves). */
 function VersionInfo() {
   const t = useT();
   const { data: health } = useQuery(serverQueries.health());
+  const clientTitle = `${buildInfo.commit}${buildInfo.dirty ? '-dirty' : ''} · ${buildInfo.branch} · ${buildInfo.buildDate}`;
   return (
     <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-medium text-dim">
-      <span>
-        {t('nav.versionClient')} <span className="tabular-nums">v{__APP_VERSION__}</span>
+      <span title={clientTitle}>
+        {t('nav.versionClient')} <span className="tabular-nums">v{buildInfo.version}</span>
       </span>
       <span className="opacity-40">·</span>
       <span>

@@ -33,13 +33,13 @@ export function SearchPage() {
   return (
     <main className="min-w-0 pb-20">
       {/* discovery hero: title + prominent search + type filter */}
-      <div className="relative overflow-hidden px-10 pt-12">
+      <div className="relative overflow-hidden px-(--gutter-web) pt-12">
         <div className="pointer-events-none absolute inset-x-0 -top-20 h-72 bg-[radial-gradient(48%_60%_at_28%_20%,rgba(242,180,66,.10),transparent_70%)]" />
         <div className="relative">
-          <h1 className="font-display text-[34px] font-bold leading-tight tracking-[-.02em]">
+          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-tight tracking-[-.02em]">
             {t('discover.title')}
           </h1>
-          <p className="mt-1.5 text-[14.5px] font-medium text-dim">
+          <p className="mt-1.5 text-[14.5px] font-medium text-dim max-sm:text-[15.5px]">
             {canDiscover ? t('discover.subtitle') : t('discover.subtitleLocal')}
           </p>
 
@@ -76,7 +76,7 @@ export function SearchPage() {
                     type="button"
                     onClick={() => setType(tp.value)}
                     aria-pressed={type === tp.value}
-                    className={`rounded-[9px] px-4 py-2.5 text-[13.5px] font-semibold transition-colors ${type === tp.value ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-white/4 hover:text-text'}`}
+                    className={`rounded-[9px] px-4 py-2.5 text-[13.5px] font-semibold transition-colors max-sm:text-[15px] ${type === tp.value ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-white/4 hover:text-text'}`}
                   >
                     {t(tp.labelKey)}
                   </button>
@@ -87,7 +87,7 @@ export function SearchPage() {
         </div>
       </div>
 
-      <div className="px-10">
+      <div className="px-(--gutter-web)">
         {searching ? (
           <SearchResults state={state} />
         ) : canDiscover ? (

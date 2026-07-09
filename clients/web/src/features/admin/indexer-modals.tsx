@@ -86,7 +86,7 @@ export function IndexerModal({
       >
         <TextInput value={apiKey} onChange={setApiKey} type="password" className="w-full" />
       </Field>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t('indexers.categories')} hint={t('indexers.categoriesHint')}>
           <TextInput value={cats} onChange={setCats} className="w-full min-w-0" />
         </Field>

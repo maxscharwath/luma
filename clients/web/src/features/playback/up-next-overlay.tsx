@@ -63,7 +63,7 @@ export function UpNextOverlay({
   const title = next.episodeTitle ?? next.title;
 
   return (
-    <div className="absolute bottom-28 right-8 z-50 w-90 rounded-2xl border border-white/10 bg-[rgba(18,18,22,.92)] p-4 shadow-pop backdrop-blur-xl">
+    <div className="absolute bottom-28 right-4 z-50 w-[min(22.5rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-[rgba(18,18,22,.92)] p-4 shadow-pop backdrop-blur-xl sm:right-8">
       <div className="mb-2.5 text-[12px] font-bold uppercase tracking-[.18em] text-accent">
         {t('content.upNext')}
       </div>

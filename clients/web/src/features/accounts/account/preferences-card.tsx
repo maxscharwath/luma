@@ -18,7 +18,7 @@ const PREF_LANGS = ['en', 'fr', 'es', 'de', 'it', 'pt', 'nl', 'ru', 'ja', 'ko', 
  * so we map it to `null` (clear the pref) on the way to the server. */
 export const NONE = 'none';
 
-const TRIGGER = 'min-w-[188px]';
+const TRIGGER = 'min-w-[min(188px,45vw)]';
 
 export function PreferencesCard({
   audio,

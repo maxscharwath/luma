@@ -271,7 +271,7 @@ export function AvDrawer({
         onClick={onClose}
         aria-label={t('common.close')}
       />
-      <div className="absolute inset-y-0 right-0 z-69 w-100 overflow-y-auto border-l border-white/10 bg-[rgba(16,16,20,.94)] p-7 backdrop-blur-2xl">
+      <div className="absolute inset-y-0 right-0 z-69 w-[min(25rem,100vw)] overflow-y-auto border-l border-white/10 bg-[rgba(16,16,20,.94)] p-7 pb-[max(1.75rem,env(safe-area-inset-bottom))] backdrop-blur-2xl">
         <div className="mb-7 flex items-center justify-between">
           <h2 className="font-display text-[22px] font-bold text-text">
             {t('player.audioSubtitles')}

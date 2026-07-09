@@ -176,7 +176,7 @@ export function MetricsChart({
       <div className="h-52">
         <Line data={data} options={options} />
       </div>
-      <div className="mt-3.5 flex items-center justify-between gap-4">
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-4">
         <Legend items={legend} />
         {footer ? <span className="text-[12.5px] text-dim">{footer}</span> : null}
       </div>
@@ -257,7 +257,7 @@ export function HistoryBars({ buckets }: Readonly<{ buckets: HistoryBucket[] }>)
       <div className="h-64">
         <Bar data={data} options={options} />
       </div>
-      <div className="mt-3.5 flex items-center justify-between">
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-4">
         <Legend
           items={[
             { label: 'FILMS', color: C.films },
@@ -275,7 +275,7 @@ export function HistoryBars({ buckets }: Readonly<{ buckets: HistoryBucket[] }>)
 /** Dot-and-label legend shared by both charts. */
 function Legend({ items }: Readonly<{ items: { label: string; color: string }[] }>) {
   return (
-    <div className="flex gap-4.5">
+    <div className="flex flex-wrap gap-4.5">
       {items.map((l) => (
         <span
           key={l.label}

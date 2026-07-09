@@ -71,7 +71,7 @@ function PersonPage() {
   return (
     <main className="max-w-400 px-(--gutter-web) pb-16 pt-10">
       <header className="mb-9 flex items-center gap-5.5">
-        <Avatar className="h-26 w-26 rounded-full shadow-[0_8px_22px_rgba(0,0,0,.45)]">
+        <Avatar className="h-20 w-20 rounded-full shadow-[0_8px_22px_rgba(0,0,0,.45)] sm:h-26 sm:w-26">
           {photo ? <AvatarImage src={photo} alt={name} decoding="async" draggable={false} /> : null}
           <AvatarFallback
             className="font-display text-[34px] font-bold text-white/90"
@@ -82,7 +82,7 @@ function PersonPage() {
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <h1 className="font-display text-[34px] font-bold tracking-[-.02em]">{name}</h1>
+          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold tracking-[-.02em]">{name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[14px] font-medium text-muted">
             {roles.length ? (
               <>

@@ -48,7 +48,7 @@ function UsersPageInner() {
         action={<HeaderAction label={t('nav.inviteUser')} onClick={() => setInviting(true)} />}
       />
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label={t('admin.statUsers')}
           value={users.length}
@@ -70,11 +70,11 @@ function UsersPageInner() {
 
       <Section title={t('admin.membersSharing')}>
         <Card className="overflow-hidden">
-          <div className="grid grid-cols-[2.4fr_1fr_1.3fr_1.2fr_44px] gap-4 border-b border-border bg-surface-2 px-5.5 py-3.5 text-[10px] font-bold uppercase tracking-[.12em] text-text/40">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-border bg-surface-2 px-5.5 py-3.5 text-[10px] font-bold uppercase tracking-[.12em] text-text/40 md:grid-cols-[2.4fr_1fr_1.3fr_1.2fr_44px]">
             <span>{t('admin.colUser')}</span>
-            <span>{t('admin.colRole')}</span>
-            <span>{t('admin.colAccess')}</span>
-            <span>{t('admin.colLastActivity')}</span>
+            <span className="max-md:hidden">{t('admin.colRole')}</span>
+            <span className="max-md:hidden">{t('admin.colAccess')}</span>
+            <span className="max-md:hidden">{t('admin.colLastActivity')}</span>
             <span />
           </div>
           {users.map((u) => {
@@ -86,7 +86,7 @@ function UsersPageInner() {
             return (
               <div
                 key={u.id}
-                className="grid grid-cols-[2.4fr_1fr_1.3fr_1.2fr_44px] items-center gap-4 border-b border-white/4 px-5.5 py-3.75"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/4 px-5.5 py-3.75 md:grid-cols-[2.4fr_1fr_1.3fr_1.2fr_44px]"
               >
                 <div className="flex min-w-0 items-center gap-3.5">
                   <Avatar name={u.username} avatarUrl={u.avatarUrl} size={42} />
@@ -95,7 +95,7 @@ function UsersPageInner() {
                     <div className="truncate text-[12.5px] font-medium text-text/45">{u.email}</div>
                   </div>
                 </div>
-                <div>
+                <div className="max-md:hidden">
                   <span
                     className="inline-flex rounded-full px-2.75 py-1.25 text-[11.5px] font-bold"
                     style={{ color: rs.c, background: rs.bg }}
@@ -103,8 +103,8 @@ function UsersPageInner() {
                     {u.role}
                   </span>
                 </div>
-                <div className="text-[13px] font-semibold text-text/72">{access}</div>
-                <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-text/60">
+                <div className="text-[13px] font-semibold text-text/72 max-md:hidden">{access}</div>
+                <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-text/60 max-md:hidden">
                   <span
                     className="h-1.75 w-1.75 rounded-full"
                     style={{ background: u.online ? C.green : 'rgba(244,243,240,.3)' }}

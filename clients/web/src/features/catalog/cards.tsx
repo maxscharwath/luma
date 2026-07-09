@@ -35,7 +35,7 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
 
   return (
     <div
-      className="relative -mx-(--gutter-web) -mt-10 mb-8 flex min-h-115 flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-16"
+      className="relative -mx-(--gutter-web) -mt-10 mb-8 flex min-h-[52vw] flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-10 sm:min-h-115 sm:pt-16"
       style={{ backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center 18%' }}
     >
       <div className="pointer-events-none absolute inset-0 animate-[luma-breathe_7s_var(--ease-out)_infinite] bg-[radial-gradient(58%_68%_at_72%_32%,rgba(242,180,66,.16),transparent_62%)]" />
@@ -45,10 +45,10 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
         <div className="mb-3.5 inline-flex items-center gap-1.75 text-[12px] font-bold uppercase tracking-[.22em] text-accent">
           {t('content.featured')}
         </div>
-        <h1 className="mb-3.5 font-display text-[66px] font-bold leading-[.98] tracking-[-.02em]">
+        <h1 className="mb-3.5 font-display text-[clamp(34px,6vw,66px)] font-bold leading-[.98] tracking-[-.02em]">
           {movie.title}
         </h1>
-        <div className="mb-4 flex flex-wrap items-center gap-3 text-[13px] font-medium text-muted">
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-[13px] font-medium text-muted max-sm:text-[15px]">
           {meta?.rating ? (
             <span className="font-semibold text-accent">{meta.rating.toFixed(1)}★</span>
           ) : null}
@@ -60,11 +60,11 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
           ))}
         </div>
         {meta?.overview ? (
-          <p className="mb-5 line-clamp-3 max-w-135 text-[16px] leading-[1.55] text-text">
+          <p className="mb-5 line-clamp-3 max-w-135 text-[16px] leading-[1.55] text-text max-sm:text-[17px]">
             {meta.overview}
           </p>
         ) : null}
-        <div className="flex gap-3.5">
+        <div className="flex flex-wrap gap-3.5">
           <Button onClick={() => navigate({ to: '/watch/$id', params: { id: movie.id } })}>
             {t('content.play')}
           </Button>
@@ -192,7 +192,11 @@ export function ShowRail({ title, shows }: Readonly<{ title: string; shows: Show
   );
 }
 
-const GRID = 'flex flex-wrap gap-x-4.5 gap-y-6';
+// Poster grid: auto-fill columns at least one card wide, stretched to fill the
+// row (no dead right edge on phones). `*:w-full!` overrides the tiles' inline
+// default width so the grid tracks size them.
+const GRID =
+  'grid grid-cols-[repeat(auto-fill,minmax(min(var(--card-w),100%),1fr))] gap-x-4.5 gap-y-6 *:w-full!';
 
 export function MovieGrid({ movies }: Readonly<{ movies: MovieView[] }>) {
   return (

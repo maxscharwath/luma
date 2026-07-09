@@ -82,7 +82,7 @@ function Poster({
 function FlowDots({ treatments }: Readonly<{ treatments: Treatment[] }>) {
   const t = useT();
   return (
-    <div className="flex items-center">
+    <div className="flex items-center max-md:hidden">
       {treatments.map((tr, i) => {
         const m = statusMeta(tr.status);
         const prevDone = i > 0 && treatments[i - 1]?.status === 'done';
@@ -129,7 +129,7 @@ export function ElementRowView({
     <button
       type="button"
       onClick={onOpen}
-      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_150px_132px_46px] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-left transition-colors hover:bg-white/[0.028]"
+      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-left transition-colors hover:bg-white/[0.028] md:grid-cols-[minmax(0,1fr)_150px_132px_46px]"
     >
       <div className="flex min-w-0 items-center gap-3.5">
         <Poster id={el.id} kind={el.kind} seed={el.title} poster={el.poster} />
@@ -151,7 +151,7 @@ export function ElementRowView({
 
       <FlowDots treatments={el.treatments} />
 
-      <div>
+      <div className="max-md:hidden">
         <span
           className="inline-flex items-center gap-1.5 rounded-full px-[11px] py-[5px] text-[11.5px] font-bold"
           style={{ color: om.color, background: om.bg }}

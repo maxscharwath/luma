@@ -362,7 +362,7 @@ export function Player({
 
       {/* top bar */}
       <div
-        className="absolute inset-x-0 top-0 flex items-center gap-4 bg-linear-to-b from-black/65 to-transparent px-8 py-6 transition-opacity duration-300"
+        className="absolute inset-x-0 top-0 flex items-center gap-4 bg-linear-to-b from-black/65 to-transparent px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] pb-6 pt-[max(1.5rem,env(safe-area-inset-top))] transition-opacity duration-300 sm:px-[max(2rem,env(safe-area-inset-left),env(safe-area-inset-right))]"
         style={{ opacity: controls ? 1 : 0, pointerEvents: controls ? 'auto' : 'none' }}
       >
         <button
@@ -380,7 +380,7 @@ export function Player({
 
       {/* bottom controls */}
       <div
-        className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-8 pb-6 pt-20 transition-opacity duration-300"
+        className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-20 transition-opacity duration-300 sm:px-[max(2rem,env(safe-area-inset-left),env(safe-area-inset-right))]"
         style={{ opacity: controls ? 1 : 0, pointerEvents: controls ? 'auto' : 'none' }}
       >
         <ControlBar

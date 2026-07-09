@@ -101,7 +101,7 @@ export function DownloadRowView({
     : null;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_190px_120px_110px_84px] items-center gap-4 border-b border-white/[0.04] px-5 py-3">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/[0.04] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_120px_110px_84px]">
       <div className="flex min-w-0 items-center gap-3">
         {dl.posterUrl ? (
           <img
@@ -153,7 +153,7 @@ export function DownloadRowView({
         </div>
       </div>
 
-      <div>
+      <div className="max-md:hidden">
         <ProgressBar pct={progress * 100} color={color} height={5} />
         <div className="mt-1 flex items-center justify-between text-[11px] font-semibold tabular-nums text-white/45">
           <span>{Math.round(progress * 100)}%</span>
@@ -161,7 +161,7 @@ export function DownloadRowView({
         </div>
       </div>
 
-      <div className="text-[11.5px] font-semibold tabular-nums text-white/55">
+      <div className="text-[11.5px] font-semibold tabular-nums text-white/55 max-md:hidden">
         {live && active ? (
           <>
             <div className="text-[#46D08D]">{formatBytes(live.downBps)}/s</div>
@@ -184,7 +184,7 @@ export function DownloadRowView({
         )}
       </div>
 
-      <div>
+      <div className="max-md:hidden">
         <span
           className="inline-flex items-center gap-1.5 rounded-full px-[10px] py-[4px] text-[11px] font-bold"
           style={{ color, background: `${STATUS_COLOR[status] ?? '#fff'}22` }}

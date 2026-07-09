@@ -103,10 +103,10 @@ export function DownloadsPage() {
   if (!canQueue) return null;
 
   return (
-    <main className="min-w-0 max-w-[1280px]">
-      <div className="mb-5 flex items-start justify-between gap-6">
+    <div className="min-w-0 max-w-[1280px]">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-6">
         <div>
-          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-.02em]">
+          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
             {t('admin.downloadsTitle')}
           </h1>
           <p className="mt-2 text-[14.5px] font-medium text-white/50">{t('admin.downloadsSub')}</p>
@@ -169,11 +169,11 @@ export function DownloadsPage() {
       ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
-        <div className="grid grid-cols-[minmax(0,1fr)_190px_120px_110px_84px] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_120px_110px_84px]">
           <Head>{t('downloads.colRelease')}</Head>
-          <Head>{t('downloads.colProgress')}</Head>
-          <Head>{t('downloads.colSpeed')}</Head>
-          <Head>{t('downloads.colStatus')}</Head>
+          <Head className="max-md:hidden">{t('downloads.colProgress')}</Head>
+          <Head className="max-md:hidden">{t('downloads.colSpeed')}</Head>
+          <Head className="max-md:hidden">{t('downloads.colStatus')}</Head>
           <span />
         </div>
         {downloads.map((dl) => (
@@ -232,13 +232,16 @@ export function DownloadsPage() {
       ) : null}
 
       {manual ? <ManualGrabModal onClose={() => setManual(false)} onAdded={reload} /> : null}
-    </main>
+    </div>
   );
 }
 
-function Head({ children }: Readonly<{ children: ReactNode }>) {
+function Head({
+  children,
+  className = '',
+}: Readonly<{ children: ReactNode; className?: string }>) {
   return (
-    <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">
+    <span className={`text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40 ${className}`}>
       {children}
     </span>
   );

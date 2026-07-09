@@ -378,8 +378,19 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void el.requestFullscreen?.();
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+    if (document.fullscreenEnabled && typeof el.requestFullscreen === 'function') {
+      void el.requestFullscreen();
+      return;
+    }
+    // iPhone Safari has no element fullscreen API → the video's native one.
+    const v = videoRef.current as
+      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+      | null;
+    if (typeof v?.webkitEnterFullscreen === 'function') v.webkitEnterFullscreen();
   }, []);
 
   const togglePip = useCallback(() => {

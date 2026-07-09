@@ -18,7 +18,7 @@ export function SkipIntroButton({ onSkip }: Readonly<{ onSkip: () => void }>) {
     <button
       type="button"
       onClick={onSkip}
-      className="absolute bottom-28 right-8 z-50 flex items-center gap-2 rounded-full border border-white/15 bg-[rgba(18,18,22,.88)] px-5 py-3 text-[14px] font-semibold text-white shadow-pop backdrop-blur-xl transition-colors hover:bg-white/15"
+      className="absolute bottom-28 right-4 z-50 flex items-center gap-2 rounded-full border border-white/15 bg-[rgba(18,18,22,.88)] px-5 py-3 text-[14px] font-semibold text-white shadow-pop backdrop-blur-xl transition-colors hover:bg-white/15 sm:right-8"
     >
       <IconSkipIntro />
       {t('player.skipIntro')}

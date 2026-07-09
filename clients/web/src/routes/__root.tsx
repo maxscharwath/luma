@@ -29,7 +29,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      // viewport-fit=cover extends the canvas under the iPhone notch/home
+      // indicator so `env(safe-area-inset-*)` paddings (player, topbar) apply.
+      { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
       { title: 'LUMA' },
     ],
     links: [{ rel: 'stylesheet', href: appCss }],

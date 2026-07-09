@@ -84,7 +84,7 @@ export function DashboardScreen() {
         right={<FilterLabel>{t('admin.last7days')}</FilterLabel>}
       >
         {top && top.users.length > 0 ? (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {top.users.slice(0, 3).map((u) => (
               <TopUserCard key={u.username} u={u} />
             ))}

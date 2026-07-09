@@ -13,7 +13,9 @@ import type { DiscoverSearchState } from '#web/features/requests/use-discover-se
 import { useAuth } from '#web/shared/lib/auth';
 import { Poster } from '#web/shared/ui/poster';
 
-const GRID = 'flex flex-wrap gap-x-4.5 gap-y-6';
+// Same auto-fill poster grid as the catalogue (see cards.tsx GRID).
+const GRID =
+  'grid grid-cols-[repeat(auto-fill,minmax(min(var(--card-w),100%),1fr))] gap-x-4.5 gap-y-6 *:w-full!';
 
 function Section({
   title,

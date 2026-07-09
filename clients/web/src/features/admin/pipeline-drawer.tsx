@@ -70,7 +70,7 @@ export function PipelineDrawer({
         className={`fixed inset-0 z-[60] bg-[rgba(4,4,6,.6)] backdrop-blur-[2px] transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       />
       <aside
-        className="fixed right-0 top-0 z-[61] flex h-screen w-[460px] max-w-[92vw] flex-col border-l border-white/[0.09] bg-[#0E0E12] shadow-[-20px_0_60px_rgba(0,0,0,.6)] transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)]"
+        className="fixed right-0 top-0 z-[61] flex h-screen w-[460px] max-w-full flex-col border-l border-white/[0.09] bg-[#0E0E12] shadow-[-20px_0_60px_rgba(0,0,0,.6)] transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] sm:max-w-[92vw]"
         style={{ transform: open ? 'translateX(0)' : 'translateX(105%)' }}
       >
         {el ? (

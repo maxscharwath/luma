@@ -15,7 +15,9 @@ import {
 } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
 
-const GRID = 'mt-8 flex flex-wrap gap-x-4.5 gap-y-6';
+// Same auto-fill poster grid as the catalogue (see cards.tsx GRID).
+const GRID =
+  'mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(var(--card-w),100%),1fr))] gap-x-4.5 gap-y-6 *:w-full!';
 
 export function TrendingPage({ type }: Readonly<{ type: 'movie' | 'tv' }>) {
   const t = useT();
@@ -34,7 +36,7 @@ export function TrendingPage({ type }: Readonly<{ type: 'movie' | 'tv' }>) {
   };
 
   return (
-    <main ref={topRef} className="min-w-0 px-10 pb-20 pt-12">
+    <main ref={topRef} className="min-w-0 px-(--gutter-web) pb-20 pt-12">
       <Link
         to="/search"
         className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-dim transition-colors hover:text-text"
@@ -43,7 +45,7 @@ export function TrendingPage({ type }: Readonly<{ type: 'movie' | 'tv' }>) {
         {t('discover.back')}
       </Link>
 
-      <h1 className="flex items-center gap-2.5 font-display text-[34px] font-bold leading-tight tracking-[-.02em]">
+      <h1 className="flex items-center gap-2.5 font-display text-[clamp(26px,5vw,34px)] font-bold leading-tight tracking-[-.02em]">
         <IconFlame size={26} stroke={2} className="text-accent" />
         {title}
       </h1>

@@ -155,11 +155,11 @@ export function PipelinePage() {
   };
 
   return (
-    <main className="min-w-0 max-w-[1280px] px-11 pb-20 pt-[30px]">
+    <div className="min-w-0 max-w-[1280px] pb-20 pt-[30px]">
       {/* header */}
-      <div className="mb-5 flex items-start justify-between gap-6">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-6">
         <div className="min-w-0">
-          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-.02em]">
+          <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
             {t('admin.pipelineTitle')}
           </h1>
           <p className="mt-2 text-[14.5px] font-medium text-white/50">
@@ -169,7 +169,7 @@ export function PipelinePage() {
             {t('pipeline.needActionLabel')}
           </p>
         </div>
-        <div className="flex flex-[0_0_auto] items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           {canManage ? (
             <button
               type="button"
@@ -189,7 +189,7 @@ export function PipelinePage() {
               {t(paused ? 'pipeline.resume' : 'pipeline.pause')}
             </button>
           ) : null}
-          <div className="w-80">
+          <div className="w-80 max-w-full">
             <InputGroup className="h-11">
               <InputGroupAddon>
                 <IconSearch size={17} />
@@ -304,10 +304,10 @@ export function PipelinePage() {
 
       {/* table */}
       <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
-        <div className="grid grid-cols-[minmax(0,1fr)_150px_132px_46px] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_150px_132px_46px]">
           <Head>{t('pipeline.colElement')}</Head>
-          <Head>{t('pipeline.treatments')}</Head>
-          <Head>{t('pipeline.colStatus')}</Head>
+          <Head className="max-md:hidden">{t('pipeline.treatments')}</Head>
+          <Head className="max-md:hidden">{t('pipeline.colStatus')}</Head>
           <span />
         </div>
 
@@ -383,13 +383,16 @@ export function PipelinePage() {
           <span className="text-[13.5px] font-semibold text-white">{toast.text}</span>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 
-function Head({ children }: Readonly<{ children: ReactNode }>) {
+function Head({
+  children,
+  className = '',
+}: Readonly<{ children: ReactNode; className?: string }>) {
   return (
-    <span className="text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40">
+    <span className={`text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40 ${className}`}>
       {children}
     </span>
   );

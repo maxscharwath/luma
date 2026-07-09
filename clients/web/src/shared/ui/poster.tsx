@@ -16,6 +16,8 @@ export interface PosterProps {
   watched?: boolean | null;
   /** Toggle the watched flag. Required for the marker to be interactive. */
   onToggleWatched?: () => void;
+  /** Fixed tile width in px; omit for the fluid default (`--card-w`, which
+   * scales from phone to desktop). */
   width?: number;
   onClick?: () => void;
 }
@@ -37,7 +39,7 @@ export function Poster({
   progress = null,
   watched = null,
   onToggleWatched,
-  width = 208,
+  width,
   onClick,
 }: Readonly<PosterProps>) {
   const t = useT();
@@ -48,7 +50,7 @@ export function Poster({
 
   return (
     <div
-      style={{ width }}
+      style={{ width: width ?? 'var(--card-w)' }}
       className="group relative block shrink-0 text-left transition-transform duration-200 ease-(--ease-out) hover:-translate-y-1.5"
     >
       <button type="button" onClick={onClick} className="block w-full text-left focus:outline-none">
@@ -60,7 +62,7 @@ export function Poster({
         >
           {showImg ? (
             <img
-              src={sizedImageUrl(poster, width) ?? undefined}
+              src={sizedImageUrl(poster, width ?? 208) ?? undefined}
               alt=""
               loading="lazy"
               decoding="async"

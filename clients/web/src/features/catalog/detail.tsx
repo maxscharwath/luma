@@ -64,7 +64,7 @@ function Field({ label, value }: Readonly<{ label: string; value: string }>) {
       <div className="mb-1.75 text-[11px] font-semibold uppercase tracking-widest text-white/45">
         {label}
       </div>
-      <div className="text-[14px] font-medium text-white/85">{value}</div>
+      <div className="text-[14px] font-medium text-white/85 max-sm:text-[15px]">{value}</div>
     </div>
   );
 }
@@ -166,7 +166,7 @@ export function DetailHero({
         type="button"
         onClick={onBack}
         aria-label={t('common.back')}
-        className="absolute left-8 top-6.5 z-3 flex h-10.5 w-10.5 items-center justify-center rounded-full
+        className="absolute left-4 top-4 z-3 flex h-10.5 w-10.5 items-center justify-center rounded-full sm:left-8 sm:top-6.5
           border border-white/12 bg-[rgba(10,10,12,.5)] backdrop-blur-sm transition-colors hover:bg-[rgba(10,10,12,.8)]"
       >
         <IconChevronLeft size={20} stroke={2} color="#fff" />
@@ -178,7 +178,7 @@ export function DetailHero({
           onClick={theme.toggle}
           aria-label={theme.muted ? t('content.unmuteTheme') : t('content.muteTheme')}
           title={theme.muted ? t('content.unmuteTheme') : t('content.muteTheme')}
-          className="absolute right-8 top-6.5 z-3 flex h-10.5 w-10.5 items-center justify-center rounded-full
+          className="absolute right-4 top-4 z-3 flex h-10.5 w-10.5 items-center justify-center rounded-full sm:right-8 sm:top-6.5
             border border-white/12 bg-[rgba(10,10,12,.5)] backdrop-blur-sm transition-colors hover:bg-[rgba(10,10,12,.8)]"
         >
           {theme.muted ? (
@@ -189,9 +189,11 @@ export function DetailHero({
         </button>
       ) : null}
 
-      <div className="relative flex flex-wrap items-end gap-10 px-(--gutter-web) pb-9 pt-22.5">
+      <div className="relative flex flex-wrap items-end gap-6 px-(--gutter-web) pb-9 pt-12 sm:gap-10 sm:pt-22.5">
+        {/* Flanking poster: hidden on phones (the backdrop already carries the
+            artwork; a side column would crush the text into a sliver). */}
         <div
-          className="relative aspect-2/3 w-60 shrink-0 overflow-hidden rounded-[14px] shadow-hero"
+          className="relative hidden aspect-2/3 shrink-0 overflow-hidden rounded-[14px] shadow-hero sm:block sm:w-48 md:w-60"
           style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
         >
           <img
@@ -206,7 +208,7 @@ export function DetailHero({
           <div className="mb-3 text-[12px] font-semibold tracking-[.18em] text-accent">
             {overline}
           </div>
-          <h1 className="mb-4 font-display text-[56px] font-bold leading-none tracking-[-.02em] [text-shadow:0_0_2px_rgba(0,0,0,.55),0_2px_8px_rgba(0,0,0,.55),0_8px_30px_rgba(0,0,0,.6)]">
+          <h1 className="mb-4 font-display text-[clamp(30px,5.5vw,56px)] font-bold leading-none tracking-[-.02em] [text-shadow:0_0_2px_rgba(0,0,0,.55),0_2px_8px_rgba(0,0,0,.55),0_8px_30px_rgba(0,0,0,.6)]">
             {title}
           </h1>
 
@@ -217,7 +219,7 @@ export function DetailHero({
                 <span className="text-white/40">·</span>
               </>
             ) : null}
-            <span className="text-[14px] font-medium text-white/72">{meta}</span>
+            <span className="text-[14px] font-medium text-white/72 max-sm:text-[15px]">{meta}</span>
             {badges.map((b) => (
               <Badge key={b} tone={b}>
                 {b}
@@ -226,7 +228,7 @@ export function DetailHero({
           </div>
 
           {directors && directors.length > 0 ? (
-            <div className="mb-3 text-[13.5px] text-white/60">
+            <div className="mb-3 text-[13.5px] text-white/60 max-sm:text-[15px]">
               <span className="font-semibold text-white/80">{t('content.directedBy')}</span>{' '}
               {directors.map((d, i) => (
                 <span key={d}>
@@ -244,9 +246,13 @@ export function DetailHero({
             </div>
           ) : null}
 
-          {tagline ? <p className="mb-3 text-[14px] italic text-white/50">{tagline}</p> : null}
+          {tagline ? (
+            <p className="mb-3 text-[14px] italic text-white/50 max-sm:text-[15px]">{tagline}</p>
+          ) : null}
           {overview ? (
-            <p className="mb-5.5 text-[16px] leading-[1.6] text-white/82">{overview}</p>
+            <p className="mb-5.5 text-[16px] leading-[1.6] text-white/82 max-sm:line-clamp-4 max-sm:text-[17px]">
+              {overview}
+            </p>
           ) : null}
 
           <div className="mb-6.5 flex flex-wrap items-center gap-3.5">
@@ -295,7 +301,7 @@ export function DetailHero({
           </div>
 
           {audio != null || subtitles != null ? (
-            <div className="flex flex-wrap gap-x-11 gap-y-4 border-t border-white/8 py-4.5">
+            <div className="flex flex-wrap gap-x-6 gap-y-4 border-t border-white/8 py-4.5 sm:gap-x-11">
               {audio != null ? <Field label={t('content.fieldAudio')} value={audio} /> : null}
               {subtitles != null ? (
                 <Field label={t('content.fieldSubtitles')} value={subtitles} />
@@ -349,9 +355,9 @@ export function CastRail({ cast }: Readonly<{ cast: CastMember[] }>) {
               type="button"
               onClick={() => navigate({ to: '/person/$name', params: { name: p.name } })}
               aria-label={t('person.viewWorks', { name: p.name })}
-              className="group w-28 shrink-0 cursor-pointer bg-transparent p-0 text-center outline-none transition-transform duration-200 hover:scale-[1.06] focus-visible:scale-[1.06]"
+              className="group w-24 shrink-0 cursor-pointer bg-transparent p-0 text-center outline-none transition-transform duration-200 hover:scale-[1.06] focus-visible:scale-[1.06] sm:w-28"
             >
-              <Avatar className="mb-2.75 h-28 w-28 rounded-full shadow-[0_8px_22px_rgba(0,0,0,.45)] ring-accent transition-shadow duration-200 group-hover:ring-4 group-focus-visible:ring-4">
+              <Avatar className="mb-2.75 h-24 w-24 rounded-full sm:h-28 sm:w-28 shadow-[0_8px_22px_rgba(0,0,0,.45)] ring-accent transition-shadow duration-200 group-hover:ring-4 group-focus-visible:ring-4">
                 {photo ? (
                   <AvatarImage
                     src={photo}
@@ -403,7 +409,6 @@ export function SimilarRail({
             genre={m.genre}
             colors={posterColors(m.id)}
             poster={m.poster}
-            width={200}
             onClick={() => onOpen(m.id)}
           />
         ))}

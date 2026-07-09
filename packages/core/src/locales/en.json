@@ -19,6 +19,7 @@
   "common.photo": "Photo",
   "common.detection": "Detection: {source}",
   "common.detecting": "Detecting…",
+  "nav.menu": "Menu",
   "nav.home": "Home",
   "nav.films": "Movies",
   "nav.series": "Series",

@@ -59,11 +59,13 @@ export function MyRequestsPage() {
   };
 
   return (
-    <main className="min-w-0 px-10 pb-20 pt-9">
-      <h1 className="font-display text-[32px] font-bold leading-tight tracking-[-.02em]">
+    <main className="min-w-0 px-(--gutter-web) pb-20 pt-9">
+      <h1 className="font-display text-[clamp(26px,5vw,32px)] font-bold leading-tight tracking-[-.02em]">
         {t('requests.myTitle')}
       </h1>
-      <p className="mt-1.5 text-[14.5px] font-medium text-dim">{t('requests.mySubtitle')}</p>
+      <p className="mt-1.5 text-[14.5px] font-medium text-dim max-sm:text-[15.5px]">
+        {t('requests.mySubtitle')}
+      </p>
 
       {isPending ? (
         <div className="mt-6 flex flex-col gap-2.5">

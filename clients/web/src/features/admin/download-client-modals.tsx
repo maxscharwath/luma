@@ -85,7 +85,7 @@ export function DownloadClientModal({
       <Field label={t('dlclients.url')} hint={t('dlclients.urlHint')}>
         <TextInput value={url} onChange={setUrl} placeholder={placeholder} className="w-full" />
       </Field>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t('dlclients.username')}>
           <TextInput value={username} onChange={setUsername} className="w-full min-w-0" />
         </Field>

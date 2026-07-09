@@ -272,14 +272,14 @@ export function ProviderCard({
                   onChange={(v) => set({ model: v })}
                   placeholder={modelPlaceholder}
                   searchPlaceholder={t('admin.aiSearchModels')}
-                  className="w-72"
+                  className="w-72 max-w-full"
                 />
               ) : (
                 <TextInput
                   value={p.model}
                   onChange={(v) => set({ model: v })}
                   placeholder={modelPlaceholder}
-                  className="w-72 font-mono"
+                  className="w-72 max-w-full font-mono"
                 />
               )}
               <Button

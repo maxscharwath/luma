@@ -51,7 +51,7 @@ export function TextInput({
       placeholder={placeholder}
       onChange={(e) => onChange?.(e.target.value)}
       onBlur={onBlur}
-      className={`min-w-50 rounded-[9px] border border-border-strong bg-[#0F0F13] px-3.5 py-2.25 text-[13.5px] font-semibold text-text outline-none focus:border-accent/60 ${className}`}
+      className={`min-w-0 rounded-[9px] border border-border-strong bg-[#0F0F13] px-3.5 py-2.25 text-[13.5px] font-semibold text-text outline-none focus:border-accent/60 ${className}`}
     />
   );
 }

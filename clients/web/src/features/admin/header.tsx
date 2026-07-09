@@ -21,9 +21,9 @@ export function PageHeader({
 }>) {
   const t = useT();
   return (
-    <div className="mb-2 flex items-center justify-between gap-6">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-6">
       <div className="min-w-0">
-        <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-.02em]">
+        <h1 className="font-display text-[clamp(26px,5vw,34px)] font-bold leading-[1.05] tracking-[-.02em]">
           {title} {suffix ? <span className="font-normal text-text/40">{suffix}</span> : null}
         </h1>
         {subtitle ? (

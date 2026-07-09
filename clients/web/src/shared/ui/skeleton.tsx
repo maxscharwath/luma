@@ -25,10 +25,11 @@ export function SkeletonText({
   );
 }
 
-/** Poster-shaped placeholder (2:3 art + title + subtitle), matching `Poster`. */
-export function PosterSkeleton({ width = 208 }: Readonly<{ width?: number }>) {
+/** Poster-shaped placeholder (2:3 art + title + subtitle), matching `Poster`
+ * (same fluid `--card-w` default width). */
+export function PosterSkeleton({ width }: Readonly<{ width?: number }>) {
   return (
-    <div style={{ width }} className="shrink-0">
+    <div style={{ width: width ?? 'var(--card-w)' }} className="shrink-0">
       <Skeleton className="aspect-2/3 w-full rounded-lg" />
       <Skeleton className="mt-2.5 h-3.5 w-3/4" />
       <Skeleton className="mt-1.5 h-3 w-1/3 bg-white/[0.04]" />
@@ -36,10 +37,11 @@ export function PosterSkeleton({ width = 208 }: Readonly<{ width?: number }>) {
   );
 }
 
-/** A wrapping grid of poster skeletons (search / trending / list pages). */
+/** A wrapping grid of poster skeletons (search / trending / list pages).
+ * Mirrors the pages' auto-fill GRID (cards.tsx) so tiles line up. */
 export function SkeletonRow({ count = 7 }: Readonly<{ count?: number }>) {
   return (
-    <div className="flex flex-wrap gap-x-4.5 gap-y-6">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(var(--card-w),100%),1fr))] gap-x-4.5 gap-y-6 *:w-full!">
       {Array.from({ length: count }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder grid
         <PosterSkeleton key={i} />

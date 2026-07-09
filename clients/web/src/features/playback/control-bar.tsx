@@ -77,7 +77,7 @@ export function ControlBar({
         </span>
         <div
           ref={pb.barRef}
-          className="relative flex h-5 flex-1 cursor-pointer items-center"
+          className="relative flex h-5 flex-1 cursor-pointer items-center pointer-coarse:h-7"
           onPointerDown={(e) => {
             (e.target as Element).setPointerCapture?.(e.pointerId);
             pb.setScrubbing(true);
@@ -151,8 +151,8 @@ export function ControlBar({
         </span>
       </div>
 
-      {/* button row */}
-      <div className="flex items-center gap-2">
+      {/* button row (speed / stats / PiP are hidden below md so it fits phones) */}
+      <div className="flex items-center gap-1 sm:gap-2">
         <CtrlButton onClick={pb.togglePlay} label={playing ? t('player.pause') : t('player.play')}>
           {playing ? <IconPause /> : <IconPlay />}
         </CtrlButton>
@@ -173,7 +173,8 @@ export function ControlBar({
           <CtrlButton onClick={pb.toggleMute} label={t('player.mute')}>
             {muted || volume === 0 ? <IconMute /> : <IconVolume />}
           </CtrlButton>
-          <div className="w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:w-24 group-hover:opacity-100">
+          {/* Slider slides out on hover/focus; on touch the button is a mute toggle only. */}
+          <div className="w-0 overflow-hidden opacity-0 transition-all duration-200 group-focus-within:w-24 group-focus-within:opacity-100 group-hover:w-24 group-hover:opacity-100 pointer-coarse:hidden">
             <Slider.Root
               className="relative flex h-9 w-20 touch-none select-none items-center px-2"
               value={[muted ? 0 : volume * 100]}
@@ -195,7 +196,7 @@ export function ControlBar({
         {/* playback speed */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="rounded-lg px-3 py-2 text-[13px] font-semibold text-white hover:bg-white/10">
+            <button className="rounded-lg px-3 py-2 text-[13px] font-semibold text-white hover:bg-white/10 max-md:hidden">
               {rate}×
             </button>
           </DropdownMenu.Trigger>
@@ -224,7 +225,7 @@ export function ControlBar({
 
         <button
           onClick={onToggleStats}
-          className={`rounded-lg p-2.5 hover:bg-white/10 ${statsOpen ? 'text-accent' : 'text-white'}`}
+          className={`rounded-lg p-2.5 hover:bg-white/10 max-md:hidden ${statsOpen ? 'text-accent' : 'text-white'}`}
           aria-label={t('player.stats')}
         >
           <IconStats />
@@ -238,7 +239,7 @@ export function ControlBar({
           {t('player.audioSubShort')}
         </button>
 
-        <CtrlButton onClick={pb.togglePip} label={t('player.pip')}>
+        <CtrlButton onClick={pb.togglePip} label={t('player.pip')} className="max-md:hidden">
           <IconPip />
         </CtrlButton>
         <CtrlButton onClick={pb.toggleFullscreen} label={t('player.fullscreen')}>
@@ -252,17 +253,19 @@ export function ControlBar({
 function CtrlButton({
   onClick,
   label,
+  className,
   children,
 }: Readonly<{
   onClick: () => void;
   label: string;
+  className?: string;
   children: React.ReactNode;
 }>) {
   return (
     <button
       onClick={onClick}
       aria-label={label}
-      className="flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10"
+      className={`flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 ${className ?? ''}`}
     >
       {children}
     </button>

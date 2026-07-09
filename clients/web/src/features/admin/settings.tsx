@@ -86,7 +86,7 @@ function SettingsPageInner({ view, titleKey, subtitleKey }: Readonly<SettingsPag
 function Row({ row, onChange }: Readonly<{ row: SettingRow; onChange: (v: unknown) => void }>) {
   const t = useT();
   return (
-    <div className="flex items-center justify-between gap-5 border-b border-white/4 px-5.5 py-4 last:border-b-0">
+    <div className="flex flex-wrap items-center justify-between gap-5 border-b border-white/4 px-5.5 py-4 last:border-b-0">
       <div className="min-w-0">
         <div className="text-[14.5px] font-bold">{row.label}</div>
         {row.desc ? <div className="mt-0.75 text-[12.5px] text-dim">{row.desc}</div> : null}
@@ -136,6 +136,7 @@ function EditableText({
       onBlur={() => {
         if (v !== value) onCommit(v);
       }}
+      className="min-w-50"
     />
   );
 }

@@ -6,7 +6,7 @@
 
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { GateLoading } from '#web/features/accounts/auth-gate';
-import { Sidebar } from '#web/features/catalog/sidebar';
+import { MobileTopbar, Sidebar } from '#web/features/catalog/sidebar';
 import { ensureSession, isAuthed } from '#web/shared/lib/api';
 import { useRequireAuth } from '#web/shared/lib/require-auth';
 
@@ -26,9 +26,12 @@ function AppLayout() {
   // Hold the shell (and its per-user route fetches) until a session exists;
   // useRequireAuth redirects to /login once we know there isn't one.
   if (!(ready && authed)) return <GateLoading />;
+  // Desktop (lg+): fixed 248px sidebar rail + content grid. Below lg the rail
+  // is hidden and a sticky topbar (hamburger → nav drawer) takes over.
   return (
-    <div className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)]">
+    <div className="flex min-h-screen flex-col lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <Sidebar />
+      <MobileTopbar />
       <Outlet />
     </div>
   );

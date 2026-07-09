@@ -57,12 +57,12 @@ function LibrariesPageInner() {
 
       {data === null ? <TableSkeleton rows={4} /> : null}
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         {libraries.map((l) => (
           <LibraryCard key={l.id} lib={l} onChanged={reload} onManage={() => setEditing(l)} />
         ))}
         {data && libraries.length === 0 ? (
-          <Card className="col-span-2 px-6 py-10 text-center text-[14px] text-dim">
+          <Card className="px-6 py-10 text-center text-[14px] text-dim md:col-span-2">
             {t('admin.noLibraries')}
           </Card>
         ) : null}

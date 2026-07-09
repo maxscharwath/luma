@@ -42,7 +42,7 @@ export function PhotoCard() {
         </span>
       </div>
 
-      <div className="min-w-[240px] flex-1">
+      <div className="min-w-[min(240px,100%)] flex-1">
         <p className="mb-3 text-[13px] font-semibold text-muted">{t('account.photoHint')}</p>
         <div className="flex items-center gap-3">
           <Button

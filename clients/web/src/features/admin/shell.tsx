@@ -10,6 +10,7 @@ import {
   type ServerInfo,
 } from '@luma/core';
 import { Logo, useT } from '@luma/ui';
+import * as Dialog from '@radix-ui/react-dialog';
 import {
   IconAntenna,
   IconArchive,
@@ -23,17 +24,19 @@ import {
   IconLayoutDashboard,
   IconLibrary,
   IconMagnet,
+  IconMenu2,
   IconSettings,
   IconSitemap,
   IconSparkles,
   IconTransform,
   IconUsers,
   IconWorld,
+  IconX,
   type TablerIcon,
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { createContext, type ReactNode, useContext, useEffect } from 'react';
+import { Link, useRouterState } from '@tanstack/react-router';
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { usePoll } from '#web/features/admin/hooks';
 import { formatUptime } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
@@ -187,7 +190,27 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
 const linkCls =
   'flex items-center gap-3 rounded-md px-3.5 py-2.5 text-[14px] font-semibold text-muted no-underline transition-colors hover:bg-white/4 hover:text-text aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent';
 
-function AdminSidebar() {
+/** LUMA wordmark + "Admin" badge, shared by the desktop rail, the mobile topbar
+ * and the drawer header. */
+function AdminBrand() {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-2.5">
+      <Logo markOnly size={25} />
+      <span className="font-display text-[20px] font-extrabold leading-none tracking-[.16em]">
+        LUMA
+      </span>
+      <span className="rounded-[5px] bg-accent px-1.5 py-0.75 text-[8.5px] font-bold tracking-[.13em] text-accent-ink">
+        {t('admin.badge')}
+      </span>
+    </div>
+  );
+}
+
+/** Everything below the brand, shared by the desktop rail and the mobile drawer:
+ * back-to-app link, the scrolling grouped nav, and the live server status card
+ * pinned to the bottom. */
+function AdminSidebarBody() {
   const t = useT();
   const { serverInfo } = useAdmin();
   const { user } = useAuth();
@@ -198,19 +221,9 @@ function AdminSidebar() {
     items: g.items.filter((n) => visible(n.cap)),
   })).filter((g) => g.items.length > 0);
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-[#0C0C0E]">
-      {/* Fixed header: identity + back-to-app link */}
-      <div className="shrink-0 px-3.5 pb-2 pt-6">
-        <div className="mb-4 flex items-center gap-2.5 px-2.5">
-          <Logo markOnly size={25} />
-          <span className="font-display text-[20px] font-extrabold leading-none tracking-[.16em]">
-            LUMA
-          </span>
-          <span className="rounded-[5px] bg-accent px-1.5 py-0.75 text-[8.5px] font-bold tracking-[.13em] text-accent-ink">
-            {t('admin.badge')}
-          </span>
-        </div>
-
+    <>
+      {/* Fixed header: back-to-app link */}
+      <div className="shrink-0 px-3.5 pb-2">
         <Link
           to="/"
           className="flex items-center justify-between rounded-[11px] border border-border-strong bg-surface-2 px-3.5 py-2.5 no-underline"
@@ -246,7 +259,67 @@ function AdminSidebar() {
       <div className="shrink-0 px-3.5 pb-6 pt-2">
         <ServerStatusCard />
       </div>
+    </>
+  );
+}
+
+function AdminSidebar() {
+  return (
+    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-[#0C0C0E] lg:flex">
+      {/* Fixed header: identity */}
+      <div className="mb-4 shrink-0 px-6 pt-6">
+        <AdminBrand />
+      </div>
+      <AdminSidebarBody />
     </aside>
+  );
+}
+
+/** Compact top bar shown below the `lg` breakpoint: brand + hamburger opening
+ * the admin nav as a left drawer (same AdminSidebarBody as the desktop rail).
+ * The drawer closes itself on navigation rather than intercepting link clicks. */
+function AdminMobileTopbar() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => setOpen(false), [pathname]);
+  return (
+    <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-[#0C0C0E]/95 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
+      <AdminBrand />
+      <Dialog.Root open={open} onOpenChange={setOpen}>
+        <Dialog.Trigger asChild>
+          <button
+            type="button"
+            aria-label={t('nav.menu')}
+            className="flex h-10 w-10 items-center justify-center rounded-[11px] text-muted transition-colors hover:bg-white/4 hover:text-text"
+          >
+            <IconMenu2 size={22} />
+          </button>
+        </Dialog.Trigger>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 animate-[fade-in_.2s_var(--ease-out)] lg:hidden" />
+          <Dialog.Content
+            className="fixed inset-y-0 left-0 z-50 flex w-full flex-col border-border bg-[#0C0C0E] outline-none sm:w-[min(19rem,85vw)] sm:border-r lg:hidden"
+            aria-describedby={undefined}
+          >
+            <Dialog.Title className="sr-only">LUMA</Dialog.Title>
+            <div className="mb-4 flex shrink-0 items-center justify-between px-6 pr-4 pt-[max(1.5rem,env(safe-area-inset-top))]">
+              <AdminBrand />
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  aria-label={t('common.close')}
+                  className="flex h-10 w-10 items-center justify-center rounded-[11px] text-muted transition-colors hover:bg-white/4 hover:text-text"
+                >
+                  <IconX size={20} />
+                </button>
+              </Dialog.Close>
+            </div>
+            <AdminSidebarBody />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </header>
   );
 }
 
@@ -285,9 +358,10 @@ function ServerStatusCard() {
 export function AdminLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <AdminProvider>
-      <div className="flex min-h-screen w-full bg-bg text-text">
+      <div className="flex min-h-screen w-full flex-col bg-bg text-text lg:flex-row">
         <AdminSidebar />
-        <main className="min-w-0 flex-1 px-11 pb-16 pt-7.5">
+        <AdminMobileTopbar />
+        <main className="min-w-0 flex-1 px-4 pb-16 pt-7.5 sm:px-6 lg:px-11">
           <div className="max-w-375">{children}</div>
         </main>
       </div>

@@ -30,7 +30,6 @@ export function AiSuggestRail({ id }: Readonly<{ id: string }>) {
             <SectionPoster
               key={entry.type === 'show' ? entry.show.id : entry.item.id}
               entry={entry}
-              width={200}
             />
           ))}
         </Rail>

@@ -57,7 +57,7 @@ export function RequestRowView({
     <button
       type="button"
       onClick={onOpen}
-      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_190px_110px_132px_76px] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-left transition-colors hover:bg-white/[0.028]"
+      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-left transition-colors hover:bg-white/[0.028] md:grid-cols-[minmax(0,1fr)_190px_110px_132px_76px]"
     >
       <div className="flex min-w-0 items-center gap-3.5">
         <Poster req={req} />
@@ -75,18 +75,18 @@ export function RequestRowView({
         </div>
       </div>
 
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-2.5 max-md:hidden">
         <Avatar name={req.requestedByName ?? '?'} size={26} />
         <span className="truncate text-[13px] font-semibold text-white/75">
           {req.requestedByName ?? t('requests.unknownUser')}
         </span>
       </div>
 
-      <span className="text-[12.5px] font-semibold tabular-nums text-white/55">
+      <span className="text-[12.5px] font-semibold tabular-nums text-white/55 max-md:hidden">
         {new Date(req.createdAt).toLocaleDateString()}
       </span>
 
-      <div>
+      <div className="max-md:hidden">
         <RequestStatusChip status={req.status} progress={req.progress} />
       </div>
 

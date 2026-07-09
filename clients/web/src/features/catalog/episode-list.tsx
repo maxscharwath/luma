@@ -35,17 +35,17 @@ function EpisodeRow({
   const showImg = Boolean(still) && imgOk;
   return (
     <div
-      className={`group flex items-center gap-5 rounded-[14px] border bg-white/[.025] p-3.5 transition-colors hover:bg-white/6 ${
+      className={`group flex items-center gap-3 rounded-[14px] border bg-white/[.025] p-3.5 transition-colors hover:bg-white/6 sm:gap-5 ${
         watched ? 'border-accent/30' : 'border-white/5'
       }`}
     >
       <button
         type="button"
         onClick={onPlay}
-        className="flex min-w-0 flex-1 items-center gap-5 text-left focus:outline-none"
+        className="flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none sm:gap-5"
       >
         <div
-          className="relative flex aspect-video w-50 shrink-0 items-center justify-center overflow-hidden rounded-md"
+          className="relative flex aspect-video w-32 shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-50"
           style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}
         >
           {showImg ? (
@@ -76,15 +76,19 @@ function EpisodeRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center gap-2.5">
-            <span className={`text-[17px] font-bold ${watched ? 'text-white/55' : ''}`}>
+            <span className={`min-w-0 truncate text-[17px] font-bold ${watched ? 'text-white/55' : ''}`}>
               {episode.episode}. {episode.episodeTitle ?? episode.title}
             </span>
             {runtime ? (
-              <span className="text-[13px] font-medium text-white/45">{runtime}</span>
+              <span className="shrink-0 text-[13px] font-medium text-white/45 max-sm:text-[14px]">
+                {runtime}
+              </span>
             ) : null}
           </div>
           {synopsis ? (
-            <p className="line-clamp-2 text-[14px] leading-[1.5] text-white/60">{synopsis}</p>
+            <p className="line-clamp-2 text-[14px] leading-[1.5] text-white/60 max-sm:text-[15px]">
+              {synopsis}
+            </p>
           ) : null}
         </div>
       </button>
@@ -97,7 +101,7 @@ function EpisodeRow({
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
           watched
             ? 'border-accent bg-accent text-black'
-            : 'border-border-strong bg-white/5 text-text opacity-60 hover:bg-white/15 hover:opacity-100 group-hover:opacity-100'
+            : 'border-border-strong bg-white/5 text-text opacity-60 hover:bg-white/15 hover:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100'
         }`}
       >
         <IconCheck size={17} stroke={2.4} />
