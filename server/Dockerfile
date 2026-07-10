@@ -35,12 +35,19 @@ COPY server/Cargo.toml server/Cargo.lock ./server/
 # The workspace members (crates/*) must be present for cargo to resolve the
 # dependency graph, otherwise the stub-main build below fails to solve.
 COPY server/crates ./server/crates
+# luma-engine (a workspace member, so it's compiled by the warm-up build below)
+# include_str!s the shared locale catalogs at compile time
+# (crates/luma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json),
+# so they must exist before this build. Copy just the catalogs here they change
+# rarely, so the expensive dependency cache stays warm; the rest of packages/
+# lands with the real sources below.
+COPY packages/core/src/locales ./packages/core/src/locales
 RUN cd server \
     && mkdir -p src && echo 'fn main() {}' > src/main.rs \
     && cargo build --release \
     && rm -rf src
 # Real sources: the server crate + the shared locale catalogs it include_str!s at
-# compile time (server/src/i18n.rs -> ../../packages/core/src/locales/*.json).
+# compile time (crates/luma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json).
 COPY packages ./packages
 COPY server ./server
 RUN cd server && touch src/main.rs && cargo build --release
