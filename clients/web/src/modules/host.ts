@@ -38,7 +38,7 @@ const appBus = createEventBus();
  *  reads the latest auth / i18n / router values through a ref, so its identity
  *  never changes: re-creating it each render would re-run the effect, call
  *  setHost, and loop (React error #185). */
-export function useModuleHost(): LumaHost | null {
+export function useModuleHost(revision = 0): LumaHost | null {
   const navigate = useNavigate();
   const t = useT();
   const locale = useLocale();
@@ -55,8 +55,10 @@ export function useModuleHost(): LumaHost | null {
   const [host, setHost] = useState<LumaHost | null>(null);
   // Only wire modules once there is a session: a module's setup() must not run on
   // the pre-auth login screen, and `/api/modules` would 401 anyway. Re-running on
-  // sign-in is safe (loadRuntimeRemotes + start() are idempotent via the
-  // registry's `has`/`setupDone`), so there is no run-once ref guard.
+  // sign-in (and on a `revision` bump from refresh(): install / uninstall / a live
+  // enable) is safe (loadRuntimeRemotes + start() are idempotent via the
+  // registry's `has`/`setupDone`), and is what runs a newly-enabled module's
+  // setup()/exports() without a page reload.
   const authed = auth.user != null;
   useEffect(() => {
     if (!authed) return;
@@ -114,6 +116,6 @@ export function useModuleHost(): LumaHost | null {
     return () => {
       alive = false;
     };
-  }, [authed]);
+  }, [authed, revision]);
   return host;
 }

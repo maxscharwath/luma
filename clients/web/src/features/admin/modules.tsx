@@ -22,10 +22,16 @@ export function ModulesAdminPage() {
   const modules = data ?? [];
 
   const toggle = async (id: string, enabled: boolean) => {
-    await adminApi(`/modules/${encodeURIComponent(id)}/enabled`, {
-      method: 'POST',
-      body: JSON.stringify({ enabled }),
-    });
+    try {
+      await adminApi(`/modules/${encodeURIComponent(id)}/enabled`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+      });
+    } catch (e) {
+      // Surface instead of an unhandled rejection; the refresh below resyncs the
+      // toggle to the true server state (it reverts on failure).
+      console.error('[modules] failed to toggle', id, e);
+    }
     // Re-snapshot the whole module host, not just this page: refreshes the
     // ['modules'] query behind `disabledIds`, so the sidebar nav, the
     // /admin/m/<id> route and any contributed panels reflect the toggle live -

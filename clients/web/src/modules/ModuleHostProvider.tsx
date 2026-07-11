@@ -51,11 +51,12 @@ const EMPTY: ModuleHostValue = {
 const ModuleHostContext = createContext<ModuleHostValue>(EMPTY);
 
 export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const host = useModuleHost();
   const queryClient = useQueryClient();
-  // Bumped by refresh() after an install/uninstall so the contributions
-  // re-snapshot (host identity is stable, so this is the re-read trigger).
+  // Bumped by refresh() after an install / uninstall / live enable. It both
+  // re-runs the host's start() (so a newly-enabled module's setup()/exports()
+  // run) and re-snapshots the contributions below.
   const [revision, setRevision] = useState(0);
+  const host = useModuleHost(revision);
 
   // The backend's active-module list carries the enabled flags. Keyed ['modules']
   // so it dedupes with the host's own fetch. Disabled modules keep their nav

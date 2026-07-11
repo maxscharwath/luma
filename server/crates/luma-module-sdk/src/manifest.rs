@@ -90,12 +90,23 @@ impl<'de> Deserialize<'de> for Dependency {
         }
         Ok(match Repr::deserialize(deserializer)? {
             Repr::Str(s) => match s.split_once('@') {
-                Some((id, range)) => Dependency { id: id.into(), version: Some(range.into()) },
+                Some((id, range)) => Dependency { id: id.into(), version: normalize_range(range) },
                 None => Dependency { id: s, version: None },
             },
-            Repr::Obj { id, version } => Dependency { id, version },
+            Repr::Obj { id, version } => {
+                Dependency { id, version: version.as_deref().and_then(normalize_range) }
+            }
         })
     }
+}
+
+/// Normalize a declared version range: a blank or `"*"` range means "no
+/// constraint" (`None`); anything else is trimmed and kept. Applied to every
+/// input form so `{ id, version: "*" }`, `"id@*"` and the map value `"*"` all
+/// collapse to the same in-memory shape (and round-trip stably).
+fn normalize_range(range: &str) -> Option<String> {
+    let trimmed = range.trim();
+    (!trimmed.is_empty() && trimmed != "*").then(|| trimmed.to_string())
 }
 
 /// (De)serialize a `dependsOn` / `optionalDependsOn` collection as a
@@ -132,11 +143,17 @@ mod dep_map {
                 f.write_str("a { id: range } map or a list of dependencies")
             }
 
+            // An explicit `null` (some manifest generators emit it for the empty
+            // case) means "no dependencies", not a type error.
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+
             // Package.json-style map: each key is a module id, each value a range.
             fn visit_map<M: MapAccess<'de>>(self, mut access: M) -> Result<Self::Value, M::Error> {
                 let mut out = Vec::new();
                 while let Some((id, range)) = access.next_entry::<String, String>()? {
-                    out.push(Dependency { id, version: normalize_range(range) });
+                    out.push(Dependency { id, version: super::normalize_range(&range) });
                 }
                 Ok(out)
             }
@@ -152,12 +169,6 @@ mod dep_map {
         }
 
         deserializer.deserialize_any(DepsVisitor)
-    }
-
-    /// A blank or `"*"` range means "no constraint" (stored as `None`).
-    fn normalize_range(range: String) -> Option<String> {
-        let trimmed = range.trim();
-        (!trimmed.is_empty() && trimmed != "*").then(|| trimmed.to_string())
     }
 }
 
@@ -291,5 +302,28 @@ mod tests {
         // And the map round-trips back to the same in-memory shape.
         let back: ModuleManifest = serde_json::from_value(json).unwrap();
         assert_eq!(back.depends_on, m.depends_on);
+    }
+
+    #[test]
+    fn depends_on_null_means_empty() {
+        // Some generators emit `null` for the empty case; it must load as empty,
+        // not error the whole manifest.
+        let m: ModuleManifest = serde_json::from_str(
+            r#"{ "id": "a", "name": "A", "version": "1.0.0", "dependsOn": null }"#,
+        )
+        .unwrap();
+        assert!(m.depends_on.is_empty());
+    }
+
+    #[test]
+    fn legacy_object_wildcard_version_normalizes_to_none() {
+        // `{ id, version: "*" }` collapses to the same shape as the map "*" and a
+        // bare id, so a save/load round-trip is a fixpoint.
+        let m: ModuleManifest = serde_json::from_str(
+            r#"{ "id": "a", "name": "A", "version": "1.0.0",
+                 "dependsOn": [{ "id": "lib", "version": "*" }] }"#,
+        )
+        .unwrap();
+        assert_eq!(m.depends_on[0], Dependency::new("lib"));
     }
 }

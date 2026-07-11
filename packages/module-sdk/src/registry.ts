@@ -16,9 +16,13 @@ import type { Dependencies, ModuleManifest } from './types';
 export function depEntries(deps?: Dependencies): { id: string; version?: string }[] {
   if (!deps) return [];
   if (Array.isArray(deps)) {
-    return deps.map((d) =>
-      typeof d === 'string' ? { id: d.split('@')[0] ?? d, version: d.split('@')[1] } : d,
-    );
+    return deps.map((d) => {
+      if (typeof d !== 'string') return d;
+      // Split on the FIRST '@' only; no '@' (or a leading one) means the whole
+      // string is the id with no range.
+      const at = d.indexOf('@');
+      return at <= 0 ? { id: d } : { id: d.slice(0, at), version: d.slice(at + 1) };
+    });
   }
   return Object.entries(deps).map(([id, range]) => ({
     id,

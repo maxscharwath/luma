@@ -17,11 +17,17 @@
     "description": { "type": "string" },
     "dependsOn": {
       "description": "Hard dependencies as a package.json-style map { \"<id>\": \"<semver range>\" } (a bare \"*\" means any version). A legacy array of ids / 'id@range' strings / { id, version } objects is also accepted. Enforced on the backend.",
-      "oneOf": [{ "type": "object" }, { "type": "array" }]
+      "oneOf": [
+        { "type": "object", "additionalProperties": { "type": "string" } },
+        { "type": "array" }
+      ]
     },
     "optionalDependsOn": {
       "description": "Soft dependencies (same shape as dependsOn): version-checked and ordered first when present, but not required.",
-      "oneOf": [{ "type": "object" }, { "type": "array" }]
+      "oneOf": [
+        { "type": "object", "additionalProperties": { "type": "string" } },
+        { "type": "array" }
+      ]
     },
     "requires": {
       "type": "array",

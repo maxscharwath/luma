@@ -238,8 +238,10 @@ impl Registry {
 }
 
 /// Enforce a dependency's version range against the target module, if declared.
-/// Permissive: an unparseable range or target version is not treated as a
-/// mismatch (versions are best-effort semver today).
+/// Ranges use dtolnay `semver` syntax (caret / tilde / comparators, `,`-separated
+/// for AND), NOT npm wildcard forms like `1.x` or space-separated ANDs. Permissive:
+/// an unparseable range or target version is not treated as a mismatch, so a
+/// typo'd range is ignored rather than taking the whole module graph down.
 fn check_version(
     module: &ModuleManifest,
     dep: &Dependency,

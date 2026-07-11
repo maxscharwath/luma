@@ -46,6 +46,14 @@ function validate(node: Json, value: unknown, path: string, errors: string[]): v
         if (!(key in props)) errors.push(`${path}: unknown property "${key}"`);
       }
     }
+    // additionalProperties as a schema: validate every value not named in
+    // `properties` against it, so the dependsOn `{ id: range }` map rejects the
+    // same non-string ranges the Rust loader (next_entry::<String, String>) does.
+    if (node.additionalProperties && typeof node.additionalProperties === 'object') {
+      for (const [key, val] of Object.entries(obj)) {
+        if (!(key in props)) validate(node.additionalProperties as Json, val, `${path}.${key}`, errors);
+      }
+    }
     for (const [key, sub] of Object.entries(props)) {
       if (key in obj) validate(sub, obj[key], `${path}.${key}`, errors);
     }
