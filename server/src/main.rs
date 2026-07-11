@@ -104,7 +104,27 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let addr = config.socket_addr();
-    let state = AppState::new(config, ffprobe_available, db, settings);
+    // Build the module services + peer ports the composition root owns, so the
+    // core (luma-engine) names no module: the Remote connector, the VPN bridge, and
+    // the VpnProxy / TorrentFetch ports. AppState builds the download manager (its
+    // one direct module field) and merges these in.
+    let mut module_services: std::collections::HashMap<
+        std::any::TypeId,
+        std::sync::Arc<dyn std::any::Any + Send + Sync>,
+    > = std::collections::HashMap::new();
+    let remote = luma_remote::RemoteAccess::new(config.data_dir.clone());
+    let vpn = luma_vpn::Vpn::new(config.data_dir.clone());
+    module_services.insert(std::any::TypeId::of::<luma_remote::RemoteAccess>(), remote);
+    module_services.insert(std::any::TypeId::of::<luma_vpn::Vpn>(), vpn);
+    let vpn_proxy: std::sync::Arc<dyn luma_contracts::VpnProxyPort> =
+        std::sync::Arc::new(luma_vpn::VpnProxy);
+    let (tid, val) = luma_module_host::port_service(vpn_proxy);
+    module_services.insert(tid, val);
+    let torrent_fetch: std::sync::Arc<dyn luma_contracts::TorrentFetchPort> =
+        std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
+    let (tid, val) = luma_module_host::port_service(torrent_fetch);
+    module_services.insert(tid, val);
+    let state = AppState::new(config, ffprobe_available, db, settings, module_services);
     services::activity::scan_completed(
         &state.activity,
         data.libraries.len(),

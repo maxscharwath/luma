@@ -168,6 +168,7 @@ luma-engine = { workspace = true }
 # binary re-exports the extractors from their historical `crate::api::extract`
 # path; module crates depend on this leaf instead of the whole engine.
 luma-module-host = { workspace = true }
+luma-contracts = { workspace = true }
 # Relocated module backend crates the binary wires (their MODULE manifest +
 # their routes, injected by the module's ServerModule glue).
 luma-remote = { workspace = true }

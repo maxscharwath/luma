@@ -9,7 +9,6 @@ use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
 use luma_torrent::DownloadManager;
-use luma_vpn::Vpn;
 use crate::infra::embed::{self, Embedder};
 use crate::infra::events::Bus;
 use crate::infra::metadata;
@@ -18,7 +17,6 @@ use crate::infra::storyboard::Storyboard;
 use crate::services::jobs::JobManager;
 use crate::services::playback::Registry;
 use crate::services::quickconnect::{self, QuickConnect};
-use luma_remote::RemoteAccess;
 use crate::services::search::SearchEngine;
 use crate::services::sections::VectorCache;
 use crate::services::settings::Settings;
@@ -69,17 +67,11 @@ pub struct AppState {
     /// In-flight on-device subtitle generations (Whisper / translate), tracked so
     /// the player can poll live progress + ETA and cancel.
     pub subtitle_gen: Arc<GenRegistry>,
-    /// Managed Cloudflare Tunnel connector (optional, off by default). Supervises a
-    /// `cloudflared` child when enabled so a box with no tunnel gets a public HTTPS
-    /// endpoint without port-forwarding. See the `luma-remote` crate.
-    pub remote: Arc<RemoteAccess>,
-    /// The acquisition stack's download manager: embedded torrent engine
-    /// lifecycle, grabs ledger, kill-switch gate. The monitor task is spawned
-    /// in `main` next to the other reapers. See the `luma-downloads` crate.
+    /// The dev.luma.torrents module's download manager (embedded torrent engine
+    /// lifecycle, grabs ledger, kill-switch gate, monitor). Accessed directly by
+    /// the acquisition services + the download admin routes; the VPN bridge and
+    /// Remote connector are module services resolved through the registry instead.
     pub downloads: Arc<DownloadManager>,
-    /// Managed WireGuard-to-SOCKS5 bridge (wireproxy) for torrent traffic,
-    /// the Proton VPN path. See the `luma-vpn` crate.
-    pub vpn: Arc<Vpn>,
     /// Runtime-loaded (WASM) modules installed under `<data>/modules`. Behind an
     /// `RwLock` so the admin store can install / uninstall them live. Their
     /// manifests are merged into `GET /api/modules` and their HTTP is proxied at
@@ -110,7 +102,16 @@ impl AppState {
 }
 
 impl AppState {
-    pub fn new(config: Config, ffprobe_available: bool, db: Pool, settings: Settings) -> SharedState {
+    pub fn new(
+        config: Config,
+        ffprobe_available: bool,
+        db: Pool,
+        settings: Settings,
+        module_services: std::collections::HashMap<
+            std::any::TypeId,
+            std::sync::Arc<dyn std::any::Any + Send + Sync>,
+        >,
+    ) -> SharedState {
         let hls = hls::HlsEngine::new(
             &config.data_dir,
             crate::services::settings::max_transcodes(&settings),
@@ -119,31 +120,18 @@ impl AppState {
         let storyboard = Storyboard::new(&config.data_dir);
         // Built before the struct literal moves `config`: the connector locates a
         // server-provided `cloudflared` relative to the data dir.
-        let remote = RemoteAccess::new(config.data_dir.clone());
         let downloads = DownloadManager::new(&config.data_dir);
-        let vpn = Vpn::new(config.data_dir.clone());
-        // Register each service under its concrete type so a relocated module can
-        // dependency-inject it through the `HostCtx` seam (`get_service`), without
-        // the seam ever naming a module type. Same `Arc`s as the fields below.
+        // The download manager is a direct AppState field, so it is constructed +
+        // registered here. Every OTHER module service + peer port (the VPN bridge,
+        // the Remote connector, the VpnProxy / TorrentFetch ports) is built by the
+        // binary (the composition root) and passed in via `module_services`, so the
+        // core never names those module types.
         let mut services: std::collections::HashMap<
             std::any::TypeId,
             std::sync::Arc<dyn std::any::Any + Send + Sync>,
         > = std::collections::HashMap::new();
-        services.insert(std::any::TypeId::of::<RemoteAccess>(), remote.clone());
         services.insert(std::any::TypeId::of::<DownloadManager>(), downloads.clone());
-        services.insert(std::any::TypeId::of::<Vpn>(), vpn.clone());
-        // Peer ports: register each providing module's port impl so consumer
-        // modules resolve them by trait, never by crate. TEMPORARY here: Phase E
-        // of the decoupling moves service + port registration to the composition
-        // root so the core (this crate) names no module.
-        let vpn_proxy: std::sync::Arc<dyn luma_contracts::VpnProxyPort> =
-            std::sync::Arc::new(luma_vpn::VpnProxy);
-        let (tid, val) = luma_module_host::port_service(vpn_proxy);
-        services.insert(tid, val);
-        let torrent_fetch: std::sync::Arc<dyn luma_contracts::TorrentFetchPort> =
-            std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
-        let (tid, val) = luma_module_host::port_service(torrent_fetch);
-        services.insert(tid, val);
+        services.extend(module_services);
         // Load any runtime-installed WASM modules from disk (best-effort).
         let wasm = Arc::new(RwLock::new(WasmHost::load_all(&config.data_dir.join("modules"))));
         // Seed the process-wide ffmpeg concurrency budget from the setting so the
@@ -184,9 +172,7 @@ impl AppState {
             vectors: Arc::new(VectorCache::new()),
             jobs: Arc::new(jobs),
             subtitle_gen: Arc::new(GenRegistry::default()),
-            remote,
             downloads,
-            vpn,
             wasm,
             me: weak.clone(),
             services,

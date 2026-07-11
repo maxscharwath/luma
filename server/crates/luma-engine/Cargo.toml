@@ -26,7 +26,6 @@ luma-i18n = { workspace = true }
 # Module registry contract + the module descriptors from the leaf crates.
 luma-module-sdk = { workspace = true }
 luma-module-host = { workspace = true }
-luma-contracts = { workspace = true }
 luma-module-wasm = { workspace = true }
 luma-modules-generated = { workspace = true }
 # Acquisition stack used by services.
@@ -37,8 +36,6 @@ luma-indexer = { workspace = true }
 luma-torrent = { workspace = true }
 # Relocated module backends: the app depends on them (one-way, no cycle - they
 # name only the HostCtx seam), constructs their services, and injects them.
-luma-remote = { workspace = true }
-luma-vpn = { workspace = true }
 # Heavy/optional adapters (aliased in infra/mod.rs as crate::infra::{whisper,embed,discovery}).
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
