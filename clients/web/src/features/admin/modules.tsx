@@ -7,11 +7,12 @@ import { adminApi, type AdminModule } from '#web/features/admin/module-api';
 import { ModuleConfigForm } from '#web/features/admin/module-config-form';
 import { Denied, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Toggle } from '#web/features/admin/ui';
-import { useModuleSettingsPanels } from '#web/modules/ModuleHostProvider';
+import { useModuleSettingsPanels, useRefreshModules } from '#web/modules/ModuleHostProvider';
 import { apiBase } from '#web/shared/lib/api';
 
 export function ModulesAdminPage() {
   const canManage = useCap('settings.manage');
+  const refreshModules = useRefreshModules();
   const { data, reload } = usePoll(
     ['admin', 'modules'],
     () => adminApi<AdminModule[]>('/modules'),
@@ -25,7 +26,12 @@ export function ModulesAdminPage() {
       method: 'POST',
       body: JSON.stringify({ enabled }),
     });
-    reload();
+    // Re-snapshot the whole module host, not just this page: refreshes the
+    // ['modules'] query behind `disabledIds`, so the sidebar nav, the
+    // /admin/m/<id> route and any contributed panels reflect the toggle live -
+    // no page reload. (This also refetches the admin list, so `reload()` is
+    // covered.)
+    await refreshModules();
   };
 
   return (
