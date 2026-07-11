@@ -32,13 +32,17 @@ impl ServerModule<SharedState> for DownloadsModule {
     }
 
     async fn on_enable(&self, host: Arc<dyn HostCtx>) {
-        // Start the engine, then flip the disable-paused rows back to active. The
-        // VPN bridge is its own module (ordered first by the dependency graph), so
-        // its SOCKS5 is already up. Awaited (not detached) so a following disable
-        // cannot race the start.
+        // Everything the Downloads module needs at (re)enable lives here, so the
+        // binary shell never seeds rows or spawns the monitor: seed the embedded
+        // client row, start the engine, flip disable-paused rows back to active,
+        // and ensure the resident monitor is running (spawned once). The VPN bridge
+        // is its own module (ordered first by the dependency graph), so its SOCKS5
+        // is already up. Awaited (not detached) so a following disable cannot race.
         if let Some(downloads) = service::<DownloadManager>(host.as_ref()) {
+            downloads.seed_embedded_client(host.as_ref());
             downloads.start_rqbit(host.as_ref()).await;
             downloads.resume_after_enable(host.as_ref());
+            downloads.ensure_monitor(host.clone());
         }
     }
 

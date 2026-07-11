@@ -48,6 +48,9 @@ pub struct DownloadManager {
     /// the download-engine sub-modules can register / unregister their kind when
     /// toggled. Adding a new backend is registering a factory here, not a `match`.
     clients: RwLock<luma_torrent::DownloadClientRegistry>,
+    /// Guards [`Self::ensure_monitor`] so the resident loop spawns at most once
+    /// per process even though the module's `on_enable` may fire more than once.
+    monitor_started: AtomicBool,
 }
 
 /// Failed VPN checks in a row before the kill switch actually closes the gate.
@@ -67,7 +70,42 @@ impl DownloadManager {
             downloads_dir: state_dir.join("downloads"),
             state_dir,
             clients: RwLock::new(luma_torrent::builtin_download_clients()),
+            monitor_started: AtomicBool::new(false),
         })
+    }
+
+    /// Seed the embedded engine's download-client row (idempotent; INSERT OR
+    /// IGNORE keeps admin edits) so it exists once the engine is (re)enabled. A
+    /// no-op when the embedded engine is not compiled in. Owned here so the binary
+    /// shell never names the rqbit client row (onion boundary).
+    pub fn seed_embedded_client(&self, host: &dyn HostCtx) {
+        if !luma_torrent::RQBIT_COMPILED {
+            return;
+        }
+        let _ = db::insert_download_client(
+            host.db(),
+            &DownloadClientRow {
+                id: db::EMBEDDED_CLIENT_ID.to_string(),
+                kind: "rqbit".into(),
+                name: "Moteur intégré".into(),
+                url: String::new(),
+                username: String::new(),
+                password: String::new(),
+                enabled: true,
+                priority: 100,
+                created_at: now_ms(),
+            },
+        );
+    }
+
+    /// Spawn the resident monitor exactly once per process. The module's
+    /// `on_enable` may fire more than once (boot + re-enable); the loop self-idles
+    /// while the module is disabled, so one long-lived task covers every cycle.
+    pub fn ensure_monitor(self: &Arc<Self>, host: Arc<dyn HostCtx>) {
+        if self.monitor_started.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        self.spawn_monitor(host);
     }
 
     /// Start (or restart) the embedded engine from current settings. Errors

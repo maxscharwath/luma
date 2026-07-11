@@ -151,36 +151,13 @@ async fn main() -> anyhow::Result<()> {
     // refresh, …). Manual + scheduled runs are tracked in the admin "Tâches" UI.
     state.jobs.clone().spawn_scheduler(state.clone());
 
-    // Seed the embedded engine's client row (compiled-in builds only; INSERT OR
-    // IGNORE keeps admin edits) so it exists when the Downloads module is
-    // (re)enabled and its engine starts.
-    if luma_torrent::RQBIT_COMPILED {
-        let _ = db::insert_download_client(
-            &state.db,
-            &db::DownloadClientRow {
-                id: db::EMBEDDED_CLIENT_ID.to_string(),
-                kind: "rqbit".into(),
-                name: "Moteur intégré".into(),
-                url: String::new(),
-                username: String::new(),
-                password: String::new(),
-                enabled: true,
-                priority: 100,
-                created_at: services::jobs::now_ms(),
-            },
-        );
-    }
     // Bring every ENABLED module's live services up in dependency order (the VPN
-    // bridge before the engine that tunnels through it; the download engines; the
-    // remote tunnel), and leave disabled ones down. This generic driver replaces
-    // the old hardcoded per-module boot: the binary is not aware of which modules
-    // exist, and a module's enabled state is durable across a restart.
+    // bridge before the engine that tunnels through it; the download engines +
+    // their monitor + client-row seed; the remote tunnel), and leave disabled ones
+    // down. Each module seeds/starts/monitors its OWN resources in on_enable, so
+    // this shell names no module and touches no module-specific data (onion
+    // boundary); a module's enabled state is also durable across a restart.
     modules::apply_enabled_states(&state).await;
-    // The downloads monitor (the reaper that reconciles rows) always runs,
-    // independent of module toggles.
-    state.downloads.spawn_monitor(state.clone());
-    // The managed Cloudflare Tunnel connector is brought up (if the admin enabled
-    // it) by the Remote module's on_enable, via apply_enabled_states above.
 
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
     let local_discovery = state.settings.get_bool("localDiscovery", true);
