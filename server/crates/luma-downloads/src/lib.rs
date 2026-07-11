@@ -706,14 +706,8 @@ impl GrabSpec {
 /// of routing WireGuard traffic (librqbit only proxies via SOCKS5); it is not
 /// a user-facing option. `None` = no VPN, torrent traffic goes out directly.
 pub fn active_proxy_url(host: &dyn HostCtx) -> Option<String> {
-    // The VPN bridge exposes a local SOCKS5 (see the luma-vpn crate) when a
-    // WireGuard config is stored. Both are pure functions of settings, inlined
-    // here so this crate needs no dependency on luma-vpn.
-    let wg_configured = !host.setting_str("vpnWgConfig", "").trim().is_empty();
-    wg_configured.then(|| {
-        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
-        format!("socks5://127.0.0.1:{port}")
-    })
+    // Route torrent traffic through the VPN bridge whenever one is configured.
+    luma_module_host::vpn_proxy_url(host)
 }
 
 fn kbps_setting(host: &dyn HostCtx, key: &str) -> Option<u32> {

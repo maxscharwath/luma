@@ -48,6 +48,24 @@ where
     }
 }
 
+/// Whether a managed WireGuard config is stored (drives the VPN bridge + every
+/// consumer that may route through it). Pure function of settings, on the seam so
+/// the download / indexer crates don't each re-derive it (and don't depend on the
+/// VPN module). The VPN module owns the bridge; this owns the derived facts.
+pub fn vpn_wg_configured(host: &dyn HostCtx) -> bool {
+    !host.setting_str("vpnWgConfig", "").trim().is_empty()
+}
+
+/// The local SOCKS5 URL the VPN bridge exposes when configured, else `None`. The
+/// single source for the bridge port + URL shape; consumers apply their own
+/// opt-in gate on top (downloads: always; indexers: `acqIndexersUseVpn`).
+pub fn vpn_proxy_url(host: &dyn HostCtx) -> Option<String> {
+    vpn_wg_configured(host).then(|| {
+        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
+        format!("socks5://127.0.0.1:{port}")
+    })
+}
+
 /// Clone the pool and run a blocking DB closure off the async runtime; a thin
 /// combinator over [`blocking`] that hands the closure its own [`Pool`].
 pub async fn query<T, F>(pool: &Pool, f: F) -> Result<T, Response>
@@ -113,8 +131,6 @@ pub trait HostCtx: Send + Sync + 'static {
     fn setting_bool(&self, key: &str, default: bool) -> bool;
     /// A persisted integer setting (or `default` when unset).
     fn setting_i64(&self, key: &str, default: i64) -> i64;
-    /// Persist a string setting.
-    fn set_setting_str(&self, key: &str, value: &str);
     /// Persist a batch of settings atomically (one write).
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>);
 
@@ -159,9 +175,6 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     }
     fn setting_i64(&self, key: &str, default: i64) -> i64 {
         (**self).setting_i64(key, default)
-    }
-    fn set_setting_str(&self, key: &str, value: &str) {
-        (**self).set_setting_str(key, value)
     }
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {
         (**self).set_settings(patch)

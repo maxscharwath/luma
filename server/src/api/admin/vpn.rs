@@ -15,7 +15,6 @@ use serde_json::{json, Value};
 use crate::api::extract::AuthUser;
 use crate::api::util::blocking;
 use crate::model::{Permission, SaveVpnBody, VpnAdminView, VpnTestResult};
-use luma_vpn::Vpn;
 use crate::state::SharedState;
 
 pub fn routes() -> Router<SharedState> {
@@ -31,7 +30,7 @@ pub async fn status(
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
     let view = VpnAdminView {
-        wg_configured: Vpn::wg_configured(&state),
+        wg_configured: luma_module_host::vpn_wg_configured(&state),
         bridge_running: state.vpn.running().await,
         local_port: state.settings.get_i64("vpnLocalPort", 25345).clamp(1, 65535) as u16,
         status: state.downloads.vpn_status(),
@@ -60,7 +59,7 @@ pub async fn save(
         state.vpn.apply(&state).await;
         state.downloads.start_rqbit(&state).await;
     }
-    Ok(Json(json!({ "ok": true, "wgConfigured": Vpn::wg_configured(&state) })).into_response())
+    Ok(Json(json!({ "ok": true, "wgConfigured": luma_module_host::vpn_wg_configured(&state) })).into_response())
 }
 
 /// `POST /api/admin/vpn/test` run the seal probe now (also drives the gate).

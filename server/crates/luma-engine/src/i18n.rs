@@ -63,6 +63,14 @@ pub fn normalize(tag: &str) -> Option<&'static str> {
     i18n().normalize_locale(tag)
 }
 
+/// A user's account locale for server-rendered strings. Admin endpoints are
+/// always authenticated, so the (account-synced) preference is the right source;
+/// falls back to [`DEFAULT_LOCALE`] for an unset/unknown value. Shared by the
+/// admin handlers and the module host-seam gate.
+pub fn user_locale(user: &luma_domain::User) -> &'static str {
+    user.language.as_deref().and_then(normalize).unwrap_or(DEFAULT_LOCALE)
+}
+
 /// Best locale from an explicit preference and/or an `Accept-Language` header.
 pub fn detect_locale(preferred: Option<&str>, accept_language: Option<&str>) -> &'static str {
     i18n().detect_locale(preferred, accept_language)

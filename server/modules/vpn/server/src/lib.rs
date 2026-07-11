@@ -44,17 +44,6 @@ impl Vpn {
         self.data_dir.join("vpn")
     }
 
-    /// Whether a WireGuard config is stored (drives `active_proxy_url`).
-    pub fn wg_configured(host: &dyn HostCtx) -> bool {
-        !host.setting_str("vpnWgConfig", "").trim().is_empty()
-    }
-
-    /// The local SOCKS5 the bridge exposes when configured.
-    pub fn local_proxy_url(host: &dyn HostCtx) -> String {
-        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
-        format!("socks5://127.0.0.1:{port}")
-    }
-
     /// (Re)apply the stored config: start / restart / stop the bridge child.
     /// Call at boot and whenever `vpnWgConfig` / `vpnLocalPort` change.
     pub async fn apply(self: &Arc<Self>, host: &dyn HostCtx) {

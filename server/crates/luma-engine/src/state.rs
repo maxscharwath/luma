@@ -85,10 +85,11 @@ pub struct AppState {
     /// manifests are merged into `GET /api/modules` and their HTTP is proxied at
     /// `/api/plugin/<id>/*`.
     pub wasm: Arc<RwLock<WasmHost>>,
-    /// Weak self-reference, set right after construction, so a relocated module's
+    /// Weak self-reference (seeded via `Arc::new_cyclic`) so a relocated module's
     /// `HostCtx::trigger_job` can hand a background job the full `SharedState` it
-    /// runs against (jobs are `Fn(SharedState)`).
-    me: std::sync::OnceLock<std::sync::Weak<AppState>>,
+    /// runs against (jobs are `Fn(SharedState)`, and the `Arc` is otherwise lost
+    /// through the blanket `Arc<T>: HostCtx` deref).
+    me: std::sync::Weak<AppState>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -98,7 +99,7 @@ impl AppState {
     /// re-share the whole state, e.g. triggering a job). `None` only before the
     /// self-reference is seeded in [`AppState::new`].
     pub(crate) fn shared(&self) -> Option<SharedState> {
-        self.me.get().and_then(std::sync::Weak::upgrade)
+        self.me.upgrade()
     }
 }
 
@@ -134,7 +135,10 @@ impl AppState {
         // Likewise, reset any pipeline ledger task stranded `running` by that
         // crash back to `pending` so its stage picks it up again.
         crate::services::pipeline::recover_on_boot(&db);
-        let app = Arc::new(AppState {
+        // `new_cyclic` seeds the weak self-reference (`me`) during construction so
+        // `trigger_job` can re-share the full state; the closure is FnOnce, so the
+        // pre-built services above move straight in.
+        Arc::new_cyclic(|weak| AppState {
             config,
             ffprobe_available,
             db,
@@ -156,10 +160,7 @@ impl AppState {
             downloads,
             vpn,
             wasm,
-            me: std::sync::OnceLock::new(),
-        });
-        // Seed the weak self-reference so `trigger_job` can re-share the state.
-        let _ = app.me.set(Arc::downgrade(&app));
-        app
+            me: weak.clone(),
+        })
     }
 }

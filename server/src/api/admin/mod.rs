@@ -81,10 +81,7 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
 /// no `Accept-Language` needed. Falls back to the default for an unset/unknown
 /// preference.
 fn user_locale(user: &User) -> &'static str {
-    user.language
-        .as_deref()
-        .and_then(i18n::normalize)
-        .unwrap_or(i18n::DEFAULT_LOCALE)
+    i18n::user_locale(user)
 }
 
 fn require(user: &User, perm: Permission) -> Result<(), Response> {
@@ -96,14 +93,8 @@ fn require(user: &User, perm: Permission) -> Result<(), Response> {
 }
 
 /// Any management capability unlocks the read-only dashboard panels.
-/// `requests.manage` counts: a requests moderator needs the console shell (and
-/// the downloads queue) even without user/library/settings rights.
 fn require_any_admin(user: &User) -> Result<(), Response> {
-    if user.can(Permission::UsersManage)
-        || user.can(Permission::LibraryManage)
-        || user.can(Permission::SettingsManage)
-        || user.can(Permission::RequestsManage)
-    {
+    if user.is_any_admin() {
         Ok(())
     } else {
         Err(lerr(user_locale(user), StatusCode::FORBIDDEN, "error.permissionDenied"))

@@ -16,19 +16,10 @@ use crate::infra::events::ServerEvent;
 use crate::services::jobs::JobKey;
 use crate::state::AppState;
 
-/// The user's account locale for server-rendered strings (admin endpoints are
-/// always authenticated, so the account preference is the right source).
-fn user_locale(user: &User) -> &'static str {
-    user.language
-        .as_deref()
-        .and_then(crate::i18n::normalize)
-        .unwrap_or(crate::i18n::DEFAULT_LOCALE)
-}
-
 fn forbidden(user: &User) -> Response {
     json_error(
         StatusCode::FORBIDDEN,
-        &crate::i18n::t(user_locale(user), "error.permissionDenied", &[]),
+        &crate::i18n::t(crate::i18n::user_locale(user), "error.permissionDenied", &[]),
     )
 }
 
@@ -50,11 +41,7 @@ impl HostCtx for AppState {
     }
 
     fn require_any_admin(&self, user: &User) -> Result<(), Response> {
-        if user.can(Permission::UsersManage)
-            || user.can(Permission::LibraryManage)
-            || user.can(Permission::SettingsManage)
-            || user.can(Permission::RequestsManage)
-        {
+        if user.is_any_admin() {
             Ok(())
         } else {
             Err(forbidden(user))
@@ -62,7 +49,7 @@ impl HostCtx for AppState {
     }
 
     fn lerr(&self, user: &User, status: StatusCode, key: &str) -> Response {
-        json_error(status, &crate::i18n::t(user_locale(user), key, &[]))
+        json_error(status, &crate::i18n::t(crate::i18n::user_locale(user), key, &[]))
     }
 
     fn setting_str(&self, key: &str, default: &str) -> String {
@@ -75,12 +62,6 @@ impl HostCtx for AppState {
 
     fn setting_i64(&self, key: &str, default: i64) -> i64 {
         self.settings.get_i64(key, default)
-    }
-
-    fn set_setting_str(&self, key: &str, value: &str) {
-        let mut patch = std::collections::BTreeMap::new();
-        patch.insert(key.to_string(), serde_json::Value::String(value.to_string()));
-        self.settings.set_patch(&self.db, patch);
     }
 
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {

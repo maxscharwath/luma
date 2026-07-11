@@ -98,14 +98,15 @@ pub fn builtin_session(host: &dyn HostCtx, row: &IndexerRow) -> anyhow::Result<A
     Ok(session)
 }
 
-/// The local SOCKS5 URL the VPN bridge exposes when configured (a pure function
-/// of the persisted port; keeps this crate free of any VPN dependency).
+/// The VPN SOCKS5 URL search traffic should use, when the admin opted indexers
+/// into the tunnel (`acqIndexersUseVpn`) AND a bridge is configured. Checks the
+/// opt-in first so the WireGuard config isn't read on the common (off) path.
 fn vpn_proxy_url(host: &dyn HostCtx) -> Option<String> {
-    let wg_configured = !host.setting_str("vpnWgConfig", "").trim().is_empty();
-    (host.setting_bool("acqIndexersUseVpn", false) && wg_configured).then(|| {
-        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
-        format!("socks5://127.0.0.1:{port}")
-    })
+    if host.setting_bool("acqIndexersUseVpn", false) {
+        luma_module_host::vpn_proxy_url(host)
+    } else {
+        None
+    }
 }
 
 /// Build a live [`Session`] for a `builtin` indexer row: load its definition,
