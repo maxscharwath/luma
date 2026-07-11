@@ -13,11 +13,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use anyhow::{anyhow, bail, Result};
 use luma_torrent::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitEngine};
 
-use crate::db::{self, DownloadClientRow, DownloadRow};
-use crate::infra::events::ServerEvent;
-use crate::model::{RequestStatus, ScoredReleaseView, VpnStatusView};
-use crate::services::jobs::now_ms;
-use crate::state::SharedState;
+use luma_db::{self as db, DownloadClientRow, DownloadRow};
+use luma_domain::{RequestStatus, ScoredReleaseView, VpnStatusView};
+use luma_module_host::{HostCtx, HostEvent};
+use luma_primitives::now_ms;
 
 /// The LUMA category/label applied inside external clients.
 pub const LABEL: &str = "luma";
@@ -78,11 +77,11 @@ impl DownloadManager {
     /// it never collides with the old), swap it in only on success, then stop
     /// the old. A failed restart therefore leaves the previous engine running
     /// instead of killing downloads.
-    pub async fn start_rqbit(&self, state: &SharedState) {
+    pub async fn start_rqbit(&self, host: &dyn HostCtx) {
         // Hard-off must survive restarts + setting/VPN changes: never bring the
         // engine up while the embedded client is disabled. (A missing row = first
         // boot before seeding = treated as enabled.)
-        if let Ok(conn) = state.db.get() {
+        if let Ok(conn) = host.db().get() {
             if let Ok(Some(c)) = db::get_download_client(&conn, db::EMBEDDED_CLIENT_ID) {
                 if !c.enabled {
                     drop(conn);
@@ -94,10 +93,10 @@ impl DownloadManager {
         let cfg = RqbitConfig {
             session_dir: self.state_dir.join("session"),
             download_dir: self.downloads_dir.clone(),
-            socks_proxy_url: active_proxy_url(state),
-            listen_port: u16::try_from(state.settings.get_i64("rqbitPort", 0).max(0)).ok(),
-            download_bps: kbps_setting(state, "rqbitDownKbps"),
-            upload_bps: kbps_setting(state, "rqbitUpKbps"),
+            socks_proxy_url: active_proxy_url(host),
+            listen_port: u16::try_from(host.setting_i64("rqbitPort", 0).max(0)).ok(),
+            download_bps: kbps_setting(host, "rqbitDownKbps"),
+            upload_bps: kbps_setting(host, "rqbitUpKbps"),
         };
         match RqbitEngine::start(&cfg).await {
             Ok(engine) => {
@@ -119,8 +118,8 @@ impl DownloadManager {
 
     /// Fetch a torrent's file list (metadata only, no download) via the
     /// preferred engine, so the admin can analyze + select before grabbing.
-    pub fn list_files(&self, state: &SharedState, magnet_or_url: &str) -> Result<Vec<luma_torrent::TorrentFileEntry>> {
-        let conn = state.db.get()?;
+    pub fn list_files(&self, host: &dyn HostCtx, magnet_or_url: &str) -> Result<Vec<luma_torrent::TorrentFileEntry>> {
+        let conn = host.db().get()?;
         let client = db::preferred_download_client(&conn)?
             .ok_or_else(|| anyhow!("no enabled download client"))?;
         drop(conn);
@@ -173,17 +172,17 @@ impl DownloadManager {
     /// One VPN probe + gate transition. Called by the monitor (~every 60s)
     /// and by the admin test endpoint. No proxy configured = dormant (gate
     /// open, no status). Blocking (curl); call off the runtime.
-    pub fn vpn_check(&self, state: &SharedState) -> Option<luma_torrent::proxycheck::VpnCheck> {
-        let Some(proxy) = active_proxy_url(state) else {
+    pub fn vpn_check(&self, host: &dyn HostCtx) -> Option<luma_torrent::proxycheck::VpnCheck> {
+        let Some(proxy) = active_proxy_url(host) else {
             self.gate_open.store(true, Ordering::Relaxed);
             *self.vpn_status.lock().unwrap() = None;
             return None;
         };
-        let check_url = state.settings.get_str("vpnCheckUrl", "https://api.ipify.org");
+        let check_url = host.setting_str("vpnCheckUrl", "https://api.ipify.org");
         let check = luma_torrent::proxycheck::check(&proxy, &check_url);
         let sealed = check.sealed();
         // Opt-in: the kill switch does nothing unless the admin turns it on.
-        let kill_switch = state.settings.get_bool("vpnKillSwitch", false);
+        let kill_switch = host.setting_bool("vpnKillSwitch", false);
         let was_open = self.gate_open.load(Ordering::Relaxed);
 
         // Track a failure streak so one blip (or the bridge still coming up)
@@ -196,15 +195,15 @@ impl DownloadManager {
         };
 
         if kill_switch && !sealed && streak >= VPN_FAIL_GRACE && was_open {
-            self.close_gate(state);
+            self.close_gate(host);
         } else if (!kill_switch || sealed) && !was_open {
-            self.open_gate(state);
+            self.open_gate(host);
         }
         let paused = !self.gate_open.load(Ordering::Relaxed);
         let status = VpnStatusView { connected: sealed, exit_ip: check.proxied_ip.clone(), paused };
         let changed = self.vpn_status.lock().unwrap().replace(status.clone()) != Some(status.clone());
         if changed {
-            state.events.publish(ServerEvent::VpnStatus {
+            host.publish(HostEvent::VpnStatus {
                 connected: status.connected,
                 exit_ip: status.exit_ip.clone(),
                 paused: status.paused,
@@ -216,18 +215,18 @@ impl DownloadManager {
     /// Close: refuse new grabs, pause every active embedded-engine download
     /// (external clients guard their own tunnel), remember exactly which rows
     /// we paused so recovery never resumes a user-paused torrent.
-    fn close_gate(&self, state: &SharedState) {
+    fn close_gate(&self, host: &dyn HostCtx) {
         self.gate_open.store(false, Ordering::Relaxed);
         tracing::warn!("VPN kill switch engaged: pausing embedded downloads");
         let mut held: Vec<String> = Vec::new();
-        if let Ok(conn) = state.db.get() {
+        if let Ok(conn) = host.db().get() {
             if let Ok(rows) = db::active_downloads(&conn) {
                 drop(conn);
                 for row in rows {
                     if row.client_id != db::EMBEDDED_CLIENT_ID || row.status == "paused" {
                         continue;
                     }
-                    if self.pause(state, &row.id).is_ok() {
+                    if self.pause(host, &row.id).is_ok() {
                         held.push(row.id);
                     }
                 }
@@ -236,14 +235,14 @@ impl DownloadManager {
         *self.paused_by_killswitch.lock().unwrap() = held;
     }
 
-    fn open_gate(&self, state: &SharedState) {
+    fn open_gate(&self, host: &dyn HostCtx) {
         self.gate_open.store(true, Ordering::Relaxed);
         let held = std::mem::take(&mut *self.paused_by_killswitch.lock().unwrap());
         if !held.is_empty() {
             tracing::info!(count = held.len(), "VPN restored: resuming held downloads");
         }
         for id in held {
-            let _ = self.resume(state, &id);
+            let _ = self.resume(host, &id);
         }
     }
 
@@ -261,14 +260,14 @@ impl DownloadManager {
     /// paused (for the UI) and tear the session down entirely, so nothing is
     /// left listening or transferring. `start_rqbit` will refuse to come back up
     /// until it is re-enabled, so this survives restarts.
-    pub fn disable_embedded(&self, state: &SharedState) {
+    pub fn disable_embedded(&self, host: &dyn HostCtx) {
         let mut held = Vec::new();
-        if let Ok(conn) = state.db.get() {
+        if let Ok(conn) = host.db().get() {
             if let Ok(rows) = db::active_downloads(&conn) {
                 drop(conn);
                 for row in rows {
                     if row.client_id == db::EMBEDDED_CLIENT_ID && row.status != "paused" {
-                        let _ = db::set_download_status(&state.db, &row.id, "paused", None);
+                        let _ = db::set_download_status(host.db(), &row.id, "paused", None);
                         held.push(row.id);
                     }
                 }
@@ -283,10 +282,10 @@ impl DownloadManager {
     /// session ([`start_rqbit`], which reloads the persisted torrents), so just
     /// flip the rows we paused back to active - the monitor reconciles the exact
     /// status (downloading vs seeding) from the live engine.
-    pub fn resume_after_enable(&self, state: &SharedState) {
+    pub fn resume_after_enable(&self, host: &dyn HostCtx) {
         let held = std::mem::take(&mut *self.paused_by_disable.lock().unwrap());
         for id in held {
-            let _ = db::set_download_status(&state.db, &id, "downloading", None);
+            let _ = db::set_download_status(host.db(), &id, "downloading", None);
         }
     }
 
@@ -300,14 +299,14 @@ impl DownloadManager {
     /// blocks on a slow magnet resolve / `.torrent` fetch. Adding it to the
     /// engine happens in the background via [`Self::activate`]; the monitor
     /// then picks the row up once it has a `client_ref`.
-    pub fn grab(&self, state: &SharedState, spec: GrabSpec) -> Result<DownloadRow> {
+    pub fn grab(&self, host: &dyn HostCtx, spec: GrabSpec) -> Result<DownloadRow> {
         if !self.gate_open() {
             bail!("downloads are held by the VPN kill switch");
         }
         if spec.magnet_or_url.trim().is_empty() {
             bail!("no magnet or download link");
         }
-        let conn = state.db.get()?;
+        let conn = host.db().get()?;
         // Dedup: refuse a second grab of a torrent already in the queue (same
         // magnet/URL, not failed/removed). Retrying a failed one is still fine.
         if let Some(existing) = db::active_download_by_url(&conn, spec.magnet_or_url.trim())? {
@@ -317,10 +316,10 @@ impl DownloadManager {
             .ok_or_else(|| anyhow!("no enabled download client"))?;
         drop(conn);
 
-        let id = crate::services::scan::short_hash(&format!(
+        let id = luma_primitives::short_hash(&format!(
             "download|{}|{}",
             spec.release_title,
-            crate::services::auth::random_token()
+            luma_primitives::random_token()
         ));
         // The embedded engine downloads into a per-grab folder we choose, so
         // the importer knows exactly where the data is. External engines use
@@ -357,14 +356,14 @@ impl DownloadManager {
             details_url: spec.details_url,
             only_files: spec.only_files,
         };
-        db::insert_download(&state.db, &row)?;
-        db::set_wanted_status(&state.db, &spec.wanted_ids, "grabbed", now_ms())?;
+        db::insert_download(host.db(), &row)?;
+        db::set_wanted_status(host.db(), &spec.wanted_ids, "grabbed", now_ms())?;
         if let Some(req_id) = &row.request_id {
             // Do NOT persist a `downloading` status on the request: it's a
             // transient phase derived at read time from the live download
             // relationship (see api::requests overlay), so it self-heals when
             // the grab fails or the torrent is deleted. Just nudge listeners.
-            state.events.publish(ServerEvent::RequestUpdated {
+            host.publish(HostEvent::RequestUpdated {
                 id: req_id.clone(),
                 status: RequestStatus::Downloading.as_str().to_string(),
             });
@@ -377,18 +376,18 @@ impl DownloadManager {
     /// (slow: magnet resolve / `.torrent` fetch, up to a couple of minutes) and
     /// move the row to `downloading`, or mark it `failed` with the error. Safe
     /// to run detached from the request that queued it.
-    pub fn activate(&self, state: &SharedState, row: &DownloadRow) {
-        let client = match state.db.get().and_then(|c| Ok(db::get_download_client(&c, &row.client_id)?)) {
+    pub fn activate(&self, host: &dyn HostCtx, row: &DownloadRow) {
+        let client = match host.db().get().and_then(|c| Ok(db::get_download_client(&c, &row.client_id)?)) {
             Ok(Some(c)) => c,
             _ => {
-                let _ = db::set_download_status(&state.db, &row.id, "failed", Some("download client unavailable"));
+                let _ = db::set_download_status(host.db(), &row.id, "failed", Some("download client unavailable"));
                 return;
             }
         };
         let engine = match self.engine_for(&client) {
             Ok(e) => e,
             Err(e) => {
-                let _ = db::set_download_status(&state.db, &row.id, "failed", Some(&format!("engine unavailable: {e:#}")));
+                let _ = db::set_download_status(host.db(), &row.id, "failed", Some(&format!("engine unavailable: {e:#}")));
                 return;
             }
         };
@@ -401,7 +400,7 @@ impl DownloadManager {
         // resolve those (via proxied peers).
         let prefetched: Option<Vec<u8>> =
             if client.kind == "rqbit" && row.magnet_or_url.starts_with("http") {
-                match fetch_torrent_for(state, &row) {
+                match fetch_torrent_for(host, &row) {
                     Ok(bytes) => {
                         tracing::info!(id = %row.id, bytes = bytes.len(), "fetched .torrent directly (bypassing VPN)");
                         Some(bytes)
@@ -409,7 +408,7 @@ impl DownloadManager {
                     Err(e) => {
                         let msg = format!("could not fetch .torrent from the indexer: {e:#}");
                         tracing::warn!(id = %row.id, error = %msg, "torrent file fetch failed");
-                        let _ = db::set_download_status(&state.db, &row.id, "failed", Some(&msg));
+                        let _ = db::set_download_status(host.db(), &row.id, "failed", Some(&msg));
                         return;
                     }
                 }
@@ -427,8 +426,8 @@ impl DownloadManager {
             Ok(client_ref) => {
                 // The add can take a while; the admin may have removed or paused
                 // the row meanwhile. Honor that instead of resurrecting it.
-                let current = state
-                    .db
+                let current = host
+                    .db()
                     .get()
                     .ok()
                     .and_then(|c| db::get_download(&c, &row.id).ok().flatten())
@@ -441,7 +440,7 @@ impl DownloadManager {
                     }
                     Some("paused") => {
                         let _ = engine.pause(&client_ref);
-                        let _ = db::set_download_ref(&state.db, &row.id, &client_ref);
+                        let _ = db::set_download_ref(host.db(), &row.id, &client_ref);
                         tracing::info!(release = %row.release_title, "torrent added then paused (paused while adding)");
                     }
                     _ => {
@@ -449,17 +448,17 @@ impl DownloadManager {
                         // identical content grabbed from a different URL. If another
                         // live row already owns this torrent, don't run two against
                         // one - fail this one (the engine torrent stays for the other).
-                        let dup = state
-                            .db
-                            .get()
+                        let dup = host
+                    .db()
+                    .get()
                             .ok()
                             .and_then(|c| db::other_active_download_with_ref(&c, &row.id, &client_ref).ok().flatten());
                         if let Some(other) = dup {
                             let name = other.title.as_deref().unwrap_or(&other.release_title);
-                            let _ = db::set_download_status(&state.db, &row.id, "failed", Some(&format!("duplicate of \"{name}\" (same torrent already downloading)")));
+                            let _ = db::set_download_status(host.db(), &row.id, "failed", Some(&format!("duplicate of \"{name}\" (same torrent already downloading)")));
                             tracing::info!(id = %row.id, "grab duplicates a live download; marked failed");
                         } else {
-                            if let Err(e) = db::activate_download(&state.db, &row.id, &client_ref) {
+                            if let Err(e) = db::activate_download(host.db(), &row.id, &client_ref) {
                                 tracing::warn!(id = %row.id, error = %format!("{e:#}"), "failed to record activated torrent");
                             }
                             tracing::info!(release = %row.release_title, hash = %client_ref, "torrent added to engine");
@@ -470,7 +469,7 @@ impl DownloadManager {
             Err(e) => {
                 let msg = format!("{e:#}");
                 tracing::warn!(id = %row.id, release = %row.release_title, error = %msg, "torrent add failed");
-                let _ = db::set_download_status(&state.db, &row.id, "failed", Some(&msg));
+                let _ = db::set_download_status(host.db(), &row.id, "failed", Some(&msg));
             }
         }
     }
@@ -479,8 +478,8 @@ impl DownloadManager {
     /// the engine, reset the row to `queued`, and return it so the caller can
     /// re-run [`Self::activate`] in the background. Also re-flips its wanted rows
     /// so a re-grab covers them again.
-    pub fn retry(&self, state: &SharedState, id: &str) -> Result<DownloadRow> {
-        let (row, client) = self.row_and_client(state, id)?;
+    pub fn retry(&self, host: &dyn HostCtx, id: &str) -> Result<DownloadRow> {
+        let (row, client) = self.row_and_client(host, id)?;
         if !self.gate_open() {
             bail!("downloads are held by the VPN kill switch");
         }
@@ -490,8 +489,8 @@ impl DownloadManager {
                 let _ = engine.remove(&row.client_ref, false);
             }
         }
-        db::reset_download_for_retry(&state.db, id)?;
-        let conn = state.db.get()?;
+        db::reset_download_for_retry(host.db(), id)?;
+        let conn = host.db().get()?;
         let row = db::get_download(&conn, id)?.ok_or_else(|| anyhow!("download not found"))?;
         Ok(row)
     }
@@ -500,11 +499,11 @@ impl DownloadManager {
     /// the ledger row (status stays `imported`). Used by the "delete after import"
     /// option to free the download folder + stop seeding once the file is safely
     /// in the library (the hardlink/copy there survives). Best-effort.
-    pub fn drop_data(&self, state: &SharedState, row: &DownloadRow) {
+    pub fn drop_data(&self, host: &dyn HostCtx, row: &DownloadRow) {
         if row.client_ref.is_empty() {
             return;
         }
-        let client = state.db.get().ok().and_then(|c| db::get_download_client(&c, &row.client_id).ok().flatten());
+        let client = host.db().get().ok().and_then(|c| db::get_download_client(&c, &row.client_id).ok().flatten());
         if let Some(client) = client {
             if let Ok(engine) = self.engine_for(&client) {
                 if let Err(e) = engine.remove(&row.client_ref, true) {
@@ -513,7 +512,7 @@ impl DownloadManager {
                 }
                 // The engine no longer tracks it; blank the ref so pause/resume
                 // and the monitor don't try to poll a gone torrent.
-                let _ = db::set_download_ref(&state.db, &row.id, "");
+                let _ = db::set_download_ref(host.db(), &row.id, "");
                 tracing::info!(release = %row.release_title, "deleted torrent + data after import");
             }
         }
@@ -523,29 +522,29 @@ impl DownloadManager {
     /// A row with an empty `client_ref` is still being added in the background
     /// (slow magnet/`.torrent` resolve); we skip the engine call and just move
     /// the ledger, and `activate()` honors that state when the add lands.
-    pub fn pause(&self, state: &SharedState, id: &str) -> Result<()> {
-        let (row, client) = self.row_and_client(state, id)?;
+    pub fn pause(&self, host: &dyn HostCtx, id: &str) -> Result<()> {
+        let (row, client) = self.row_and_client(host, id)?;
         if !row.client_ref.is_empty() {
             self.engine_for(&client)?.pause(&row.client_ref)?;
         }
-        db::set_download_status(&state.db, id, "paused", None)?;
+        db::set_download_status(host.db(), id, "paused", None)?;
         Ok(())
     }
 
-    pub fn resume(&self, state: &SharedState, id: &str) -> Result<()> {
-        let (row, client) = self.row_and_client(state, id)?;
+    pub fn resume(&self, host: &dyn HostCtx, id: &str) -> Result<()> {
+        let (row, client) = self.row_and_client(host, id)?;
         if row.client_ref.is_empty() {
             // Not in the engine yet: re-queue so it gets (re)added.
-            db::set_download_status(&state.db, id, "queued", None)?;
+            db::set_download_status(host.db(), id, "queued", None)?;
             return Ok(());
         }
         self.engine_for(&client)?.resume(&row.client_ref)?;
-        db::set_download_status(&state.db, id, "downloading", None)?;
+        db::set_download_status(host.db(), id, "downloading", None)?;
         Ok(())
     }
 
-    pub fn remove(&self, state: &SharedState, id: &str, delete_data: bool) -> Result<()> {
-        let (row, client) = self.row_and_client(state, id)?;
+    pub fn remove(&self, host: &dyn HostCtx, id: &str, delete_data: bool) -> Result<()> {
+        let (row, client) = self.row_and_client(host, id)?;
         // The engine may already have dropped it (or never had it); removal
         // stays best-effort so the ledger can always be cleaned up.
         if !row.client_ref.is_empty() {
@@ -555,16 +554,16 @@ impl DownloadManager {
                 }
             }
         }
-        db::delete_download_row(&state.db, id)?;
+        db::delete_download_row(host.db(), id)?;
         Ok(())
     }
 
     /// Pause every LUMA-tracked download that is still active (best-effort per
     /// row). Only our ledger's torrents are touched, never foreign torrents in a
     /// shared external client. Returns how many were paused.
-    pub fn pause_all(&self, state: &SharedState) -> Result<usize> {
+    pub fn pause_all(&self, host: &dyn HostCtx) -> Result<usize> {
         let rows = {
-            let conn = state.db.get()?;
+            let conn = host.db().get()?;
             db::active_downloads(&conn)?
         };
         let mut n = 0;
@@ -572,7 +571,7 @@ impl DownloadManager {
             if row.status == "paused" {
                 continue;
             }
-            match self.pause(state, &row.id) {
+            match self.pause(host, &row.id) {
                 Ok(()) => n += 1,
                 Err(e) => tracing::warn!(id = %row.id, error = %format!("{e:#}"), "pause_all: skipped a download"),
             }
@@ -581,9 +580,9 @@ impl DownloadManager {
     }
 
     /// Resume every LUMA download we previously paused. Returns the count.
-    pub fn resume_all(&self, state: &SharedState) -> Result<usize> {
+    pub fn resume_all(&self, host: &dyn HostCtx) -> Result<usize> {
         let rows = {
-            let conn = state.db.get()?;
+            let conn = host.db().get()?;
             db::active_downloads(&conn)?
         };
         let mut n = 0;
@@ -591,7 +590,7 @@ impl DownloadManager {
             if row.status != "paused" {
                 continue;
             }
-            match self.resume(state, &row.id) {
+            match self.resume(host, &row.id) {
                 Ok(()) => n += 1,
                 Err(e) => tracing::warn!(id = %row.id, error = %format!("{e:#}"), "resume_all: skipped a download"),
             }
@@ -600,8 +599,8 @@ impl DownloadManager {
     }
 
     /// Force a tracker/DHT re-announce ("ask more peers") on one download.
-    pub fn reannounce(&self, state: &SharedState, id: &str) -> Result<()> {
-        let (row, client) = self.row_and_client(state, id)?;
+    pub fn reannounce(&self, host: &dyn HostCtx, id: &str) -> Result<()> {
+        let (row, client) = self.row_and_client(host, id)?;
         if !row.client_ref.is_empty() {
             self.engine_for(&client)?.reannounce(&row.client_ref)?;
         }
@@ -610,9 +609,9 @@ impl DownloadManager {
 
     /// Force a tracker/DHT re-announce ("ask more peers") on every active
     /// download. Best-effort per row. Returns how many were reannounced.
-    pub fn reannounce_all(&self, state: &SharedState) -> Result<usize> {
+    pub fn reannounce_all(&self, host: &dyn HostCtx) -> Result<usize> {
         let rows = {
-            let conn = state.db.get()?;
+            let conn = host.db().get()?;
             db::active_downloads(&conn)?
         };
         let mut n = 0;
@@ -620,7 +619,7 @@ impl DownloadManager {
             if row.client_ref.is_empty() || row.status == "paused" {
                 continue;
             }
-            match self.reannounce(state, &row.id) {
+            match self.reannounce(host, &row.id) {
                 Ok(()) => n += 1,
                 Err(e) => tracing::warn!(id = %row.id, error = %format!("{e:#}"), "reannounce_all: skipped a download"),
             }
@@ -628,8 +627,8 @@ impl DownloadManager {
         Ok(n)
     }
 
-    fn row_and_client(&self, state: &SharedState, id: &str) -> Result<(DownloadRow, DownloadClientRow)> {
-        let conn = state.db.get()?;
+    fn row_and_client(&self, host: &dyn HostCtx, id: &str) -> Result<(DownloadRow, DownloadClientRow)> {
+        let conn = host.db().get()?;
         let row = db::get_download(&conn, id)?.ok_or_else(|| anyhow!("download not found"))?;
         let client = db::get_download_client(&conn, &row.client_id)?
             .ok_or_else(|| anyhow!("download client no longer configured"))?;
@@ -704,13 +703,19 @@ impl GrabSpec {
 /// that local URL to librqbit. The SOCKS5 is an internal implementation detail
 /// of routing WireGuard traffic (librqbit only proxies via SOCKS5); it is not
 /// a user-facing option. `None` = no VPN, torrent traffic goes out directly.
-pub fn active_proxy_url(state: &SharedState) -> Option<String> {
-    luma_vpn::Vpn::wg_configured(state)
-        .then(|| luma_vpn::Vpn::local_proxy_url(state))
+pub fn active_proxy_url(host: &dyn HostCtx) -> Option<String> {
+    // The VPN bridge exposes a local SOCKS5 (see the luma-vpn crate) when a
+    // WireGuard config is stored. Both are pure functions of settings, inlined
+    // here so this crate needs no dependency on luma-vpn.
+    let wg_configured = !host.setting_str("vpnWgConfig", "").trim().is_empty();
+    wg_configured.then(|| {
+        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
+        format!("socks5://127.0.0.1:{port}")
+    })
 }
 
-fn kbps_setting(state: &SharedState, key: &str) -> Option<u32> {
-    let kbps = state.settings.get_i64(key, 0);
+fn kbps_setting(host: &dyn HostCtx, key: &str) -> Option<u32> {
+    let kbps = host.setting_i64(key, 0);
     (kbps > 0).then(|| u32::try_from(kbps.saturating_mul(1024)).unwrap_or(u32::MAX))
 }
 
@@ -722,14 +727,14 @@ fn kbps_setting(state: &SharedState, key: &str) -> Option<u32> {
 /// came from a built-in Cardigann indexer - private trackers cookie-gate the
 /// download, and a bare fetch would get the HTML login page. Falls back to a
 /// direct fetch for Torznab / manual grabs.
-fn fetch_torrent_for(state: &SharedState, row: &db::DownloadRow) -> Result<Vec<u8>> {
+fn fetch_torrent_for(host: &dyn HostCtx, row: &db::DownloadRow) -> Result<Vec<u8>> {
     if let Some(indexer_id) = &row.indexer_id {
-        let conn = state.db.get()?;
+        let conn = host.db().get()?;
         let indexer = db::get_indexer(&conn, indexer_id)?;
         drop(conn);
         if let Some(ix) = indexer {
             if ix.kind == luma_indexer::admin::KIND_BUILTIN {
-                let session = luma_indexer::admin::builtin_session(state, &ix)?;
+                let session = luma_indexer::admin::builtin_session(host, &ix)?;
                 return session.fetch_torrent(&row.magnet_or_url);
             }
         }

@@ -115,7 +115,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
                     "grabbing \"{}\" (score {score}) for \"{}\"",
                     candidate.view.title, req.title
                 ));
-                let spec = crate::services::downloads::GrabSpec::from_release(
+                let spec = luma_downloads::GrabSpec::from_release(
                     &candidate.view,
                     &candidate.magnet_or_url,
                     candidate.tmdb_id,

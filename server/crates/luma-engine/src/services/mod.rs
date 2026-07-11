@@ -15,7 +15,6 @@ pub mod markers;
 pub mod organize;
 pub mod pipeline;
 pub mod scan;
-pub mod downloads;
 pub mod enrich;
 pub mod search;
 pub mod sections;

@@ -8,7 +8,7 @@ use luma_module_wasm::WasmHost;
 use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
-use crate::services::downloads::DownloadManager;
+use luma_downloads::DownloadManager;
 use luma_vpn::Vpn;
 use crate::infra::embed::{self, Embedder};
 use crate::infra::events::Bus;
@@ -75,7 +75,7 @@ pub struct AppState {
     pub remote: Arc<RemoteAccess>,
     /// The acquisition stack's download manager: embedded torrent engine
     /// lifecycle, grabs ledger, kill-switch gate. The monitor task is spawned
-    /// in `main` next to the other reapers. See [`crate::services::downloads`].
+    /// in `main` next to the other reapers. See the `luma-downloads` crate.
     pub downloads: Arc<DownloadManager>,
     /// Managed WireGuard-to-SOCKS5 bridge (wireproxy) for torrent traffic,
     /// the Proton VPN path. See the `luma-vpn` crate.
@@ -85,9 +85,22 @@ pub struct AppState {
     /// manifests are merged into `GET /api/modules` and their HTTP is proxied at
     /// `/api/plugin/<id>/*`.
     pub wasm: Arc<RwLock<WasmHost>>,
+    /// Weak self-reference, set right after construction, so a relocated module's
+    /// `HostCtx::trigger_job` can hand a background job the full `SharedState` it
+    /// runs against (jobs are `Fn(SharedState)`).
+    me: std::sync::OnceLock<std::sync::Weak<AppState>>,
 }
 
 pub type SharedState = Arc<AppState>;
+
+impl AppState {
+    /// The `Arc<AppState>` this `&self` is inside (for the few spots that need to
+    /// re-share the whole state, e.g. triggering a job). `None` only before the
+    /// self-reference is seeded in [`AppState::new`].
+    pub(crate) fn shared(&self) -> Option<SharedState> {
+        self.me.get().and_then(std::sync::Weak::upgrade)
+    }
+}
 
 impl AppState {
     pub fn new(config: Config, ffprobe_available: bool, db: Pool, settings: Settings) -> SharedState {
@@ -121,7 +134,7 @@ impl AppState {
         // Likewise, reset any pipeline ledger task stranded `running` by that
         // crash back to `pending` so its stage picks it up again.
         crate::services::pipeline::recover_on_boot(&db);
-        Arc::new(AppState {
+        let app = Arc::new(AppState {
             config,
             ffprobe_available,
             db,
@@ -143,6 +156,10 @@ impl AppState {
             downloads,
             vpn,
             wasm,
-        })
+            me: std::sync::OnceLock::new(),
+        });
+        // Seed the weak self-reference so `trigger_job` can re-share the state.
+        let _ = app.me.set(Arc::downgrade(&app));
+        app
     }
 }

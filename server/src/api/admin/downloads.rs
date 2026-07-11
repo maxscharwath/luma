@@ -18,7 +18,7 @@ use crate::model::{
     AnalyzeBody, DownloadView, DownloadsView, ManualAddBody, ManualSearchBody, ManualSearchView,
     Permission, TorrentAnalysis, TorrentFileView, User,
 };
-use crate::services::downloads::GrabSpec;
+use luma_downloads::GrabSpec;
 use crate::state::SharedState;
 
 pub fn routes() -> Router<SharedState> {

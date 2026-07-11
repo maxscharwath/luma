@@ -10,8 +10,10 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use luma_db::Pool;
 use luma_domain::{Permission, User};
-use luma_module_host::{json_error, HostCtx};
+use luma_module_host::{json_error, HostCtx, HostEvent};
 
+use crate::infra::events::ServerEvent;
+use crate::services::jobs::JobKey;
 use crate::state::AppState;
 
 /// The user's account locale for server-rendered strings (admin endpoints are
@@ -83,5 +85,47 @@ impl HostCtx for AppState {
 
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {
         self.settings.set_patch(&self.db, patch);
+    }
+
+    fn publish(&self, event: HostEvent) {
+        let ev = match event {
+            HostEvent::DownloadProgress {
+                id,
+                request_id,
+                progress,
+                down_bps,
+                up_bps,
+                peers,
+                peers_seen,
+                state,
+            } => ServerEvent::DownloadProgress {
+                id,
+                request_id,
+                progress,
+                down_bps,
+                up_bps,
+                peers,
+                peers_seen,
+                state,
+            },
+            HostEvent::DownloadCompleted { id, title } => {
+                ServerEvent::DownloadCompleted { id, title }
+            }
+            HostEvent::VpnStatus { connected, exit_ip, paused } => {
+                ServerEvent::VpnStatus { connected, exit_ip, paused }
+            }
+            HostEvent::RequestUpdated { id, status } => ServerEvent::RequestUpdated { id, status },
+        };
+        self.events.publish(ev);
+    }
+
+    fn trigger_job(&self, key: &'static str, reason: &'static str) {
+        if let Some(state) = self.shared() {
+            let _ = state.jobs.trigger(state.clone(), JobKey(key), reason);
+        }
+    }
+
+    fn module_enabled(&self, id: &str) -> bool {
+        crate::modules::module_enabled(&self.settings, id)
     }
 }

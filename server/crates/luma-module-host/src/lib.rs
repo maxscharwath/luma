@@ -59,6 +59,29 @@ where
     blocking(move || f(pool)).await
 }
 
+/// An event a module's backend emits onto the app's real-time bus (fanned out to
+/// WebSocket clients). The seam's own shape; the app maps it to its wire event so
+/// a module crate never names the app's event enum.
+pub enum HostEvent {
+    /// Live download progress (one frame per active torrent per monitor tick).
+    DownloadProgress {
+        id: String,
+        request_id: Option<String>,
+        progress: f64,
+        down_bps: u64,
+        up_bps: u64,
+        peers: u32,
+        peers_seen: u32,
+        state: String,
+    },
+    /// A download finished (import follows).
+    DownloadCompleted { id: String, title: String },
+    /// The VPN kill-switch state changed.
+    VpnStatus { connected: bool, exit_ip: Option<String>, paused: bool },
+    /// A media request changed state.
+    RequestUpdated { id: String, status: String },
+}
+
 /// The slice of the running app a module's backend can reach. The binary's
 /// `AppState` (as `Arc<AppState>` = `SharedState`) implements it; a module crate
 /// names only this trait, never the app, so it stays a leaf and breaks the cycle.
@@ -94,6 +117,16 @@ pub trait HostCtx: Send + Sync + 'static {
     fn set_setting_str(&self, key: &str, value: &str);
     /// Persist a batch of settings atomically (one write).
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>);
+
+    /// Publish an event onto the app's real-time bus.
+    fn publish(&self, event: HostEvent);
+    /// Trigger a background job by its key (e.g. `"acquisition.import"`), running
+    /// against the app state. No-op if the key is unknown or already running.
+    fn trigger_job(&self, key: &'static str, reason: &'static str);
+
+    /// Whether the module with id `id` is currently enabled (a relocated module's
+    /// resident loop idles when its own module is toggled off).
+    fn module_enabled(&self, id: &str) -> bool;
 }
 
 /// The router state is `Arc<AppState>` (= `SharedState`), but the orphan rule
@@ -132,6 +165,15 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     }
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {
         (**self).set_settings(patch)
+    }
+    fn publish(&self, event: HostEvent) {
+        (**self).publish(event)
+    }
+    fn trigger_job(&self, key: &'static str, reason: &'static str) {
+        (**self).trigger_job(key, reason)
+    }
+    fn module_enabled(&self, id: &str) -> bool {
+        (**self).module_enabled(id)
     }
 }
 

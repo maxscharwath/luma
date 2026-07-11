@@ -38,6 +38,7 @@ luma-torrent = { workspace = true }
 # name only the HostCtx seam), constructs their services, and injects them.
 luma-remote = { workspace = true }
 luma-vpn = { workspace = true }
+luma-downloads = { workspace = true }
 # Heavy/optional adapters (aliased in infra/mod.rs as crate::infra::{whisper,embed,discovery}).
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }

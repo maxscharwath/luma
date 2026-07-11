@@ -3,15 +3,14 @@
 //! Fast ticks while anything is active, slow idle ticks otherwise. Each tick
 //! polls the engines on a blocking thread, mirrors progress into the ledger,
 //! publishes `download.progress` frames, and flips finished torrents to
-//! `completed` (chaining the import job).
+//! `completed` (chaining the import job). Over the HostCtx seam.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::db;
-use crate::infra::events::ServerEvent;
-use crate::services::jobs::{now_ms, JobKey};
-use crate::state::SharedState;
+use luma_db as db;
+use luma_module_host::{HostCtx, HostEvent};
+use luma_primitives::now_ms;
 
 use super::DownloadManager;
 
@@ -31,7 +30,7 @@ fn human_bytes(n: u64) -> String {
 
 impl DownloadManager {
     /// Spawn the resident monitor. Call once from `main` next to the reapers.
-    pub fn spawn_monitor(self: &Arc<Self>, state: SharedState) {
+    pub fn spawn_monitor(self: &Arc<Self>, host: Arc<dyn HostCtx>) {
         let manager = self.clone();
         tokio::spawn(async move {
             let mut last_vpn_check = std::time::Instant::now() - VPN_CHECK_EVERY;
@@ -39,7 +38,7 @@ impl DownloadManager {
                 // When the Downloads module is disabled its engine is torn down;
                 // idle the monitor entirely (no polling, no VPN probe) until it is
                 // re-enabled, so a disabled system does no background work.
-                if !crate::modules::module_enabled(&state.settings, luma_torrent::MODULE_ID) {
+                if !host.module_enabled(luma_torrent::MODULE_ID) {
                     tokio::time::sleep(IDLE_TICK).await;
                     continue;
                 }
@@ -49,12 +48,12 @@ impl DownloadManager {
                 }
                 let had_active = tokio::task::spawn_blocking({
                     let manager = manager.clone();
-                    let state = state.clone();
+                    let host = host.clone();
                     move || {
                         if vpn_due {
-                            let _ = manager.vpn_check(&state);
+                            let _ = manager.vpn_check(&*host);
                         }
-                        manager.tick(&state)
+                        manager.tick(&*host)
                     }
                 })
                 .await
@@ -64,10 +63,10 @@ impl DownloadManager {
         });
     }
 
-    /// One poll pass. Returns whether anything is still active (drives the
-    /// tick cadence).
-    fn tick(&self, state: &SharedState) -> bool {
-        let rows = match state.db.get().and_then(|c| Ok(db::active_downloads(&c)?)) {
+    /// One poll pass. Returns whether anything is still active (drives the tick
+    /// cadence).
+    fn tick(&self, host: &dyn HostCtx) -> bool {
+        let rows = match host.db().get().and_then(|c| Ok(db::active_downloads(&c)?)) {
             Ok(rows) => rows,
             Err(e) => {
                 tracing::warn!(error = %format!("{e:#}"), "downloads monitor: ledger read failed");
@@ -85,13 +84,19 @@ impl DownloadManager {
             if row.client_ref.is_empty() {
                 continue;
             }
-            let client = match state.db.get().and_then(|c| Ok(db::get_download_client(&c, &row.client_id)?)) {
-                Ok(Some(c)) => c,
-                _ => {
-                    let _ = db::set_download_status(&state.db, &row.id, "failed", Some("download client removed"));
-                    continue;
-                }
-            };
+            let client =
+                match host.db().get().and_then(|c| Ok(db::get_download_client(&c, &row.client_id)?)) {
+                    Ok(Some(c)) => c,
+                    _ => {
+                        let _ = db::set_download_status(
+                            host.db(),
+                            &row.id,
+                            "failed",
+                            Some("download client removed"),
+                        );
+                        continue;
+                    }
+                };
             let engine = match self.engine_for(&client) {
                 Ok(e) => e,
                 Err(e) => {
@@ -117,7 +122,10 @@ impl DownloadManager {
                         "download tick"
                     );
                     let finished = status.progress >= 1.0
-                        || matches!(status.state, luma_torrent::TorrentState::Completed | luma_torrent::TorrentState::Seeding);
+                        || matches!(
+                            status.state,
+                            luma_torrent::TorrentState::Completed | luma_torrent::TorrentState::Seeding
+                        );
                     let new_status = if finished {
                         "completed"
                     } else {
@@ -132,17 +140,17 @@ impl DownloadManager {
                     if finished {
                         // save_path may only be known now (external clients).
                         let _ = db::update_download_progress(
-                            &state.db,
+                            host.db(),
                             &row.id,
                             "completed",
                             1.0,
                             status.save_path.as_deref(),
                             None,
                         );
-                        let _ = db::mark_download_completed(&state.db, &row.id, now_ms());
+                        let _ = db::mark_download_completed(host.db(), &row.id, now_ms());
                     } else {
                         let _ = db::update_download_progress(
-                            &state.db,
+                            host.db(),
                             &row.id,
                             new_status,
                             status.progress,
@@ -150,7 +158,7 @@ impl DownloadManager {
                             status.error.as_deref(),
                         );
                     }
-                    state.events.publish(ServerEvent::DownloadProgress {
+                    host.publish(HostEvent::DownloadProgress {
                         id: row.id.clone(),
                         request_id: row.request_id.clone(),
                         progress: status.progress,
@@ -161,7 +169,7 @@ impl DownloadManager {
                         state: new_status.to_string(),
                     });
                     if finished {
-                        state.events.publish(ServerEvent::DownloadCompleted {
+                        host.publish(HostEvent::DownloadCompleted {
                             id: row.id.clone(),
                             title: row.release_title.clone(),
                         });
@@ -169,10 +177,10 @@ impl DownloadManager {
                     }
                 }
                 Ok(None) => {
-                    // The torrent vanished from the engine (user removed it
-                    // there, or a session reset): the grab failed.
+                    // The torrent vanished from the engine (user removed it there,
+                    // or a session reset): the grab failed.
                     let _ = db::set_download_status(
-                        &state.db,
+                        host.db(),
                         &row.id,
                         "failed",
                         Some("torrent disappeared from the download client"),
@@ -186,7 +194,7 @@ impl DownloadManager {
 
         if completed_any {
             // Import runs as a tracked job so its work shows in the console.
-            let _ = state.jobs.trigger(state.clone(), JobKey("acquisition.import"), "download-complete");
+            host.trigger_job("acquisition.import", "download-complete");
         }
         true
     }

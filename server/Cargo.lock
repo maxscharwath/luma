@@ -3307,6 +3307,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-downloads"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "luma-db",
+ "luma-domain",
+ "luma-http",
+ "luma-indexer",
+ "luma-module-host",
+ "luma-primitives",
+ "luma-torrent",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "luma-engine"
 version = "0.1.0"
 dependencies = [
@@ -3320,6 +3337,7 @@ dependencies = [
  "luma-config",
  "luma-db",
  "luma-domain",
+ "luma-downloads",
  "luma-http",
  "luma-i18n",
  "luma-indexer",
@@ -3500,6 +3518,7 @@ dependencies = [
  "jpeg-encoder",
  "luma-config",
  "luma-db",
+ "luma-downloads",
  "luma-engine",
  "luma-indexer",
  "luma-mdns",
