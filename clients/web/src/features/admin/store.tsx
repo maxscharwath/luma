@@ -9,6 +9,7 @@ import { useRef, useState } from 'react';
 import { adminApi, type AdminModule } from '#web/features/admin/module-api';
 import { Denied, useCap, usePoll } from '#web/features/admin/shell';
 import { Card } from '#web/features/admin/ui';
+import { useRefreshModules } from '#web/modules/ModuleHostProvider';
 import { apiBase } from '#web/shared/lib/api';
 
 /** POST a module bundle (raw .tar bytes) to the install endpoint. */
@@ -27,6 +28,7 @@ async function installBundle(file: File): Promise<void> {
 export function StorePage() {
   const canManage = useCap('settings.manage');
   const { data } = usePoll(['admin', 'modules'], () => adminApi<AdminModule[]>('/modules'), 30000);
+  const refreshModules = useRefreshModules();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,11 +42,12 @@ export function StorePage() {
     setError(null);
     try {
       await installBundle(file);
-      // A reload cleanly re-discovers modules + loads the new frontend remote and
-      // re-snapshots the registry nav/pages.
-      window.location.reload();
+      // Soft-reload: load the new module's remote + re-snapshot nav/pages, so the
+      // module appears immediately with no page refresh.
+      await refreshModules();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
       setBusy(false);
     }
   };
@@ -54,9 +57,10 @@ export function StorePage() {
     setError(null);
     try {
       await adminApi(`/store/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      window.location.reload();
+      await refreshModules();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
       setBusy(false);
     }
   };

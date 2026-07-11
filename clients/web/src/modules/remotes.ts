@@ -39,9 +39,7 @@ async function discoverRemotes(): Promise<RemoteSpec[]> {
   return mods
     .filter((m) => m.feRemote != null && m.enabled !== false)
     .map((m) => {
-      // MF remote names must be valid identifiers (no dots), so a reverse-DNS id
-      // is sanitized the same way the module's vite `federation({ name })` is.
-      const name = m.id.replace(/[^a-zA-Z0-9_]/g, '_');
+      const name = mfName(m.id);
       const expose = (m.feRemote as { module: string }).module.replace(/^\.\//, '');
       return {
         name,
@@ -51,68 +49,107 @@ async function discoverRemotes(): Promise<RemoteSpec[]> {
     });
 }
 
-async function doLoad(registry: ModuleRegistry): Promise<void> {
-  const specs = await discoverRemotes();
-  if (specs.length === 0) return;
+/** MF remote name for a module id (must be a valid identifier -- no dots). Kept
+ *  in sync with each module's vite `federation({ name })`. */
+function mfName(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_]/g, '_');
+}
 
-  const { init, loadRemote } = await import('@module-federation/runtime');
-  init({
-    name: 'luma_web_host',
-    // `type: 'module'` loads remoteEntry.js as an ESM module (dynamic import), not
-    // a classic <script> (which throws for a Vite ESM remote).
-    remotes: specs.map((s) => ({ name: s.name, entry: s.entry, type: 'module' as const })),
-    shared: {
-      react: {
-        version: React.version,
-        lib: () => React,
-        shareConfig: { singleton: true, requiredVersion: '^19' },
-      },
-      'react-dom': {
-        version: React.version,
-        lib: () => ReactDOM,
-        shareConfig: { singleton: true, requiredVersion: '^19' },
-      },
-    },
-  });
+// The Module Federation runtime is init'd ONCE (shared React singleton); remotes
+// are added incrementally via registerRemotes so a module installed at runtime
+// loads with no page reload. `loadedRemotes` tracks which are already registered.
+let mfReady: Promise<typeof import('@module-federation/runtime')> | null = null;
+const loadedRemotes = new Set<string>();
 
+function ensureMf(): Promise<typeof import('@module-federation/runtime')> {
+  if (!mfReady) {
+    mfReady = import('@module-federation/runtime')
+      .then((mf) => {
+        mf.init({
+          name: 'luma_web_host',
+          remotes: [],
+          shared: {
+            react: {
+              version: React.version,
+              lib: () => React,
+              shareConfig: { singleton: true, requiredVersion: '^19' },
+            },
+            'react-dom': {
+              version: React.version,
+              lib: () => ReactDOM,
+              shareConfig: { singleton: true, requiredVersion: '^19' },
+            },
+          },
+        });
+        return mf;
+      })
+      .catch((e) => {
+        mfReady = null; // let a later call retry
+        throw e;
+      });
+  }
+  return mfReady;
+}
+
+/** Discover installed frontend remotes and load any not-yet-loaded ones into
+ *  `registry`. RE-CALLABLE: after a Store install, calling it again loads just
+ *  the new module (`type: 'module'` = ESM remoteEntry). Best-effort; a failed
+ *  remote is logged + skipped, never breaking compile-time modules. Returns the
+ *  ids newly registered. No-op during SSR / prerender. */
+export async function loadRuntimeRemotes(registry: ModuleRegistry): Promise<string[]> {
+  if (typeof window === 'undefined') return [];
+  let specs: RemoteSpec[];
+  try {
+    specs = await discoverRemotes();
+  } catch (e) {
+    console.warn('[modules] remote discovery failed', e);
+    return [];
+  }
+  const fresh = specs.filter((s) => !loadedRemotes.has(s.name));
+  if (fresh.length === 0) return [];
+
+  let mf: typeof import('@module-federation/runtime');
+  try {
+    mf = await ensureMf();
+  } catch (e) {
+    console.warn('[modules] federation init failed', e);
+    return [];
+  }
+  mf.registerRemotes(fresh.map((s) => ({ name: s.name, entry: s.entry, type: 'module' as const })));
+
+  const added: string[] = [];
   await Promise.all(
-    specs.map(async (s) => {
+    fresh.map(async (s) => {
+      loadedRemotes.add(s.name);
       try {
-        const loaded = await loadRemote<{ default: LumaModule }>(s.module);
-        if (!loaded) throw new Error('loadRemote returned null');
-        const mod = loaded.default;
-        if (!registry.has(mod.id)) {
+        const mod = (await mf.loadRemote<{ default: LumaModule }>(s.module))?.default;
+        if (mod && !registry.has(mod.id)) {
           registry.register(mod);
           try {
-            // Validate the remote's deps resolve; a bad one must not break order()
-            // for the compile-time modules.
-            registry.order();
+            registry.order(); // validate deps; a bad one must not break the rest
+            added.push(mod.id);
           } catch (err) {
             registry.unregister(mod.id);
+            loadedRemotes.delete(s.name);
             console.warn(`[modules] runtime remote "${s.name}" has unmet deps/cycle; unregistered`, err);
           }
         }
       } catch (e) {
+        loadedRemotes.delete(s.name);
         console.warn(`[modules] runtime remote "${s.name}" failed to load`, e);
       }
     }),
   );
+  return added;
 }
 
-// Cache the whole load as a promise so it runs once per page load (a StrictMode /
-// HMR double-invoke awaits the same run). A page reload after install/uninstall
-// re-discovers the current set.
-let runOnce: Promise<void> | null = null;
+/** Whether this module's frontend was loaded as a runtime remote (vs compiled in). */
+export function isLoadedRemote(id: string): boolean {
+  return loadedRemotes.has(mfName(id));
+}
 
-/** Discover + load every installed frontend remote into `registry`. Best-effort:
- *  a remote that fails is logged and skipped, never breaking compile-time
- *  modules. No-op during SSR / prerender. */
-export function loadRuntimeRemotes(registry: ModuleRegistry): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if (!runOnce) {
-    runOnce = doLoad(registry).catch((e) => {
-      console.warn('[modules] runtime remotes failed', e);
-    });
-  }
-  return runOnce;
+/** Forget a remote so a later reinstall re-loads it (the loaded MF code stays in
+ *  memory, but its module is unregistered from the app registry). */
+export function forgetRemote(id: string): void {
+  loadedRemotes.delete(mfName(id));
 }

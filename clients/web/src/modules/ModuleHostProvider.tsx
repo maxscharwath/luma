@@ -8,9 +8,10 @@
 import { hasPermission, type Locale, type MessageKey, translateIn, type TVars } from '@luma/core';
 import type { LumaHost, ModuleNav, ModulePanel, ModuleRoute } from '@luma/module-sdk';
 import { useLocale, useT } from '@luma/ui';
-import { useQuery } from '@tanstack/react-query';
-import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
 import { useModuleHost } from '#web/modules/host';
+import { forgetRemote, isLoadedRemote, loadRuntimeRemotes } from '#web/modules/remotes';
 import { moduleRegistry } from '#web/modules/registry';
 import { useAuth } from '#web/shared/lib/auth';
 
@@ -33,6 +34,9 @@ interface ModuleHostValue {
   routes: ModuleRoute[];
   panels: ModulePanel[];
   disabledIds: ReadonlySet<string>;
+  /** Soft-reload the module set: load any newly-installed remotes + drop any
+   *  uninstalled ones, then re-snapshot nav/pages. No page reload. */
+  refresh: () => Promise<void>;
 }
 
 const EMPTY: ModuleHostValue = {
@@ -41,12 +45,17 @@ const EMPTY: ModuleHostValue = {
   routes: [],
   panels: [],
   disabledIds: new Set(),
+  refresh: async () => {},
 };
 
 const ModuleHostContext = createContext<ModuleHostValue>(EMPTY);
 
 export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode }>) {
   const host = useModuleHost();
+  const queryClient = useQueryClient();
+  // Bumped by refresh() after an install/uninstall so the contributions
+  // re-snapshot (host identity is stable, so this is the re-read trigger).
+  const [revision, setRevision] = useState(0);
 
   // The backend's active-module list carries the enabled flags. Keyed ['modules']
   // so it dedupes with the host's own fetch. Disabled modules keep their nav
@@ -61,10 +70,9 @@ export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode 
     [manifest],
   );
 
-  // Read the registry's contributions once the host is ready (remotes have
-  // registered by then). `host` is set exactly once (null -> wired), so this memo
-  // runs once and returns a stable array of stable lazy component refs, which is
-  // what keeps the panels from retrying into a Suspense loop under the compiler.
+  // Read the registry's contributions once the host is ready, and again whenever
+  // `revision` bumps (a runtime install/uninstall). The arrays hold stable lazy
+  // component refs, so panels don't retry into a Suspense loop under the compiler.
   const contrib = useMemo<{ nav: ModuleNav[]; routes: ModuleRoute[]; panels: ModulePanel[] }>(() => {
     if (!host) return { nav: [], routes: [], panels: [] };
     try {
@@ -78,11 +86,41 @@ export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode 
       // usable contributions; keep them empty rather than crash the whole app.
       return { nav: [], routes: [], panels: [] };
     }
-  }, [host]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host, revision]);
+
+  const refresh = useCallback(async () => {
+    // Load any newly-installed remotes (idempotent), then reconcile: drop any
+    // runtime (remote-loaded) module no longer in the backend list (uninstalled).
+    // Compile-time modules always appear in the backend list, so they're kept.
+    await loadRuntimeRemotes(moduleRegistry);
+    try {
+      const listed = host ? await host.api.listModules() : [];
+      const present = new Set(listed.map((m) => m.id));
+      for (const id of moduleRegistry.ids()) {
+        if (!present.has(id) && isLoadedRemote(id)) {
+          moduleRegistry.unregister(id);
+          forgetRemote(id);
+        }
+      }
+    } catch (e) {
+      console.warn('[modules] refresh reconcile failed', e);
+    }
+    await queryClient.invalidateQueries({ queryKey: ['modules'] });
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'modules'] });
+    setRevision((r) => r + 1);
+  }, [host, queryClient]);
 
   const value = useMemo<ModuleHostValue>(
-    () => ({ host, nav: contrib.nav, routes: contrib.routes, panels: contrib.panels, disabledIds }),
-    [host, contrib, disabledIds],
+    () => ({
+      host,
+      nav: contrib.nav,
+      routes: contrib.routes,
+      panels: contrib.panels,
+      disabledIds,
+      refresh,
+    }),
+    [host, contrib, disabledIds, refresh],
   );
   return <ModuleHostContext.Provider value={value}>{children}</ModuleHostContext.Provider>;
 }
@@ -90,6 +128,12 @@ export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode 
 /** The wired module host, or null until modules finish starting. */
 export function useModuleHostValue(): LumaHost | null {
   return useContext(ModuleHostContext).host;
+}
+
+/** Soft-reload the module set after an install/uninstall (no page reload): loads
+ *  new remotes, drops uninstalled ones, and re-renders nav + pages. */
+export function useRefreshModules(): () => Promise<void> {
+  return useContext(ModuleHostContext).refresh;
 }
 
 /** Every module nav entry the current account may see (enabled module + met

@@ -55,6 +55,11 @@ export class ModuleRegistry {
     return this.modules.has(id);
   }
 
+  /** The ids of every registered module (compile-time + runtime-loaded). */
+  ids(): string[] {
+    return [...this.modules.keys()];
+  }
+
   /** A module's own message catalogs (locale -> key -> string), if it ships any.
    *  The host resolves that module's labels + `host.i18n.t` against these. */
   localesOf(id: string): Record<string, Record<string, string>> | undefined {
