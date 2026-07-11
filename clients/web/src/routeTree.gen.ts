@@ -15,24 +15,20 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
-import { Route as AdminVpnRouteImport } from './routes/admin.vpn'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder'
 import { Route as AdminStoreRouteImport } from './routes/admin.store'
 import { Route as AdminStorageRouteImport } from './routes/admin.storage'
 import { Route as AdminRequestsRouteImport } from './routes/admin.requests'
-import { Route as AdminRemoteRouteImport } from './routes/admin.remote'
 import { Route as AdminPipelineRouteImport } from './routes/admin.pipeline'
 import { Route as AdminNetworkRouteImport } from './routes/admin.network'
 import { Route as AdminNamingRouteImport } from './routes/admin.naming'
 import { Route as AdminModulesRouteImport } from './routes/admin.modules'
 import { Route as AdminLibrariesRouteImport } from './routes/admin.libraries'
 import { Route as AdminJobsRouteImport } from './routes/admin.jobs'
-import { Route as AdminIndexersRouteImport } from './routes/admin.indexers'
 import { Route as AdminGeneralRouteImport } from './routes/admin.general'
 import { Route as AdminBackupRouteImport } from './routes/admin.backup'
 import { Route as AdminAiRouteImport } from './routes/admin.ai'
-import { Route as AdminAcquisitionRouteImport } from './routes/admin.acquisition'
 import { Route as AppSeriesRouteImport } from './routes/_app.series'
 import { Route as AppSearchRouteImport } from './routes/_app.search'
 import { Route as AppRequestsRouteImport } from './routes/_app.requests'
@@ -79,11 +75,6 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AdminVpnRoute = AdminVpnRouteImport.update({
-  id: '/vpn',
-  path: '/vpn',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -107,11 +98,6 @@ const AdminStorageRoute = AdminStorageRouteImport.update({
 const AdminRequestsRoute = AdminRequestsRouteImport.update({
   id: '/requests',
   path: '/requests',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminRemoteRoute = AdminRemoteRouteImport.update({
-  id: '/remote',
-  path: '/remote',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPipelineRoute = AdminPipelineRouteImport.update({
@@ -144,11 +130,6 @@ const AdminJobsRoute = AdminJobsRouteImport.update({
   path: '/jobs',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminIndexersRoute = AdminIndexersRouteImport.update({
-  id: '/indexers',
-  path: '/indexers',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminGeneralRoute = AdminGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -162,11 +143,6 @@ const AdminBackupRoute = AdminBackupRouteImport.update({
 const AdminAiRoute = AdminAiRouteImport.update({
   id: '/ai',
   path: '/ai',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminAcquisitionRoute = AdminAcquisitionRouteImport.update({
-  id: '/acquisition',
-  path: '/acquisition',
   getParentRoute: () => AdminRoute,
 } as any)
 const AppSeriesRoute = AppSeriesRouteImport.update({
@@ -263,24 +239,20 @@ export interface FileRoutesByFullPath {
   '/requests': typeof AppRequestsRoute
   '/search': typeof AppSearchRoute
   '/series': typeof AppSeriesRoute
-  '/admin/acquisition': typeof AdminAcquisitionRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/backup': typeof AdminBackupRoute
   '/admin/general': typeof AdminGeneralRoute
-  '/admin/indexers': typeof AdminIndexersRoute
   '/admin/jobs': typeof AdminJobsRoute
   '/admin/libraries': typeof AdminLibrariesRoute
   '/admin/modules': typeof AdminModulesRoute
   '/admin/naming': typeof AdminNamingRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/pipeline': typeof AdminPipelineRoute
-  '/admin/remote': typeof AdminRemoteRoute
   '/admin/requests': typeof AdminRequestsRoute
   '/admin/storage': typeof AdminStorageRoute
   '/admin/store': typeof AdminStoreRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
-  '/admin/vpn': typeof AdminVpnRoute
   '/admin/': typeof AdminIndexRoute
   '/m/$': typeof AppMSplatRoute
   '/movie/$id': typeof AppMovieIdRoute
@@ -302,24 +274,20 @@ export interface FileRoutesByTo {
   '/requests': typeof AppRequestsRoute
   '/search': typeof AppSearchRoute
   '/series': typeof AppSeriesRoute
-  '/admin/acquisition': typeof AdminAcquisitionRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/backup': typeof AdminBackupRoute
   '/admin/general': typeof AdminGeneralRoute
-  '/admin/indexers': typeof AdminIndexersRoute
   '/admin/jobs': typeof AdminJobsRoute
   '/admin/libraries': typeof AdminLibrariesRoute
   '/admin/modules': typeof AdminModulesRoute
   '/admin/naming': typeof AdminNamingRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/pipeline': typeof AdminPipelineRoute
-  '/admin/remote': typeof AdminRemoteRoute
   '/admin/requests': typeof AdminRequestsRoute
   '/admin/storage': typeof AdminStorageRoute
   '/admin/store': typeof AdminStoreRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
-  '/admin/vpn': typeof AdminVpnRoute
   '/': typeof AppIndexRoute
   '/admin': typeof AdminIndexRoute
   '/m/$': typeof AppMSplatRoute
@@ -345,24 +313,20 @@ export interface FileRoutesById {
   '/_app/requests': typeof AppRequestsRoute
   '/_app/search': typeof AppSearchRoute
   '/_app/series': typeof AppSeriesRoute
-  '/admin/acquisition': typeof AdminAcquisitionRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/backup': typeof AdminBackupRoute
   '/admin/general': typeof AdminGeneralRoute
-  '/admin/indexers': typeof AdminIndexersRoute
   '/admin/jobs': typeof AdminJobsRoute
   '/admin/libraries': typeof AdminLibrariesRoute
   '/admin/modules': typeof AdminModulesRoute
   '/admin/naming': typeof AdminNamingRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/pipeline': typeof AdminPipelineRoute
-  '/admin/remote': typeof AdminRemoteRoute
   '/admin/requests': typeof AdminRequestsRoute
   '/admin/storage': typeof AdminStorageRoute
   '/admin/store': typeof AdminStoreRoute
   '/admin/transcoder': typeof AdminTranscoderRoute
   '/admin/users': typeof AdminUsersRoute
-  '/admin/vpn': typeof AdminVpnRoute
   '/_app/': typeof AppIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/_app/m/$': typeof AppMSplatRoute
@@ -389,24 +353,20 @@ export interface FileRouteTypes {
     | '/requests'
     | '/search'
     | '/series'
-    | '/admin/acquisition'
     | '/admin/ai'
     | '/admin/backup'
     | '/admin/general'
-    | '/admin/indexers'
     | '/admin/jobs'
     | '/admin/libraries'
     | '/admin/modules'
     | '/admin/naming'
     | '/admin/network'
     | '/admin/pipeline'
-    | '/admin/remote'
     | '/admin/requests'
     | '/admin/storage'
     | '/admin/store'
     | '/admin/transcoder'
     | '/admin/users'
-    | '/admin/vpn'
     | '/admin/'
     | '/m/$'
     | '/movie/$id'
@@ -428,24 +388,20 @@ export interface FileRouteTypes {
     | '/requests'
     | '/search'
     | '/series'
-    | '/admin/acquisition'
     | '/admin/ai'
     | '/admin/backup'
     | '/admin/general'
-    | '/admin/indexers'
     | '/admin/jobs'
     | '/admin/libraries'
     | '/admin/modules'
     | '/admin/naming'
     | '/admin/network'
     | '/admin/pipeline'
-    | '/admin/remote'
     | '/admin/requests'
     | '/admin/storage'
     | '/admin/store'
     | '/admin/transcoder'
     | '/admin/users'
-    | '/admin/vpn'
     | '/'
     | '/admin'
     | '/m/$'
@@ -470,24 +426,20 @@ export interface FileRouteTypes {
     | '/_app/requests'
     | '/_app/search'
     | '/_app/series'
-    | '/admin/acquisition'
     | '/admin/ai'
     | '/admin/backup'
     | '/admin/general'
-    | '/admin/indexers'
     | '/admin/jobs'
     | '/admin/libraries'
     | '/admin/modules'
     | '/admin/naming'
     | '/admin/network'
     | '/admin/pipeline'
-    | '/admin/remote'
     | '/admin/requests'
     | '/admin/storage'
     | '/admin/store'
     | '/admin/transcoder'
     | '/admin/users'
-    | '/admin/vpn'
     | '/_app/'
     | '/admin/'
     | '/_app/m/$'
@@ -551,13 +503,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/admin/vpn': {
-      id: '/admin/vpn'
-      path: '/vpn'
-      fullPath: '/admin/vpn'
-      preLoaderRoute: typeof AdminVpnRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
@@ -591,13 +536,6 @@ declare module '@tanstack/react-router' {
       path: '/requests'
       fullPath: '/admin/requests'
       preLoaderRoute: typeof AdminRequestsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/remote': {
-      id: '/admin/remote'
-      path: '/remote'
-      fullPath: '/admin/remote'
-      preLoaderRoute: typeof AdminRemoteRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/pipeline': {
@@ -642,13 +580,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminJobsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/indexers': {
-      id: '/admin/indexers'
-      path: '/indexers'
-      fullPath: '/admin/indexers'
-      preLoaderRoute: typeof AdminIndexersRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/general': {
       id: '/admin/general'
       path: '/general'
@@ -668,13 +599,6 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/admin/ai'
       preLoaderRoute: typeof AdminAiRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/acquisition': {
-      id: '/admin/acquisition'
-      path: '/acquisition'
-      fullPath: '/admin/acquisition'
-      preLoaderRoute: typeof AdminAcquisitionRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_app/series': {
@@ -833,47 +757,39 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AdminRouteChildren {
-  AdminAcquisitionRoute: typeof AdminAcquisitionRoute
   AdminAiRoute: typeof AdminAiRoute
   AdminBackupRoute: typeof AdminBackupRoute
   AdminGeneralRoute: typeof AdminGeneralRoute
-  AdminIndexersRoute: typeof AdminIndexersRoute
   AdminJobsRoute: typeof AdminJobsRoute
   AdminLibrariesRoute: typeof AdminLibrariesRoute
   AdminModulesRoute: typeof AdminModulesRoute
   AdminNamingRoute: typeof AdminNamingRoute
   AdminNetworkRoute: typeof AdminNetworkRoute
   AdminPipelineRoute: typeof AdminPipelineRoute
-  AdminRemoteRoute: typeof AdminRemoteRoute
   AdminRequestsRoute: typeof AdminRequestsRoute
   AdminStorageRoute: typeof AdminStorageRoute
   AdminStoreRoute: typeof AdminStoreRoute
   AdminTranscoderRoute: typeof AdminTranscoderRoute
   AdminUsersRoute: typeof AdminUsersRoute
-  AdminVpnRoute: typeof AdminVpnRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminMSplatRoute: typeof AdminMSplatRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
-  AdminAcquisitionRoute: AdminAcquisitionRoute,
   AdminAiRoute: AdminAiRoute,
   AdminBackupRoute: AdminBackupRoute,
   AdminGeneralRoute: AdminGeneralRoute,
-  AdminIndexersRoute: AdminIndexersRoute,
   AdminJobsRoute: AdminJobsRoute,
   AdminLibrariesRoute: AdminLibrariesRoute,
   AdminModulesRoute: AdminModulesRoute,
   AdminNamingRoute: AdminNamingRoute,
   AdminNetworkRoute: AdminNetworkRoute,
   AdminPipelineRoute: AdminPipelineRoute,
-  AdminRemoteRoute: AdminRemoteRoute,
   AdminRequestsRoute: AdminRequestsRoute,
   AdminStorageRoute: AdminStorageRoute,
   AdminStoreRoute: AdminStoreRoute,
   AdminTranscoderRoute: AdminTranscoderRoute,
   AdminUsersRoute: AdminUsersRoute,
-  AdminVpnRoute: AdminVpnRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminMSplatRoute: AdminMSplatRoute,
 }

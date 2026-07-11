@@ -13,14 +13,14 @@ mod backup;
 // crate-visible so `crate::modules::downloads` can compose their routers.
 pub(crate) mod download_clients;
 pub(crate) mod downloads;
-mod indexers;
+pub(crate) mod indexers;
 mod jobs;
 mod libraries;
 mod llm;
 mod modules;
 mod organize;
 mod pipeline;
-mod remote;
+pub(crate) mod remote;
 mod settings;
 mod stats;
 mod storage;
@@ -52,9 +52,9 @@ use crate::state::SharedState;
 pub fn routes(state: SharedState) -> Router<SharedState> {
     // Core admin routers merged directly; each backend module's routers are
     // mounted behind its enabled-gate (404 when the module is disabled), so a
-    // disabled module's whole admin surface disappears. Downloads (the
-    // download-clients / downloads-queue / VPN routers) is a module now, so it is
-    // no longer merged here -- it comes in via the `server_modules()` loop below.
+    // disabled module's whole admin surface disappears. The Downloads / VPN /
+    // Indexers / Remote routers are modules now, so they are no longer merged
+    // here -- they come in via `crate::modules::mount_admin` below.
     let mut router = Router::new()
         .route("/server", get(server_info))
         .route("/sessions", get(sessions))
@@ -66,13 +66,11 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
         .merge(settings::routes())
         .merge(storage::routes())
         .merge(stats::routes())
-        .merge(indexers::routes())
         .merge(jobs::routes())
         .merge(llm::routes())
         .merge(modules::routes())
         .merge(store::routes())
         .merge(pipeline::routes())
-        .merge(remote::routes())
         .merge(backup::routes());
     router = router.merge(crate::modules::mount_admin(state.clone()));
     router

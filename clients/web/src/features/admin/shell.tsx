@@ -13,22 +13,18 @@ import { AdminKitProvider } from '@luma/admin-kit';
 import { Logo, useT } from '@luma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  IconAntenna,
   IconApps,
   IconArchive,
   IconBuildingStore,
   IconChevronRight,
   IconClockBolt,
-  IconCloud,
   IconDatabase,
   IconFileText,
   IconInbox,
   IconLayoutDashboard,
   IconLibrary,
-  IconMagnet,
   IconMenu2,
   IconSettings,
-  IconShieldLock,
   IconSitemap,
   IconSparkles,
   IconTransform,
@@ -176,21 +172,8 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
     labelKey: 'admin.groupAcquisition',
     section: 'acquisition',
     items: [
-      {
-        to: '/admin/acquisition',
-        labelKey: 'admin.navAcquisition',
-        cap: 'settings.manage',
-        icon: IconMagnet,
-      },
-      {
-        to: '/admin/indexers',
-        labelKey: 'admin.navIndexers',
-        cap: 'settings.manage',
-        icon: IconAntenna,
-      },
       { to: '/admin/modules', labelKey: 'admin.navModules', cap: 'settings.manage', icon: IconApps },
       { to: '/admin/store', labelKey: 'admin.navStore', cap: 'settings.manage', icon: IconBuildingStore },
-      { to: '/admin/vpn', labelKey: 'admin.navVpn', cap: 'settings.manage', icon: IconShieldLock },
     ],
   },
   {
@@ -209,7 +192,6 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
         cap: 'settings.manage',
         icon: IconWorld,
       },
-      { to: '/admin/remote', labelKey: 'admin.navRemote', cap: 'settings.manage', icon: IconCloud },
     ],
   },
   {

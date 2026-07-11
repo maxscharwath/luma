@@ -36,3 +36,4 @@ export {
 export { HeaderAction, PageHeader, PAGE_SUBTITLE, PAGE_TITLE } from './header';
 export { Denied, isAnyAdmin, useAsyncAction, useCap, usePoll } from './hooks';
 export { CardSkeleton, EmptyState, Skeleton, TableSkeleton } from './feedback';
+export { SettingsView } from './settings';

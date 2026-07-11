@@ -195,6 +195,12 @@ impl DownloadClientRegistry {
         self.factories.keys().map(String::as_str).collect()
     }
 
+    /// Remove a client `kind`'s factory (a download sub-engine module was
+    /// disabled), so that kind is no longer offered / buildable.
+    pub fn unregister(&mut self, kind: &str) {
+        self.factories.remove(kind);
+    }
+
     /// Build the engine for a client definition, or error if its kind has no
     /// registered sub-engine.
     pub fn build(
@@ -210,25 +216,50 @@ impl DownloadClientRegistry {
     }
 }
 
-/// Register the download sub-engines shipped with the Downloads module. External
-/// clients are always available; `rqbit` registers a real factory when compiled
-/// in and a clear "not compiled" stub otherwise (so the error is actionable).
+/// Register the built-in factory for ONE client `kind` (returns false for an
+/// unknown kind). This is the single-kind entry point the download-engine
+/// sub-modules use to add their kind when toggled on (`rqbit` stays part of the
+/// Downloads module; `transmission` / `qbittorrent` are their own modules).
+/// `rqbit` registers a real factory when compiled in and a clear "not compiled"
+/// stub otherwise (so the error is actionable).
+pub fn register_client_kind(reg: &mut DownloadClientRegistry, kind: &str) -> bool {
+    match kind {
+        "transmission" => {
+            reg.register("transmission", |def, _ctx| {
+                Ok(Box::new(Transmission::new(def)) as Box<dyn DownloadClient>)
+            });
+            true
+        }
+        "qbittorrent" => {
+            reg.register("qbittorrent", |def, ctx| {
+                Ok(Box::new(QBittorrent::new(def, cookie_jar_path(ctx.state_dir, def)))
+                    as Box<dyn DownloadClient>)
+            });
+            true
+        }
+        "rqbit" => {
+            #[cfg(feature = "rqbit")]
+            reg.register("rqbit", |_def, ctx| match &ctx.rqbit {
+                Some(engine) => Ok(engine.client()),
+                None => bail!("embedded engine not started"),
+            });
+            #[cfg(not(feature = "rqbit"))]
+            reg.register("rqbit", |_def, _ctx| {
+                bail!("embedded engine not compiled (torrent-rqbit feature off)")
+            });
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Register the download sub-engines shipped with the Downloads module (every
+/// built-in kind). The engine sub-modules re-register their own kind via
+/// [`register_client_kind`] when toggled.
 pub fn register_download_clients(reg: &mut DownloadClientRegistry) {
-    reg.register("transmission", |def, _ctx| {
-        Ok(Box::new(Transmission::new(def)) as Box<dyn DownloadClient>)
-    });
-    reg.register("qbittorrent", |def, ctx| {
-        Ok(Box::new(QBittorrent::new(def, cookie_jar_path(ctx.state_dir, def))) as Box<dyn DownloadClient>)
-    });
-    #[cfg(feature = "rqbit")]
-    reg.register("rqbit", |_def, ctx| match &ctx.rqbit {
-        Some(engine) => Ok(engine.client()),
-        None => bail!("embedded engine not started"),
-    });
-    #[cfg(not(feature = "rqbit"))]
-    reg.register("rqbit", |_def, _ctx| {
-        bail!("embedded engine not compiled (torrent-rqbit feature off)")
-    });
+    register_client_kind(reg, "transmission");
+    register_client_kind(reg, "qbittorrent");
+    register_client_kind(reg, "rqbit");
 }
 
 /// A registry with every built-in download sub-engine registered.

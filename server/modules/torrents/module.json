@@ -3,10 +3,7 @@
   "name": "Torrent downloads",
   "version": "0.1.0",
   "dependsOn": ["dev.luma.indexer"],
-  "provides": [
-    { "kind": "download-client", "id": "rqbit" },
-    { "kind": "download-client", "id": "transmission" },
-    { "kind": "download-client", "id": "qbittorrent" }
-  ],
-  "description": "Torrent engines behind one DownloadClient trait: embedded librqbit, Transmission, qBittorrent."
+  "optionalDependsOn": ["dev.luma.vpn"],
+  "provides": [{ "kind": "download-client", "id": "rqbit" }],
+  "description": "The embedded librqbit download engine + the downloads queue. Transmission and qBittorrent are their own engine sub-modules that plug into this one."
 }

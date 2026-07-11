@@ -1,21 +1,31 @@
-// The VPN card on the downloads page: the managed WireGuard bridge state, a
-// paste-your-config modal and a live seal test. VPN routing is WireGuard-only
-// (any provider). The kill-switch toggle lives in the Acquisition settings.
+// The VPN module page (`/admin/m/vpn`): the managed WireGuard bridge state, a
+// paste-your-config modal and a live seal test, plus the network-wide toggles
+// (kill switch, route indexers through the tunnel) from the settings view. VPN
+// routing is WireGuard-only (any provider). Default export so the module runtime
+// can React.lazy it into its own chunk.
 
 import { apiErrorText, type VpnTestResult } from '@luma/core';
+import {
+  Card,
+  Denied,
+  Modal,
+  ModalActions,
+  PageHeader,
+  Pill,
+  SettingsView,
+  useAdminKit,
+  useAsyncAction,
+  useCap,
+  usePoll,
+} from '@luma/admin-kit';
 import { useT } from '@luma/ui';
 import { IconLoader2, IconShield, IconShieldCheck, IconShieldX } from '@tabler/icons-react';
 import { useState } from 'react';
-import { SettingsPage } from '#web/features/admin/settings';
-import { Denied, PageHeader, useAsyncAction, useCap, usePoll } from '#web/features/admin/shell';
-import { Card, Modal, ModalActions, Pill } from '#web/features/admin/ui';
-import { useAuth } from '#web/shared/lib/auth';
 
-// The dedicated VPN admin section. The VPN is global to several flows (torrent
-// downloads and, optionally, indexer searches), so it lives on its own page:
-// the WireGuard config card + the network-wide toggles (kill switch, route
-// indexers through the tunnel).
-export function VpnPage() {
+// The VPN is global to several flows (torrent downloads and, optionally, indexer
+// searches), so it lives on its own page: the WireGuard config card + the
+// network-wide toggles (kill switch, route indexers through the tunnel).
+export default function VpnPage() {
   const t = useT();
   if (!useCap('settings.manage')) return <Denied />;
   return (
@@ -23,14 +33,14 @@ export function VpnPage() {
       <PageHeader title={t('admin.vpnTitle')} subtitle={t('admin.vpnSub')} />
       <div className="mt-6" />
       <VpnCard />
-      <SettingsPage view="vpn" titleKey="admin.vpnTitle" subtitleKey="admin.vpnSub" embedded />
+      <SettingsView view="vpn" titleKey="admin.vpnTitle" subtitleKey="admin.vpnSub" embedded />
     </>
   );
 }
 
 export function VpnCard() {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const [modal, setModal] = useState(false);
   const [test, setTest] = useState<{ busy?: boolean; result?: VpnTestResult; error?: string }>({});
   const { data, reload } = usePoll(['admin', 'vpn'], () => client.adminVpn(), 30000);
@@ -142,7 +152,7 @@ function VpnConfigModal({
   onSaved,
 }: Readonly<{ configured: boolean; onClose: () => void; onSaved: () => void }>) {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const { busy, error, run } = useAsyncAction();
   const [config, setConfig] = useState('');
 

@@ -6,21 +6,32 @@
 // One control drives the connector: the enable toggle (auto-saved). The server
 // reconciles the running connector to match it, so disabling always stops it.
 import type { RemoteAccessView } from '@luma/core';
+import {
+  Button,
+  C,
+  Card,
+  Denied,
+  Field,
+  PageHeader,
+  Pill,
+  Section,
+  TextInput,
+  Toggle,
+  useAdminKit,
+  useCap,
+} from '@luma/admin-kit';
 import { useT } from '@luma/ui';
 import { IconCloud, IconDeviceFloppy, IconExternalLink } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
-import { Denied, PageHeader, useCap } from '#web/features/admin/shell';
-import { Button, C, Card, Field, Pill, Section, TextInput, Toggle } from '#web/features/admin/ui';
-import { useAuth } from '#web/shared/lib/auth';
 
 // Deep link to the Zero Trust "Tunnels" page (`:account` auto-resolves to the
 // signed-in account) where a tunnel's connector token is created and shown in the
 // `cloudflared … run --token <TOKEN>` command.
 const CF_TUNNELS_URL = 'https://one.dash.cloudflare.com/?to=/:account/networks/tunnels';
 
-export function RemotePage() {
+export default function RemotePage() {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const canManage = useCap('settings.manage');
 
   // Server view is the source of truth for live status + `hasToken`; the form

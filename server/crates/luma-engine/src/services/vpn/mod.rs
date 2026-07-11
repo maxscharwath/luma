@@ -66,6 +66,16 @@ impl Vpn {
         }
     }
 
+    /// Stop the bridge child and prevent respawns (the VPN module was disabled).
+    /// Bumping the generation makes the current supervisor exit; `apply` brings
+    /// the bridge back up when the module is re-enabled.
+    pub async fn stop(self: &Arc<Self>) {
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        if let Some(mut old) = self.child.lock().await.take() {
+            let _ = old.kill().await;
+        }
+    }
+
     async fn start_bridge(
         self: Arc<Self>,
         generation: u64,

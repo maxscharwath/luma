@@ -10,13 +10,19 @@ import {
   type IndexerView,
   type SaveIndexerBody,
 } from '@luma/core';
+import {
+  Field,
+  Modal,
+  ModalActions,
+  OptionSelect as UiSelect,
+  TextInput,
+  Toggle,
+  useAdminKit,
+  useAsyncAction,
+} from '@luma/admin-kit';
 import { useT } from '@luma/ui';
 import { IconLoader2, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useAsyncAction } from '#web/features/admin/shell';
-import { Field, Modal, ModalActions, TextInput, Toggle } from '#web/features/admin/ui';
-import { useAuth } from '#web/shared/lib/auth';
-import { Select as UiSelect } from '#web/shared/ui';
 
 function parseCats(text: string): number[] {
   return text
@@ -63,7 +69,7 @@ function TorznabIndexerModal({
   onSaved: () => void;
 }>) {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const { busy, error, run } = useAsyncAction();
   const [name, setName] = useState(indexer?.name ?? '');
   const [url, setUrl] = useState(indexer?.url ?? '');
@@ -153,7 +159,7 @@ export function DefinitionPickerModal({
   onClose,
 }: Readonly<{ onPick: (definitionId: string) => void; onClose: () => void }>) {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const [defs, setDefs] = useState<IndexerDefinitionView[] | null>(null);
   const [synced, setSynced] = useState(true);
   const [q, setQ] = useState('');
@@ -269,7 +275,7 @@ export function BuiltinIndexerModal({
   onSaved: () => void;
 }>) {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const { busy, error, run } = useAsyncAction();
   const [detail, setDetail] = useState<IndexerDefinitionDetailView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

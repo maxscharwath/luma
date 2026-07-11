@@ -45,9 +45,10 @@ pub struct DownloadManager {
     state_dir: PathBuf,
     /// Root for per-download output folders of the embedded engine.
     downloads_dir: PathBuf,
-    /// The download sub-engine registry (kind -> factory). Adding a new download
-    /// backend is registering a factory here, not editing a `match`.
-    clients: luma_torrent::DownloadClientRegistry,
+    /// The download sub-engine registry (kind -> factory). Shared + mutable so
+    /// the download-engine sub-modules can register / unregister their kind when
+    /// toggled. Adding a new backend is registering a factory here, not a `match`.
+    clients: RwLock<luma_torrent::DownloadClientRegistry>,
 }
 
 /// Failed VPN checks in a row before the kill switch actually closes the gate.
@@ -66,7 +67,7 @@ impl DownloadManager {
             paused_by_disable: Mutex::new(Vec::new()),
             downloads_dir: state_dir.join("downloads"),
             state_dir,
-            clients: luma_torrent::builtin_download_clients(),
+            clients: RwLock::new(luma_torrent::builtin_download_clients()),
         })
     }
 
@@ -140,10 +141,23 @@ impl DownloadManager {
             username: row.username.clone(),
             password: row.password.clone(),
         };
-        self.clients.build(
+        self.clients.read().expect("download client registry lock").build(
             &def,
             &luma_torrent::DownloadClientCtx { rqbit: self.rqbit(), state_dir: &self.state_dir },
         )
+    }
+
+    /// Toggle a download sub-engine `kind` on/off. The engine sub-modules call
+    /// this from their enable/disable lifecycle, so turning one off removes its
+    /// kind from the picker (a client row of that kind then fails to build until
+    /// the module is re-enabled).
+    pub fn set_client_kind_enabled(&self, kind: &str, enabled: bool) {
+        let mut reg = self.clients.write().expect("download client registry lock");
+        if enabled {
+            luma_torrent::register_client_kind(&mut reg, kind);
+        } else {
+            reg.unregister(kind);
+        }
     }
 
     // ----- kill switch ----------------------------------------------------------

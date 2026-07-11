@@ -14,9 +14,12 @@
   "dependencies": {
     "@luma/admin-kit": "workspace:*",
     "@luma/core": "workspace:*",
+    "@luma/module-acquisition": "workspace:*",
     "@luma/module-indexer": "workspace:*",
+    "@luma/module-remote": "workspace:*",
     "@luma/module-sdk": "workspace:*",
     "@luma/module-torrents": "workspace:*",
+    "@luma/module-vpn": "workspace:*",
     "@luma/modules-generated": "workspace:*",
     "@luma/ui": "workspace:*",
     "@module-federation/runtime": "2.7.0",

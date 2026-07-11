@@ -3,6 +3,19 @@
 // TMDB id support) and an add/edit modal. Structure mirrors the libraries page.
 
 import { apiErrorText, type IndexerTestResult, type IndexerView } from '@luma/core';
+import {
+  Card,
+  Denied,
+  EmptyState,
+  HeaderAction,
+  PageHeader,
+  Pill,
+  TableSkeleton,
+  Toggle,
+  useAdminKit,
+  useCap,
+  usePoll,
+} from '@luma/admin-kit';
 import { useT } from '@luma/ui';
 import { IconAntenna, IconLoader2, IconPencil } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -10,17 +23,13 @@ import {
   BuiltinIndexerModal,
   DefinitionPickerModal,
   IndexerModal,
-} from '#web/features/admin/indexer-modals';
-import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
-import { Card, Pill, Toggle } from '#web/features/admin/ui';
-import { useAuth } from '#web/shared/lib/auth';
-import { EmptyState, TableSkeleton } from '#web/shared/ui';
+} from './indexer-modals';
 
 type TestState = { busy?: boolean; result?: IndexerTestResult; error?: string };
 
-export function IndexersPage() {
+export default function IndexersPage() {
   const t = useT();
-  const { client } = useAuth();
+  const { client } = useAdminKit();
   const canManage = useCap('settings.manage');
   const [modal, setModal] = useState<{ open: boolean; indexer: IndexerView | null }>({
     open: false,

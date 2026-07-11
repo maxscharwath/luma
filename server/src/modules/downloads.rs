@@ -1,8 +1,9 @@
 //! The Downloads module (backend): the reference `ServerModule`. It owns the
-//! download-client / downloads-queue / VPN admin routes and the librqbit engine
+//! download-client / downloads-queue admin routes and the librqbit engine
 //! lifecycle, so disabling it 404s those routes and stops the running engine.
 //! Its download sub-engines (rqbit / transmission / qBittorrent) plug into the
-//! `DownloadClientRegistry` in `luma_torrent`.
+//! `DownloadClientRegistry` in `luma_torrent`. VPN is a separate module that this
+//! one `optionalDependsOn`.
 
 use axum::Router;
 
@@ -20,16 +21,15 @@ impl ServerModule for DownloadsModule {
     fn admin_routes(&self) -> Router<SharedState> {
         crate::api::admin::download_clients::routes()
             .merge(crate::api::admin::downloads::routes())
-            .merge(crate::api::admin::vpn::routes())
     }
 
     fn on_enable(&self, state: &SharedState) {
-        // Mirror the boot sequence: VPN bridge first (so the engine's SOCKS5 URL
-        // points at a live proxy), then the engine, then flip the rows disable
-        // paused back to active. start_rqbit is async, so run it detached.
+        // Start the engine, then flip the disable-paused rows back to active.
+        // The VPN bridge is its own module (Downloads optionalDependsOn it), so
+        // it is brought up by the VpnModule / boot before this. start_rqbit is
+        // async, so run it detached.
         let state = state.clone();
         tokio::spawn(async move {
-            state.vpn.apply(&state).await;
             state.downloads.start_rqbit(&state).await;
             state.downloads.resume_after_enable(&state);
         });

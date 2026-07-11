@@ -1,0 +1,8 @@
+{
+  "id": "dev.luma.engine.qbittorrent",
+  "name": "qBittorrent engine",
+  "version": "0.1.0",
+  "dependsOn": ["dev.luma.torrents"],
+  "provides": [{ "kind": "download-client", "id": "qbittorrent" }],
+  "description": "qBittorrent WebUI as a download sub-engine for the Downloads module. Toggle it to add/remove qBittorrent from the download-client picker."
+}

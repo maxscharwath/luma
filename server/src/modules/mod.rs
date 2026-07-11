@@ -22,11 +22,15 @@ use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::IntoResponse;
 use axum::Router;
-use luma_module_sdk::{ModuleManifest, Registry};
+use luma_module_sdk::{EmbeddedModule, ModuleManifest, Registry};
 
 use crate::state::SharedState;
 
 mod downloads;
+mod engines;
+mod indexers;
+mod remote;
+mod vpn;
 
 /// The backend contract a module implements to own its server-side vertical.
 pub trait ServerModule: Send + Sync {
@@ -70,10 +74,41 @@ fn build() -> ModuleRegistry {
     manifests.register(Box::new(luma_whisper::MODULE));
     manifests.register(Box::new(luma_vector::MODULE));
     manifests.register(Box::new(luma_mdns::MODULE));
+    // Modules whose backend behavior lives in the host (no dedicated crate) are
+    // embedded straight from their packaged module.json + icon.
+    manifests.register(Box::new(EmbeddedModule::new(
+        include_str!("../../modules/vpn/module.json"),
+        include_bytes!("../../modules/vpn/icon.svg"),
+    )));
+    manifests.register(Box::new(EmbeddedModule::new(
+        include_str!("../../modules/remote/module.json"),
+        include_bytes!("../../modules/remote/icon.svg"),
+    )));
+    // Acquisition is a settings-view module (no dedicated routes), so it has a
+    // manifest but no ServerModule behavior.
+    manifests.register(Box::new(EmbeddedModule::new(
+        include_str!("../../modules/acquisition/module.json"),
+        include_bytes!("../../modules/acquisition/icon.svg"),
+    )));
+    // Download-engine sub-modules: backend-only (no page/icon), they toggle a
+    // download-client factory kind on the Downloads registry.
+    manifests.register(Box::new(EmbeddedModule::iconless(include_str!(
+        "../../modules/engine.transmission/module.json"
+    ))));
+    manifests.register(Box::new(EmbeddedModule::iconless(include_str!(
+        "../../modules/engine.qbittorrent/module.json"
+    ))));
     luma_modules_generated::register_all(&mut manifests);
 
     // The modules that also own backend routes + lifecycle.
-    let servers: Vec<Box<dyn ServerModule>> = vec![Box::new(downloads::DownloadsModule)];
+    let servers: Vec<Box<dyn ServerModule>> = vec![
+        Box::new(downloads::DownloadsModule),
+        Box::new(vpn::VpnModule),
+        Box::new(indexers::IndexersModule),
+        Box::new(remote::RemoteModule),
+        Box::new(engines::TransmissionEngine),
+        Box::new(engines::QbittorrentEngine),
+    ];
 
     let ids: Vec<String> = manifests.manifests().into_iter().map(|m| m.id).collect();
     for s in &servers {
