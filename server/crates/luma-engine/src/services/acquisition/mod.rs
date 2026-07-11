@@ -1,16 +1,13 @@
-//! Acquisition orchestration: the quality profile from settings, per-indexer
-//! capability caching, and the search pipelines (interactive here via
-//! [`search`]; the automatic wanted-list pass rides the downloads milestone).
+//! Acquisition orchestration: the quality profile from settings and the search
+//! DISPATCH (interactive here via [`search`]; the automatic wanted-list pass in
+//! [`auto`]). The per-indexer capability caching + native-engine session building
+//! moved to the Indexers module (`luma_indexer::admin`); this calls into it.
 
 pub mod auto;
 pub mod import;
 pub mod search;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
 use luma_scene::{Profile, Res};
-use luma_torznab::{Caps, IndexerEndpoint};
 
 use crate::db::IndexerRow;
 use crate::services::jobs::now_ms;
@@ -43,133 +40,6 @@ pub fn profile_from_settings(state: &SharedState) -> Profile {
         required_keywords: list("acqRequiredKeywords"),
         forbidden_keywords: list("acqForbiddenKeywords"),
     }
-}
-
-pub fn endpoint_of(row: &IndexerRow) -> IndexerEndpoint {
-    IndexerEndpoint {
-        url: row.url.clone(),
-        api_key: row.api_key.clone(),
-        categories: row.categories.clone(),
-    }
-}
-
-/// Process-wide `t=caps` cache: capabilities are static per indexer, and every
-/// search would otherwise pay an extra round-trip per indexer. Keyed by
-/// indexer id + url (so re-pointing an indexer refreshes).
-static CAPS_CACHE: Mutex<Option<HashMap<String, Caps>>> = Mutex::new(None);
-
-pub fn indexer_caps(state: &SharedState, row: &IndexerRow) -> anyhow::Result<Caps> {
-    let key = format!("{}|{}", row.id, row.url);
-    if let Some(caps) = CAPS_CACHE.lock().unwrap().as_ref().and_then(|m| m.get(&key)).cloned() {
-        return Ok(caps);
-    }
-    let result = luma_torznab::caps(&endpoint_of(row));
-    match &result {
-        Ok(_) => {
-            let _ = crate::db::note_indexer_result(&state.db, &row.id, true, None, now_ms());
-        }
-        Err(e) => {
-            let _ =
-                crate::db::note_indexer_result(&state.db, &row.id, false, Some(&format!("{e:#}")), now_ms());
-        }
-    }
-    let caps = result?;
-    CAPS_CACHE
-        .lock()
-        .unwrap()
-        .get_or_insert_with(HashMap::new)
-        .insert(key, caps.clone());
-    Ok(caps)
-}
-
-/// Drop a cached capability entry (config changed / manual test forces a
-/// fresh probe).
-pub fn invalidate_caps(indexer_id: &str) {
-    let prefix = format!("{indexer_id}|");
-    if let Some(map) = CAPS_CACHE.lock().unwrap().as_mut() {
-        map.retain(|k, _| !k.starts_with(&prefix));
-    }
-    // Drop any cached built-in session too (config may have changed / a test
-    // wants a fresh login probe).
-    if let Some(map) = SESSION_CACHE.lock().unwrap().as_mut() {
-        map.retain(|k, _| !k.starts_with(&prefix));
-    }
-}
-
-// ----- built-in (native Cardigann) engine dispatch --------------------------------
-
-/// `kind` value for a native-engine indexer row.
-pub const KIND_BUILTIN: &str = "builtin";
-
-/// The runtime definition cache (lives under the data dir).
-pub fn definition_store(state: &SharedState) -> luma_indexer::store::DefinitionStore {
-    luma_indexer::store::DefinitionStore::new(&state.config.data_dir)
-}
-
-/// Process-wide cache of built-in [`luma_indexer::Session`]s, keyed so a config
-/// change (url / settings / VPN / FlareSolverr) yields a fresh session. Reusing
-/// one session across a search sweep is what makes `requestDelay` throttling and
-/// the login cookie jar actually persist between the dozens of back-to-back
-/// requests a sweep fires (a fresh session per call would never wait and would
-/// re-login every time → rate-limit bans).
-static SESSION_CACHE: Mutex<Option<HashMap<String, Arc<luma_indexer::Session>>>> = Mutex::new(None);
-
-fn session_key(state: &SharedState, row: &IndexerRow) -> String {
-    // `settings` is the stored JSON, so it changes when credentials/toggles do;
-    // the VPN/FlareSolverr flags are global settings, folded in so a change there
-    // also rotates the key.
-    let vpn = state.settings.get_bool("acqIndexersUseVpn", false);
-    let fs = state.settings.get_str("acqFlaresolverrUrl", "");
-    format!("{}|{}|{}|{vpn}|{fs}", row.id, row.url, row.settings)
-}
-
-/// Get (or build + cache) the shared session for a `builtin` indexer row.
-pub fn builtin_session(state: &SharedState, row: &IndexerRow) -> anyhow::Result<Arc<luma_indexer::Session>> {
-    let key = session_key(state, row);
-    if let Some(s) = SESSION_CACHE.lock().unwrap().as_ref().and_then(|m| m.get(&key)).cloned() {
-        return Ok(s);
-    }
-    let session = Arc::new(build_builtin_session(state, row)?);
-    SESSION_CACHE
-        .lock()
-        .unwrap()
-        .get_or_insert_with(HashMap::new)
-        .insert(key, session.clone());
-    Ok(session)
-}
-
-/// Build a live [`luma_indexer::Session`] for a `builtin` indexer row: load its
-/// definition, seed the config from the stored settings JSON + chosen base
-/// link, and wire optional VPN / FlareSolverr transport. Prefer
-/// [`builtin_session`] (cached) on hot paths.
-pub fn build_builtin_session(state: &SharedState, row: &IndexerRow) -> anyhow::Result<luma_indexer::Session> {
-    let def_id = row
-        .definition_id
-        .as_deref()
-        .ok_or_else(|| anyhow::anyhow!("built-in indexer '{}' has no definition", row.name))?;
-    let def = definition_store(state).load(def_id)?;
-    let settings: std::collections::HashMap<String, String> =
-        serde_json::from_str(&row.settings).unwrap_or_default();
-    let cfg = luma_indexer::IndexerConfig { base_url: row.url.clone(), settings };
-
-    // Route search traffic through the VPN bridge only when the admin opted in
-    // (a downed tunnel must not silently break search otherwise).
-    let socks5 = (state.settings.get_bool("acqIndexersUseVpn", false)
-        && luma_vpn::Vpn::wg_configured(state))
-    .then(|| luma_vpn::Vpn::local_proxy_url(state));
-    let flaresolverr = {
-        let url = state.settings.get_str("acqFlaresolverrUrl", "");
-        (!url.trim().is_empty()).then(|| url.trim().to_string())
-    };
-
-    Ok(luma_indexer::Session::new(
-        &state.config.data_dir,
-        &row.id,
-        def,
-        cfg,
-        socks5,
-        flaresolverr,
-    ))
 }
 
 /// Map a Torznab query onto the indexer-engine query (same shapes).
@@ -223,8 +93,8 @@ pub fn search_indexer(
     row: &IndexerRow,
     query: &luma_torznab::Query,
 ) -> anyhow::Result<Vec<luma_torznab::Release>> {
-    if row.kind == KIND_BUILTIN {
-        let session = builtin_session(state, row)?;
+    if row.kind == luma_indexer::admin::KIND_BUILTIN {
+        let session = luma_indexer::admin::builtin_session(state, row)?;
         let outcome = session.search(&to_indexer_query(query), &row.categories);
         // Healthy if we got releases (a partial per-path error alongside real
         // results must not flag the indexer as broken) or the sweep was clean.
@@ -243,14 +113,14 @@ pub fn search_indexer(
         }
         Ok(outcome.releases.into_iter().map(release_from_indexer).collect())
     } else {
-        let caps = indexer_caps(state, row)?;
-        luma_torznab::search(&endpoint_of(row), query, &caps)
+        let caps = luma_indexer::admin::indexer_caps(state, row)?;
+        luma_torznab::search(&luma_indexer::admin::endpoint_of(row), query, &caps)
     }
 }
 
-/// Resolve the grabbable target (magnet / .torrent URL) for a built-in
-/// release, following the definition's `download` block if the search row
-/// carried no direct link.
+/// Resolve the grabbable target (magnet / .torrent URL) for a built-in release,
+/// following the definition's `download` block if the search row carried no
+/// direct link.
 pub fn resolve_builtin_download(
     state: &SharedState,
     row: &IndexerRow,
@@ -262,7 +132,7 @@ pub fn resolve_builtin_download(
     if magnet_or_url.starts_with("magnet:") {
         return Ok(magnet_or_url.to_string());
     }
-    let session = builtin_session(state, row)?;
+    let session = luma_indexer::admin::builtin_session(state, row)?;
     let release = luma_indexer::Release {
         title: title.to_string(),
         magnet: magnet_or_url.starts_with("magnet:").then(|| magnet_or_url.to_string()),
@@ -273,24 +143,5 @@ pub fn resolve_builtin_download(
     match session.resolve_download(&release)? {
         luma_indexer::DownloadTarget::Magnet(m) => Ok(m),
         luma_indexer::DownloadTarget::TorrentUrl(u) => Ok(u),
-    }
-}
-
-/// Capabilities for any indexer kind (native ones derive from the definition;
-/// no network round-trip).
-pub fn any_indexer_caps(state: &SharedState, row: &IndexerRow) -> anyhow::Result<Caps> {
-    if row.kind == KIND_BUILTIN {
-        let def = definition_store(state).load(
-            row.definition_id.as_deref().ok_or_else(|| anyhow::anyhow!("no definition"))?,
-        )?;
-        let c = luma_indexer::Caps::from_definition(&def);
-        Ok(Caps {
-            search_tmdb: c.search_tmdb,
-            search_imdb: c.search_imdb,
-            tv_search_tmdb: c.tv_search_tmdb,
-            server_title: c.server_title,
-        })
-    } else {
-        indexer_caps(state, row)
     }
 }

@@ -59,6 +59,10 @@ impl HostCtx for AppState {
         }
     }
 
+    fn lerr(&self, user: &User, status: StatusCode, key: &str) -> Response {
+        json_error(status, &crate::i18n::t(user_locale(user), key, &[]))
+    }
+
     fn setting_str(&self, key: &str, default: &str) -> String {
         self.settings.get_str(key, default)
     }

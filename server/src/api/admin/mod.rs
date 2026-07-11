@@ -13,7 +13,6 @@ mod backup;
 // crate-visible so `crate::modules::downloads` can compose their routers.
 pub(crate) mod download_clients;
 pub(crate) mod downloads;
-pub(crate) mod indexers;
 mod jobs;
 mod libraries;
 mod llm;

@@ -1,8 +1,11 @@
-//! `/api/admin/indexers` indexer management, for both kinds:
-//! external Torznab (Jackett / Prowlarr) endpoints and native `builtin`
-//! Cardigann definitions. CRUD + a test call, plus the definition catalog
-//! (browse + sync). Gated on `settings.manage`. Secrets (api key, per-indexer
-//! passwords) are write-only and never leave the server.
+//! `/api/admin/indexers` indexer management, for both kinds: external Torznab
+//! (Jackett / Prowlarr) endpoints and native `builtin` Cardigann definitions.
+//! CRUD + a test call, plus the definition catalog (browse + sync). Gated on
+//! `settings.manage`. Secrets (api key, per-indexer passwords) are write-only and
+//! never leave the server.
+//!
+//! Relocated into the Indexers module; generic over any [`HostCtx`] so the binary
+//! mounts it with the app state, and it reaches the app only through the seam.
 
 use std::collections::HashMap;
 
@@ -13,35 +16,39 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
 
-use crate::api::error::{json_error, lerr};
-use crate::api::extract::AuthUser;
-use crate::api::util::{blocking, query};
-use crate::db::{self, IndexerRow};
-use crate::model::{
+use luma_db::{self as db, IndexerRow};
+use luma_domain::{
     IndexerDefinitionDetailView, IndexerDefinitionSettingView, IndexerDefinitionView,
     IndexerDefinitionsView, IndexerTestResult, IndexerView, IndexersView, Permission,
     SaveIndexerBody, SyncDefinitionsResult,
 };
-use crate::services::acquisition::KIND_BUILTIN;
-use crate::services::jobs::now_ms;
-use crate::state::SharedState;
+use luma_module_host::{blocking, json_error, query, AuthUser, HostCtx};
+use luma_primitives::{now_ms, random_token, short_hash};
 
-pub fn routes() -> Router<SharedState> {
+use crate::admin::{
+    any_indexer_caps, builtin_session, definition_store, invalidate_caps, KIND_BUILTIN,
+};
+
+pub fn routes<S>() -> Router<S>
+where
+    S: HostCtx + Clone + Send + Sync + 'static,
+{
     Router::new()
-        .route("/indexers", get(list).post(create))
+        .route("/indexers", get(list::<S>).post(create::<S>))
         // Static `definitions` paths are registered before the `:id` dynamic
         // route; matchit prioritizes static segments, so order is not load-bearing.
-        .route("/indexers/definitions", get(list_definitions))
-        .route("/indexers/definitions/sync", post(sync_definitions))
-        .route("/indexers/definitions/:defId", get(definition_detail))
-        .route("/indexers/:id", axum::routing::put(update).delete(remove))
-        .route("/indexers/:id/test", post(test))
+        .route("/indexers/definitions", get(list_definitions::<S>))
+        .route("/indexers/definitions/sync", post(sync_definitions::<S>))
+        .route("/indexers/definitions/:defId", get(definition_detail::<S>))
+        .route("/indexers/:id", axum::routing::put(update::<S>).delete(remove::<S>))
+        .route("/indexers/:id/test", post(test::<S>))
 }
 
 /// Names of settings that currently hold a (non-empty) value.
 fn configured_settings(row: &IndexerRow) -> Vec<String> {
     let map: HashMap<String, String> = serde_json::from_str(&row.settings).unwrap_or_default();
-    let mut names: Vec<String> = map.into_iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k).collect();
+    let mut names: Vec<String> =
+        map.into_iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k).collect();
     names.sort();
     names
 }
@@ -65,12 +72,12 @@ fn view_of(row: &IndexerRow) -> IndexerView {
 }
 
 /// `GET /api/admin/indexers`
-pub async fn list(
-    State(state): State<SharedState>,
+pub async fn list<S: HostCtx>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let view = query(&state.db, |pool| {
+    state.require(&user, Permission::SettingsManage)?;
+    let view = query(state.db(), |pool| {
         let conn = pool.get()?;
         let indexers = db::list_indexers(&conn)?.iter().map(view_of).collect();
         Ok(IndexersView { indexers })
@@ -82,12 +89,12 @@ pub async fn list(
 /// `POST /api/admin/indexers` create. `kind: "builtin"` creates a native
 /// Cardigann indexer (needs `definitionId`); otherwise a Torznab endpoint
 /// (needs `name` + `url`).
-pub async fn create(
-    State(state): State<SharedState>,
+pub async fn create<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<SaveIndexerBody>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
+    state.require(&user, Permission::SettingsManage)?;
     let kind = body.kind.as_deref().unwrap_or("torznab").to_string();
 
     let row = if kind == KIND_BUILTIN {
@@ -115,30 +122,33 @@ pub async fn create(
         }
     };
     let view = view_of(&row);
-    query(&state.db, move |pool| db::insert_indexer(&pool, &row)).await?;
+    query(state.db(), move |pool| db::insert_indexer(&pool, &row)).await?;
     Ok(Json(view).into_response())
 }
 
 /// Assemble a built-in indexer row from the chosen definition + submitted
 /// settings.
-async fn build_builtin_row(state: &SharedState, body: &SaveIndexerBody) -> Result<IndexerRow, Response> {
+async fn build_builtin_row<S: HostCtx + Clone>(
+    state: &S,
+    body: &SaveIndexerBody,
+) -> Result<IndexerRow, Response> {
     let def_id = body
         .definition_id
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, "definitionId is required for a built-in indexer"))?
+        .ok_or_else(|| {
+            json_error(StatusCode::BAD_REQUEST, "definitionId is required for a built-in indexer")
+        })?
         .to_string();
 
     let state2 = state.clone();
     let def_id2 = def_id.clone();
-    let def = blocking(move || {
-        crate::services::acquisition::definition_store(&state2)
-            .load(&def_id2)
-            .map_err(anyhow::Error::from)
-    })
-    .await
-    .map_err(|_| json_error(StatusCode::BAD_REQUEST, "unknown definition (sync the catalog first)"))?;
+    let def = blocking(move || definition_store(&state2).load(&def_id2).map_err(anyhow::Error::from))
+        .await
+        .map_err(|_| {
+            json_error(StatusCode::BAD_REQUEST, "unknown definition (sync the catalog first)")
+        })?;
 
     // Base link: admin override, else the definition's first candidate.
     let url = body
@@ -148,9 +158,17 @@ async fn build_builtin_row(state: &SharedState, body: &SaveIndexerBody) -> Resul
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .or_else(|| def.links.first().cloned())
-        .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, "definition has no site link; provide url"))?;
+        .ok_or_else(|| {
+            json_error(StatusCode::BAD_REQUEST, "definition has no site link; provide url")
+        })?;
 
-    let name = body.name.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&def.name).to_string();
+    let name = body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&def.name)
+        .to_string();
     let settings = body.settings.clone().unwrap_or_default();
 
     Ok(IndexerRow {
@@ -171,27 +189,22 @@ async fn build_builtin_row(state: &SharedState, body: &SaveIndexerBody) -> Resul
 }
 
 fn new_indexer_id(seed: &str) -> String {
-    crate::services::scan::short_hash(&format!(
-        "indexer|{seed}|{}",
-        crate::services::auth::random_token()
-    ))
+    short_hash(&format!("indexer|{seed}|{}", random_token()))
 }
 
 fn default_cats() -> Vec<u32> {
     vec![2000, 5000]
 }
 
-/// `PUT /api/admin/indexers/:id` partial update. For built-in rows the
-/// `settings` map is merged into the stored one (an omitted/empty password
-/// keeps its stored value).
-pub async fn update(
-    State(state): State<SharedState>,
+/// `PUT /api/admin/indexers/:id` partial update. For built-in rows the `settings`
+/// map is merged into the stored one (an omitted/empty password keeps its value).
+pub async fn update<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
     Json(body): Json<SaveIndexerBody>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let loc = super::user_locale(&user);
+    state.require(&user, Permission::SettingsManage)?;
 
     // Merge settings for built-in rows (needs the current row + definition to
     // preserve secrets).
@@ -205,7 +218,7 @@ pub async fn update(
     };
 
     let id2 = id.clone();
-    let updated = query(&state.db, move |pool| {
+    let updated = query(state.db(), move |pool| {
         db::update_indexer(
             &pool,
             &id2,
@@ -220,34 +233,39 @@ pub async fn update(
     })
     .await?;
     if !updated {
-        return Err(lerr(loc, StatusCode::NOT_FOUND, "error.indexerNotFound"));
+        return Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.indexerNotFound"));
     }
-    crate::services::acquisition::invalidate_caps(&id);
+    invalidate_caps(&id);
     let id3 = id.clone();
-    let row = query(&state.db, move |pool| {
+    let row = query(state.db(), move |pool| {
         let conn = pool.get()?;
         Ok(db::get_indexer(&conn, &id3)?)
     })
     .await?;
     match row {
         Some(r) => Ok(Json(view_of(&r)).into_response()),
-        None => Err(lerr(loc, StatusCode::NOT_FOUND, "error.indexerNotFound")),
+        None => Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.indexerNotFound")),
     }
 }
 
 /// Merge submitted settings into the stored map, preserving a stored password
 /// when the incoming value for a `password`-type setting is empty.
-fn merge_settings(state: &SharedState, id: &str, incoming: &HashMap<String, String>) -> anyhow::Result<String> {
-    let conn = state.db.get()?;
+fn merge_settings<S: HostCtx>(
+    state: &S,
+    id: &str,
+    incoming: &HashMap<String, String>,
+) -> anyhow::Result<String> {
+    let conn = state.db().get()?;
     let row = db::get_indexer(&conn, id)?.ok_or_else(|| anyhow::anyhow!("indexer not found"))?;
     drop(conn);
-    let mut current: HashMap<String, String> = serde_json::from_str(&row.settings).unwrap_or_default();
+    let mut current: HashMap<String, String> =
+        serde_json::from_str(&row.settings).unwrap_or_default();
 
     // Which settings are secret (password), per the definition.
     let secret: std::collections::HashSet<String> = row
         .definition_id
         .as_deref()
-        .and_then(|d| crate::services::acquisition::definition_store(state).load(d).ok())
+        .and_then(|d| definition_store(state).load(d).ok())
         .map(|def| {
             def.settings.iter().filter(|s| s.kind == "password").map(|s| s.name.clone()).collect()
         })
@@ -263,45 +281,42 @@ fn merge_settings(state: &SharedState, id: &str, incoming: &HashMap<String, Stri
 }
 
 /// `DELETE /api/admin/indexers/:id`
-pub async fn remove(
-    State(state): State<SharedState>,
+pub async fn remove<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let loc = super::user_locale(&user);
+    state.require(&user, Permission::SettingsManage)?;
     let id2 = id.clone();
-    let deleted = query(&state.db, move |pool| db::delete_indexer(&pool, &id2)).await?;
+    let deleted = query(state.db(), move |pool| db::delete_indexer(&pool, &id2)).await?;
     if !deleted {
-        return Err(lerr(loc, StatusCode::NOT_FOUND, "error.indexerNotFound"));
+        return Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.indexerNotFound"));
     }
-    crate::services::acquisition::invalidate_caps(&id);
+    invalidate_caps(&id);
     Ok(Json(json!({ "ok": true })).into_response())
 }
 
 /// `POST /api/admin/indexers/:id/test`. Torznab: a live `t=caps` round-trip.
 /// Built-in: derive caps from the definition and verify login/reachability.
-pub async fn test(
-    State(state): State<SharedState>,
+pub async fn test<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let loc = super::user_locale(&user);
-    crate::services::acquisition::invalidate_caps(&id);
+    state.require(&user, Permission::SettingsManage)?;
+    invalidate_caps(&id);
+    let host = state.clone();
     let result = blocking(move || {
-        let conn = state.db.get()?;
+        let conn = host.db().get()?;
         let Some(row) = db::get_indexer(&conn, &id)? else {
             return Ok(None);
         };
         drop(conn);
         let started = std::time::Instant::now();
-        let caps = crate::services::acquisition::any_indexer_caps(&state, &row);
+        let caps = any_indexer_caps(&host, &row);
         let reachable = if row.kind == KIND_BUILTIN {
             // Verify the session (drives a login for private trackers).
-            crate::services::acquisition::builtin_session(&state, &row)
-                .and_then(|s| s.test())
-                .map(|_| ())
+            builtin_session(&host, &row).and_then(|s| s.test()).map(|_| ())
         } else {
             caps.as_ref().map(|_| ()).map_err(|e| anyhow::anyhow!("{e:#}"))
         };
@@ -326,20 +341,21 @@ pub async fn test(
     .await?;
     match result {
         Some(r) => Ok(Json(r).into_response()),
-        None => Err(lerr(loc, StatusCode::NOT_FOUND, "error.indexerNotFound")),
+        None => Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.indexerNotFound")),
     }
 }
 
 // ----- definition catalog ---------------------------------------------------------
 
 /// `GET /api/admin/indexers/definitions` the browsable Cardigann catalog.
-pub async fn list_definitions(
-    State(state): State<SharedState>,
+pub async fn list_definitions<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
+    state.require(&user, Permission::SettingsManage)?;
+    let host = state.clone();
     let view = blocking(move || {
-        let store = crate::services::acquisition::definition_store(&state);
+        let store = definition_store(&host);
         let synced = store.is_populated();
         let definitions = store
             .list()
@@ -359,16 +375,16 @@ pub async fn list_definitions(
     Ok(Json(view).into_response())
 }
 
-/// `GET /api/admin/indexers/definitions/:defId` the settings schema for the
-/// add form.
-pub async fn definition_detail(
-    State(state): State<SharedState>,
+/// `GET /api/admin/indexers/definitions/:defId` the settings schema for the form.
+pub async fn definition_detail<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(def_id): AxPath<String>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
+    state.require(&user, Permission::SettingsManage)?;
+    let host = state.clone();
     let detail = blocking(move || {
-        crate::services::acquisition::definition_store(&state).load(&def_id).map(|def| {
+        definition_store(&host).load(&def_id).map_err(anyhow::Error::from).map(|def| {
             IndexerDefinitionDetailView {
                 id: def.id.clone(),
                 name: def.name.clone(),
@@ -397,18 +413,17 @@ pub async fn definition_detail(
 }
 
 /// `POST /api/admin/indexers/definitions/sync` fetch the current definition set.
-pub async fn sync_definitions(
-    State(state): State<SharedState>,
+pub async fn sync_definitions<S: HostCtx + Clone>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
+    state.require(&user, Permission::SettingsManage)?;
+    let host = state.clone();
     // Not via `blocking`: we want the real network/extract error message to reach
     // the admin, and `blocking` collapses errors to a generic 500.
-    let report = tokio::task::spawn_blocking(move || {
-        crate::services::acquisition::definition_store(&state).sync()
-    })
-    .await
-    .map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "sync task failed"))?
-    .map_err(|e| json_error(StatusCode::BAD_GATEWAY, &format!("sync failed: {e:#}")))?;
+    let report = tokio::task::spawn_blocking(move || definition_store(&host).sync())
+        .await
+        .map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "sync task failed"))?
+        .map_err(|e| json_error(StatusCode::BAD_GATEWAY, &format!("sync failed: {e:#}")))?;
     Ok(Json(SyncDefinitionsResult { count: report.count, version: report.version }).into_response())
 }

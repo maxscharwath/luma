@@ -28,6 +28,37 @@ pub fn json_error(status: StatusCode, message: &str) -> Response {
     (status, Json(serde_json::json!({ "error": message }))).into_response()
 }
 
+/// Run a blocking DB closure off the async runtime, mapping any failure to a
+/// uniform 500. The shared combinator admin handlers (app + module crates) use.
+pub async fn blocking<T, F>(f: F) -> Result<T, Response>
+where
+    F: FnOnce() -> anyhow::Result<T> + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::task::spawn_blocking(f).await {
+        Ok(Ok(v)) => Ok(v),
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "database error");
+            Err(json_error(StatusCode::INTERNAL_SERVER_ERROR, "internal error"))
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "task join error");
+            Err(json_error(StatusCode::INTERNAL_SERVER_ERROR, "internal error"))
+        }
+    }
+}
+
+/// Clone the pool and run a blocking DB closure off the async runtime; a thin
+/// combinator over [`blocking`] that hands the closure its own [`Pool`].
+pub async fn query<T, F>(pool: &Pool, f: F) -> Result<T, Response>
+where
+    F: FnOnce(Pool) -> anyhow::Result<T> + Send + 'static,
+    T: Send + 'static,
+{
+    let pool = pool.clone();
+    blocking(move || f(pool)).await
+}
+
 /// The slice of the running app a module's backend can reach. The binary's
 /// `AppState` (as `Arc<AppState>` = `SharedState`) implements it; a module crate
 /// names only this trait, never the app, so it stays a leaf and breaks the cycle.
@@ -48,6 +79,10 @@ pub trait HostCtx: Send + Sync + 'static {
 
     /// Gate on holding ANY management capability (unlocks the console shell).
     fn require_any_admin(&self, user: &User) -> Result<(), Response>;
+
+    /// A localized JSON error for `user`'s account locale (the app resolves the
+    /// message `key` against the shared catalogs).
+    fn lerr(&self, user: &User, status: StatusCode, key: &str) -> Response;
 
     /// A persisted string setting (or `default` when unset).
     fn setting_str(&self, key: &str, default: &str) -> String;
@@ -79,6 +114,9 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     }
     fn require_any_admin(&self, user: &User) -> Result<(), Response> {
         (**self).require_any_admin(user)
+    }
+    fn lerr(&self, user: &User, status: StatusCode, key: &str) -> Response {
+        (**self).lerr(user, status, key)
     }
     fn setting_str(&self, key: &str, default: &str) -> String {
         (**self).setting_str(key, default)

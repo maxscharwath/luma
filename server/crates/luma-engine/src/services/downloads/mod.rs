@@ -728,8 +728,8 @@ fn fetch_torrent_for(state: &SharedState, row: &db::DownloadRow) -> Result<Vec<u
         let indexer = db::get_indexer(&conn, indexer_id)?;
         drop(conn);
         if let Some(ix) = indexer {
-            if ix.kind == crate::services::acquisition::KIND_BUILTIN {
-                let session = crate::services::acquisition::builtin_session(state, &ix)?;
+            if ix.kind == luma_indexer::admin::KIND_BUILTIN {
+                let session = luma_indexer::admin::builtin_session(state, &ix)?;
                 return session.fetch_torrent(&row.magnet_or_url);
             }
         }

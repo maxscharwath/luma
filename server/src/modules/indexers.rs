@@ -1,8 +1,7 @@
-//! The Indexers module (backend): gates the `/api/admin/indexers` routes behind
-//! its enabled flag, so a disabled Indexers module 404s its whole admin surface
-//! (the page + routes vanish together). The manifest + native Cardigann engine
-//! live in the `luma_indexer` crate; this only adds the route gate. Searches are
-//! invoked on demand, so there is no long-running service to start/stop.
+//! The Indexers module (backend glue): the manifest, native Cardigann engine,
+//! admin orchestration AND routes all live in the `luma_indexer` crate now (over
+//! the HostCtx seam). This binding gates the crate's routes behind the module's
+//! enabled flag, so a disabled Indexers module 404s its whole admin surface.
 
 use axum::Router;
 
@@ -19,6 +18,6 @@ impl ServerModule for IndexersModule {
     }
 
     fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
-        crate::api::admin::indexers::routes()
+        luma_indexer::routes::routes::<SharedState>()
     }
 }

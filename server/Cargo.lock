@@ -3373,17 +3373,24 @@ name = "luma-indexer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "chrono",
  "indexmap 2.14.0",
  "libxml",
+ "luma-db",
+ "luma-domain",
  "luma-http",
+ "luma-module-host",
  "luma-module-sdk",
+ "luma-primitives",
+ "luma-torznab",
  "quick-xml",
  "regex",
  "scraper",
  "serde",
  "serde_json",
  "serde_yaml",
+ "tokio",
 ]
 
 [[package]]
@@ -3409,11 +3416,13 @@ dependencies = [
 name = "luma-module-host"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "luma-db",
  "luma-domain",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

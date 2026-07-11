@@ -277,7 +277,7 @@ pub fn grab_cached(
         let row = db::get_indexer(&conn, &cached.view.indexer_id)?;
         drop(conn);
         match row {
-            Some(r) if r.kind == super::KIND_BUILTIN => super::resolve_builtin_download(
+            Some(r) if r.kind == luma_indexer::admin::KIND_BUILTIN => super::resolve_builtin_download(
                 state,
                 &r,
                 &cached.view.title,

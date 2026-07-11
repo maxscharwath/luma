@@ -35,6 +35,8 @@ pub mod module;
 pub mod selector;
 pub mod session;
 pub mod store;
+pub mod admin;
+pub mod routes;
 pub mod template;
 pub mod xmltree;
 #[cfg(feature = "xpath")]

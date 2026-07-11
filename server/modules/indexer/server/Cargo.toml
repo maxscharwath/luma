@@ -9,6 +9,15 @@ license.workspace = true
 [dependencies]
 luma-http = { workspace = true }
 luma-module-sdk = { workspace = true }
+# The module now owns its admin orchestration + routes (over the HostCtx seam):
+# it needs the DB rows, wire DTOs, shared helpers, the Torznab engine, and axum.
+luma-module-host = { workspace = true }
+luma-db = { workspace = true }
+luma-domain = { workspace = true }
+luma-primitives = { workspace = true }
+luma-torznab = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
