@@ -3483,6 +3483,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-qbittorrent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "luma-http",
+ "luma-torrent",
+ "serde_json",
+]
+
+[[package]]
 name = "luma-remote"
 version = "0.1.0"
 dependencies = [
@@ -3526,10 +3536,12 @@ dependencies = [
  "luma-module-sdk",
  "luma-module-wasm",
  "luma-modules-generated",
+ "luma-qbittorrent",
  "luma-remote",
  "luma-scene",
  "luma-torrent",
  "luma-torznab",
+ "luma-transmission",
  "luma-vector",
  "luma-vpn",
  "luma-whisper",
@@ -3577,6 +3589,16 @@ dependencies = [
  "luma-module-sdk",
  "quick-xml",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "luma-transmission"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "luma-http",
+ "luma-torrent",
  "serde_json",
 ]
 

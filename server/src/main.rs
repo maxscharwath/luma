@@ -157,6 +157,10 @@ async fn main() -> anyhow::Result<()> {
     // IGNORE keeps admin edits), start the engine (fastresume restores
     // in-flight torrents) and the downloads monitor.
     state.vpn.apply(&state).await;
+    // Register the external download sub-engines (their kinds are then buildable);
+    // the engine modules add/remove them at runtime via the same register fns.
+    state.downloads.register_engine(luma_transmission::register);
+    state.downloads.register_engine(luma_qbittorrent::register);
     if luma_torrent::RQBIT_COMPILED {
         let _ = db::insert_download_client(
             &state.db,

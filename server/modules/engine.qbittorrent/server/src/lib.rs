@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, bail, Result};
 use serde_json::Value;
 
-use crate::{magnet_info_hash, AddTorrentReq, ClientDef, DownloadClient, TorrentState, TorrentStatus};
+use luma_torrent::{magnet_info_hash, AddTorrentReq, ClientDef, DownloadClient, TorrentState, TorrentStatus};
 
 pub struct QBittorrent {
     base: String,
@@ -200,4 +200,25 @@ impl DownloadClient for QBittorrent {
         )
         .map(|_| ())
     }
+}
+
+/// One cookie jar per endpoint+user so two qBittorrent configs never share a SID.
+fn cookie_jar_path(state_dir: &std::path::Path, def: &ClientDef) -> PathBuf {
+    let mut tag: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in format!("{}|{}", def.url, def.username).bytes() {
+        tag ^= u64::from(b);
+        tag = tag.wrapping_mul(0x1000_0000_01b3);
+    }
+    state_dir.join(format!("qbit-{tag:016x}.cookies"))
+}
+
+/// The download-client registry kind this engine provides.
+pub const KIND: &str = "qbittorrent";
+
+/// Register the qBittorrent factory into a download-client registry (called by
+/// the engine module's ServerModule on enable, and at boot).
+pub fn register(reg: &mut luma_torrent::DownloadClientRegistry) {
+    reg.register(KIND, |def, ctx| {
+        Ok(Box::new(QBittorrent::new(def, cookie_jar_path(ctx.state_dir, def))) as Box<dyn DownloadClient>)
+    });
 }

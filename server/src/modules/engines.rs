@@ -9,7 +9,7 @@ use crate::state::SharedState;
 
 use super::ServerModule;
 
-/// The Transmission RPC sub-engine (registry kind `transmission`).
+/// The Transmission RPC sub-engine, impl'd in the `luma-transmission` crate.
 pub struct TransmissionEngine;
 
 impl ServerModule for TransmissionEngine {
@@ -17,14 +17,14 @@ impl ServerModule for TransmissionEngine {
         "dev.luma.engine.transmission"
     }
     fn on_enable(&self, state: &SharedState) {
-        state.downloads.set_client_kind_enabled("transmission", true);
+        state.downloads.register_engine(luma_transmission::register);
     }
     fn on_disable(&self, state: &SharedState) {
-        state.downloads.set_client_kind_enabled("transmission", false);
+        state.downloads.unregister_engine(luma_transmission::KIND);
     }
 }
 
-/// The qBittorrent WebUI sub-engine (registry kind `qbittorrent`).
+/// The qBittorrent WebUI sub-engine, impl'd in the `luma-qbittorrent` crate.
 pub struct QbittorrentEngine;
 
 impl ServerModule for QbittorrentEngine {
@@ -32,9 +32,9 @@ impl ServerModule for QbittorrentEngine {
         "dev.luma.engine.qbittorrent"
     }
     fn on_enable(&self, state: &SharedState) {
-        state.downloads.set_client_kind_enabled("qbittorrent", true);
+        state.downloads.register_engine(luma_qbittorrent::register);
     }
     fn on_disable(&self, state: &SharedState) {
-        state.downloads.set_client_kind_enabled("qbittorrent", false);
+        state.downloads.unregister_engine(luma_qbittorrent::KIND);
     }
 }

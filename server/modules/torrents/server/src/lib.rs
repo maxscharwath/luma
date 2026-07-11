@@ -11,7 +11,6 @@
 //! own ledger, so user-paused torrents and foreign torrents in a shared
 //! external client are never touched.
 
-use std::path::PathBuf;
 
 use anyhow::bail;
 use serde::{Deserialize, Serialize};
@@ -20,18 +19,14 @@ use serde::{Deserialize, Serialize};
 mod announce;
 pub mod module;
 pub mod proxycheck;
-mod qbittorrent;
 #[cfg(feature = "rqbit")]
 mod rqbit;
 #[cfg(not(feature = "rqbit"))]
 #[path = "rqbit_stub.rs"]
 mod rqbit;
-mod transmission;
 
 pub use module::MODULE;
-pub use qbittorrent::QBittorrent;
 pub use rqbit::{RqbitConfig, RqbitEngine};
-pub use transmission::Transmission;
 
 /// Whether the embedded engine is compiled into this build.
 pub const RQBIT_COMPILED: bool = cfg!(feature = "rqbit");
@@ -224,19 +219,6 @@ impl DownloadClientRegistry {
 /// stub otherwise (so the error is actionable).
 pub fn register_client_kind(reg: &mut DownloadClientRegistry, kind: &str) -> bool {
     match kind {
-        "transmission" => {
-            reg.register("transmission", |def, _ctx| {
-                Ok(Box::new(Transmission::new(def)) as Box<dyn DownloadClient>)
-            });
-            true
-        }
-        "qbittorrent" => {
-            reg.register("qbittorrent", |def, ctx| {
-                Ok(Box::new(QBittorrent::new(def, cookie_jar_path(ctx.state_dir, def)))
-                    as Box<dyn DownloadClient>)
-            });
-            true
-        }
         "rqbit" => {
             #[cfg(feature = "rqbit")]
             reg.register("rqbit", |_def, ctx| match &ctx.rqbit {
@@ -253,16 +235,15 @@ pub fn register_client_kind(reg: &mut DownloadClientRegistry, kind: &str) -> boo
     }
 }
 
-/// Register the download sub-engines shipped with the Downloads module (every
-/// built-in kind). The engine sub-modules re-register their own kind via
-/// [`register_client_kind`] when toggled.
+/// Register the core download engine (embedded librqbit). Transmission and
+/// qBittorrent are their own crates now (`luma-transmission` / `luma-qbittorrent`)
+/// that register their own kind; the binary wires them at boot + on toggle.
 pub fn register_download_clients(reg: &mut DownloadClientRegistry) {
-    register_client_kind(reg, "transmission");
-    register_client_kind(reg, "qbittorrent");
     register_client_kind(reg, "rqbit");
 }
 
-/// A registry with every built-in download sub-engine registered.
+/// A registry with the core (rqbit) engine registered. The binary layers the
+/// external engine crates on top.
 pub fn builtin_download_clients() -> DownloadClientRegistry {
     let mut reg = DownloadClientRegistry::default();
     register_download_clients(&mut reg);
@@ -281,18 +262,9 @@ pub fn client_for(
     builtin_download_clients().build(def, &DownloadClientCtx { rqbit, state_dir })
 }
 
-fn cookie_jar_path(state_dir: &std::path::Path, def: &ClientDef) -> PathBuf {
-    // One jar per endpoint+user so two qBittorrent configs never share a SID.
-    let mut tag: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in format!("{}|{}", def.url, def.username).bytes() {
-        tag ^= u64::from(b);
-        tag = tag.wrapping_mul(0x1000_0000_01b3);
-    }
-    state_dir.join(format!("qbit-{tag:016x}.cookies"))
-}
-
-/// Best-effort info-hash extraction from a magnet URI (`xt=urn:btih:HEX`).
-pub(crate) fn magnet_info_hash(uri: &str) -> Option<String> {
+/// Best-effort info-hash extraction from a magnet URI (`xt=urn:btih:HEX`). Public
+/// so the external engine crates (qBittorrent) can reuse it.
+pub fn magnet_info_hash(uri: &str) -> Option<String> {
     let lower = uri.to_ascii_lowercase();
     let idx = lower.find("xt=urn:btih:")?;
     let hash: String = lower[idx + "xt=urn:btih:".len()..]

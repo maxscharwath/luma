@@ -146,17 +146,19 @@ impl DownloadManager {
         )
     }
 
-    /// Toggle a download sub-engine `kind` on/off. The engine sub-modules call
-    /// this from their enable/disable lifecycle, so turning one off removes its
-    /// kind from the picker (a client row of that kind then fails to build until
-    /// the module is re-enabled).
-    pub fn set_client_kind_enabled(&self, kind: &str, enabled: bool) {
+    /// Add a download sub-engine to the registry via its crate's `register` fn.
+    /// The engine sub-modules call this from their enable lifecycle (and the
+    /// binary at boot), so an engine crate plugs itself in without this crate
+    /// naming it.
+    pub fn register_engine(&self, register: impl FnOnce(&mut luma_torrent::DownloadClientRegistry)) {
         let mut reg = self.clients.write().expect("download client registry lock");
-        if enabled {
-            luma_torrent::register_client_kind(&mut reg, kind);
-        } else {
-            reg.unregister(kind);
-        }
+        register(&mut reg);
+    }
+
+    /// Remove a download sub-engine `kind` from the registry (its module was
+    /// disabled), so a client row of that kind fails to build until re-enabled.
+    pub fn unregister_engine(&self, kind: &str) {
+        self.clients.write().expect("download client registry lock").unregister(kind);
     }
 
     // ----- kill switch ----------------------------------------------------------

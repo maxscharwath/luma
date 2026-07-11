@@ -125,6 +125,8 @@ luma-indexer = { path = "modules/indexer/server" }
 luma-remote = { path = "modules/remote/server" }
 luma-vpn = { path = "modules/vpn/server" }
 luma-downloads = { path = "crates/luma-downloads" }
+luma-transmission = { path = "modules/engine.transmission/server" }
+luma-qbittorrent = { path = "modules/engine.qbittorrent/server" }
 luma-torrent = { path = "modules/torrents/server" }
 luma-whisper = { path = "modules/dev.luma.whisper/server" }
 luma-vector = { path = "modules/dev.luma.vector/server" }
@@ -171,6 +173,8 @@ luma-module-host = { workspace = true }
 luma-remote = { workspace = true }
 luma-vpn = { workspace = true }
 luma-downloads = { workspace = true }
+luma-transmission = { workspace = true }
+luma-qbittorrent = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
 # `crate::model` wire types come through `luma-engine`.
 luma-config = { workspace = true }

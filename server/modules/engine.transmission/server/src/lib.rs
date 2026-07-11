@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
-use crate::{AddTorrentReq, ClientDef, DownloadClient, TorrentState, TorrentStatus};
+use luma_torrent::{AddTorrentReq, ClientDef, DownloadClient, TorrentState, TorrentStatus};
 
 const SESSION_HEADER: &str = "X-Transmission-Session-Id";
 const STATUS_FIELDS: &[&str] = &[
@@ -249,4 +249,15 @@ mod tests {
             "http://nas:9091/transmission/rpc"
         );
     }
+}
+
+/// The download-client registry kind this engine provides.
+pub const KIND: &str = "transmission";
+
+/// Register the Transmission factory into a download-client registry (called by
+/// the engine module's ServerModule on enable, and at boot).
+pub fn register(reg: &mut luma_torrent::DownloadClientRegistry) {
+    reg.register(KIND, |def, _ctx| {
+        Ok(Box::new(Transmission::new(def)) as Box<dyn DownloadClient>)
+    });
 }
