@@ -3334,6 +3334,7 @@ dependencies = [
  "luma-torrent",
  "luma-torznab",
  "luma-vector",
+ "luma-vpn",
  "luma-whisper",
  "notify",
  "rusty-chromaprint",
@@ -3502,6 +3503,7 @@ dependencies = [
  "luma-torrent",
  "luma-torznab",
  "luma-vector",
+ "luma-vpn",
  "luma-whisper",
  "mimalloc",
  "openssl",
@@ -3563,6 +3565,16 @@ dependencies = [
  "serde",
  "serde_json",
  "tokenizers",
+ "tracing",
+]
+
+[[package]]
+name = "luma-vpn"
+version = "0.1.0"
+dependencies = [
+ "luma-module-host",
+ "luma-module-sdk",
+ "tokio",
  "tracing",
 ]
 

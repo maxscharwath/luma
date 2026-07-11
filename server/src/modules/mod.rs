@@ -78,10 +78,7 @@ fn build() -> ModuleRegistry {
     manifests.register(Box::new(luma_mdns::MODULE));
     // Modules whose backend behavior lives in the host (no dedicated crate) are
     // embedded straight from their packaged module.json + icon.
-    manifests.register(Box::new(EmbeddedModule::new(
-        include_str!("../../modules/vpn/module.json"),
-        include_bytes!("../../modules/vpn/icon.svg"),
-    )));
+    manifests.register(Box::new(luma_vpn::MODULE));
     manifests.register(Box::new(luma_remote::MODULE));
     // Acquisition is a settings-view module (no dedicated routes), so it has a
     // manifest but no ServerModule behavior.

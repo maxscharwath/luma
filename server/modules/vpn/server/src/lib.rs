@@ -18,7 +18,14 @@ use std::sync::Arc;
 
 use tokio::process::Child;
 
-use crate::state::SharedState;
+use luma_module_host::HostCtx;
+
+/// This module's registry entry (manifest + packaged icon, embedded at compile
+/// time from the shared module folder).
+pub const MODULE: luma_module_sdk::EmbeddedModule = luma_module_sdk::EmbeddedModule::new(
+    include_str!("../../module.json"),
+    include_bytes!("../../icon.svg"),
+);
 
 pub struct Vpn {
     data_dir: PathBuf,
@@ -38,29 +45,29 @@ impl Vpn {
     }
 
     /// Whether a WireGuard config is stored (drives `active_proxy_url`).
-    pub fn wg_configured(state: &SharedState) -> bool {
-        !state.settings.get_str("vpnWgConfig", "").trim().is_empty()
+    pub fn wg_configured(host: &dyn HostCtx) -> bool {
+        !host.setting_str("vpnWgConfig", "").trim().is_empty()
     }
 
     /// The local SOCKS5 the bridge exposes when configured.
-    pub fn local_proxy_url(state: &SharedState) -> String {
-        let port = state.settings.get_i64("vpnLocalPort", 25345).clamp(1, 65535);
+    pub fn local_proxy_url(host: &dyn HostCtx) -> String {
+        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
         format!("socks5://127.0.0.1:{port}")
     }
 
     /// (Re)apply the stored config: start / restart / stop the bridge child.
     /// Call at boot and whenever `vpnWgConfig` / `vpnLocalPort` change.
-    pub async fn apply(self: &Arc<Self>, state: &SharedState) {
+    pub async fn apply(self: &Arc<Self>, host: &dyn HostCtx) {
         let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         // Always stop the previous child first (config change or teardown).
         if let Some(mut old) = self.child.lock().await.take() {
             let _ = old.kill().await;
         }
-        let wg = state.settings.get_str("vpnWgConfig", "");
+        let wg = host.setting_str("vpnWgConfig", "");
         if wg.trim().is_empty() {
             return;
         }
-        let port = state.settings.get_i64("vpnLocalPort", 25345).clamp(1, 65535);
+        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
         if let Err(e) = self.clone().start_bridge(generation, wg, port as u16).await {
             tracing::warn!(error = %e, "wireguard bridge failed to start");
         }

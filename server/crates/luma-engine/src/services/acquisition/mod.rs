@@ -155,8 +155,8 @@ pub fn build_builtin_session(state: &SharedState, row: &IndexerRow) -> anyhow::R
     // Route search traffic through the VPN bridge only when the admin opted in
     // (a downed tunnel must not silently break search otherwise).
     let socks5 = (state.settings.get_bool("acqIndexersUseVpn", false)
-        && crate::services::vpn::Vpn::wg_configured(state))
-    .then(|| crate::services::vpn::Vpn::local_proxy_url(state));
+        && luma_vpn::Vpn::wg_configured(state))
+    .then(|| luma_vpn::Vpn::local_proxy_url(state));
     let flaresolverr = {
         let url = state.settings.get_str("acqFlaresolverrUrl", "");
         (!url.trim().is_empty()).then(|| url.trim().to_string())

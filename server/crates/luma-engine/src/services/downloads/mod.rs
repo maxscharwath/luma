@@ -705,8 +705,8 @@ impl GrabSpec {
 /// of routing WireGuard traffic (librqbit only proxies via SOCKS5); it is not
 /// a user-facing option. `None` = no VPN, torrent traffic goes out directly.
 pub fn active_proxy_url(state: &SharedState) -> Option<String> {
-    crate::services::vpn::Vpn::wg_configured(state)
-        .then(|| crate::services::vpn::Vpn::local_proxy_url(state))
+    luma_vpn::Vpn::wg_configured(state)
+        .then(|| luma_vpn::Vpn::local_proxy_url(state))
 }
 
 fn kbps_setting(state: &SharedState, key: &str) -> Option<u32> {

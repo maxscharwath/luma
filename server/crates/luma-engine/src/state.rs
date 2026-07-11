@@ -9,7 +9,7 @@ use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::services::downloads::DownloadManager;
-use crate::services::vpn::Vpn;
+use luma_vpn::Vpn;
 use crate::infra::embed::{self, Embedder};
 use crate::infra::events::Bus;
 use crate::infra::metadata;
@@ -78,7 +78,7 @@ pub struct AppState {
     /// in `main` next to the other reapers. See [`crate::services::downloads`].
     pub downloads: Arc<DownloadManager>,
     /// Managed WireGuard-to-SOCKS5 bridge (wireproxy) for torrent traffic,
-    /// the Proton VPN path. See [`crate::services::vpn`].
+    /// the Proton VPN path. See the `luma-vpn` crate.
     pub vpn: Arc<Vpn>,
     /// Runtime-loaded (WASM) modules installed under `<data>/modules`. Behind an
     /// `RwLock` so the admin store can install / uninstall them live. Their

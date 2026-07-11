@@ -24,6 +24,5 @@ pub mod playback;
 pub mod requests;
 pub mod settings;
 pub mod subtitles;
-pub mod vpn;
 pub mod activity;
 pub mod demo;

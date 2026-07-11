@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use crate::api::extract::AuthUser;
 use crate::api::util::blocking;
 use crate::model::{Permission, SaveVpnBody, VpnAdminView, VpnTestResult};
-use crate::services::vpn::Vpn;
+use luma_vpn::Vpn;
 use crate::state::SharedState;
 
 pub fn routes() -> Router<SharedState> {
