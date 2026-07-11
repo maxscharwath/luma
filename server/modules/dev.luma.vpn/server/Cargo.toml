@@ -13,7 +13,7 @@ luma-contracts = { workspace = true }
 # The module owns its admin routes now (over the HostCtx seam): it needs the wire
 # DTOs, the download manager (for the kill-switch status + engine restart), axum.
 luma-domain = { workspace = true }
-luma-downloads = { workspace = true }
+luma-torrent = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

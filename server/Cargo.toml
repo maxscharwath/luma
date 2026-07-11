@@ -125,7 +125,6 @@ luma-torznab = { path = "modules/dev.luma.torznab/server" }
 luma-indexer = { path = "modules/dev.luma.indexer/server" }
 luma-remote = { path = "modules/dev.luma.remote/server" }
 luma-vpn = { path = "modules/dev.luma.vpn/server" }
-luma-downloads = { path = "crates/luma-downloads" }
 luma-transmission = { path = "modules/dev.luma.engine.transmission/server" }
 luma-qbittorrent = { path = "modules/dev.luma.engine.qbittorrent/server" }
 luma-torrent = { path = "modules/dev.luma.torrents/server" }
@@ -173,7 +172,6 @@ luma-module-host = { workspace = true }
 # their routes, injected by the module's ServerModule glue).
 luma-remote = { workspace = true }
 luma-vpn = { workspace = true }
-luma-downloads = { workspace = true }
 luma-transmission = { workspace = true }
 luma-qbittorrent = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the

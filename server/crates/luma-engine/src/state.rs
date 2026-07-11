@@ -8,7 +8,7 @@ use luma_module_wasm::WasmHost;
 use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
-use luma_downloads::DownloadManager;
+use luma_torrent::DownloadManager;
 use luma_vpn::Vpn;
 use crate::infra::embed::{self, Embedder};
 use crate::infra::events::Bus;

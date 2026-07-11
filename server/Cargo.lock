@@ -3315,23 +3315,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "luma-downloads"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-contracts",
- "luma-db",
- "luma-domain",
- "luma-http",
- "luma-module-host",
- "luma-primitives",
- "luma-torrent",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "luma-engine"
 version = "0.1.0"
 dependencies = [
@@ -3346,7 +3329,6 @@ dependencies = [
  "luma-contracts",
  "luma-db",
  "luma-domain",
- "luma-downloads",
  "luma-http",
  "luma-i18n",
  "luma-indexer",
@@ -3497,7 +3479,6 @@ name = "luma-qbittorrent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "luma-downloads",
  "luma-http",
  "luma-module-host",
  "luma-torrent",
@@ -3540,7 +3521,6 @@ dependencies = [
  "jpeg-encoder",
  "luma-config",
  "luma-db",
- "luma-downloads",
  "luma-engine",
  "luma-indexer",
  "luma-mdns",
@@ -3583,8 +3563,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "librqbit",
+ "luma-contracts",
+ "luma-db",
+ "luma-domain",
  "luma-http",
+ "luma-module-host",
  "luma-module-sdk",
+ "luma-primitives",
  "serde",
  "serde_json",
  "sha1",
@@ -3609,7 +3594,6 @@ name = "luma-transmission"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "luma-downloads",
  "luma-http",
  "luma-module-host",
  "luma-torrent",
@@ -3639,9 +3623,9 @@ dependencies = [
  "axum",
  "luma-contracts",
  "luma-domain",
- "luma-downloads",
  "luma-module-host",
  "luma-module-sdk",
+ "luma-torrent",
  "serde",
  "serde_json",
  "tokio",

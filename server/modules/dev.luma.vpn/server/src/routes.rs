@@ -16,7 +16,7 @@ use serde_json::{json, Value};
 use luma_domain::Permission;
 
 use crate::{SaveVpnBody, VpnAdminView, VpnTestResult};
-use luma_downloads::DownloadManager;
+use luma_torrent::DownloadManager;
 use luma_module_host::{blocking, service, AuthUser, HostCtx};
 
 use crate::wg_configured;

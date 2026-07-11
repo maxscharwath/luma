@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use axum::Router;
 
-use luma_downloads::DownloadManager;
+use luma_torrent::DownloadManager;
 use luma_module_host::{async_trait, service, HostCtx, ServerModule};
 
 use crate::state::SharedState;

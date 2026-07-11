@@ -14,6 +14,13 @@ rqbit = ["dep:librqbit", "dep:tokio"]
 [dependencies]
 luma-http = { workspace = true }
 luma-module-sdk = { workspace = true }
+# The download manager + monitor (formerly the luma-downloads crate) live here now,
+# so the module owns its whole backend and nothing download-related sits in crates/.
+luma-module-host = { workspace = true }
+luma-contracts = { workspace = true }
+luma-db = { workspace = true }
+luma-domain = { workspace = true }
+luma-primitives = { workspace = true }
 sha1 = "0.10"
 anyhow = { workspace = true }
 serde = { workspace = true }

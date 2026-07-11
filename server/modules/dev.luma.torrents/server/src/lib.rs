@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "rqbit")]
 mod announce;
+pub mod downloads;
 pub mod module;
 pub mod proxycheck;
 #[cfg(feature = "rqbit")]
@@ -27,6 +28,9 @@ mod rqbit;
 
 pub use module::MODULE;
 pub use rqbit::{RqbitConfig, RqbitEngine};
+// The download manager + monitor (merged in from the former luma-downloads crate),
+// re-exported at the crate root so `luma_torrent::DownloadManager` etc. keep working.
+pub use downloads::{active_proxy_url, DownloadManager, GrabSpec, LABEL};
 
 /// Whether the embedded engine is compiled into this build.
 pub const RQBIT_COMPILED: bool = cfg!(feature = "rqbit");

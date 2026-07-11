@@ -309,7 +309,7 @@ pub fn grab_cached(
     let wanted = db::wanted_for_request(&conn, request_id)?;
     drop(conn);
     let wanted_ids = wanted_ids_for(&wanted, &cached.view);
-    let spec = luma_downloads::GrabSpec::from_release(
+    let spec = luma_torrent::GrabSpec::from_release(
         &cached.view,
         &magnet_or_url,
         cached.tmdb_id,

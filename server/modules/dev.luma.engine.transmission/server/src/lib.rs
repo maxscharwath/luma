@@ -280,13 +280,13 @@ impl<S: luma_module_host::HostCtx + Clone + Send + Sync + 'static>
     }
 
     async fn on_enable(&self, host: std::sync::Arc<dyn luma_module_host::HostCtx>) {
-        if let Some(dm) = luma_module_host::service::<luma_downloads::DownloadManager>(host.as_ref()) {
+        if let Some(dm) = luma_module_host::service::<luma_torrent::DownloadManager>(host.as_ref()) {
             dm.register_engine(register);
         }
     }
 
     async fn on_disable(&self, host: std::sync::Arc<dyn luma_module_host::HostCtx>) {
-        if let Some(dm) = luma_module_host::service::<luma_downloads::DownloadManager>(host.as_ref()) {
+        if let Some(dm) = luma_module_host::service::<luma_torrent::DownloadManager>(host.as_ref()) {
             dm.unregister_engine(KIND);
         }
     }

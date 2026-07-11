@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{anyhow, bail, Result};
-use luma_torrent::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitEngine};
+use crate::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitEngine};
 
 use luma_db::{self as db, DownloadClientRow, DownloadRow};
 use luma_domain::{RequestStatus, ScoredReleaseView, VpnStatusView};
@@ -48,7 +48,7 @@ pub struct DownloadManager {
     /// The download sub-engine registry (kind -> factory). Shared + mutable so
     /// the download-engine sub-modules can register / unregister their kind when
     /// toggled. Adding a new backend is registering a factory here, not a `match`.
-    clients: RwLock<luma_torrent::DownloadClientRegistry>,
+    clients: RwLock<crate::DownloadClientRegistry>,
     /// Guards [`Self::ensure_monitor`] so the resident loop spawns at most once
     /// per process even though the module's `on_enable` may fire more than once.
     monitor_started: AtomicBool,
@@ -70,7 +70,7 @@ impl DownloadManager {
             paused_by_disable: Mutex::new(Vec::new()),
             downloads_dir: state_dir.join("downloads"),
             state_dir,
-            clients: RwLock::new(luma_torrent::builtin_download_clients()),
+            clients: RwLock::new(crate::builtin_download_clients()),
             monitor_started: AtomicBool::new(false),
         })
     }
@@ -80,7 +80,7 @@ impl DownloadManager {
     /// no-op when the embedded engine is not compiled in. Owned here so the binary
     /// shell never names the rqbit client row (onion boundary).
     pub fn seed_embedded_client(&self, host: &dyn HostCtx) {
-        if !luma_torrent::RQBIT_COMPILED {
+        if !crate::RQBIT_COMPILED {
             return;
         }
         let _ = db::insert_download_client(
@@ -157,7 +157,7 @@ impl DownloadManager {
 
     /// Fetch a torrent's file list (metadata only, no download) via the
     /// preferred engine, so the admin can analyze + select before grabbing.
-    pub fn list_files(&self, host: &dyn HostCtx, magnet_or_url: &str) -> Result<Vec<luma_torrent::TorrentFileEntry>> {
+    pub fn list_files(&self, host: &dyn HostCtx, magnet_or_url: &str) -> Result<Vec<crate::TorrentFileEntry>> {
         let conn = host.db().get()?;
         let client = db::preferred_download_client(&conn)?
             .ok_or_else(|| anyhow!("no enabled download client"))?;
@@ -181,7 +181,7 @@ impl DownloadManager {
         };
         self.clients.read().expect("download client registry lock").build(
             &def,
-            &luma_torrent::DownloadClientCtx { rqbit: self.rqbit(), state_dir: &self.state_dir },
+            &crate::DownloadClientCtx { rqbit: self.rqbit(), state_dir: &self.state_dir },
         )
     }
 
@@ -189,7 +189,7 @@ impl DownloadManager {
     /// The engine sub-modules call this from their enable lifecycle (and the
     /// binary at boot), so an engine crate plugs itself in without this crate
     /// naming it.
-    pub fn register_engine(&self, register: impl FnOnce(&mut luma_torrent::DownloadClientRegistry)) {
+    pub fn register_engine(&self, register: impl FnOnce(&mut crate::DownloadClientRegistry)) {
         let mut reg = self.clients.write().expect("download client registry lock");
         register(&mut reg);
     }
@@ -213,14 +213,14 @@ impl DownloadManager {
     /// One VPN probe + gate transition. Called by the monitor (~every 60s)
     /// and by the admin test endpoint. No proxy configured = dormant (gate
     /// open, no status). Blocking (curl); call off the runtime.
-    pub fn vpn_check(&self, host: &dyn HostCtx) -> Option<luma_torrent::proxycheck::VpnCheck> {
+    pub fn vpn_check(&self, host: &dyn HostCtx) -> Option<crate::proxycheck::VpnCheck> {
         let Some(proxy) = active_proxy_url(host) else {
             self.gate_open.store(true, Ordering::Relaxed);
             *self.vpn_status.lock().unwrap() = None;
             return None;
         };
         let check_url = host.setting_str("vpnCheckUrl", "https://api.ipify.org");
-        let check = luma_torrent::proxycheck::check(&proxy, &check_url);
+        let check = crate::proxycheck::check(&proxy, &check_url);
         let sealed = check.sealed();
         // Opt-in: the kill switch does nothing unless the admin turns it on.
         let kill_switch = host.setting_bool("vpnKillSwitch", false);

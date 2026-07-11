@@ -39,7 +39,7 @@ impl DownloadManager {
                 // When the Downloads module is disabled its engine is torn down;
                 // idle the monitor entirely (no polling, no VPN probe) until it is
                 // re-enabled, so a disabled system does no background work.
-                if !host.module_enabled(luma_torrent::MODULE_ID) {
+                if !host.module_enabled(crate::MODULE_ID) {
                     tokio::time::sleep(IDLE_TICK).await;
                     continue;
                 }
@@ -125,14 +125,14 @@ impl DownloadManager {
                     let finished = status.progress >= 1.0
                         || matches!(
                             status.state,
-                            luma_torrent::TorrentState::Completed | luma_torrent::TorrentState::Seeding
+                            crate::TorrentState::Completed | crate::TorrentState::Seeding
                         );
                     let new_status = if finished {
                         "completed"
                     } else {
                         match status.state {
-                            luma_torrent::TorrentState::Paused => "paused",
-                            luma_torrent::TorrentState::Queued => "queued",
+                            crate::TorrentState::Paused => "paused",
+                            crate::TorrentState::Queued => "queued",
                             // Error included: transient tracker/disk errors
                             // recover, so keep polling with the error visible.
                             _ => "downloading",
