@@ -5,9 +5,15 @@
   "description": "LUMA self-hosted, multi-platform video streaming (Rust server + web / Tizen / webOS clients). Direct-play HEVC everywhere.",
   "workspaces": [
     "packages/*",
-    "clients/*"
+    "clients/*",
+    "server/modules/*/ui",
+    "wasm-modules/*/ui"
   ],
   "scripts": {
+    "modules:gen": "bun scripts/gen-modules.ts",
+    "modules:new": "bun scripts/new-module.ts",
+    "modules:validate": "bun scripts/validate-modules.ts",
+    "modules:wasm": "bun scripts/build-wasm-module.ts",
     "start": "bun run tizen:prepare && bun run dev",
     "dev": "concurrently -k -n server,web,tv -c yellow,cyan,magenta \"bun run server:watch\" \"bun run dev:web\" \"VITE_LUMA_SERVER=http://localhost:4040 bun run dev:tizen\"",
     "dev:webonly": "concurrently -k -n server,web -c yellow,cyan \"bun run server:watch\" \"bun run dev:web\"",

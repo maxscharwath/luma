@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createRootRouteWithContext, HeadContent, Scripts } from '@tanstack/react-router';
 import { lazy, type ReactNode, Suspense } from 'react';
 import { Intro } from '#web/features/catalog/intro';
+import { ModuleHostProvider } from '#web/modules/ModuleHostProvider';
 import { AuthProvider } from '#web/shared/lib/auth';
 import { LocaleProvider } from '#web/shared/lib/locale';
 import { MyListProvider } from '#web/shared/lib/mylist';
@@ -54,8 +55,12 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
               <MyListProvider>
                 {/* Each route picks its own frame: the `_app` layout wraps
                     authenticated pages in the sidebar shell + login gate; login,
-                    join and the admin console own their chrome. */}
-                <LocaleProvider>{children}</LocaleProvider>
+                    join and the admin console own their chrome. ModuleHostProvider
+                    runs the module runtime app-wide so both the main and admin
+                    shells can read module-contributed nav + pages. */}
+                <LocaleProvider>
+                  <ModuleHostProvider>{children}</ModuleHostProvider>
+                </LocaleProvider>
               </MyListProvider>
             </WatchedProvider>
           </AuthProvider>

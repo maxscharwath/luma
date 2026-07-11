@@ -1,0 +1,13 @@
+{
+  "id": "dev.luma.vector",
+  "name": "Embeddings",
+  "version": "0.1.0",
+  "dependsOn": [],
+  "provides": [
+    {
+      "kind": "embedder",
+      "id": "content"
+    }
+  ],
+  "description": "Content embeddings for recommendations and semantic search."
+}

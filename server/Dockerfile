@@ -32,9 +32,12 @@ WORKDIR /src
 # Warm the dependency cache (the default `whisper-local` feature pulls the candle
 # stack, which is slow) before copying sources so a code-only change reuses it.
 COPY server/Cargo.toml server/Cargo.lock ./server/
-# The workspace members (crates/*) must be present for cargo to resolve the
-# dependency graph, otherwise the stub-main build below fails to solve.
+# The workspace members must be present for cargo to resolve the dependency
+# graph, otherwise the stub-main build below fails to solve. Modules (crates
+# under modules/<id>/server) also include_str! their module.json at compile time,
+# so copy the whole modules/ tree (its ui/ dirs are ignored by cargo).
 COPY server/crates ./server/crates
+COPY server/modules ./server/modules
 # luma-engine (a workspace member, so it's compiled by the warm-up build below)
 # include_str!s the shared locale catalogs at compile time
 # (crates/luma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json),

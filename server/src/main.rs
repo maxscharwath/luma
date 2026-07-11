@@ -11,6 +11,7 @@
 // call sites in api/ keep resolving. Lower layers (config/db/domain) are their
 // own crates, likewise aliased.
 mod api;
+mod modules;
 use luma_config as config;
 use luma_db as db;
 use luma_engine::{i18n, infra, model, services, state};

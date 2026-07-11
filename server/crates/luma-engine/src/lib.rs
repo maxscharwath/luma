@@ -25,6 +25,7 @@ pub(crate) use luma_domain as domain;
 pub mod i18n;
 pub mod infra;
 pub mod model;
+pub mod modules;
 pub mod services;
 pub mod state;
 

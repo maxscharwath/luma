@@ -1,0 +1,23 @@
+{
+  "name": "@luma/module-torrents",
+  "version": "0.1.3",
+  "type": "module",
+  "description": "LUMA torrents module (frontend half): the download-clients admin panel. Paired with the luma-torrent backend at ../be via the shared module.json.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@luma/module-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5.6.3"
+  }
+}

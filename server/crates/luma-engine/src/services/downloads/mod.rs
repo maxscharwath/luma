@@ -45,6 +45,9 @@ pub struct DownloadManager {
     state_dir: PathBuf,
     /// Root for per-download output folders of the embedded engine.
     downloads_dir: PathBuf,
+    /// The download sub-engine registry (kind -> factory). Adding a new download
+    /// backend is registering a factory here, not editing a `match`.
+    clients: luma_torrent::DownloadClientRegistry,
 }
 
 /// Failed VPN checks in a row before the kill switch actually closes the gate.
@@ -63,6 +66,7 @@ impl DownloadManager {
             paused_by_disable: Mutex::new(Vec::new()),
             downloads_dir: state_dir.join("downloads"),
             state_dir,
+            clients: luma_torrent::builtin_download_clients(),
         })
     }
 
@@ -128,7 +132,7 @@ impl DownloadManager {
         self.engine_for(&client)?.list_files(magnet_or_url, prefetched.as_deref())
     }
 
-    /// Build the engine for a stored client row.
+    /// Build the engine for a stored client row via the sub-engine registry.
     pub fn engine_for(&self, row: &DownloadClientRow) -> Result<Box<dyn DownloadClient>> {
         let def = ClientDef {
             kind: row.kind.clone(),
@@ -136,7 +140,10 @@ impl DownloadManager {
             username: row.username.clone(),
             password: row.password.clone(),
         };
-        luma_torrent::client_for(&def, self.rqbit(), &self.state_dir)
+        self.clients.build(
+            &def,
+            &luma_torrent::DownloadClientCtx { rqbit: self.rqbit(), state_dir: &self.state_dir },
+        )
     }
 
     // ----- kill switch ----------------------------------------------------------
@@ -260,7 +267,7 @@ impl DownloadManager {
 
     /// Re-enable after [`disable_embedded`]: the caller has already restarted the
     /// session ([`start_rqbit`], which reloads the persisted torrents), so just
-    /// flip the rows we paused back to active — the monitor reconciles the exact
+    /// flip the rows we paused back to active - the monitor reconciles the exact
     /// status (downloading vs seeding) from the live engine.
     pub fn resume_after_enable(&self, state: &SharedState) {
         let held = std::mem::take(&mut *self.paused_by_disable.lock().unwrap());
@@ -698,7 +705,7 @@ fn kbps_setting(state: &SharedState, key: &str) -> Option<u32> {
 /// the tunnel. Only the torrent's peer traffic should go through the VPN.
 /// Fetch a `.torrent`'s bytes for a grab, using the source indexer's
 /// authenticated [`luma_indexer::Session`] (login cookies applied) when the grab
-/// came from a built-in Cardigann indexer — private trackers cookie-gate the
+/// came from a built-in Cardigann indexer - private trackers cookie-gate the
 /// download, and a bare fetch would get the HTML login page. Falls back to a
 /// direct fetch for Torznab / manual grabs.
 fn fetch_torrent_for(state: &SharedState, row: &db::DownloadRow) -> Result<Vec<u8>> {

@@ -9,20 +9,24 @@
 //! capability guards live here.
 
 mod backup;
-mod download_clients;
-mod downloads;
+// Owned by the Downloads server module (mounted behind its enabled-gate); made
+// crate-visible so `crate::modules::downloads` can compose their routers.
+pub(crate) mod download_clients;
+pub(crate) mod downloads;
 mod indexers;
 mod jobs;
 mod libraries;
 mod llm;
+mod modules;
 mod organize;
 mod pipeline;
 mod remote;
 mod settings;
 mod stats;
 mod storage;
+mod store;
 mod users;
-mod vpn;
+pub(crate) mod vpn;
 
 use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
@@ -45,8 +49,13 @@ use crate::state::SharedState;
 /// so every path here is relative to that prefix. Each managed noun owns its
 /// routes in its submodule; the dashboard handlers (status / sessions / metrics)
 /// live in this file.
-pub fn routes() -> Router<SharedState> {
-    Router::new()
+pub fn routes(state: SharedState) -> Router<SharedState> {
+    // Core admin routers merged directly; each backend module's routers are
+    // mounted behind its enabled-gate (404 when the module is disabled), so a
+    // disabled module's whole admin surface disappears. Downloads (the
+    // download-clients / downloads-queue / VPN routers) is a module now, so it is
+    // no longer merged here -- it comes in via the `server_modules()` loop below.
+    let mut router = Router::new()
         .route("/server", get(server_info))
         .route("/sessions", get(sessions))
         .route("/sessions/:id/stop", post(terminate_session))
@@ -57,15 +66,16 @@ pub fn routes() -> Router<SharedState> {
         .merge(settings::routes())
         .merge(storage::routes())
         .merge(stats::routes())
-        .merge(download_clients::routes())
-        .merge(downloads::routes())
         .merge(indexers::routes())
         .merge(jobs::routes())
         .merge(llm::routes())
+        .merge(modules::routes())
+        .merge(store::routes())
         .merge(pipeline::routes())
         .merge(remote::routes())
-        .merge(vpn::routes())
-        .merge(backup::routes())
+        .merge(backup::routes());
+    router = router.merge(crate::modules::mount_admin(state.clone()));
+    router
 }
 
 // ----- guards -----------------------------------------------------------------

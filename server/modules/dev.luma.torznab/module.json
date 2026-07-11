@@ -1,0 +1,13 @@
+{
+  "id": "dev.luma.torznab",
+  "name": "Torznab indexers",
+  "version": "0.1.0",
+  "dependsOn": [],
+  "provides": [
+    {
+      "kind": "indexer-engine",
+      "id": "torznab"
+    }
+  ],
+  "description": "External Torznab / Newznab indexers (Jackett, Prowlarr)."
+}

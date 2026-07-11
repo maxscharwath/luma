@@ -13,7 +13,12 @@
   },
   "dependencies": {
     "@luma/core": "workspace:*",
+    "@luma/module-indexer": "workspace:*",
+    "@luma/module-sdk": "workspace:*",
+    "@luma/module-torrents": "workspace:*",
+    "@luma/modules-generated": "workspace:*",
     "@luma/ui": "workspace:*",
+    "@module-federation/runtime": "2.7.0",
     "@radix-ui/react-avatar": "^1.2.0",
     "@radix-ui/react-dialog": "^1",
     "@radix-ui/react-dropdown-menu": "^2",

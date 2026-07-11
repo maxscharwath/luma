@@ -71,24 +71,29 @@ function interpolate(template: string, vars?: TVars): string {
   );
 }
 
-/** Whether a key resolves in `locale` (or the French fallback). */
-function hasKey(locale: Locale, key: string): boolean {
-  return CATALOGS[locale]?.[key] != null || CATALOGS[DEFAULT_LOCALE][key] != null;
+/** A single-locale message catalog (dotted key -> template). */
+export type Catalog = Record<string, string>;
+/** A per-locale set of catalogs (some locales may be absent). */
+export type Catalogs = Partial<Record<Locale, Catalog>>;
+
+/** Whether a key resolves in `catalogs` for `locale` (or the French fallback). */
+function hasKeyIn(catalogs: Catalogs, locale: Locale, key: string): boolean {
+  return catalogs[locale]?.[key] != null || catalogs[DEFAULT_LOCALE]?.[key] != null;
 }
 
 /**
- * i18next-style plural resolution. When a translation is called with a numeric
- * `count`, the catalog can carry CLDR plural variants suffixed with the category
- * name `key_one`, `key_other` (and `_zero`/`_two`/`_few`/`_many` where a locale
- * needs them, e.g. Russian/Arabic). `Intl.PluralRules` picks the category for the
- * locale + count; we use the matching variant, else `key_other`, else the base
- * key. `{count}` is available as an interpolation token in every variant.
+ * i18next-style plural resolution over an explicit catalog set. When a
+ * translation is called with a numeric `count`, the catalog can carry CLDR plural
+ * variants suffixed with the category name `key_one`, `key_other` (and
+ * `_zero`/`_two`/`_few`/`_many` where a locale needs them). `Intl.PluralRules`
+ * picks the category; we use the matching variant, else `key_other`, else the
+ * base key. `{count}` is available as an interpolation token in every variant.
  *
  *   "content.seasonCount":      "{count} saisons"   ← base / default
  *   "content.seasonCount_one":  "{count} saison"    ← used when count selects "one"
  *   t('content.seasonCount', { count })             ← call site stays count-only
  */
-function resolvePluralKey(locale: Locale, key: string, count: number): string {
+function pluralKeyIn(catalogs: Catalogs, locale: Locale, key: string, count: number): string {
   let category: Intl.LDMLPluralRule = count === 1 ? 'one' : 'other';
   try {
     category = new Intl.PluralRules(locale).select(count);
@@ -96,20 +101,33 @@ function resolvePluralKey(locale: Locale, key: string, count: number): string {
     /* environments without Intl.PluralRules → the one/other heuristic above */
   }
   const variant = `${key}_${category}`;
-  if (hasKey(locale, variant)) return variant;
+  if (hasKeyIn(catalogs, locale, variant)) return variant;
   const other = `${key}_other`;
-  if (hasKey(locale, other)) return other;
+  if (hasKeyIn(catalogs, locale, other)) return other;
   return key;
 }
 
-/** Translate a key in a locale, falling back to French then to the raw key.
- * Pass a numeric `count` in `vars` to select a plural variant (see
- * {@link resolvePluralKey}); `{count}` and any other `vars` are interpolated. */
-export function translate(locale: Locale, key: MessageKey, vars?: TVars): string {
+/** Translate `key` against an explicit catalog set (e.g. a module's own
+ * catalogs), returning `undefined` when the key is absent so the caller can fall
+ * back to the core translator. Applies the same plural + `{name}` interpolation
+ * as {@link translate}. */
+export function translateIn(
+  catalogs: Catalogs,
+  locale: Locale,
+  key: string,
+  vars?: TVars,
+): string | undefined {
   const lookupKey =
-    typeof vars?.count === 'number' ? resolvePluralKey(locale, key, vars.count) : key;
-  const template = CATALOGS[locale]?.[lookupKey] ?? CATALOGS[DEFAULT_LOCALE][lookupKey] ?? key;
-  return interpolate(template, vars);
+    typeof vars?.count === 'number' ? pluralKeyIn(catalogs, locale, key, vars.count) : key;
+  const template = catalogs[locale]?.[lookupKey] ?? catalogs[DEFAULT_LOCALE]?.[lookupKey];
+  return template == null ? undefined : interpolate(template, vars);
+}
+
+/** Translate a key in a locale, falling back to French then to the raw key.
+ * Pass a numeric `count` in `vars` to select a plural variant; `{count}` and any
+ * other `vars` are interpolated. */
+export function translate(locale: Locale, key: MessageKey, vars?: TVars): string {
+  return translateIn(CATALOGS, locale, key, vars) ?? key;
 }
 
 /** Build a translation function bound to `locale`. */

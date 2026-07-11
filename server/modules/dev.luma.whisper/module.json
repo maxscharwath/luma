@@ -1,0 +1,13 @@
+{
+  "id": "dev.luma.whisper",
+  "name": "Whisper transcription",
+  "version": "0.1.0",
+  "dependsOn": [],
+  "provides": [
+    {
+      "kind": "transcriber",
+      "id": "whisper"
+    }
+  ],
+  "description": "In-process Whisper subtitle transcription (candle)."
+}

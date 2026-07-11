@@ -16,7 +16,11 @@ path = "src/main.rs"
 # while everything still links into this one binary. All existing entry points
 # (`cargo build` from server/, CI, the Synology docker build) are unchanged.
 [workspace]
-members = ["crates/*"]
+# Shared infra crates live under crates/. Self-contained domain *modules* live
+# under modules/<id>/server (paired with their frontend at modules/<id>/ui, their
+# translations at modules/<id>/locales, and a shared modules/<id>/module.json).
+# Modules sit under server/ because cargo refuses members outside the workspace root.
+members = ["crates/*", "modules/*/server"]
 
 # Shared package metadata. Every member (and the root package above) inherits
 # these via `edition.workspace = true` etc. Versions stay per-crate: the libs
@@ -102,19 +106,25 @@ webauthn-rs = "0.5.5"
 mimalloc = { version = "0.1", default-features = false }
 # In-workspace crates, referenced by path so a member bumping its own version
 # doesn't force a churn here.
+luma-module-sdk = { path = "crates/luma-module-sdk" }
+# Runtime hot-load tier: loads WASM modules (extism) into the running server.
+luma-module-wasm = { path = "crates/luma-module-wasm" }
+# Generated aggregator: registers every single-file (codegen) module. Owned by
+# scripts/gen-modules.ts; run `bun run modules:gen` after adding a *.module.md.
+luma-modules-generated = { path = "crates/luma-modules-generated" }
 luma-config = { path = "crates/luma-config" }
 luma-primitives = { path = "crates/luma-primitives" }
 luma-domain = { path = "crates/luma-domain" }
 luma-i18n = { path = "crates/luma-i18n" }
 luma-db = { path = "crates/luma-db" }
 luma-http = { path = "crates/luma-http" }
-luma-scene = { path = "crates/luma-scene" }
-luma-torznab = { path = "crates/luma-torznab" }
-luma-indexer = { path = "crates/luma-indexer" }
-luma-torrent = { path = "crates/luma-torrent" }
-luma-whisper = { path = "crates/luma-whisper" }
-luma-vector = { path = "crates/luma-vector" }
-luma-mdns = { path = "crates/luma-mdns" }
+luma-scene = { path = "modules/dev.luma.scene/server" }
+luma-torznab = { path = "modules/dev.luma.torznab/server" }
+luma-indexer = { path = "modules/indexer/server" }
+luma-torrent = { path = "modules/torrents/server" }
+luma-whisper = { path = "modules/dev.luma.whisper/server" }
+luma-vector = { path = "modules/dev.luma.vector/server" }
+luma-mdns = { path = "modules/dev.luma.mdns/server" }
 luma-engine = { path = "crates/luma-engine" }
 
 [features]
@@ -175,6 +185,18 @@ walkdir = { workspace = true }
 sysinfo = { workspace = true }
 luma-torrent = { workspace = true }
 luma-scene = { workspace = true }
+# The single module registry lives here (server/src/modules): it registers every
+# compile-time module's `MODULE` const, so the server depends on each directly.
+luma-indexer = { workspace = true }
+luma-torznab = { workspace = true }
+luma-whisper = { workspace = true }
+luma-vector = { workspace = true }
+luma-mdns = { workspace = true }
+luma-modules-generated = { workspace = true }
+# The admin modules endpoint names ModuleManifest for its flattened response.
+luma-module-sdk = { workspace = true }
+# Runtime WASM module host (install/load .wasm modules at runtime via extism).
+luma-module-wasm = { workspace = true }
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.

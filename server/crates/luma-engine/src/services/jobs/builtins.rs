@@ -103,6 +103,18 @@ const fn str_eq(a: &str, b: &str) -> bool {
     true
 }
 
+/// The acquisition jobs (search / import / match) belong to the Downloads
+/// module: they grab + import torrents. When that module is disabled the whole
+/// system is torn down, so these jobs no-op (a disabled module does no
+/// background work). Returns true (and logs) when the caller should skip.
+fn downloads_disabled(ctx: &JobContext) -> bool {
+    if crate::modules::module_enabled(&ctx.state.settings, luma_torrent::MODULE_ID) {
+        return false;
+    }
+    ctx.info("Downloads module disabled; skipping.");
+    true
+}
+
 /// Register every built-in job on the manager (roster order = listing order).
 /// Called once at startup.
 pub fn register_all(m: &mut JobManager) {

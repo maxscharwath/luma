@@ -1,0 +1,12 @@
+{
+  "id": "dev.luma.torrents",
+  "name": "Torrent downloads",
+  "version": "0.1.0",
+  "dependsOn": ["dev.luma.indexer"],
+  "provides": [
+    { "kind": "download-client", "id": "rqbit" },
+    { "kind": "download-client", "id": "transmission" },
+    { "kind": "download-client", "id": "qbittorrent" }
+  ],
+  "description": "Torrent engines behind one DownloadClient trait: embedded librqbit, Transmission, qBittorrent."
+}

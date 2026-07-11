@@ -1,0 +1,22 @@
+{
+  "name": "@luma/module-dev-luma-hello",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@luma/module-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5.6.3"
+  }
+}

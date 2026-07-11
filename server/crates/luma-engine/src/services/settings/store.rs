@@ -87,6 +87,27 @@ impl Settings {
         }
         written
     }
+
+    /// Atomically read-modify-write one setting under a single write-lock. `f`
+    /// receives the current value (or its built-in default) and returns the new
+    /// value. Unlike a `get` + `set_patch` pair, no other writer can interleave
+    /// between the read and the write, so concurrent updates to the same key
+    /// (e.g. two module-state edits) can't clobber each other. Only keys in
+    /// [`defaults`] are persisted, matching [`Self::set_patch`].
+    pub fn update_json(&self, pool: &Pool, key: &str, f: impl FnOnce(Value) -> Value) {
+        if !defaults().contains_key(key) {
+            return;
+        }
+        let mut guard = self.inner.write().unwrap();
+        let current = guard
+            .get(key)
+            .cloned()
+            .or_else(|| defaults().get(key).cloned())
+            .unwrap_or(Value::Null);
+        let next = f(current);
+        let _ = crate::db::settings_set(pool, key, &next);
+        guard.insert(key.to_string(), next);
+    }
 }
 
 /// Built-in default values for every known setting key. The set of keys here is
@@ -95,6 +116,10 @@ fn defaults() -> BTreeMap<String, Value> {
     let mut m = BTreeMap::new();
     // general
     m.insert("serverName".into(), json!("LUMA"));
+    // Per-module admin state: { "<id>": { "enabled": bool, "config": {..} } }.
+    // One allow-listed key holding the whole module-state blob (module ids are
+    // not known at compile time, so they can't each be an allow-listed key).
+    m.insert("moduleStates".into(), json!({}));
     m.insert("uiLanguage".into(), json!("Français"));
     // TMDB metadata language (e.g. "fr-FR"). Empty → fall back to the
     // env-configured `LUMA_TMDB_LANGUAGE` (default "en-US"). One language for the

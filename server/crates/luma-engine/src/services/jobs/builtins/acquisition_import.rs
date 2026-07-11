@@ -14,6 +14,9 @@ pub(super) const SPEC: Builtin = Builtin {
 };
 
 pub(super) fn run(ctx: &JobContext) -> Result<()> {
+    if super::downloads_disabled(ctx) {
+        return Ok(());
+    }
     let summary = crate::services::acquisition::import::import_pass(&ctx.state, &|line| ctx.info(line))?;
     if summary.imported == 0 && summary.failed == 0 {
         ctx.info("nothing to import");

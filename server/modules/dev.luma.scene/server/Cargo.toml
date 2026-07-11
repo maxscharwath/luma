@@ -1,0 +1,12 @@
+[package]
+name = "luma-scene"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Release-name parsing and the acquisition decision engine (pure, zero I/O)"
+license.workspace = true
+
+[dependencies]
+luma-module-sdk = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }

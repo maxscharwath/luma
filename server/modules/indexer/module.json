@@ -1,0 +1,8 @@
+{
+  "id": "dev.luma.indexer",
+  "name": "Indexers",
+  "version": "0.1.0",
+  "dependsOn": [],
+  "provides": [{ "kind": "indexer-engine", "id": "builtin" }],
+  "description": "Native Cardigann indexer engine: searches trackers from community YAML definitions, no external Torznab aggregator."
+}

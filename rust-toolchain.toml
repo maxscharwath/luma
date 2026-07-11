@@ -6,6 +6,10 @@
 # auto-installs this in the repo.
 [toolchain]
 channel = "1.96.1"
+# wasm32-unknown-unknown: guest target for runtime-loaded WASM modules (extism).
+# Pinned so `scripts/build-wasm-module.ts` works on a clean checkout without a
+# manual `rustup target add`.
+targets = ["wasm32-unknown-unknown"]
 # This file overrides any CI-installed toolchain (e.g. dtolnay/rust-toolchain@stable)
 # whenever cargo runs in the repo, so the components must be declared HERE or
 # `cargo clippy`/`cargo fmt` break on the pinned toolchain (which ships neither by

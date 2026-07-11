@@ -15,6 +15,9 @@ pub(super) const SPEC: Builtin = Builtin {
 };
 
 pub(super) fn run(ctx: &JobContext) -> Result<()> {
+    if super::downloads_disabled(ctx) {
+        return Ok(());
+    }
     let summary = crate::services::requests::availability_pass(&ctx.state)?;
     if summary.checked == 0 {
         ctx.info("no open requests to match");

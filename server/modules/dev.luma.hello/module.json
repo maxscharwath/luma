@@ -1,0 +1,24 @@
+{
+  "id": "dev.luma.hello",
+  "name": "Hello",
+  "version": "0.1.0",
+  "description": "A single-file demo module: manifest + packaged icon + React frontend in one file.",
+  "dependsOn": [],
+  "provides": [
+    {
+      "kind": "demo",
+      "id": "greeting"
+    }
+  ],
+  "permissions": [
+    "library.manage"
+  ],
+  "config": [
+    {
+      "key": "greeting",
+      "label": "Greeting text",
+      "type": "string",
+      "default": "Hello"
+    }
+  ]
+}

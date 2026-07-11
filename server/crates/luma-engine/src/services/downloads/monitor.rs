@@ -36,6 +36,13 @@ impl DownloadManager {
         tokio::spawn(async move {
             let mut last_vpn_check = std::time::Instant::now() - VPN_CHECK_EVERY;
             loop {
+                // When the Downloads module is disabled its engine is torn down;
+                // idle the monitor entirely (no polling, no VPN probe) until it is
+                // re-enabled, so a disabled system does no background work.
+                if !crate::modules::module_enabled(&state.settings, luma_torrent::MODULE_ID) {
+                    tokio::time::sleep(IDLE_TICK).await;
+                    continue;
+                }
                 let vpn_due = last_vpn_check.elapsed() >= VPN_CHECK_EVERY;
                 if vpn_due {
                     last_vpn_check = std::time::Instant::now();

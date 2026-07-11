@@ -1,0 +1,26 @@
+[package]
+name = "luma-torrent"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "DownloadClient trait + torrent engines (embedded librqbit, Transmission, qBittorrent)"
+license.workspace = true
+
+[features]
+# The embedded librqbit engine. Off = the "rqbit" client kind compiles as a
+# stub reporting "not compiled"; Transmission/qBittorrent (plain curl) remain.
+rqbit = ["dep:librqbit", "dep:tokio"]
+
+[dependencies]
+luma-http = { workspace = true }
+luma-module-sdk = { workspace = true }
+sha1 = "0.10"
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+# Pinned to 8.x: 9.0 (beta) moves socks_proxy_url/peer_opts into a new
+# ConnectionOptions shape. default-features off drops native-tls (openssl) and
+# the built-in HTTP API; rust-tls keeps the musl single binary linking.
+librqbit = { version = "8", optional = true, default-features = false, features = ["rust-tls"] }
+tokio = { version = "1", optional = true, features = ["rt"] }

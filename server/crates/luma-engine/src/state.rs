@@ -1,7 +1,9 @@
 //! Process-wide application state. The library lives in SQLite; this just holds
 //! the connection pool, resolved config, and the ffprobe-availability flag.
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+
+use luma_module_wasm::WasmHost;
 
 use crate::services::activity;
 use crate::config::Config;
@@ -78,6 +80,11 @@ pub struct AppState {
     /// Managed WireGuard-to-SOCKS5 bridge (wireproxy) for torrent traffic,
     /// the Proton VPN path. See [`crate::services::vpn`].
     pub vpn: Arc<Vpn>,
+    /// Runtime-loaded (WASM) modules installed under `<data>/modules`. Behind an
+    /// `RwLock` so the admin store can install / uninstall them live. Their
+    /// manifests are merged into `GET /api/modules` and their HTTP is proxied at
+    /// `/api/plugin/<id>/*`.
+    pub wasm: Arc<RwLock<WasmHost>>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -95,6 +102,8 @@ impl AppState {
         let remote = RemoteAccess::new(config.data_dir.clone());
         let downloads = DownloadManager::new(&config.data_dir);
         let vpn = Vpn::new(config.data_dir.clone());
+        // Load any runtime-installed WASM modules from disk (best-effort).
+        let wasm = Arc::new(RwLock::new(WasmHost::load_all(&config.data_dir.join("modules"))));
         // Seed the process-wide ffmpeg concurrency budget from the setting so the
         // very first background pass already honors it (updated live on write).
         crate::infra::ffmpeg_gate::set_capacity(crate::services::settings::media_workers(&settings));
@@ -133,6 +142,7 @@ impl AppState {
             remote,
             downloads,
             vpn,
+            wasm,
         })
     }
 }

@@ -13,7 +13,9 @@ import { Logo, useT } from '@luma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   IconAntenna,
+  IconApps,
   IconArchive,
+  IconBuildingStore,
   IconChevronRight,
   IconClockBolt,
   IconCloud,
@@ -39,6 +41,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { usePoll } from '#web/features/admin/hooks';
+import type { ModuleNav } from '@luma/module-sdk';
+import { useModuleNavAll } from '#web/modules/ModuleHostProvider';
+import { resolveModuleIcon } from '#web/modules/module-icons';
 import { formatUptime } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
@@ -113,9 +118,10 @@ interface NavItem {
   exact?: boolean;
 }
 
-const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
+const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] = [
   {
     labelKey: 'admin.groupManagement',
+    section: 'management',
     items: [
       {
         to: '/admin',
@@ -135,6 +141,7 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
   },
   {
     labelKey: 'admin.groupMedia',
+    section: 'media',
     items: [
       {
         to: '/admin/libraries',
@@ -159,6 +166,7 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
   },
   {
     labelKey: 'admin.groupAcquisition',
+    section: 'acquisition',
     items: [
       {
         to: '/admin/acquisition',
@@ -172,12 +180,15 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
         cap: 'settings.manage',
         icon: IconAntenna,
       },
+      { to: '/admin/modules', labelKey: 'admin.navModules', cap: 'settings.manage', icon: IconApps },
+      { to: '/admin/store', labelKey: 'admin.navStore', cap: 'settings.manage', icon: IconBuildingStore },
       { to: '/admin/downloads', labelKey: 'admin.navDownloads', cap: null, icon: IconDownload },
       { to: '/admin/vpn', labelKey: 'admin.navVpn', cap: 'settings.manage', icon: IconShieldLock },
     ],
   },
   {
     labelKey: 'admin.groupSystem',
+    section: 'system',
     items: [
       {
         to: '/admin/general',
@@ -196,6 +207,7 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
   },
   {
     labelKey: 'admin.groupMaintenance',
+    section: 'maintenance',
     items: [
       { to: '/admin/jobs', labelKey: 'admin.navJobs', cap: 'settings.manage', icon: IconClockBolt },
       {
@@ -243,11 +255,19 @@ function AdminSidebarBody() {
   const { serverInfo } = useAdmin();
   const { user } = useAuth();
   const visible = (cap: Permission | null) => !cap || (!!user && hasPermission(user, cap));
-  // Filter each section's items, then drop sections left empty for this user.
+  // Module pages target a nav-group by `section` (e.g. Torrents -> "acquisition"),
+  // so they render INSIDE the matching group beside the built-in pages. A disabled
+  // module drops out, so its link vanishes with the rest of its system.
+  const moduleNav = useModuleNavAll();
+  const knownSections = new Set(NAV_GROUPS.map((g) => g.section));
   const groups = NAV_GROUPS.map((g) => ({
     labelKey: g.labelKey,
     items: g.items.filter((n) => visible(n.cap)),
-  })).filter((g) => g.items.length > 0);
+    modules: moduleNav.filter((m) => (m.section ?? 'library') === g.section),
+  })).filter((g) => g.items.length > 0 || g.modules.length > 0);
+  // Module pages whose section names no built-in group (e.g. `section: "admin"`
+  // or a custom id) fall into a generic "Module pages" group.
+  const orphanModules = moduleNav.filter((m) => !knownSections.has(m.section ?? 'library'));
   return (
     <>
       {/* Fixed header: back-to-app link */}
@@ -279,8 +299,18 @@ function AdminSidebarBody() {
                 {t(n.labelKey)}
               </Link>
             ))}
+            {g.modules.map((m) => (
+              <ModuleNavLink key={`${m.moduleId}:${m.to}`} item={m} />
+            ))}
           </SidebarGroup>
         ))}
+        {orphanModules.length > 0 && (
+          <SidebarGroup label={t('admin.groupModulePages')}>
+            {orphanModules.map((m) => (
+              <ModuleNavLink key={`${m.moduleId}:${m.to}`} item={m} />
+            ))}
+          </SidebarGroup>
+        )}
       </nav>
 
       {/* Fixed footer: live server status */}
@@ -348,6 +378,17 @@ function AdminMobileTopbar() {
         </Dialog.Portal>
       </Dialog.Root>
     </header>
+  );
+}
+
+/** A nav link contributed by a module (resolved icon + localized label). */
+function ModuleNavLink({ item }: Readonly<{ item: ModuleNav }>) {
+  const Icon = resolveModuleIcon(item.icon);
+  return (
+    <Link to={item.to} className={linkCls}>
+      <Icon size={18} stroke={1.7} />
+      {item.label}
+    </Link>
   );
 }
 
