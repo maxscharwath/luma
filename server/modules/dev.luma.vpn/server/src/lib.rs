@@ -176,6 +176,40 @@ impl luma_contracts::VpnProxyPort for VpnProxy {
     }
 }
 
+/// `GET /api/admin/vpn` the VPN configuration card's state. VPN routing is
+/// WireGuard-only: a stored config runs a managed wireproxy bridge the embedded
+/// engine routes through.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VpnAdminView {
+    /// A WireGuard config is stored.
+    pub wg_configured: bool,
+    /// The bridge child is currently alive.
+    pub bridge_running: bool,
+    pub local_port: u16,
+    pub status: Option<luma_domain::VpnStatusView>,
+}
+
+/// `PUT /api/admin/vpn` body. `wgConfig` is write-only: pass the full WireGuard
+/// config text from any provider (Mullvad, Proton, AirVPN, a self-hosted peer),
+/// or an empty string to remove it.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveVpnBody {
+    pub wg_config: Option<String>,
+    pub local_port: Option<u16>,
+}
+
+/// `POST /api/admin/vpn/test` a live probe through (and around) the proxy.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VpnTestResult {
+    pub sealed: bool,
+    pub proxied_ip: Option<String>,
+    pub direct_ip: Option<String>,
+    pub error: Option<String>,
+}
+
 /// This module's id (matches its `module.json`).
 pub const MODULE_ID: &str = "dev.luma.vpn";
 

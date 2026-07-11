@@ -380,7 +380,10 @@ pub struct AnalyzeBody {
     pub magnet_or_url: String,
 }
 
-/// The kill switch's view of the tunnel.
+/// The kill switch's view of the tunnel. Cross-boundary (the downloads kill
+/// switch produces it; the VPN admin view + the downloads-queue view embed it),
+/// so it stays here until the download DTOs leave core, then it moves to
+/// luma-contracts. VpnAdminView / SaveVpnBody / VpnTestResult moved to luma-vpn.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VpnStatusView {
@@ -388,38 +391,4 @@ pub struct VpnStatusView {
     pub exit_ip: Option<String>,
     /// Downloads are currently held by the kill switch.
     pub paused: bool,
-}
-
-/// `GET /api/admin/vpn` the VPN configuration card's state. VPN routing is
-/// WireGuard-only: a stored config runs a managed wireproxy bridge the embedded
-/// engine routes through.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VpnAdminView {
-    /// A WireGuard config is stored.
-    pub wg_configured: bool,
-    /// The bridge child is currently alive.
-    pub bridge_running: bool,
-    pub local_port: u16,
-    pub status: Option<VpnStatusView>,
-}
-
-/// `PUT /api/admin/vpn` body. `wgConfig` is write-only: pass the full
-/// WireGuard config text from any provider (Mullvad, Proton, AirVPN, a
-/// self-hosted peer...), or an empty string to remove it.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveVpnBody {
-    pub wg_config: Option<String>,
-    pub local_port: Option<u16>,
-}
-
-/// `POST /api/admin/vpn/test` a live probe through (and around) the proxy.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VpnTestResult {
-    pub sealed: bool,
-    pub proxied_ip: Option<String>,
-    pub direct_ip: Option<String>,
-    pub error: Option<String>,
 }

@@ -3642,6 +3642,7 @@ dependencies = [
  "luma-downloads",
  "luma-module-host",
  "luma-module-sdk",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",

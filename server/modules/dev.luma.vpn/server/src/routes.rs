@@ -13,7 +13,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
-use luma_domain::{Permission, SaveVpnBody, VpnAdminView, VpnTestResult};
+use luma_domain::Permission;
+
+use crate::{SaveVpnBody, VpnAdminView, VpnTestResult};
 use luma_downloads::DownloadManager;
 use luma_module_host::{blocking, service, AuthUser, HostCtx};
 
