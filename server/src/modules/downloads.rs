@@ -18,9 +18,11 @@ impl ServerModule for DownloadsModule {
         luma_torrent::MODULE_ID
     }
 
-    fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
-        crate::api::admin::download_clients::routes()
-            .merge(crate::api::admin::downloads::routes())
+    fn admin_routes(&self, _state: &SharedState) -> Option<Router<SharedState>> {
+        Some(
+            crate::api::admin::download_clients::routes()
+                .merge(crate::api::admin::downloads::routes()),
+        )
     }
 
     fn on_enable(&self, state: &SharedState) {

@@ -17,7 +17,7 @@ impl ServerModule for RemoteModule {
         "dev.luma.remote"
     }
 
-    fn admin_routes(&self, state: &SharedState) -> Router<SharedState> {
-        luma_remote::routes::<SharedState>(state.remote.clone())
+    fn admin_routes(&self, state: &SharedState) -> Option<Router<SharedState>> {
+        Some(luma_remote::routes::<SharedState>(state.remote.clone()))
     }
 }

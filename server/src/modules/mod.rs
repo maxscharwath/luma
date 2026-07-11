@@ -37,12 +37,14 @@ pub trait ServerModule: Send + Sync {
     /// The module id, shared with its `module.json` and frontend package.
     fn id(&self) -> &'static str;
 
-    /// Routes this module serves under `/api/admin`. Mounted behind the module's
-    /// enabled-gate by [`mount_admin`], so they return 404 while it is disabled.
-    /// Receives the app state so a relocated module (whose routes live in its own
-    /// crate, generic over `HostCtx`) can inject its service as an `Extension`.
-    fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
-        Router::new()
+    /// Routes this module serves under `/api/admin`, or `None` for a
+    /// lifecycle-only module (e.g. a download engine) that has no admin surface.
+    /// Mounted behind the module's enabled-gate by [`mount_admin`], so they
+    /// return 404 while it is disabled. Receives the app state so a relocated
+    /// module (whose routes live in its own crate, generic over `HostCtx`) can
+    /// inject its service as an `Extension`.
+    fn admin_routes(&self, _state: &SharedState) -> Option<Router<SharedState>> {
+        None
     }
 
     /// Bring the module's live services up (called when it is enabled at runtime,
@@ -170,8 +172,11 @@ pub fn find_server(id: &str) -> Option<&'static dyn ServerModule> {
 pub fn mount_admin(state: SharedState) -> Router<SharedState> {
     let mut router = Router::new();
     for module in &registry().servers {
-        let routes = module.admin_routes(&state);
-        router = router.merge(module_scope(state.clone(), module.id(), routes));
+        // Lifecycle-only modules (engines) contribute no routes; skip them so we
+        // never wrap an empty router in a route_layer (which axum rejects).
+        if let Some(routes) = module.admin_routes(&state) {
+            router = router.merge(module_scope(state.clone(), module.id(), routes));
+        }
     }
     router
 }

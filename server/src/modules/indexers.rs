@@ -17,7 +17,7 @@ impl ServerModule for IndexersModule {
         "dev.luma.indexer"
     }
 
-    fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
-        luma_indexer::routes::routes::<SharedState>()
+    fn admin_routes(&self, _state: &SharedState) -> Option<Router<SharedState>> {
+        Some(luma_indexer::routes::routes::<SharedState>())
     }
 }
