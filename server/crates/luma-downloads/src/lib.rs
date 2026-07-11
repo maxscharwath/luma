@@ -15,7 +15,8 @@ use luma_torrent::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitE
 
 use luma_db::{self as db, DownloadClientRow, DownloadRow};
 use luma_domain::{RequestStatus, ScoredReleaseView, VpnStatusView};
-use luma_module_host::{HostCtx, HostEvent};
+use luma_module_host::{Event, HostCtx};
+use serde_json::json;
 use luma_primitives::now_ms;
 
 /// The LUMA category/label applied inside external clients.
@@ -243,11 +244,14 @@ impl DownloadManager {
         let status = VpnStatusView { connected: sealed, exit_ip: check.proxied_ip.clone(), paused };
         let changed = self.vpn_status.lock().unwrap().replace(status.clone()) != Some(status.clone());
         if changed {
-            host.publish(HostEvent::VpnStatus {
-                connected: status.connected,
-                exit_ip: status.exit_ip.clone(),
-                paused: status.paused,
-            });
+            host.publish(Event::new(
+                "vpn.status",
+                json!({
+                    "connected": status.connected,
+                    "exitIp": status.exit_ip,
+                    "paused": status.paused,
+                }),
+            ));
         }
         Some(check)
     }
@@ -403,10 +407,10 @@ impl DownloadManager {
             // transient phase derived at read time from the live download
             // relationship (see api::requests overlay), so it self-heals when
             // the grab fails or the torrent is deleted. Just nudge listeners.
-            host.publish(HostEvent::RequestUpdated {
-                id: req_id.clone(),
-                status: RequestStatus::Downloading.as_str().to_string(),
-            });
+            host.publish(Event::new(
+                "request.updated",
+                json!({ "id": req_id, "status": RequestStatus::Downloading.as_str() }),
+            ));
         }
         tracing::info!(release = %row.release_title, client = %client.name, "queued torrent grab");
         Ok(row)

@@ -10,9 +10,8 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use luma_db::Pool;
 use luma_domain::{Permission, User};
-use luma_module_host::{json_error, HostCtx, HostEvent};
+use luma_module_host::{json_error, Event, HostCtx};
 
-use crate::infra::events::ServerEvent;
 use crate::services::jobs::JobKey;
 use crate::state::AppState;
 
@@ -68,36 +67,16 @@ impl HostCtx for AppState {
         self.settings.set_patch(&self.db, patch);
     }
 
-    fn publish(&self, event: HostEvent) {
-        let ev = match event {
-            HostEvent::DownloadProgress {
-                id,
-                request_id,
-                progress,
-                down_bps,
-                up_bps,
-                peers,
-                peers_seen,
-                state,
-            } => ServerEvent::DownloadProgress {
-                id,
-                request_id,
-                progress,
-                down_bps,
-                up_bps,
-                peers,
-                peers_seen,
-                state,
-            },
-            HostEvent::DownloadCompleted { id, title } => {
-                ServerEvent::DownloadCompleted { id, title }
-            }
-            HostEvent::VpnStatus { connected, exit_ip, paused } => {
-                ServerEvent::VpnStatus { connected, exit_ip, paused }
-            }
-            HostEvent::RequestUpdated { id, status } => ServerEvent::RequestUpdated { id, status },
+    fn publish(&self, event: Event) {
+        // Merge the module's topic under the wire `type` key into its payload
+        // object, matching the bus wire shape `{ "type": <topic>, ...fields }`.
+        // The core stays generic: it names no module event type.
+        let serde_json::Value::Object(mut obj) = event.payload else {
+            tracing::warn!(topic = %event.topic, "module event payload is not a JSON object; dropping");
+            return;
         };
-        self.events.publish(ev);
+        obj.insert("type".to_string(), serde_json::Value::String(event.topic));
+        self.events.publish_value(serde_json::Value::Object(obj));
     }
 
     fn trigger_job(&self, key: &'static str, reason: &'static str) {

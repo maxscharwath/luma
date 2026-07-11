@@ -9,7 +9,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use luma_db as db;
-use luma_module_host::{HostCtx, HostEvent};
+use luma_module_host::{Event, HostCtx};
+use serde_json::json;
 use luma_primitives::now_ms;
 
 use super::DownloadManager;
@@ -158,21 +159,24 @@ impl DownloadManager {
                             status.error.as_deref(),
                         );
                     }
-                    host.publish(HostEvent::DownloadProgress {
-                        id: row.id.clone(),
-                        request_id: row.request_id.clone(),
-                        progress: status.progress,
-                        down_bps: status.down_bps,
-                        up_bps: status.up_bps,
-                        peers: status.peers,
-                        peers_seen: status.peers_seen,
-                        state: new_status.to_string(),
-                    });
+                    host.publish(Event::new(
+                        "download.progress",
+                        json!({
+                            "id": row.id,
+                            "requestId": row.request_id,
+                            "progress": status.progress,
+                            "downBps": status.down_bps,
+                            "upBps": status.up_bps,
+                            "peers": status.peers,
+                            "peersSeen": status.peers_seen,
+                            "state": new_status.to_string(),
+                        }),
+                    ));
                     if finished {
-                        host.publish(HostEvent::DownloadCompleted {
-                            id: row.id.clone(),
-                            title: row.release_title.clone(),
-                        });
+                        host.publish(Event::new(
+                            "download.completed",
+                            json!({ "id": row.id, "title": row.release_title }),
+                        ));
                         completed_any = true;
                     }
                 }

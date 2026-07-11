@@ -79,27 +79,21 @@ where
     blocking(move || f(pool)).await
 }
 
-/// An event a module's backend emits onto the app's real-time bus (fanned out to
-/// WebSocket clients). The seam's own shape; the app maps it to its wire event so
-/// a module crate never names the app's event enum.
-pub enum HostEvent {
-    /// Live download progress (one frame per active torrent per monitor tick).
-    DownloadProgress {
-        id: String,
-        request_id: Option<String>,
-        progress: f64,
-        down_bps: u64,
-        up_bps: u64,
-        peers: u32,
-        peers_seen: u32,
-        state: String,
-    },
-    /// A download finished (import follows).
-    DownloadCompleted { id: String, title: String },
-    /// The VPN kill-switch state changed.
-    VpnStatus { connected: bool, exit_ip: Option<String>, paused: bool },
-    /// A media request changed state.
-    RequestUpdated { id: String, status: String },
+/// A real-time event a module publishes onto the host's bus (fanned out to
+/// WebSocket clients as `{ "type": <topic>, ...payload }`). The module owns its
+/// topic string and payload shape; the seam names no module event type, so the
+/// core stays generic. The host merges `topic` under the wire `type` key.
+pub struct Event {
+    /// The wire event type, e.g. `"download.progress"`.
+    pub topic: String,
+    /// The event fields as a JSON object (merged next to `type` on the wire).
+    pub payload: serde_json::Value,
+}
+
+impl Event {
+    pub fn new(topic: impl Into<String>, payload: serde_json::Value) -> Self {
+        Self { topic: topic.into(), payload }
+    }
 }
 
 /// The slice of the running app a module's backend can reach. The binary's
@@ -136,8 +130,10 @@ pub trait HostCtx: Send + Sync + 'static {
     /// Persist a batch of settings atomically (one write).
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>);
 
-    /// Publish an event onto the app's real-time bus.
-    fn publish(&self, event: HostEvent);
+    /// Publish a module event onto the app's real-time bus (fanned out to
+    /// WebSocket clients). The event's topic + payload are generic; the host
+    /// forwards them without knowing the module's event types.
+    fn publish(&self, event: Event);
     /// Trigger a background job by its key (e.g. `"acquisition.import"`), running
     /// against the app state. No-op if the key is unknown or already running.
     fn trigger_job(&self, key: &'static str, reason: &'static str);
@@ -230,7 +226,7 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {
         (**self).set_settings(patch)
     }
-    fn publish(&self, event: HostEvent) {
+    fn publish(&self, event: Event) {
         (**self).publish(event)
     }
     fn trigger_job(&self, key: &'static str, reason: &'static str) {
