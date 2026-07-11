@@ -18,7 +18,7 @@ impl ServerModule for IndexersModule {
         "dev.luma.indexer"
     }
 
-    fn admin_routes(&self) -> Router<SharedState> {
+    fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
         crate::api::admin::indexers::routes()
     }
 }

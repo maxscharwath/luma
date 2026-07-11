@@ -76,4 +76,8 @@ impl HostCtx for AppState {
         patch.insert(key.to_string(), serde_json::Value::String(value.to_string()));
         self.settings.set_patch(&self.db, patch);
     }
+
+    fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {
+        self.settings.set_patch(&self.db, patch);
+    }
 }

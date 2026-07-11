@@ -14,7 +14,6 @@ pub mod loginguard;
 pub mod markers;
 pub mod organize;
 pub mod pipeline;
-pub mod remote;
 pub mod scan;
 pub mod downloads;
 pub mod enrich;

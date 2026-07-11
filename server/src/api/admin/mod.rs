@@ -20,7 +20,6 @@ mod llm;
 mod modules;
 mod organize;
 mod pipeline;
-pub(crate) mod remote;
 mod settings;
 mod stats;
 mod storage;

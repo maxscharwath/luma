@@ -3329,6 +3329,7 @@ dependencies = [
  "luma-module-wasm",
  "luma-modules-generated",
  "luma-primitives",
+ "luma-remote",
  "luma-scene",
  "luma-torrent",
  "luma-torznab",
@@ -3454,6 +3455,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-remote"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "luma-domain",
+ "luma-module-host",
+ "luma-module-sdk",
+ "luma-primitives",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "luma-scene"
 version = "0.1.0"
 dependencies = [
@@ -3481,6 +3497,7 @@ dependencies = [
  "luma-module-sdk",
  "luma-module-wasm",
  "luma-modules-generated",
+ "luma-remote",
  "luma-scene",
  "luma-torrent",
  "luma-torznab",

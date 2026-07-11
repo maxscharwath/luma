@@ -18,7 +18,7 @@ use crate::infra::storyboard::Storyboard;
 use crate::services::jobs::JobManager;
 use crate::services::playback::Registry;
 use crate::services::quickconnect::{self, QuickConnect};
-use crate::services::remote::RemoteAccess;
+use luma_remote::RemoteAccess;
 use crate::services::search::SearchEngine;
 use crate::services::sections::VectorCache;
 use crate::services::settings::Settings;
@@ -71,7 +71,7 @@ pub struct AppState {
     pub subtitle_gen: Arc<GenRegistry>,
     /// Managed Cloudflare Tunnel connector (optional, off by default). Supervises a
     /// `cloudflared` child when enabled so a box with no tunnel gets a public HTTPS
-    /// endpoint without port-forwarding. See [`crate::services::remote`].
+    /// endpoint without port-forwarding. See the `luma-remote` crate.
     pub remote: Arc<RemoteAccess>,
     /// The acquisition stack's download manager: embedded torrent engine
     /// lifecycle, grabs ledger, kill-switch gate. The monitor task is spawned

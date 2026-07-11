@@ -5,7 +5,7 @@
 //! WireGuard configuration; pick a P2P server). LUMA turns such a config into
 //! a LOCAL SOCKS5 proxy by supervising a `wireproxy` child (userspace
 //! WireGuard, single static binary), self-provisioned exactly like the
-//! `cloudflared` connector in [`crate::services::remote`]. The embedded
+//! `cloudflared` connector in the `luma-remote` crate. The embedded
 //! torrent engine then routes every peer connection through
 //! `socks5://127.0.0.1:<port>`; the rest of the server never touches the
 //! tunnel. Works identically for Mullvad or any other WireGuard provider.

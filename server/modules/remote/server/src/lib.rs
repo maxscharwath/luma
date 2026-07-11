@@ -25,10 +25,24 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
 
-use crate::services::settings;
-use crate::state::SharedState;
+use axum::extract::{Extension, State};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
+use axum::{Json, Router};
+use serde::Deserialize;
+use serde_json::json;
+
+use luma_domain::Permission;
+use luma_module_host::{AuthUser, HostCtx};
 
 mod provision;
+
+/// This module's registry entry (manifest + packaged icon, embedded at compile
+/// time from the shared module folder).
+pub const MODULE: luma_module_sdk::EmbeddedModule = luma_module_sdk::EmbeddedModule::new(
+    include_str!("../../module.json"),
+    include_bytes!("../../icon.svg"),
+);
 
 /// How many recent connector log lines we keep for the admin panel.
 const LOG_CAP: usize = 200;
@@ -167,7 +181,7 @@ impl RemoteAccess {
                 Ok(child) => {
                     g.child = Some(child);
                     g.running = true;
-                    g.since = Some(crate::services::scan::now_iso8601());
+                    g.since = Some(luma_primitives::now_iso8601());
                     info!("remote access: cloudflared connector started");
                 }
                 Err(e) => {
@@ -232,9 +246,9 @@ impl RemoteAccess {
     /// Enabled + token → launch (if down and not already starting); otherwise →
     /// kill. Called both by the loop and immediately after a settings change so
     /// the panel reflects the action without waiting a full tick.
-    pub async fn reconcile(self: &Arc<Self>, state: &SharedState) {
-        let enabled = settings::remote_access_enabled(&state.settings);
-        let token = settings::remote_access_token(&state.settings);
+    pub async fn reconcile(self: &Arc<Self>, host: &dyn HostCtx) {
+        let enabled = host.setting_bool("remoteAccess", false);
+        let token = host.setting_str("remoteAccessToken", "");
         let desired = enabled && !token.trim().is_empty();
         let alive = self.alive().await;
         let starting = self.inner.lock().await.starting;
@@ -250,14 +264,80 @@ impl RemoteAccess {
     /// Boot hook: run the reconcile loop forever. Brings the tunnel up at boot if
     /// the admin left it enabled with a token, keeps it alive if the child dies,
     /// and takes it down promptly once disabled. No-op while disabled.
-    pub fn spawn_boot(self: Arc<Self>, state: SharedState) {
+    pub fn spawn_boot(self: Arc<Self>, host: Arc<dyn HostCtx>) {
         tokio::spawn(async move {
             loop {
-                self.reconcile(&state).await;
+                self.reconcile(&*host).await;
                 tokio::time::sleep(Duration::from_secs(RECONCILE_SECS)).await;
             }
         });
     }
+}
+
+// ----- routes -----------------------------------------------------------------
+
+/// The Remote-access admin API, generic over any [`HostCtx`] state. Mounted by
+/// the binary's `RemoteModule` with the live [`RemoteAccess`] injected as an
+/// `Extension`. Paths are relative to the `/api/admin` nest.
+pub fn routes<S>(remote: Arc<RemoteAccess>) -> Router<S>
+where
+    S: HostCtx + Clone + Send + Sync + 'static,
+{
+    Router::new()
+        .route("/remote", get(get_remote::<S>).put(save_remote::<S>))
+        .layer(Extension(remote))
+}
+
+/// Config (token masked) + live connector status.
+async fn status_value(host: &dyn HostCtx, remote: &RemoteAccess) -> serde_json::Value {
+    let st = remote.status().await;
+    json!({
+        "enabled": host.setting_bool("remoteAccess", false),
+        "url": host.setting_str("remoteUrl", "").trim().trim_end_matches('/'),
+        "hasToken": !host.setting_str("remoteAccessToken", "").trim().is_empty(),
+        "status": serde_json::to_value(&st).unwrap_or_default(),
+    })
+}
+
+/// `GET /api/admin/remote` -> current config (token masked) + live status.
+async fn get_remote<S: HostCtx>(
+    State(state): State<S>,
+    Extension(remote): Extension<Arc<RemoteAccess>>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    state.require_any_admin(&user)?;
+    Ok(Json(status_value(&state, &remote).await).into_response())
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RemoteSaveBody {
+    enabled: bool,
+    url: String,
+    /// Blank/omitted -> keep the stored token.
+    token: Option<String>,
+}
+
+/// `PUT /api/admin/remote` -> persist config, then kick one reconcile so the
+/// connector starts/stops immediately (non-blocking). Returns the fresh status.
+async fn save_remote<S: HostCtx>(
+    State(state): State<S>,
+    Extension(remote): Extension<Arc<RemoteAccess>>,
+    AuthUser(user): AuthUser,
+    Json(body): Json<RemoteSaveBody>,
+) -> Result<Response, Response> {
+    state.require(&user, Permission::SettingsManage)?;
+    // Only overwrite the secret when a non-blank value was actually typed.
+    let token = body.token.as_deref().map(str::trim).filter(|t| !t.is_empty());
+    let mut patch = std::collections::BTreeMap::new();
+    patch.insert("remoteAccess".to_string(), json!(body.enabled));
+    patch.insert("remoteUrl".to_string(), json!(body.url.trim()));
+    if let Some(tok) = token {
+        patch.insert("remoteAccessToken".to_string(), json!(tok));
+    }
+    state.set_settings(patch);
+    remote.reconcile(&state).await;
+    Ok(Json(status_value(&state, &remote).await).into_response())
 }
 
 /// Drain a child stream line-by-line into the connector's log ring.

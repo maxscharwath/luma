@@ -122,6 +122,7 @@ luma-module-host = { path = "crates/luma-module-host" }
 luma-scene = { path = "modules/dev.luma.scene/server" }
 luma-torznab = { path = "modules/dev.luma.torznab/server" }
 luma-indexer = { path = "modules/indexer/server" }
+luma-remote = { path = "modules/remote/server" }
 luma-torrent = { path = "modules/torrents/server" }
 luma-whisper = { path = "modules/dev.luma.whisper/server" }
 luma-vector = { path = "modules/dev.luma.vector/server" }
@@ -163,6 +164,9 @@ luma-engine = { workspace = true }
 # binary re-exports the extractors from their historical `crate::api::extract`
 # path; module crates depend on this leaf instead of the whole engine.
 luma-module-host = { workspace = true }
+# Relocated module backend crates the binary wires (their MODULE manifest +
+# their routes, injected by the module's ServerModule glue).
+luma-remote = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
 # `crate::model` wire types come through `luma-engine`.
 luma-config = { workspace = true }

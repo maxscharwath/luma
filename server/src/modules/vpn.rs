@@ -16,7 +16,7 @@ impl ServerModule for VpnModule {
         "dev.luma.vpn"
     }
 
-    fn admin_routes(&self) -> Router<SharedState> {
+    fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
         crate::api::admin::vpn::routes()
     }
 

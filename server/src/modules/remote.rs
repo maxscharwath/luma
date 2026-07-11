@@ -1,8 +1,7 @@
-//! The Remote access module (backend): gates the `/api/admin/remote` routes
-//! behind its enabled flag, so a disabled module 404s its whole admin surface
-//! (page + routes vanish together). The connector lifecycle is driven by the
-//! remote-access enable toggle inside those routes (and its boot supervisor), so
-//! this only adds the route gate.
+//! The Remote access module (backend glue): the connector service + its routes
+//! now live in the `luma-remote` crate (over the `HostCtx` seam). This binding
+//! injects the live `RemoteAccess` (held on `AppState`) into the crate's generic
+//! routes and gates them behind the module's enabled flag.
 
 use axum::Router;
 
@@ -18,7 +17,7 @@ impl ServerModule for RemoteModule {
         "dev.luma.remote"
     }
 
-    fn admin_routes(&self) -> Router<SharedState> {
-        crate::api::admin::remote::routes()
+    fn admin_routes(&self, state: &SharedState) -> Router<SharedState> {
+        luma_remote::routes::<SharedState>(state.remote.clone())
     }
 }

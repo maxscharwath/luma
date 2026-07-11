@@ -1,0 +1,18 @@
+[package]
+name = "luma-remote"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "LUMA Remote access module (backend): the managed Cloudflare Tunnel connector + its admin routes, over the HostCtx seam (no dependency on the app)."
+license.workspace = true
+
+[dependencies]
+luma-module-host = { workspace = true }
+luma-module-sdk = { workspace = true }
+luma-primitives = { workspace = true }
+luma-domain = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }

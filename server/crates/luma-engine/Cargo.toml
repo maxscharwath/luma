@@ -34,6 +34,9 @@ luma-scene = { workspace = true }
 luma-torznab = { workspace = true }
 luma-indexer = { workspace = true }
 luma-torrent = { workspace = true }
+# Relocated module backends: the app depends on them (one-way, no cycle - they
+# name only the HostCtx seam), constructs their services, and injects them.
+luma-remote = { workspace = true }
 # Heavy/optional adapters (aliased in infra/mod.rs as crate::infra::{whisper,embed,discovery}).
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }

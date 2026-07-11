@@ -57,6 +57,8 @@ pub trait HostCtx: Send + Sync + 'static {
     fn setting_i64(&self, key: &str, default: i64) -> i64;
     /// Persist a string setting.
     fn set_setting_str(&self, key: &str, value: &str);
+    /// Persist a batch of settings atomically (one write).
+    fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>);
 }
 
 /// The router state is `Arc<AppState>` (= `SharedState`), but the orphan rule
@@ -89,6 +91,9 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     }
     fn set_setting_str(&self, key: &str, value: &str) {
         (**self).set_setting_str(key, value)
+    }
+    fn set_settings(&self, patch: std::collections::BTreeMap<String, serde_json::Value>) {
+        (**self).set_settings(patch)
     }
 }
 

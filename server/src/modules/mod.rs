@@ -39,7 +39,9 @@ pub trait ServerModule: Send + Sync {
 
     /// Routes this module serves under `/api/admin`. Mounted behind the module's
     /// enabled-gate by [`mount_admin`], so they return 404 while it is disabled.
-    fn admin_routes(&self) -> Router<SharedState> {
+    /// Receives the app state so a relocated module (whose routes live in its own
+    /// crate, generic over `HostCtx`) can inject its service as an `Extension`.
+    fn admin_routes(&self, _state: &SharedState) -> Router<SharedState> {
         Router::new()
     }
 
@@ -80,10 +82,7 @@ fn build() -> ModuleRegistry {
         include_str!("../../modules/vpn/module.json"),
         include_bytes!("../../modules/vpn/icon.svg"),
     )));
-    manifests.register(Box::new(EmbeddedModule::new(
-        include_str!("../../modules/remote/module.json"),
-        include_bytes!("../../modules/remote/icon.svg"),
-    )));
+    manifests.register(Box::new(luma_remote::MODULE));
     // Acquisition is a settings-view module (no dedicated routes), so it has a
     // manifest but no ServerModule behavior.
     manifests.register(Box::new(EmbeddedModule::new(
@@ -174,7 +173,8 @@ pub fn find_server(id: &str) -> Option<&'static dyn ServerModule> {
 pub fn mount_admin(state: SharedState) -> Router<SharedState> {
     let mut router = Router::new();
     for module in &registry().servers {
-        router = router.merge(module_scope(state.clone(), module.id(), module.admin_routes()));
+        let routes = module.admin_routes(&state);
+        router = router.merge(module_scope(state.clone(), module.id(), routes));
     }
     router
 }

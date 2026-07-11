@@ -94,7 +94,7 @@ pub fn metadata_language(settings: &Settings, config: &crate::config::Config) ->
 
 /// Whether the managed `cloudflared` connector is enabled (off by default). When
 /// on and a token is stored, the server supervises the tunnel (see
-/// [`crate::services::remote`]). Installs with their own tunnel leave this off.
+/// the `luma-remote` crate). Installs with their own tunnel leave this off.
 pub fn remote_access_enabled(settings: &Settings) -> bool {
     settings.get_bool("remoteAccess", false)
 }
