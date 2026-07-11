@@ -18,6 +18,9 @@ luma-module-sdk = { workspace = true }
 # so the module owns its whole backend and nothing download-related sits in crates/.
 luma-module-host = { workspace = true }
 luma-contracts = { workspace = true }
+# The admin routes (queue / clients / organize) moved into this crate need the
+# axum router + extractors, exactly like the vpn / indexer module crates.
+axum = { workspace = true }
 luma-db = { workspace = true }
 luma-domain = { workspace = true }
 luma-primitives = { workspace = true }

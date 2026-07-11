@@ -3556,6 +3556,7 @@ name = "luma-torrent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "librqbit",
  "luma-contracts",
  "luma-db",

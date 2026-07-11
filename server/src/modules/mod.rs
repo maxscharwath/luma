@@ -29,8 +29,6 @@ use luma_module_sdk::{EmbeddedModule, ModuleManifest, Registry};
 
 use crate::state::SharedState;
 
-mod downloads;
-
 /// The compile-time module set: manifests (+ dependency graph) paired with the
 /// backend behaviors the ones that have them provide (`ServerModule`s collected
 /// from each module's crate).
@@ -74,10 +72,9 @@ fn build() -> ModuleRegistry {
 
     // The backend behavior of each module, collected from its crate. The binary
     // names no module type here beyond calling its `server_module()` constructor
-    // (the composition root); `DownloadsModule` is the one still in-tree, since its
-    // admin routes have not been relocated to `luma-downloads` yet.
+    // (the composition root); every module now owns its own `ServerModule`.
     let servers: Vec<Box<dyn ServerModule<SharedState>>> = vec![
-        Box::new(downloads::DownloadsModule),
+        luma_torrent::server_module(),
         luma_vpn::server_module(),
         luma_indexer::server_module(),
         luma_remote::server_module(),

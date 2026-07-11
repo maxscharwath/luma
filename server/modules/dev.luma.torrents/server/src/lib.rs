@@ -25,6 +25,7 @@ pub mod downloads;
 pub mod module;
 pub mod organize;
 pub mod proxycheck;
+pub mod routes;
 #[cfg(feature = "rqbit")]
 mod rqbit;
 #[cfg(not(feature = "rqbit"))]
@@ -52,6 +53,61 @@ pub const JOBS: &[luma_engine::services::jobs::Builtin] = &[
 /// This module's id, shared with `module.json` and the frontend package. The one
 /// place callers (route gate, job guards, monitor, lifecycle) name the module.
 pub const MODULE_ID: &str = "dev.luma.torrents";
+
+/// The Downloads module's backend behavior: it serves the queue / download-client
+/// / organize admin routes (behind its enabled-gate) and drives the librqbit
+/// engine lifecycle, so disabling it 404s those routes and stops the running
+/// engine. Its download sub-engines (rqbit / transmission / qBittorrent) plug into
+/// the `DownloadClientRegistry`; VPN is a separate module this one
+/// `optionalDependsOn`. It reaches its [`DownloadManager`] through the host service
+/// registry.
+///
+/// Unlike the vpn / indexer modules it is NOT generic over the host state: its
+/// routes orchestrate the acquisition + organize verticals, which run against
+/// `luma-engine`'s concrete `AppState`, so it is a `ServerModule<SharedState>`.
+pub struct DownloadsModule;
+
+#[luma_module_host::async_trait]
+impl luma_module_host::ServerModule<luma_engine::state::SharedState> for DownloadsModule {
+    fn id(&self) -> &'static str {
+        MODULE_ID
+    }
+
+    fn admin_routes(
+        &self,
+        _host: &luma_engine::state::SharedState,
+    ) -> Option<axum::Router<luma_engine::state::SharedState>> {
+        Some(routes::routes())
+    }
+
+    async fn on_enable(&self, host: std::sync::Arc<dyn luma_module_host::HostCtx>) {
+        // Everything the Downloads module needs at (re)enable lives here, so the
+        // binary shell never seeds rows or spawns the monitor: seed the embedded
+        // client row, start the engine, flip disable-paused rows back to active,
+        // and ensure the resident monitor is running (spawned once). The VPN bridge
+        // is its own module (ordered first by the dependency graph), so its SOCKS5
+        // is already up. Awaited (not detached) so a following disable cannot race.
+        if let Some(downloads) = luma_module_host::service::<DownloadManager>(host.as_ref()) {
+            downloads.seed_embedded_client(host.as_ref());
+            downloads.start_rqbit(host.as_ref()).await;
+            downloads.resume_after_enable(host.as_ref());
+            downloads.ensure_monitor(host.clone());
+        }
+    }
+
+    async fn on_disable(&self, host: std::sync::Arc<dyn luma_module_host::HostCtx>) {
+        // Tear the engine down entirely (session stopped, active downloads paused)
+        // so nothing is left transferring or seeding while disabled.
+        if let Some(downloads) = luma_module_host::service::<DownloadManager>(host.as_ref()) {
+            downloads.disable_embedded(host.as_ref());
+        }
+    }
+}
+
+/// This module's backend behavior, for the host's generic module roster.
+pub fn server_module() -> Box<dyn luma_module_host::ServerModule<luma_engine::state::SharedState>> {
+    Box::new(DownloadsModule)
+}
 
 /// A torrent to hand to an engine.
 #[derive(Debug, Clone)]

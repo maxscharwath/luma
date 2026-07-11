@@ -3,6 +3,8 @@
 //! with a live connection test. Gated on `settings.manage`; passwords are
 //! write-only.
 
+use std::sync::Arc;
+
 use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -10,16 +12,20 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
 
-use crate::api::error::{json_error, lerr};
-use crate::api::extract::AuthUser;
-use crate::api::util::{blocking, query};
-use crate::db::{self, DownloadClientRow, EMBEDDED_CLIENT_ID};
-use crate::DownloadsExt;
-use crate::model::{
+use luma_db::{self as db, DownloadClientRow, EMBEDDED_CLIENT_ID};
+use luma_domain::{
     ClientTestResult, DownloadClientView, DownloadClientsView, Permission, SaveDownloadClientBody,
 };
-use crate::services::jobs::now_ms;
-use crate::state::SharedState;
+use luma_engine::state::SharedState;
+use luma_module_host::{blocking, json_error, query, service, AuthUser, HostCtx};
+use luma_primitives::{now_ms, random_token, short_hash};
+
+use crate::DownloadManager;
+
+/// Resolve the module's download manager from the host service registry.
+fn dm(state: &SharedState) -> Arc<DownloadManager> {
+    service::<DownloadManager>(&**state).expect("download manager registered")
+}
 
 pub fn routes() -> Router<SharedState> {
     Router::new()
@@ -48,11 +54,11 @@ pub async fn list(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
+    state.require(&user, Permission::SettingsManage)?;
     let view = query(&state.db, |pool| {
         let conn = pool.get()?;
         let clients = db::list_download_clients(&conn)?.iter().map(view_of).collect();
-        Ok(DownloadClientsView { clients, rqbit_compiled: luma_torrent::RQBIT_COMPILED })
+        Ok(DownloadClientsView { clients, rqbit_compiled: crate::RQBIT_COMPILED })
     })
     .await?;
     Ok(Json(view).into_response())
@@ -64,7 +70,7 @@ pub async fn create(
     AuthUser(user): AuthUser,
     Json(body): Json<SaveDownloadClientBody>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
+    state.require(&user, Permission::SettingsManage)?;
     let kind = body.kind.as_deref().unwrap_or_default().trim().to_string();
     if !matches!(kind.as_str(), "transmission" | "qbittorrent") {
         return Err(json_error(StatusCode::BAD_REQUEST, "kind must be transmission or qbittorrent"));
@@ -74,10 +80,7 @@ pub async fn create(
         return Err(json_error(StatusCode::BAD_REQUEST, "url is required"));
     }
     let row = DownloadClientRow {
-        id: crate::services::scan::short_hash(&format!(
-            "dlclient|{url}|{}",
-            crate::services::auth::random_token()
-        )),
+        id: short_hash(&format!("dlclient|{url}|{}", random_token())),
         name: body
             .name
             .as_deref()
@@ -106,8 +109,7 @@ pub async fn update(
     AxPath(id): AxPath<String>,
     Json(body): Json<SaveDownloadClientBody>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let loc = super::user_locale(&user);
+    state.require(&user, Permission::SettingsManage)?;
     let id2 = id.clone();
     let updated = query(&state.db, move |pool| {
         db::update_download_client(
@@ -123,16 +125,16 @@ pub async fn update(
     })
     .await?;
     if !updated {
-        return Err(lerr(loc, StatusCode::NOT_FOUND, "error.clientNotFound"));
+        return Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.clientNotFound"));
     }
     // Toggling the embedded engine fully starts/stops its BitTorrent session, so
     // "disabled" means zero traffic (no download, no seed, no DHT), not just a
     // gate on new grabs.
-    if body.enabled.is_some() && id == crate::db::EMBEDDED_CLIENT_ID {
+    if body.enabled.is_some() && id == EMBEDDED_CLIENT_ID {
         let enabled = body.enabled.unwrap();
         if enabled {
-            state.downloads().start_rqbit(&state).await;
-            let downloads = state.downloads().clone();
+            dm(&state).start_rqbit(&state).await;
+            let downloads = dm(&state);
             let state2 = state.clone();
             blocking(move || {
                 downloads.resume_after_enable(&state2);
@@ -140,7 +142,7 @@ pub async fn update(
             })
             .await?;
         } else {
-            let downloads = state.downloads().clone();
+            let downloads = dm(&state);
             let state2 = state.clone();
             blocking(move || {
                 downloads.disable_embedded(&state2);
@@ -157,7 +159,7 @@ pub async fn update(
     .await?;
     match row {
         Some(r) => Ok(Json(view_of(&r)).into_response()),
-        None => Err(lerr(loc, StatusCode::NOT_FOUND, "error.clientNotFound")),
+        None => Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.clientNotFound")),
     }
 }
 
@@ -167,14 +169,13 @@ pub async fn remove(
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let loc = super::user_locale(&user);
+    state.require(&user, Permission::SettingsManage)?;
     if id == EMBEDDED_CLIENT_ID {
         return Err(json_error(StatusCode::BAD_REQUEST, "the embedded engine cannot be deleted"));
     }
     let deleted = query(&state.db, move |pool| db::delete_download_client(&pool, &id)).await?;
     if !deleted {
-        return Err(lerr(loc, StatusCode::NOT_FOUND, "error.clientNotFound"));
+        return Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.clientNotFound"));
     }
     Ok(Json(json!({ "ok": true })).into_response())
 }
@@ -185,15 +186,17 @@ pub async fn test(
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
-    super::require(&user, Permission::SettingsManage)?;
-    let loc = super::user_locale(&user);
+    state.require(&user, Permission::SettingsManage)?;
+    // The blocking probe consumes a state clone; the original stays for the
+    // localized not-found response.
+    let st = state.clone();
     let result = blocking(move || {
-        let conn = state.db.get()?;
+        let conn = st.db.get()?;
         let Some(row) = db::get_download_client(&conn, &id)? else {
             return Ok(None);
         };
         drop(conn);
-        let outcome = state.downloads().engine_for(&row).and_then(|engine| engine.test());
+        let outcome = dm(&st).engine_for(&row).and_then(|engine| engine.test());
         Ok(Some(match outcome {
             Ok(version) => ClientTestResult { ok: true, version: Some(version), error: None },
             Err(e) => ClientTestResult { ok: false, version: None, error: Some(format!("{e:#}")) },
@@ -202,6 +205,6 @@ pub async fn test(
     .await?;
     match result {
         Some(r) => Ok(Json(r).into_response()),
-        None => Err(lerr(loc, StatusCode::NOT_FOUND, "error.clientNotFound")),
+        None => Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.clientNotFound")),
     }
 }

@@ -6,22 +6,22 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
-use crate::api::error::json_error;
-use crate::api::extract::AuthUser;
-use crate::api::util::blocking;
-use crate::model::{
+use luma_domain::{
     NamingTemplatesView, NamingView, OrganizePlan, OrganizeResult, Permission, SampleBody, User,
 };
-use luma_torrent::organize::{
+use luma_engine::state::SharedState;
+use luma_module_host::{blocking, json_error, AuthUser, HostCtx};
+
+use crate::organize::{
     self,
     naming::{Casing, NamingTemplates},
 };
-use crate::state::SharedState;
 
 pub fn routes() -> Router<SharedState> {
     Router::new()
@@ -31,11 +31,11 @@ pub fn routes() -> Router<SharedState> {
         .route("/organize/apply", post(apply))
 }
 
-fn require(user: &User) -> Result<(), Response> {
+fn require(state: &SharedState, user: &User) -> Result<(), Response> {
     if user.can(Permission::LibraryManage) {
         Ok(())
     } else {
-        super::require(user, Permission::LibraryManage)
+        state.require(user, Permission::LibraryManage)
     }
 }
 
@@ -57,7 +57,7 @@ fn templates_of(body: &NamingTemplatesView) -> NamingTemplates {
         series_folder: body.series_folder.clone(),
         season_folder: body.season_folder.clone(),
         episode_file: body.episode_file.clone(),
-        case: luma_torrent::organize::naming::Casing::from_key(&body.case),
+        case: Casing::from_key(&body.case),
     }
 }
 
@@ -66,7 +66,7 @@ pub async fn get_naming(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    require(&user)?;
+    require(&state, &user)?;
     let tpl = NamingTemplates::from_settings(&state.settings);
     Ok(Json(NamingView { templates: view_of(&tpl), sample: organize::sample(&tpl) }).into_response())
 }
@@ -74,11 +74,11 @@ pub async fn get_naming(
 /// `POST /api/admin/organize/sample` render the sample for the given (unsaved)
 /// templates, for the live preview as the admin types.
 pub async fn sample(
-    State(_state): State<SharedState>,
+    State(state): State<SharedState>,
     AuthUser(user): AuthUser,
     Json(body): Json<SampleBody>,
 ) -> Result<Response, Response> {
-    require(&user)?;
+    require(&state, &user)?;
     Ok(Json(organize::sample(&templates_of(&body))).into_response())
 }
 
@@ -88,7 +88,7 @@ pub async fn save_naming(
     AuthUser(user): AuthUser,
     Json(body): Json<NamingTemplatesView>,
 ) -> Result<Response, Response> {
-    require(&user)?;
+    require(&state, &user)?;
     let mut patch: BTreeMap<String, Value> = BTreeMap::new();
     patch.insert("namingMovieFolder".into(), json!(body.movie_folder.trim()));
     patch.insert("namingMovieFile".into(), json!(body.movie_file.trim()));
@@ -105,7 +105,7 @@ pub async fn preview(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    require(&user)?;
+    require(&state, &user)?;
     let plan: OrganizePlan = blocking(move || organize::plan(&state)).await?;
     Ok(Json(plan).into_response())
 }
@@ -115,19 +115,16 @@ pub async fn apply(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
-    require(&user)?;
+    require(&state, &user)?;
     let result: OrganizeResult = match tokio::task::spawn_blocking(move || {
         organize::apply(&state, &|line| tracing::info!(target: "organize", "{line}"))
     })
     .await
     {
         Ok(Ok(r)) => r,
-        Ok(Err(e)) => return Err(json_error(axum::http::StatusCode::BAD_REQUEST, &format!("{e:#}"))),
+        Ok(Err(e)) => return Err(json_error(StatusCode::BAD_REQUEST, &format!("{e:#}"))),
         Err(_) => {
-            return Err(json_error(
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "internal error",
-            ))
+            return Err(json_error(StatusCode::INTERNAL_SERVER_ERROR, "internal error"))
         }
     };
     Ok(Json(result).into_response())
