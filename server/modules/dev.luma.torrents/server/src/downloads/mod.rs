@@ -14,7 +14,9 @@ use anyhow::{anyhow, bail, Result};
 use crate::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitEngine};
 
 use luma_db::{self as db, DownloadClientRow, DownloadRow};
-use luma_domain::{RequestStatus, ScoredReleaseView, VpnStatusView};
+use luma_domain::RequestStatus;
+
+use crate::{ScoredReleaseView, VpnStatusView};
 use luma_module_host::{Event, HostCtx};
 use serde_json::json;
 use luma_primitives::now_ms;

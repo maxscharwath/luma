@@ -13,9 +13,9 @@ use axum::{Json, Router};
 use serde_json::json;
 
 use luma_db::{self as db, DownloadClientRow, EMBEDDED_CLIENT_ID};
-use luma_domain::{
-    ClientTestResult, DownloadClientView, DownloadClientsView, Permission, SaveDownloadClientBody,
-};
+use luma_domain::Permission;
+
+use crate::{ClientTestResult, DownloadClientView, DownloadClientsView, SaveDownloadClientBody};
 use luma_engine::state::SharedState;
 use luma_module_host::{blocking, json_error, query, service, AuthUser, HostCtx};
 use luma_primitives::{now_ms, random_token, short_hash};

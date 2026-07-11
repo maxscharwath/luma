@@ -1,133 +1,9 @@
-//! Acquisition wire types: indexer config views, and the scored-release shape
-//! interactive search returns. Pure data (serde + ts-rs); the engines live in
-//! the `luma-torznab` / `luma-scene` workspace crates, orchestration in
-//! `crate::services::acquisition`.
+//! Download / acquisition wire types: the interactive-search scoring shape,
+//! the download queue + client config views, manual search/add bodies, and the
+//! VPN kill-switch status. Pure data (serde); relocated here from the core
+//! `luma-domain` crate so the module that owns them also owns their contract.
 
 use serde::{Deserialize, Serialize};
-
-/// One configured Torznab indexer, as listed to admins. The API key is
-/// write-only (mirroring the remote-access token convention): clients only
-/// learn whether one is set.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexerView {
-    pub id: String,
-    pub name: String,
-    pub url: String,
-    pub has_api_key: bool,
-    pub categories: Vec<u32>,
-    pub enabled: bool,
-    /// Flat score bonus in the decision engine (tiebreak between indexers).
-    pub priority: i32,
-    /// `torznab` (external Jackett/Prowlarr) or `builtin` (native Cardigann).
-    pub kind: String,
-    /// The Cardigann definition id (built-in indexers only).
-    pub definition_id: Option<String>,
-    /// Names of the settings that currently have a value (secrets never leave
-    /// the server; the edit form re-renders the schema and blanks secrets).
-    pub configured_settings: Vec<String>,
-    pub last_ok_at: Option<i64>,
-    pub last_error: Option<String>,
-    pub created_at: i64,
-}
-
-/// `GET /api/admin/indexers`.
-#[derive(Debug, Clone, Serialize)]
-pub struct IndexersView {
-    pub indexers: Vec<IndexerView>,
-}
-
-/// `POST /api/admin/indexers` / `PUT /api/admin/indexers/:id` body. Omitted
-/// fields keep their current value on update; an omitted `api_key` keeps the
-/// stored secret.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveIndexerBody {
-    pub name: Option<String>,
-    pub url: Option<String>,
-    pub api_key: Option<String>,
-    pub categories: Option<Vec<u32>>,
-    pub enabled: Option<bool>,
-    pub priority: Option<i32>,
-    /// `builtin` to create a native-Cardigann indexer (default `torznab`).
-    #[serde(default)]
-    pub kind: Option<String>,
-    /// The Cardigann definition id (built-in create).
-    #[serde(default)]
-    pub definition_id: Option<String>,
-    /// Per-indexer settings (credentials + toggles). Merged into the stored
-    /// map on update; an omitted secret keeps its stored value.
-    #[serde(default)]
-    pub settings: Option<std::collections::HashMap<String, String>>,
-}
-
-// ----- built-in definition catalog ------------------------------------------------
-
-/// One Cardigann definition in the admin's browse list.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexerDefinitionView {
-    pub id: String,
-    pub name: String,
-    /// `public` | `private` | `semi-private`.
-    pub kind: String,
-    pub description: String,
-    pub links: Vec<String>,
-}
-
-/// `GET /api/admin/indexers/definitions`.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexerDefinitionsView {
-    pub definitions: Vec<IndexerDefinitionView>,
-    /// Whether the definition set has been fetched yet.
-    pub synced: bool,
-}
-
-/// One configurable setting of a definition, for rendering the add form.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexerDefinitionSettingView {
-    pub name: String,
-    /// `text` | `password` | `checkbox` | `select` | `info`.
-    pub kind: String,
-    pub label: String,
-    pub default: Option<String>,
-    /// For `select`: ordered (value, label) pairs.
-    pub options: Vec<(String, String)>,
-}
-
-/// `GET /api/admin/indexers/definitions/:id` — the schema needed to add it.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexerDefinitionDetailView {
-    pub id: String,
-    pub name: String,
-    pub kind: String,
-    pub description: String,
-    pub links: Vec<String>,
-    pub settings: Vec<IndexerDefinitionSettingView>,
-}
-
-/// `POST /api/admin/indexers/definitions/sync` result.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncDefinitionsResult {
-    pub count: usize,
-    pub version: String,
-}
-
-/// `POST /api/admin/indexers/:id/test` result (a `t=caps` round-trip).
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexerTestResult {
-    pub ok: bool,
-    pub latency_ms: u64,
-    pub server_title: Option<String>,
-    /// Whether the indexer resolves TMDB ids (movie / tv search).
-    pub supports_tmdb: bool,
-    pub error: Option<String>,
-}
 
 /// One score-explanation line (mirrors `luma_scene::ScoreLine` on the wire).
 #[derive(Debug, Clone, Serialize)]
@@ -380,10 +256,10 @@ pub struct AnalyzeBody {
     pub magnet_or_url: String,
 }
 
-/// The kill switch's view of the tunnel. Cross-boundary (the downloads kill
-/// switch produces it; the VPN admin view + the downloads-queue view embed it),
-/// so it stays here until the download DTOs leave core, then it moves to
-/// luma-contracts. VpnAdminView / SaveVpnBody / VpnTestResult moved to luma-vpn.
+/// The kill switch's view of the tunnel. Cross-boundary within the acquisition
+/// stack: the downloads kill switch produces it, and both the VPN admin view
+/// (`luma_vpn::VpnAdminView`) and the downloads-queue view embed it. It lives
+/// here because `luma-vpn` depends on `luma-torrent` (not the reverse).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VpnStatusView {

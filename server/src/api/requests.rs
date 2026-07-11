@@ -222,7 +222,7 @@ pub async fn grab(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
-    Json(body): Json<crate::model::GrabBody>,
+    Json(body): Json<luma_torrent::GrabBody>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
     // Enqueue is fast (DB only); the slow torrent add (magnet resolve / .torrent

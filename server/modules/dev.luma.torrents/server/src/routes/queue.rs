@@ -13,9 +13,11 @@ use serde::Deserialize;
 use serde_json::json;
 
 use luma_db as db;
-use luma_domain::{
+use luma_domain::{Permission, User};
+
+use crate::{
     AnalyzeBody, DownloadView, DownloadsView, ManualAddBody, ManualSearchBody, ManualSearchView,
-    Permission, TorrentAnalysis, TorrentFileView, User,
+    TorrentAnalysis, TorrentFileView,
 };
 use luma_engine::state::SharedState;
 use luma_module_host::{blocking, json_error, query, service, AuthUser, HostCtx};

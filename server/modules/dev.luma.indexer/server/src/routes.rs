@@ -17,10 +17,12 @@ use axum::{Json, Router};
 use serde_json::json;
 
 use luma_db::{self as db, IndexerRow};
-use luma_domain::{
+use luma_domain::Permission;
+
+use crate::{
     IndexerDefinitionDetailView, IndexerDefinitionSettingView, IndexerDefinitionView,
-    IndexerDefinitionsView, IndexerTestResult, IndexerView, IndexersView, Permission,
-    SaveIndexerBody, SyncDefinitionsResult,
+    IndexerDefinitionsView, IndexerTestResult, IndexerView, IndexersView, SaveIndexerBody,
+    SyncDefinitionsResult,
 };
 use luma_module_host::{blocking, json_error, query, AuthUser, HostCtx};
 use luma_primitives::{now_ms, random_token, short_hash};

@@ -22,6 +22,7 @@ mod announce;
 // (luma-engine) over the scene/indexer/torznab engines this module already deps.
 pub mod acquisition;
 pub mod downloads;
+pub mod dtos;
 pub mod module;
 pub mod organize;
 pub mod proxycheck;
@@ -32,6 +33,7 @@ mod rqbit;
 #[path = "rqbit_stub.rs"]
 mod rqbit;
 
+pub use dtos::*;
 pub use module::MODULE;
 pub use rqbit::{RqbitConfig, RqbitEngine};
 // The download manager + monitor (merged in from the former luma-downloads crate),

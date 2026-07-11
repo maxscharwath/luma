@@ -10,7 +10,9 @@ use luma_scene::{Candidate, Target};
 use luma_torznab::{Query, Release};
 
 use luma_db::{self as db, IndexerRow, WantedRow};
-use luma_engine::model::{InteractiveSearchView, RequestKind, ScoreLineView, ScoredReleaseView};
+use luma_engine::model::RequestKind;
+
+use crate::{InteractiveSearchView, ScoreLineView, ScoredReleaseView};
 use luma_engine::state::SharedState;
 
 /// A release remembered from the last interactive search of a request, so a
@@ -324,11 +326,11 @@ pub fn grab_cached(
 /// Free-text manual search across every enabled indexer: parse each result for
 /// quality/episode hints and sort best-first, but do NOT accept/reject (there
 /// is no specific target). The admin picks and grabs via the add endpoint.
-pub fn manual_search(state: &SharedState, query: &str) -> Result<luma_engine::model::ManualSearchView> {
-    use luma_engine::model::ManualReleaseView;
+pub fn manual_search(state: &SharedState, query: &str) -> Result<crate::ManualSearchView> {
+    use crate::ManualReleaseView;
     let q = query.trim();
     if q.is_empty() {
-        return Ok(luma_engine::model::ManualSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
+        return Ok(crate::ManualSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
     }
     let conn = state.db.get()?;
     let indexers = db::enabled_indexers(&conn)?;
@@ -387,7 +389,7 @@ pub fn manual_search(state: &SharedState, query: &str) -> Result<luma_engine::mo
     releases.truncate(150);
     errors.sort();
     errors.dedup();
-    Ok(luma_engine::model::ManualSearchView { releases, indexer_errors: errors })
+    Ok(crate::ManualSearchView { releases, indexer_errors: errors })
 }
 
 /// The wanted rows a grab of this release covers (flip to `grabbed`).

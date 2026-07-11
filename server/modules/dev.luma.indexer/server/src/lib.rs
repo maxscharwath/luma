@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 pub mod category;
 pub mod context;
 pub mod definition;
+pub mod dtos;
 pub mod engine;
 pub mod filters;
 pub mod module;
@@ -41,6 +42,8 @@ pub mod template;
 pub mod xmltree;
 #[cfg(feature = "xpath")]
 pub mod xpath;
+
+pub use dtos::*;
 
 pub use session::{DownloadTarget, SearchOutcome, Session};
 
