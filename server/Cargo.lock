@@ -3324,6 +3324,7 @@ dependencies = [
  "luma-i18n",
  "luma-indexer",
  "luma-mdns",
+ "luma-module-host",
  "luma-module-sdk",
  "luma-module-wasm",
  "luma-modules-generated",
@@ -3403,6 +3404,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-module-host"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "luma-db",
+ "luma-domain",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "luma-module-sdk"
 version = "0.1.0"
 dependencies = [
@@ -3465,6 +3477,7 @@ dependencies = [
  "luma-engine",
  "luma-indexer",
  "luma-mdns",
+ "luma-module-host",
  "luma-module-sdk",
  "luma-module-wasm",
  "luma-modules-generated",

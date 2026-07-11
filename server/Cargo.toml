@@ -118,6 +118,7 @@ luma-domain = { path = "crates/luma-domain" }
 luma-i18n = { path = "crates/luma-i18n" }
 luma-db = { path = "crates/luma-db" }
 luma-http = { path = "crates/luma-http" }
+luma-module-host = { path = "crates/luma-module-host" }
 luma-scene = { path = "modules/dev.luma.scene/server" }
 luma-torznab = { path = "modules/dev.luma.torznab/server" }
 luma-indexer = { path = "modules/indexer/server" }
@@ -158,6 +159,10 @@ whisper-accelerate = ["luma-engine/whisper-accelerate"]
 # The binary is now a thin HTTP shell: the router + handlers (src/api) over the
 # business logic in luma-engine. It pulls only what api/main touch directly.
 luma-engine = { workspace = true }
+# The host seam: shared HTTP extractors (AuthUser) + the HostCtx contract. The
+# binary re-exports the extractors from their historical `crate::api::extract`
+# path; module crates depend on this leaf instead of the whole engine.
+luma-module-host = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
 # `crate::model` wire types come through `luma-engine`.
 luma-config = { workspace = true }
