@@ -748,8 +748,10 @@ impl GrabSpec {
 /// of routing WireGuard traffic (librqbit only proxies via SOCKS5); it is not
 /// a user-facing option. `None` = no VPN, torrent traffic goes out directly.
 pub fn active_proxy_url(host: &dyn HostCtx) -> Option<String> {
-    // Route torrent traffic through the VPN bridge whenever one is configured.
-    luma_module_host::vpn_proxy_url(host)
+    // Route torrent traffic through the VPN module's bridge whenever it provides
+    // one, resolved by port so downloads never depends on the VPN crate.
+    luma_module_host::resolve_port::<dyn luma_contracts::VpnProxyPort>(host)
+        .and_then(|p| p.proxy_url(host))
 }
 
 fn kbps_setting(host: &dyn HostCtx, key: &str) -> Option<u32> {
@@ -757,23 +759,24 @@ fn kbps_setting(host: &dyn HostCtx, key: &str) -> Option<u32> {
     (kbps > 0).then(|| u32::try_from(kbps.saturating_mul(1024)).unwrap_or(u32::MAX))
 }
 
-/// Fetch a `.torrent` file from the indexer DIRECTLY (no VPN proxy), so a LAN
-/// indexer (Jackett/Prowlarr) stays reachable and the fetch can't hang behind
-/// the tunnel. Only the torrent's peer traffic should go through the VPN.
-/// Fetch a `.torrent`'s bytes for a grab, using the source indexer's
-/// authenticated [`luma_indexer::Session`] (login cookies applied) when the grab
-/// came from a built-in Cardigann indexer - private trackers cookie-gate the
-/// download, and a bare fetch would get the HTML login page. Falls back to a
-/// direct fetch for Torznab / manual grabs.
+/// Fetch a `.torrent`'s bytes for a grab. Fetched DIRECTLY (never through the VPN
+/// proxy) so a LAN indexer (Jackett/Prowlarr) stays reachable and the fetch can't
+/// hang behind the tunnel; only the torrent's peer traffic goes through the VPN.
+/// A grab from a built-in Cardigann indexer is fetched through the indexer
+/// module's authenticated-session port (private trackers cookie-gate the
+/// download, so a bare fetch would get the HTML login page); Torznab / manual
+/// grabs fall back to a plain fetch.
 fn fetch_torrent_for(host: &dyn HostCtx, row: &db::DownloadRow) -> Result<Vec<u8>> {
     if let Some(indexer_id) = &row.indexer_id {
-        let conn = host.db().get()?;
-        let indexer = db::get_indexer(&conn, indexer_id)?;
-        drop(conn);
-        if let Some(ix) = indexer {
-            if ix.kind == luma_indexer::admin::KIND_BUILTIN {
-                let session = luma_indexer::admin::builtin_session(host, &ix)?;
-                return session.fetch_torrent(&row.magnet_or_url);
+        // Ask the indexer module (via its port) to fetch through the source
+        // indexer's authenticated session; `None` means it is not a built-in
+        // Cardigann indexer, so fall through to a plain fetch. Downloads never
+        // names the indexer crate.
+        if let Some(port) =
+            luma_module_host::resolve_port::<dyn luma_contracts::TorrentFetchPort>(host)
+        {
+            if let Some(result) = port.fetch_torrent(host, indexer_id, &row.magnet_or_url) {
+                return result;
             }
         }
     }

@@ -50,22 +50,22 @@ where
     }
 }
 
-/// Whether a managed WireGuard config is stored (drives the VPN bridge + every
-/// consumer that may route through it). Pure function of settings, on the seam so
-/// the download / indexer crates don't each re-derive it (and don't depend on the
-/// VPN module). The VPN module owns the bridge; this owns the derived facts.
-pub fn vpn_wg_configured(host: &dyn HostCtx) -> bool {
-    !host.setting_str("vpnWgConfig", "").trim().is_empty()
+/// Register a peer PORT (a trait object) for the service registry: returns the
+/// `(TypeId, value)` to insert. The registry stores concrete `Any` values, so the
+/// port `Arc<dyn P>` is wrapped in an outer `Arc` keyed by `Arc<dyn P>`'s TypeId.
+/// The port traits themselves live in `luma-contracts`; this is only the generic
+/// plumbing, so the seam names no port trait (and no module).
+pub fn port_service<P: ?Sized + Any + Send + Sync>(
+    port: Arc<P>,
+) -> (TypeId, Arc<dyn Any + Send + Sync>) {
+    (TypeId::of::<Arc<P>>(), Arc::new(port))
 }
 
-/// The local SOCKS5 URL the VPN bridge exposes when configured, else `None`. The
-/// single source for the bridge port + URL shape; consumers apply their own
-/// opt-in gate on top (downloads: always; indexers: `acqIndexersUseVpn`).
-pub fn vpn_proxy_url(host: &dyn HostCtx) -> Option<String> {
-    vpn_wg_configured(host).then(|| {
-        let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
-        format!("socks5://127.0.0.1:{port}")
-    })
+/// Resolve a peer PORT registered via [`port_service`]. `None` when no provider
+/// registered it (e.g. the providing module is absent / disabled).
+pub fn resolve_port<P: ?Sized + Any + Send + Sync>(host: &dyn HostCtx) -> Option<Arc<P>> {
+    let any = host.get_service(TypeId::of::<Arc<P>>())?;
+    any.downcast::<Arc<P>>().ok().map(|boxed| (*boxed).clone())
 }
 
 /// Clone the pool and run a blocking DB closure off the async runtime; a thin
@@ -294,4 +294,30 @@ pub fn bearer_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
         .or_else(|| s.strip_prefix("bearer "))
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn peer_port_round_trips_through_the_service_registry() {
+        // The double-Arc TypeId trick port_service/resolve_port rely on: a port
+        // registered as Arc<dyn P> must come back as the same trait object (a
+        // silent mismatch would resolve to None and break cross-module calls).
+        trait Greeter: Send + Sync {
+            fn hi(&self) -> &'static str;
+        }
+        struct G;
+        impl Greeter for G {
+            fn hi(&self) -> &'static str {
+                "hi"
+            }
+        }
+        let port: Arc<dyn Greeter> = Arc::new(G);
+        let (tid, stored) = port_service(port);
+        assert_eq!(tid, TypeId::of::<Arc<dyn Greeter>>());
+        let back = stored.downcast::<Arc<dyn Greeter>>().expect("stored value downcasts back");
+        assert_eq!((*back).hi(), "hi");
+    }
 }

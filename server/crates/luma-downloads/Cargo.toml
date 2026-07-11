@@ -7,12 +7,13 @@ description = "LUMA Downloads module (backend): the DownloadManager (engine life
 license.workspace = true
 
 [dependencies]
-# The download-engine SDK (DownloadClient trait + registry + rqbit) + the native
-# indexer (private-tracker .torrent fetch via its cached session).
+# The download-engine SDK (DownloadClient trait + registry + rqbit). Peer modules
+# (VPN proxy, indexer .torrent fetch) are reached through luma-contracts ports, so
+# this crate depends on no other module crate.
 luma-torrent = { workspace = true }
-luma-indexer = { workspace = true }
-# The host seam + the lower data layers.
+# The host seam + peer port contracts + the lower data layers.
 luma-module-host = { workspace = true }
+luma-contracts = { workspace = true }
 luma-db = { workspace = true }
 luma-domain = { workspace = true }
 luma-primitives = { workspace = true }

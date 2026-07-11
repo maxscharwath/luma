@@ -119,6 +119,7 @@ luma-i18n = { path = "crates/luma-i18n" }
 luma-db = { path = "crates/luma-db" }
 luma-http = { path = "crates/luma-http" }
 luma-module-host = { path = "crates/luma-module-host" }
+luma-contracts = { path = "crates/luma-contracts" }
 luma-scene = { path = "modules/dev.luma.scene/server" }
 luma-torznab = { path = "modules/dev.luma.torznab/server" }
 luma-indexer = { path = "modules/dev.luma.indexer/server" }

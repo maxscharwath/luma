@@ -156,6 +156,26 @@ fn spawn_child(bin: &std::path::Path, conf: &std::path::Path) -> Result<Child, S
         .map_err(|e| format!("spawn wireproxy: {e}"))
 }
 
+/// Whether a managed WireGuard config is stored (for the module's own admin view).
+pub fn wg_configured(host: &dyn HostCtx) -> bool {
+    !host.setting_str("vpnWgConfig", "").trim().is_empty()
+}
+
+/// The [`VpnProxyPort`](luma_contracts::VpnProxyPort) impl: the local SOCKS5 URL
+/// this module's bridge exposes, derived from settings. The composition root
+/// registers it so downloads / indexers route through the bridge without ever
+/// depending on this crate.
+pub struct VpnProxy;
+
+impl luma_contracts::VpnProxyPort for VpnProxy {
+    fn proxy_url(&self, host: &dyn HostCtx) -> Option<String> {
+        wg_configured(host).then(|| {
+            let port = host.setting_i64("vpnLocalPort", 25345).clamp(1, 65535);
+            format!("socks5://127.0.0.1:{port}")
+        })
+    }
+}
+
 /// This module's id (matches its `module.json`).
 pub const MODULE_ID: &str = "dev.luma.vpn";
 

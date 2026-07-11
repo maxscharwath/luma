@@ -103,7 +103,8 @@ pub fn builtin_session(host: &dyn HostCtx, row: &IndexerRow) -> anyhow::Result<A
 /// opt-in first so the WireGuard config isn't read on the common (off) path.
 fn vpn_proxy_url(host: &dyn HostCtx) -> Option<String> {
     if host.setting_bool("acqIndexersUseVpn", false) {
-        luma_module_host::vpn_proxy_url(host)
+        luma_module_host::resolve_port::<dyn luma_contracts::VpnProxyPort>(host)
+            .and_then(|p| p.proxy_url(host))
     } else {
         None
     }

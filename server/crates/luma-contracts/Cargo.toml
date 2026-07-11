@@ -1,0 +1,11 @@
+[package]
+name = "luma-contracts"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Peer port traits that modules implement and resolve through the host service registry, so one module never depends on another module's crate."
+
+[dependencies]
+luma-module-host = { workspace = true }
+anyhow = { workspace = true }

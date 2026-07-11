@@ -132,6 +132,18 @@ impl AppState {
         services.insert(std::any::TypeId::of::<RemoteAccess>(), remote.clone());
         services.insert(std::any::TypeId::of::<DownloadManager>(), downloads.clone());
         services.insert(std::any::TypeId::of::<Vpn>(), vpn.clone());
+        // Peer ports: register each providing module's port impl so consumer
+        // modules resolve them by trait, never by crate. TEMPORARY here: Phase E
+        // of the decoupling moves service + port registration to the composition
+        // root so the core (this crate) names no module.
+        let vpn_proxy: std::sync::Arc<dyn luma_contracts::VpnProxyPort> =
+            std::sync::Arc::new(luma_vpn::VpnProxy);
+        let (tid, val) = luma_module_host::port_service(vpn_proxy);
+        services.insert(tid, val);
+        let torrent_fetch: std::sync::Arc<dyn luma_contracts::TorrentFetchPort> =
+            std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
+        let (tid, val) = luma_module_host::port_service(torrent_fetch);
+        services.insert(tid, val);
         // Load any runtime-installed WASM modules from disk (best-effort).
         let wasm = Arc::new(RwLock::new(WasmHost::load_all(&config.data_dir.join("modules"))));
         // Seed the process-wide ffmpeg concurrency budget from the setting so the

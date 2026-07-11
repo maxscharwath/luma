@@ -73,6 +73,41 @@ pub fn server_module<S: luma_module_host::HostCtx + Clone + Send + Sync + 'stati
     Box::new(IndexersModule)
 }
 
+/// The [`TorrentFetchPort`](luma_contracts::TorrentFetchPort) impl: fetch a
+/// `.torrent` through a built-in Cardigann indexer's authenticated session. The
+/// composition root registers it so the downloads module can grab private-tracker
+/// files without depending on this crate.
+pub struct IndexerTorrentFetch;
+
+impl luma_contracts::TorrentFetchPort for IndexerTorrentFetch {
+    fn fetch_torrent(
+        &self,
+        host: &dyn luma_module_host::HostCtx,
+        indexer_id: &str,
+        url: &str,
+    ) -> Option<anyhow::Result<Vec<u8>>> {
+        let conn = match host.db().get() {
+            Ok(conn) => conn,
+            Err(e) => return Some(Err(e.into())),
+        };
+        let row = match luma_db::get_indexer(&conn, indexer_id) {
+            Ok(Some(row)) => row,
+            Ok(None) => return None,
+            Err(e) => return Some(Err(e.into())),
+        };
+        drop(conn);
+        // Only built-in (native Cardigann) indexers cookie-gate downloads; a
+        // Torznab / manual grab is handled by the caller's plain fetch.
+        if row.kind != admin::KIND_BUILTIN {
+            return None;
+        }
+        Some((|| {
+            let session = admin::builtin_session(host, &row)?;
+            session.fetch_torrent(url)
+        })())
+    }
+}
+
 /// A configured built-in indexer: the chosen base link plus the admin-entered
 /// settings (`.Config.<name>` resolves against this, falling back to the
 /// definition's setting defaults).

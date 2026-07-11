@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 luma-module-host = { workspace = true }
 luma-module-sdk = { workspace = true }
+luma-contracts = { workspace = true }
 # The module owns its admin routes now (over the HostCtx seam): it needs the wire
 # DTOs, the download manager (for the kill-switch status + engine restart), axum.
 luma-domain = { workspace = true }
