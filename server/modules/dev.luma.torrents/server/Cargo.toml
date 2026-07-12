@@ -27,12 +27,12 @@ luma-primitives = { workspace = true }
 # The module owns its `downloads` / `download_clients` tables now (schema + typed
 # queries), so it talks to SQLite directly through the pool luma-db hands out.
 rusqlite = { workspace = true }
-# The acquisition + organize verticals (moved out of the core luma-engine crate)
-# live here now: they orchestrate the app (luma-engine) over the scene/indexer/
-# torznab engines. luma-engine no longer names any of these module crates.
+# The organize vertical (moved out of the core luma-engine crate) lives here: it
+# orchestrates the app (luma-engine) and parses release names via luma-scene. The
+# db facade re-exports the indexers table from luma-indexer for the queue view.
+# The acquisition vertical is its own crate (luma-acquisition), which deps THIS one.
 luma-engine = { workspace = true }
 luma-scene = { workspace = true }
-luma-torznab = { workspace = true }
 luma-indexer = { workspace = true }
 walkdir = { workspace = true }
 sha1 = "0.10"

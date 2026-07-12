@@ -16,7 +16,7 @@ use crate::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitEngine};
 use crate::db::{self, DownloadClientRow, DownloadRow};
 use luma_domain::RequestStatus;
 
-use crate::{ScoredReleaseView, VpnStatusView};
+use crate::VpnStatusView;
 use luma_module_host::{Event, HostCtx};
 use serde_json::json;
 use luma_primitives::now_ms;
@@ -710,38 +710,9 @@ pub struct GrabSpec {
     pub details_url: Option<String>,
 }
 
-impl GrabSpec {
-    /// From a scored release the search chose, for a specific request/title.
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_release(
-        release: &ScoredReleaseView,
-        magnet_or_url: &str,
-        tmdb_id: u64,
-        title: Option<String>,
-        year: Option<u32>,
-        request_id: Option<String>,
-        wanted_ids: Vec<String>,
-    ) -> Self {
-        Self {
-            magnet_or_url: magnet_or_url.to_string(),
-            kind: release.target.clone(),
-            tmdb_id,
-            title,
-            year,
-            season: release.season,
-            episodes: release.episodes.clone(),
-            release_title: release.title.clone(),
-            indexer_id: Some(release.indexer_id.clone()),
-            size_bytes: release.size_bytes,
-            score: release.score,
-            score_breakdown: serde_json::to_string(&release.breakdown).ok(),
-            request_id,
-            wanted_ids,
-            only_files: None,
-            details_url: release.details_url.clone(),
-        }
-    }
-}
+// A `GrabSpec` is built from a scored release by the acquisition crate (which
+// owns `ScoredReleaseView` now) or field-by-field for a manual add. This crate
+// only consumes it, so it names no acquisition type.
 
 /// The local SOCKS5 the embedded engine routes torrent peers through, when a
 /// WireGuard config is stored. This is the ONLY VPN path: LUMA runs a

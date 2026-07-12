@@ -1,6 +1,6 @@
-//! The search pipeline shared by interactive search (this milestone) and the
-//! automatic wanted-list job (downloads milestone): wanted rows -> Torznab
-//! queries -> decision-engine scoring -> ordered candidate views.
+//! The search pipeline shared by interactive search and the automatic
+//! wanted-list job: wanted rows -> Torznab queries -> decision-engine scoring
+//! -> ordered candidate views.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -9,11 +9,12 @@ use anyhow::{anyhow, Result};
 use luma_scene::{Candidate, Target};
 use luma_torznab::{Query, Release};
 
-use crate::db::{self, IndexerRow, WantedRow};
+use crate::dtos::{
+    InteractiveSearchView, ManualReleaseView, ManualSearchView, ScoreLineView, ScoredReleaseView,
+};
 use luma_engine::model::RequestKind;
-
-use crate::{InteractiveSearchView, ScoreLineView, ScoredReleaseView};
 use luma_engine::state::SharedState;
+use luma_torrent::db::{self, IndexerRow, WantedRow};
 
 /// A release remembered from the last interactive search of a request, so a
 /// manual grab can hand its magnet/.torrent link to the download manager
@@ -48,6 +49,38 @@ fn cache_results(request_id: &str, releases: Vec<CachedRelease>) {
         map.clear();
     }
     map.insert(request_id.to_string(), releases);
+}
+
+/// Build a grab spec from a scored release the search chose, for a specific
+/// request/title. Formerly `GrabSpec::from_release` in `luma-torrent`; it moved
+/// here with `ScoredReleaseView` so the Downloads module names no acquisition type.
+pub fn grab_spec_from_release(
+    release: &ScoredReleaseView,
+    magnet_or_url: &str,
+    tmdb_id: u64,
+    title: Option<String>,
+    year: Option<u32>,
+    request_id: Option<String>,
+    wanted_ids: Vec<String>,
+) -> luma_torrent::GrabSpec {
+    luma_torrent::GrabSpec {
+        magnet_or_url: magnet_or_url.to_string(),
+        kind: release.target.clone(),
+        tmdb_id,
+        title,
+        year,
+        season: release.season,
+        episodes: release.episodes.clone(),
+        release_title: release.title.clone(),
+        indexer_id: Some(release.indexer_id.clone()),
+        size_bytes: release.size_bytes,
+        score: release.score,
+        score_breakdown: serde_json::to_string(&release.breakdown).ok(),
+        request_id,
+        wanted_ids,
+        only_files: None,
+        details_url: release.details_url.clone(),
+    }
 }
 
 /// One thing worth searching for: the Torznab query + the decision target +
@@ -209,7 +242,7 @@ pub fn interactive_search(state: &SharedState, request_id: &str) -> Result<Inter
         w.status = "wanted".into();
     }
 
-    let profile = super::profile_from_settings(state);
+    let profile = crate::profile_from_settings(state);
     let targets = targets_for_wanted(req.kind, &search_wanted);
     if targets.is_empty() {
         return Ok(InteractiveSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
@@ -220,7 +253,7 @@ pub fn interactive_search(state: &SharedState, request_id: &str) -> Result<Inter
     let mut seen: HashSet<(String, String)> = HashSet::new();
     for indexer in &indexers {
         for st in &targets {
-            match super::search_indexer(state, indexer, &st.query) {
+            match crate::search_indexer(state, indexer, &st.query) {
                 Ok(found) => {
                     for release in found {
                         if seen.insert((indexer.id.clone(), release.guid.clone())) {
@@ -279,7 +312,7 @@ pub fn grab_cached(
         let row = db::get_indexer(&conn, &cached.view.indexer_id)?;
         drop(conn);
         match row {
-            Some(r) if r.kind == luma_indexer::admin::KIND_BUILTIN => super::resolve_builtin_download(
+            Some(r) if r.kind == luma_indexer::admin::KIND_BUILTIN => crate::resolve_builtin_download(
                 state,
                 &r,
                 &cached.view.title,
@@ -311,7 +344,7 @@ pub fn grab_cached(
     let wanted = db::wanted_for_request(&conn, request_id)?;
     drop(conn);
     let wanted_ids = wanted_ids_for(&wanted, &cached.view);
-    let spec = crate::GrabSpec::from_release(
+    let spec = grab_spec_from_release(
         &cached.view,
         &magnet_or_url,
         cached.tmdb_id,
@@ -320,17 +353,16 @@ pub fn grab_cached(
         Some(request_id.to_string()),
         wanted_ids,
     );
-    super::downloads(state).grab(state, spec)
+    crate::downloads(state).grab(state, spec)
 }
 
 /// Free-text manual search across every enabled indexer: parse each result for
 /// quality/episode hints and sort best-first, but do NOT accept/reject (there
 /// is no specific target). The admin picks and grabs via the add endpoint.
-pub fn manual_search(state: &SharedState, query: &str) -> Result<crate::ManualSearchView> {
-    use crate::ManualReleaseView;
+pub fn manual_search(state: &SharedState, query: &str) -> Result<ManualSearchView> {
     let q = query.trim();
     if q.is_empty() {
-        return Ok(crate::ManualSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
+        return Ok(ManualSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
     }
     let conn = state.db.get()?;
     let indexers = db::enabled_indexers(&conn)?;
@@ -351,7 +383,7 @@ pub fn manual_search(state: &SharedState, query: &str) -> Result<crate::ManualSe
     for indexer in &indexers {
         // Free text: the Movie query's last attempt is the `q` fallback (torznab)
         // / the keywords search (built-in).
-        match super::search_indexer(state, indexer, &torznab_query) {
+        match crate::search_indexer(state, indexer, &torznab_query) {
             Ok(found) => {
                 for r in found {
                     if !seen.insert((indexer.id.clone(), r.guid.clone())) {
@@ -389,7 +421,7 @@ pub fn manual_search(state: &SharedState, query: &str) -> Result<crate::ManualSe
     releases.truncate(150);
     errors.sort();
     errors.dedup();
-    Ok(crate::ManualSearchView { releases, indexer_errors: errors })
+    Ok(ManualSearchView { releases, indexer_errors: errors })
 }
 
 /// The wanted rows a grab of this release covers (flip to `grabbed`).

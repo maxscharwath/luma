@@ -21,7 +21,7 @@ pub fn register_all(reg: &mut Registry) {
     reg.register(Box::new(luma_remote::MODULE));
     reg.register(Box::new(luma_transmission::MODULE));
     reg.register(Box::new(luma_qbittorrent::MODULE));
-    reg.register(Box::new(luma_module_sdk::EmbeddedModule::new(include_str!("../../../modules/dev.luma.acquisition/module.json"), include_bytes!("../../../modules/dev.luma.acquisition/icon.svg"))));
+    reg.register(Box::new(luma_acquisition::MODULE));
     reg.register(Box::new(luma_module_dev_luma_hello::MODULE));
 }
 
@@ -36,5 +36,6 @@ pub fn server_modules() -> Vec<Box<dyn ServerModule<SharedState>>> {
         luma_remote::server_module(),
         luma_transmission::server_module(),
         luma_qbittorrent::server_module(),
+        luma_acquisition::server_module(),
     ]
 }

@@ -10,6 +10,7 @@ import {
   type MessageKey,
   type ScoredReleaseView,
 } from '@luma/core';
+import { useModuleEnabled } from '@luma/admin-kit';
 import { useT } from '@luma/ui';
 import { IconCheck, IconLoader2, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
@@ -58,6 +59,9 @@ export function RequestDrawer({
 }>) {
   const t = useT();
   const { client } = useAuth();
+  // The interactive release search + grab are the Acquisition module's feature;
+  // hide the whole panel when it is disabled (its routes 404 too).
+  const acqEnabled = useModuleEnabled('dev.luma.acquisition');
   const open = !!req;
   const km = kindMeta(req?.kind === 'show' ? 'series' : 'film');
   const [denying, setDenying] = useState(false);
@@ -178,7 +182,7 @@ export function RequestDrawer({
                 </div>
               ) : null}
 
-              {canReview && req.status !== 'denied' && req.status !== 'available' ? (
+              {acqEnabled && canReview && req.status !== 'denied' && req.status !== 'available' ? (
                 <div className="mt-5">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-[.14em] text-white/40">

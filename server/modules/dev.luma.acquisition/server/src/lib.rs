@@ -1,26 +1,58 @@
 //! Acquisition orchestration: the quality profile from settings and the search
-//! DISPATCH (interactive here via [`search`]; the automatic wanted-list pass in
-//! [`auto`]). The per-indexer capability caching + native-engine session building
-//! moved to the Indexers module (`luma_indexer::admin`); this calls into it.
+//! DISPATCH (interactive via [`search`]; the automatic wanted-list pass in
+//! [`auto`]), plus grab + import. Extracted out of the `luma-torrent` crate so
+//! disabling the Acquisition module gates the whole search / grab / auto feature.
+//!
+//! The coupling is one-way and clean: acquisition resolves the
+//! [`luma_torrent::DownloadManager`] through the host service registry, and the
+//! Downloads module (engine + queue) NEVER calls acquisition. So this crate
+//! depends on `luma-torrent`, never the reverse (no cycle). The per-indexer
+//! capability caching + native-engine session building live in the Indexers
+//! module (`luma_indexer::admin`); this calls into it.
+
+// The axum `Response` is intentionally the Err type of request guards so handlers
+// short-circuit with `?`; boxing every guard for `result_large_err` would churn
+// dozens of signatures for no real gain on these error paths.
+#![allow(clippy::result_large_err)]
 
 pub mod auto;
+pub mod dtos;
 pub mod import;
 pub mod jobs;
+pub mod routes;
 pub mod search;
+
+pub use dtos::*;
 
 use luma_scene::{Profile, Res};
 
-use crate::db::IndexerRow;
 use luma_engine::services::jobs::now_ms;
 use luma_engine::state::SharedState;
+use luma_torrent::db::IndexerRow;
 
 const GB: u64 = 1_073_741_824;
 
-/// Resolve the module's download manager from the host service registry. It was
-/// a direct `AppState` field until acquisition moved out of the core crate; now
-/// every acquisition path that needs it looks it up by type through `HostCtx`.
-fn downloads(state: &SharedState) -> std::sync::Arc<crate::DownloadManager> {
-    luma_module_host::service::<crate::DownloadManager>(&**state)
+/// The acquisition background jobs this module contributes to the app's job
+/// registry (search / import / match). The binary passes this to
+/// `AppState::new` so the core registers them without naming the module.
+pub const JOBS: &[luma_engine::services::jobs::Builtin] =
+    &[jobs::import::SPEC, jobs::search::SPEC, jobs::match_::SPEC];
+
+/// This module's id, shared with `module.json` and the frontend package. The one
+/// place callers (route gate, job guards) name the module.
+pub const MODULE_ID: &str = "dev.luma.acquisition";
+
+/// This module's registry entry (manifest + packaged icon embedded at compile time).
+pub const MODULE: luma_module_sdk::EmbeddedModule = luma_module_sdk::EmbeddedModule::new(
+    include_str!("../../module.json"),
+    include_bytes!("../../icon.svg"),
+);
+
+/// Resolve the Downloads module's download manager from the host service
+/// registry. Acquisition reaches the engine only by type through `HostCtx`, so
+/// it never holds a concrete `AppState` field for it.
+pub(crate) fn downloads(state: &SharedState) -> std::sync::Arc<luma_torrent::DownloadManager> {
+    luma_module_host::service::<luma_torrent::DownloadManager>(&**state)
         .expect("download manager registered")
 }
 
@@ -108,7 +140,7 @@ pub fn search_indexer(
         // Healthy if we got releases (a partial per-path error alongside real
         // results must not flag the indexer as broken) or the sweep was clean.
         let note_ok = !outcome.releases.is_empty() || outcome.errors.is_empty();
-        let _ = crate::db::note_indexer_result(
+        let _ = luma_torrent::db::note_indexer_result(
             &state.db,
             &row.id,
             note_ok,
@@ -153,4 +185,33 @@ pub fn resolve_builtin_download(
         luma_indexer::DownloadTarget::Magnet(m) => Ok(m),
         luma_indexer::DownloadTarget::TorrentUrl(u) => Ok(u),
     }
+}
+
+/// The Acquisition module's backend behavior: it serves the search / analyze /
+/// add admin routes (behind its enabled-gate) and contributes the search /
+/// import / match jobs. Disabling it 404s those routes and no-ops the jobs, so
+/// the whole search / grab / auto feature is gated on this module. It reaches the
+/// [`luma_torrent::DownloadManager`] through the host service registry.
+///
+/// Like the download / vpn / indexer modules it orchestrates the app's concrete
+/// `AppState` (settings / config / DB), so it is a `ServerModule<SharedState>`.
+pub struct AcquisitionModule;
+
+#[luma_module_host::async_trait]
+impl luma_module_host::ServerModule<luma_engine::state::SharedState> for AcquisitionModule {
+    fn id(&self) -> &'static str {
+        MODULE_ID
+    }
+
+    fn admin_routes(
+        &self,
+        _host: &luma_engine::state::SharedState,
+    ) -> Option<axum::Router<luma_engine::state::SharedState>> {
+        Some(routes::routes())
+    }
+}
+
+/// This module's backend behavior, for the host's generic module roster.
+pub fn server_module() -> Box<dyn luma_module_host::ServerModule<luma_engine::state::SharedState>> {
+    Box::new(AcquisitionModule)
 }

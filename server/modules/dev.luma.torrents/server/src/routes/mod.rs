@@ -5,7 +5,7 @@
 //!
 //! Unlike the vpn / indexer module routes (generic over any [`HostCtx`]), these
 //! handlers take the app's concrete `SharedState`: they orchestrate the
-//! acquisition + organize verticals, which run against `luma-engine`'s
+//! organize vertical, which runs against `luma-engine`'s
 //! `AppState` (settings / config / DB) directly. This crate already depends on
 //! `luma-engine`, so naming `SharedState` here is free; capability gating and the
 //! download-manager lookup still go through the shared [`HostCtx`] seam, exactly

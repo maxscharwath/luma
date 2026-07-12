@@ -453,6 +453,7 @@
   "error.userNotFound": "User not found",
   "error.libraryNotFound": "Library not found",
   "error.requestNotFound": "Request not found",
+  "error.moduleDisabled": "This feature is disabled",
   "error.indexerNotFound": "Indexer not found",
   "error.tmdbUnavailable": "TMDB is not available on this server",
   "auth.registerInvalid": "A valid email, username and password (≥ 4 characters) are required",

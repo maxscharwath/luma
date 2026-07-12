@@ -17,7 +17,7 @@ pub const SPEC: Builtin = Builtin {
 };
 
 pub fn run(ctx: &JobContext) -> Result<()> {
-    if super::downloads_disabled(ctx) {
+    if super::acquisition_disabled(ctx) {
         return Ok(());
     }
     let summary = luma_engine::services::requests::availability_pass(&ctx.state)?;

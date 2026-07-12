@@ -44,6 +44,18 @@ fn require(user: &User, perm: Permission) -> Result<(), Response> {
     }
 }
 
+/// The request-tied search + grab routes are core (a moderator drives them from
+/// the request page), but the feature they call into lives in the Acquisition
+/// module. Gate them on it so disabling Acquisition removes search / grab
+/// everywhere, not only the module's own admin routes: 404 when it is off.
+fn require_acquisition(state: &SharedState, user: &User) -> Result<(), Response> {
+    if luma_engine::modules::module_enabled(&state.settings, "dev.luma.acquisition") {
+        Ok(())
+    } else {
+        Err(lerr(locale(user), StatusCode::NOT_FOUND, "error.moduleDisabled"))
+    }
+}
+
 /// Run a blocking service call whose failures are user-relevant (bad TMDB id,
 /// unknown request...): surface the message as a 400 instead of a mute 500.
 async fn service<T, F>(f: F) -> Result<T, Response>
@@ -211,8 +223,9 @@ pub async fn interactive_search(
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
+    require_acquisition(&state, &user)?;
     let view =
-        service(move || luma_torrent::acquisition::search::interactive_search(&state, &id)).await?;
+        service(move || luma_acquisition::search::interactive_search(&state, &id)).await?;
     Ok(Json(view).into_response())
 }
 
@@ -222,16 +235,17 @@ pub async fn grab(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
-    Json(body): Json<luma_torrent::GrabBody>,
+    Json(body): Json<luma_acquisition::GrabBody>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
+    require_acquisition(&state, &user)?;
     // Enqueue is fast (DB only); the slow torrent add (magnet resolve / .torrent
     // fetch, up to minutes) runs in the background so the request returns right
     // away instead of timing out the browser.
     let enqueue_state = state.clone();
     let (rid, guid, indexer_id) = (id.clone(), body.guid.clone(), body.indexer_id.clone());
     let row = service(move || {
-        luma_torrent::acquisition::search::grab_cached(&enqueue_state, &rid, &guid, &indexer_id)
+        luma_acquisition::search::grab_cached(&enqueue_state, &rid, &guid, &indexer_id)
     })
     .await?;
     tokio::task::spawn_blocking(move || state.downloads().activate(&state, &row));

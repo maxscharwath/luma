@@ -3280,6 +3280,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
+name = "luma-acquisition"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "luma-domain",
+ "luma-engine",
+ "luma-indexer",
+ "luma-module-host",
+ "luma-module-sdk",
+ "luma-scene",
+ "luma-torrent",
+ "luma-torznab",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
 name = "luma-config"
 version = "0.1.0"
 dependencies = [
@@ -3463,6 +3484,7 @@ dependencies = [
 name = "luma-modules-generated"
 version = "0.0.0"
 dependencies = [
+ "luma-acquisition",
  "luma-engine",
  "luma-indexer",
  "luma-mdns",
@@ -3535,6 +3557,7 @@ dependencies = [
  "hex",
  "jobserver",
  "jpeg-encoder",
+ "luma-acquisition",
  "luma-config",
  "luma-contracts",
  "luma-db",
@@ -3592,7 +3615,6 @@ dependencies = [
  "luma-module-sdk",
  "luma-primitives",
  "luma-scene",
- "luma-torznab",
  "rusqlite",
  "serde",
  "serde_json",

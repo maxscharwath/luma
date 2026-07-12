@@ -41,5 +41,5 @@ modules:
     crate: luma-qbittorrent
     serverModule: true
   - id: dev.luma.acquisition
-    manifestOnly: true
-    icon: true
+    crate: luma-acquisition
+    serverModule: true

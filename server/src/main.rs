@@ -177,7 +177,7 @@ async fn main() -> anyhow::Result<()> {
     // and the download admin routes resolve it through the HostCtx registry.
     let downloads = luma_torrent::DownloadManager::new(&config.data_dir);
     module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);
-    // `luma_torrent::JOBS` are the acquisition jobs (search / import / match),
+    // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
     // registered alongside the core built-ins so the core roster names no module.
     let state = AppState::new(
         config,
@@ -187,7 +187,7 @@ async fn main() -> anyhow::Result<()> {
         std::sync::Arc::new(EmbedderPort(luma_vector::default_embedder()))
             as std::sync::Arc<dyn luma_engine::ports::Embedder>,
         module_services,
-        luma_torrent::JOBS,
+        luma_acquisition::JOBS,
     );
     services::activity::scan_completed(
         &state.activity,

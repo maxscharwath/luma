@@ -131,6 +131,7 @@ luma-vpn = { path = "modules/dev.luma.vpn/server" }
 luma-transmission = { path = "modules/dev.luma.engine.transmission/server" }
 luma-qbittorrent = { path = "modules/dev.luma.engine.qbittorrent/server" }
 luma-torrent = { path = "modules/dev.luma.torrents/server" }
+luma-acquisition = { path = "modules/dev.luma.acquisition/server" }
 luma-whisper = { path = "modules/dev.luma.whisper/server" }
 luma-vector = { path = "modules/dev.luma.vector/server" }
 luma-mdns = { path = "modules/dev.luma.mdns/server" }
@@ -206,6 +207,10 @@ zip = { workspace = true }
 walkdir = { workspace = true }
 sysinfo = { workspace = true }
 luma-torrent = { workspace = true }
+# The acquisition vertical (search / grab / analyze routes + the search/import/
+# match jobs). The binary repoints the request-tied search/grab handlers here and
+# passes its JOBS to AppState. It deps luma-torrent, never the reverse (no cycle).
+luma-acquisition = { workspace = true }
 luma-scene = { workspace = true }
 # The module kernel (composition root): registers every compile-time module's
 # `MODULE` const, collects their ServerModules, and drives the enable/disable +

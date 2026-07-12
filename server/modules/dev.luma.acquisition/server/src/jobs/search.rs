@@ -16,10 +16,10 @@ pub const SPEC: Builtin = Builtin {
 };
 
 pub fn run(ctx: &JobContext) -> Result<()> {
-    if super::downloads_disabled(ctx) {
+    if super::acquisition_disabled(ctx) {
         return Ok(());
     }
-    let summary = crate::acquisition::auto::auto_search_pass(
+    let summary = crate::auto::auto_search_pass(
         &ctx.state,
         &|line| ctx.info(line),
         &|| ctx.cancelled(),

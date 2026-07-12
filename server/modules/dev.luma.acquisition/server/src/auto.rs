@@ -8,11 +8,11 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 
-use crate::db;
 use luma_engine::services::requests::today_ymd;
 use luma_engine::state::SharedState;
+use luma_torrent::db;
 
-use super::search::{score_release, targets_for_wanted, wanted_ids_by};
+use crate::search::{score_release, targets_for_wanted, wanted_ids_by};
 
 /// How many wanted rows one pass considers (bounds runtime; the cron loops).
 const BATCH: usize = 40;
@@ -33,7 +33,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
         log("automatic acquisition is disabled (acqEnabled)".into());
         return Ok(summary);
     }
-    if !super::downloads(state).gate_open() {
+    if !crate::downloads(state).gate_open() {
         log("VPN kill switch is closed; skipping the search pass".into());
         return Ok(summary);
     }
@@ -58,7 +58,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
         }
     }
     request_ids.truncate(MAX_REQUESTS);
-    let profile = super::profile_from_settings(state);
+    let profile = crate::profile_from_settings(state);
 
     for request_id in &request_ids {
         if cancelled() {
@@ -84,9 +84,9 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
             summary.targets += 1;
 
             // Sweep the indexers for this target and keep the best candidate.
-            let mut best: Option<(super::search::CachedRelease, i32)> = None;
+            let mut best: Option<(crate::search::CachedRelease, i32)> = None;
             for indexer in &indexers {
-                let found = match super::search_indexer(state, indexer, &st.query) {
+                let found = match crate::search_indexer(state, indexer, &st.query) {
                     Ok(f) => f,
                     Err(e) => {
                         summary.errors.push(format!("{}: {e:#}", indexer.name));
@@ -103,7 +103,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
                     }
                     if best.as_ref().is_none_or(|(_, s)| score > *s) {
                         best = Some((
-                            super::search::CachedRelease { view, magnet_or_url, tmdb_id: req.tmdb_id },
+                            crate::search::CachedRelease { view, magnet_or_url, tmdb_id: req.tmdb_id },
                             score,
                         ));
                     }
@@ -115,7 +115,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
                     "grabbing \"{}\" (score {score}) for \"{}\"",
                     candidate.view.title, req.title
                 ));
-                let spec = crate::GrabSpec::from_release(
+                let spec = crate::search::grab_spec_from_release(
                     &candidate.view,
                     &candidate.magnet_or_url,
                     candidate.tmdb_id,
@@ -124,10 +124,10 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
                     Some(request_id.clone()),
                     target_rows.clone(),
                 );
-                match super::downloads(state).grab(state, spec) {
+                match crate::downloads(state).grab(state, spec) {
                     Ok(row) => {
                         // Background job: fine to add synchronously here.
-                        super::downloads(state).activate(state, &row);
+                        crate::downloads(state).activate(state, &row);
                         summary.grabbed += 1;
                         covered.extend(target_rows);
                     }
@@ -144,7 +144,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
     Ok(summary)
 }
 
-fn wanted_row_ids(wanted: &[db::WantedRow], st: &super::search::SearchTarget) -> Vec<String> {
+fn wanted_row_ids(wanted: &[db::WantedRow], st: &crate::search::SearchTarget) -> Vec<String> {
     // Reuse the coverage rule the grab path uses, driven by the target shape.
     wanted_ids_by(wanted, st.kind, st.season, st.episodes.as_deref())
         .into_iter()

@@ -177,7 +177,7 @@ export function reannounceDownloads(ctx: RequestContext): Promise<{ count: numbe
 
 /** Free-text manual indexer search (admin picks a release to grab). */
 export function manualSearch(ctx: RequestContext, query: string): Promise<ManualSearchView> {
-  return ctx.json<ManualSearchView>('/admin/downloads/search', {
+  return ctx.json<ManualSearchView>('/admin/acquisition/search', {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({ query }),
@@ -187,7 +187,7 @@ export function manualSearch(ctx: RequestContext, query: string): Promise<Manual
 /** Fetch a torrent's file list (metadata only, no download) + what it holds,
  * so the admin can pick episodes / confirm the entity before grabbing. */
 export function analyzeTorrent(ctx: RequestContext, magnetOrUrl: string): Promise<TorrentAnalysis> {
-  return ctx.json<TorrentAnalysis>('/admin/downloads/analyze', {
+  return ctx.json<TorrentAnalysis>('/admin/acquisition/analyze', {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({ magnetOrUrl }),
@@ -197,7 +197,7 @@ export function analyzeTorrent(ctx: RequestContext, magnetOrUrl: string): Promis
 /** Grab a pasted magnet / .torrent URL (or a manual-search result) and import
  * it as `kind` into the right library. */
 export function manualAdd(ctx: RequestContext, body: ManualAddBody): Promise<{ id: string }> {
-  return ctx.json<{ id: string }>('/admin/downloads/add', {
+  return ctx.json<{ id: string }>('/admin/acquisition/add', {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify(body),

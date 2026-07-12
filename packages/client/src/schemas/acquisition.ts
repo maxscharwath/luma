@@ -69,7 +69,7 @@ export const TorrentFileView = z.object({
 });
 export type TorrentFileView = z.infer<typeof TorrentFileView>;
 
-/** `POST /api/admin/downloads/analyze` result. `kind` is an open string
+/** `POST /api/admin/acquisition/analyze` result. `kind` is an open string
  * (`movie` | `episode` | `season` | `series` | `unknown`). */
 export const TorrentAnalysis = z.object({
   kind: z.string(),
@@ -125,7 +125,7 @@ export const GrabBody = z.object({
 });
 export type GrabBody = z.infer<typeof GrabBody>;
 
-/** `POST /api/admin/downloads/add` body. `tmdbId` is a foreign numeric id. */
+/** `POST /api/admin/acquisition/add` body. `tmdbId` is a foreign numeric id. */
 export const ManualAddBody = z.object({
   magnetOrUrl: z.string(),
   kind: z.string(),
@@ -164,13 +164,13 @@ export const ManualReleaseView = z.object({
 });
 export type ManualReleaseView = z.infer<typeof ManualReleaseView>;
 
-/** `POST /api/admin/downloads/search` body. */
+/** `POST /api/admin/acquisition/search` body. */
 export const ManualSearchBody = z.object({
   query: z.string(),
 });
 export type ManualSearchBody = z.infer<typeof ManualSearchBody>;
 
-/** `POST /api/admin/downloads/search`. */
+/** `POST /api/admin/acquisition/search`. */
 export const ManualSearchView = z.object({
   releases: z.array(ManualReleaseView),
   indexerErrors: z.array(z.string()),

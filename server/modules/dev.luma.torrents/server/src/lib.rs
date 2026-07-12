@@ -21,10 +21,10 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "rqbit")]
 mod announce;
-// The acquisition + organize verticals, moved out of the core luma-engine crate
-// so the core depends on ZERO module crates. They orchestrate the app state
-// (luma-engine) over the scene/indexer/torznab engines this module already deps.
-pub mod acquisition;
+// The organize vertical, moved out of the core luma-engine crate so the core
+// depends on ZERO module crates. The acquisition vertical (search / grab / auto /
+// import) lives in its own `luma-acquisition` crate, which depends on THIS crate
+// (never the reverse), so disabling Acquisition gates that whole feature.
 pub mod db;
 pub mod downloads;
 pub mod dtos;
@@ -52,15 +52,6 @@ pub use downloads::{active_proxy_url, DownloadManager, GrabSpec, LABEL};
 /// Whether the embedded engine is compiled into this build.
 pub const RQBIT_COMPILED: bool = cfg!(feature = "rqbit");
 
-/// The acquisition background jobs this module contributes to the app's job
-/// registry (search / import / match). The binary passes this to
-/// `AppState::new` so the core registers them without naming the module.
-pub const JOBS: &[luma_engine::services::jobs::Builtin] = &[
-    acquisition::jobs::import::SPEC,
-    acquisition::jobs::search::SPEC,
-    acquisition::jobs::match_::SPEC,
-];
-
 /// This module's id, shared with `module.json` and the frontend package. The one
 /// place callers (route gate, job guards, monitor, lifecycle) name the module.
 pub const MODULE_ID: &str = "dev.luma.torrents";
@@ -74,8 +65,8 @@ pub const MODULE_ID: &str = "dev.luma.torrents";
 /// registry.
 ///
 /// Unlike the vpn / indexer modules it is NOT generic over the host state: its
-/// routes orchestrate the acquisition + organize verticals, which run against
-/// `luma-engine`'s concrete `AppState`, so it is a `ServerModule<SharedState>`.
+/// routes orchestrate the organize vertical, which runs against `luma-engine`'s
+/// concrete `AppState`, so it is a `ServerModule<SharedState>`.
 pub struct DownloadsModule;
 
 #[luma_module_host::async_trait]

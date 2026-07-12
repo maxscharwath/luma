@@ -1,18 +1,18 @@
 //! Import: move completed downloads into the library with the configured
-//! Sonarr/Radarr-style naming (see crate::organize::naming), so the regular
-//! scan/enrich/pipeline takes over. Hardlink first (the torrent keeps seeding
-//! from its download folder for free), copy across filesystems.
+//! Sonarr/Radarr-style naming (see luma_torrent::organize::naming), so the
+//! regular scan/enrich/pipeline takes over. Hardlink first (the torrent keeps
+//! seeding from its download folder for free), copy across filesystems.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
 
-use crate::db::{self, DownloadRow};
 use luma_engine::model::RequestKind;
 use luma_engine::services::jobs::now_ms;
-use crate::organize::naming;
 use luma_engine::services::settings::{library_defs, LibraryDef};
 use luma_engine::state::SharedState;
+use luma_torrent::db::{self, DownloadRow};
+use luma_torrent::organize::naming;
 
 /// The facts import needs about a title, from the request, the download row, or
 /// (last resort) the parsed release name.
@@ -73,7 +73,7 @@ fn finalize_import(state: &SharedState, row: &DownloadRow) {
     }
     // Optionally free the download folder + stop seeding now that it's imported.
     if state.settings.get_bool("acqDeleteAfterImport", false) {
-        super::downloads(state).drop_data(state, row);
+        crate::downloads(state).drop_data(state, row);
     }
 }
 

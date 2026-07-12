@@ -22,4 +22,5 @@ luma-vpn = { path = "../../modules/dev.luma.vpn/server" }
 luma-remote = { path = "../../modules/dev.luma.remote/server" }
 luma-transmission = { path = "../../modules/dev.luma.engine.transmission/server" }
 luma-qbittorrent = { path = "../../modules/dev.luma.engine.qbittorrent/server" }
+luma-acquisition = { path = "../../modules/dev.luma.acquisition/server" }
 luma-module-dev-luma-hello = { path = "../../modules/dev.luma.hello/server" }
