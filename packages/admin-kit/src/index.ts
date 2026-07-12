@@ -23,6 +23,7 @@ export {
   Avatar,
 } from './primitives';
 export { Button, Disclosure, NumberField, SegmentedControl } from './controls';
+export { AddEngineModal, FieldForm, useEnabledEngines, useModuleEnabled } from './engines';
 export {
   Field,
   Modal,

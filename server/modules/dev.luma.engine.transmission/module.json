@@ -3,6 +3,17 @@
   "name": "Transmission engine",
   "version": "0.1.0",
   "dependsOn": { "dev.luma.torrents": "^0.1.0" },
-  "provides": [{ "kind": "download-client", "id": "transmission" }],
+  "provides": [
+    {
+      "kind": "download-client",
+      "id": "transmission",
+      "label": "Transmission",
+      "fields": [
+        { "key": "url", "label": "field.url", "type": "string", "placeholder": "http://nas:9091", "required": true },
+        { "key": "username", "label": "field.username", "type": "string" },
+        { "key": "password", "label": "field.password", "type": "string", "secret": true }
+      ]
+    }
+  ],
   "description": "Transmission RPC as a download sub-engine for the Downloads module. Toggle it to add/remove Transmission from the download-client picker."
 }

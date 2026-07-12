@@ -2,8 +2,15 @@
 // Prowlarr) as a card grid with enable toggles, live test (t=caps latency +
 // TMDB id support) and an add/edit modal. Structure mirrors the libraries page.
 
-import { apiErrorText, type IndexerTestResult, type IndexerView } from '@luma/core';
 import {
+  apiErrorText,
+  type EngineCapability,
+  type IndexerTestResult,
+  type IndexerView,
+  type MessageKey,
+} from '@luma/core';
+import {
+  AddEngineModal,
   Card,
   Denied,
   EmptyState,
@@ -14,6 +21,7 @@ import {
   Toggle,
   useAdminKit,
   useCap,
+  useEnabledEngines,
   usePoll,
 } from '@luma/admin-kit';
 import { useT } from '@luma/ui';
@@ -31,12 +39,11 @@ export default function IndexersPage() {
   const t = useT();
   const { client } = useAdminKit();
   const canManage = useCap('settings.manage');
-  const [modal, setModal] = useState<{ open: boolean; indexer: IndexerView | null }>({
-    open: false,
-    indexer: null,
-  });
+  const engines = useEnabledEngines('indexer-engine');
+  const [editIndexer, setEditIndexer] = useState<IndexerView | null>(null);
   const [picker, setPicker] = useState(false);
   const [builtinCreate, setBuiltinCreate] = useState<string | null>(null);
+  const [addEngine, setAddEngine] = useState<EngineCapability | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
 
   const { data, reload } = usePoll(['admin', 'indexers'], () => client.adminIndexers(), 30000);
@@ -69,20 +76,30 @@ export default function IndexersPage() {
       .finally(reload);
   };
 
+  // One add-flow per enabled engine: the native Cardigann engine opens its
+  // definition picker (flow "definition"); every other engine (e.g. Torznab)
+  // opens the generic field form. No engines -> no add buttons.
+  const addButtons =
+    engines.length > 0 ? (
+      <div className="flex items-center gap-2">
+        {engines.map((engine) => (
+          <HeaderAction
+            key={engine.id}
+            label={t((engine.label ?? engine.id) as MessageKey)}
+            onClick={() =>
+              engine.flow === 'definition' ? setPicker(true) : setAddEngine(engine)
+            }
+          />
+        ))}
+      </div>
+    ) : null;
+
   return (
     <>
       <PageHeader
         title={t('admin.indexersTitle')}
         subtitle={t('admin.indexersSub')}
-        action={
-          <div className="flex items-center gap-2">
-            <HeaderAction label={t('indexers.addBuiltin')} onClick={() => setPicker(true)} />
-            <HeaderAction
-              label={t('indexers.add')}
-              onClick={() => setModal({ open: true, indexer: null })}
-            />
-          </div>
-        }
+        action={addButtons ?? undefined}
       />
 
       {data === null ? <TableSkeleton rows={5} /> : null}
@@ -91,13 +108,8 @@ export default function IndexersPage() {
         <EmptyState
           icon={<IconAntenna size={32} stroke={1.5} />}
           title={t('indexers.emptyTitle')}
-          hint={t('indexers.emptyBody')}
-          action={
-            <HeaderAction
-              label={t('indexers.add')}
-              onClick={() => setModal({ open: true, indexer: null })}
-            />
-          }
+          hint={engines.length === 0 ? t('indexers.noEngines') : t('indexers.emptyBody')}
+          action={addButtons ?? undefined}
         />
       ) : null}
 
@@ -109,16 +121,43 @@ export default function IndexersPage() {
             test={tests[ix.id]}
             onToggle={(v) => toggle(ix, v)}
             onTest={() => test(ix)}
-            onEdit={() => setModal({ open: true, indexer: ix })}
+            onEdit={() => setEditIndexer(ix)}
           />
         ))}
       </div>
 
-      {modal.open ? (
+      {editIndexer ? (
         <IndexerModal
-          indexer={modal.indexer}
-          onClose={() => setModal({ open: false, indexer: null })}
+          indexer={editIndexer}
+          onClose={() => setEditIndexer(null)}
           onSaved={reload}
+        />
+      ) : null}
+
+      {addEngine ? (
+        <AddEngineModal
+          engines={[addEngine]}
+          title={t('indexers.addTitle')}
+          onClose={() => setAddEngine(null)}
+          onSubmit={(kind, v) =>
+            client
+              .createIndexer({
+                kind,
+                name: v.name ?? null,
+                url: v.url ?? null,
+                apiKey: v.apiKey ?? null,
+                categories: v.categories
+                  ? v.categories
+                      .split(',')
+                      .map((s) => Number(s.trim()))
+                      .filter((n) => Number.isFinite(n) && n > 0)
+                  : null,
+                enabled: true,
+                priority: null,
+                definitionId: null,
+              })
+              .then(reload)
+          }
         />
       ) : null}
 

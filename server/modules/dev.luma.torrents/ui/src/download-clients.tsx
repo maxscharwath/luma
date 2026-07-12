@@ -4,6 +4,7 @@
 
 import { apiErrorText, type ClientTestResult, type DownloadClientView } from '@luma/core';
 import {
+  AddEngineModal,
   Card,
   EmptyState,
   Pill,
@@ -11,6 +12,7 @@ import {
   TableSkeleton,
   Toggle,
   useAdminKit,
+  useEnabledEngines,
   usePoll,
 } from '@luma/admin-kit';
 import { useT } from '@luma/ui';
@@ -23,10 +25,9 @@ type TestState = { busy?: boolean; result?: ClientTestResult; error?: string };
 export function DownloadClientsSection() {
   const t = useT();
   const { client: api } = useAdminKit();
-  const [modal, setModal] = useState<{ open: boolean; client: DownloadClientView | null }>({
-    open: false,
-    client: null,
-  });
+  const engines = useEnabledEngines('download-client');
+  const [addOpen, setAddOpen] = useState(false);
+  const [editClient, setEditClient] = useState<DownloadClientView | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
   const { data, reload } = usePoll(
     ['admin', 'downloadClients'],
@@ -63,14 +64,16 @@ export function DownloadClientsSection() {
     <Section
       title={t('dlclients.sectionTitle')}
       right={
-        <button
-          type="button"
-          onClick={() => setModal({ open: true, client: null })}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
-        >
-          <IconPlus size={14} stroke={2.4} />
-          {t('dlclients.add')}
-        </button>
+        engines.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
+          >
+            <IconPlus size={14} stroke={2.4} />
+            {t('dlclients.add')}
+          </button>
+        ) : null
       }
     >
       {data === null ? <TableSkeleton rows={3} /> : null}
@@ -115,7 +118,7 @@ export function DownloadClientsSection() {
                 {!c.builtin ? (
                   <button
                     type="button"
-                    onClick={() => setModal({ open: true, client: c })}
+                    onClick={() => setEditClient(c)}
                     title={t('dlclients.edit')}
                     className="flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-white/12 bg-[#1A1A20] text-white/70 hover:text-white"
                   >
@@ -132,22 +135,45 @@ export function DownloadClientsSection() {
           icon={<IconServer size={32} stroke={1.5} />}
           title={t('dlclients.empty')}
           action={
-            <button
-              type="button"
-              onClick={() => setModal({ open: true, client: null })}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
-            >
-              <IconPlus size={14} stroke={2.4} />
-              {t('dlclients.add')}
-            </button>
+            engines.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
+              >
+                <IconPlus size={14} stroke={2.4} />
+                {t('dlclients.add')}
+              </button>
+            ) : undefined
           }
         />
       ) : null}
 
-      {modal.open ? (
+      {addOpen ? (
+        <AddEngineModal
+          engines={engines}
+          title={t('dlclients.addTitle')}
+          onClose={() => setAddOpen(false)}
+          onSubmit={(kind, v) =>
+            api
+              .createDownloadClient({
+                kind,
+                name: v.name ?? null,
+                url: v.url ?? null,
+                username: v.username ?? null,
+                password: v.password ?? null,
+                enabled: true,
+                priority: null,
+              })
+              .then(reload)
+          }
+        />
+      ) : null}
+
+      {editClient ? (
         <DownloadClientModal
-          client={modal.client}
-          onClose={() => setModal({ open: false, client: null })}
+          client={editClient}
+          onClose={() => setEditClient(null)}
           onSaved={reload}
         />
       ) : null}

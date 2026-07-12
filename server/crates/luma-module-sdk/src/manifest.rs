@@ -18,11 +18,25 @@ pub type Version = String;
 pub struct Capability {
     pub kind: String,
     pub id: String,
+    /// Display name for engine capabilities (`download-client`, `indexer-engine`),
+    /// shown in the admin's data-driven add-picker. Absent when the capability has
+    /// no add-flow. Ignored by dependency resolution (which matches on kind+id).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// The add-form schema (reuses [`ConfigField`]) the admin renders for this
+    /// engine. Empty when the engine has a custom [`flow`](Self::flow) or no form.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<ConfigField>,
+    /// A discriminator for engines whose add-flow is NOT a plain field form (e.g.
+    /// `"definition"` for the native Cardigann definition picker); the host page
+    /// renders that flow itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow: Option<String>,
 }
 
 impl Capability {
     pub fn new(kind: impl Into<String>, id: impl Into<String>) -> Self {
-        Self { kind: kind.into(), id: id.into() }
+        Self { kind: kind.into(), id: id.into(), label: None, fields: Vec::new(), flow: None }
     }
 }
 
@@ -42,6 +56,15 @@ pub struct ConfigField {
     /// Choices for `kind == "select"`.
     #[serde(default)]
     pub options: Vec<String>,
+    /// Placeholder text for a text/URL input.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<String>,
+    /// Render as a password input; the value is treated write-only.
+    #[serde(default)]
+    pub secret: bool,
+    /// The field must be non-empty before the form can submit.
+    #[serde(default)]
+    pub required: bool,
 }
 
 /// The frontend half of a module, when it ships a Module Federation remote. The

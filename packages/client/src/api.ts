@@ -13,6 +13,7 @@ import type { DiscoverType } from './client/discovery';
 import * as discovery from './client/discovery';
 import * as library from './client/library';
 import * as media from './client/media';
+import * as moduleRegistry from './client/modules';
 import * as organize from './client/organize';
 import * as playback from './client/playback';
 import * as requests from './client/requests';
@@ -55,6 +56,7 @@ import type {
   MediaRequest,
   Metadata,
   MetricsSnapshot,
+  ModuleInfo,
   NamingTemplatesView,
   NamingView,
   OrganizePlan,
@@ -225,6 +227,12 @@ export class LumaClient {
 
   health(init?: RequestInit): Promise<Health> {
     return media.health(this.ctx, init);
+  }
+  /** The modules running on this server, each with its enabled flag + provided
+   * capabilities (engine add-form schemas). Drives the admin's data-driven ADD
+   * flows. */
+  modules(): Promise<ModuleInfo[]> {
+    return moduleRegistry.listModules(this.ctx);
   }
   libraries(): Promise<Library[]> {
     return media.libraries(this.ctx);

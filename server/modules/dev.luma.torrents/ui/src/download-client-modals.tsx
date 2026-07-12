@@ -1,48 +1,37 @@
-// Add / edit modal for an external download client (Transmission RPC or
-// qBittorrent WebUI). The embedded engine has no form: it is configured from
-// the Acquisition settings page.
+// Edit modal for an existing external download client (Transmission RPC or
+// qBittorrent WebUI). The kind is fixed once a client exists, so this is edit-only
+// (name / URL / credentials); adding a client goes through the generic
+// AddEngineModal, driven by the enabled download-client engines. The embedded
+// engine has no form (configured from the Acquisition settings page).
 
 import { apiErrorText, type DownloadClientView, type SaveDownloadClientBody } from '@luma/core';
-import {
-  Field,
-  Modal,
-  ModalActions,
-  SegmentedControl,
-  TextInput,
-  useAdminKit,
-  useAsyncAction,
-} from '@luma/admin-kit';
+import { Field, Modal, ModalActions, TextInput, useAdminKit, useAsyncAction } from '@luma/admin-kit';
 import { useT } from '@luma/ui';
 import { useState } from 'react';
-
-type ExternalKind = 'transmission' | 'qbittorrent';
 
 export function DownloadClientModal({
   client,
   onClose,
   onSaved,
 }: Readonly<{
-  /** `null` = create. */
-  client: DownloadClientView | null;
+  /** The external client being edited (kind is fixed). */
+  client: DownloadClientView;
   onClose: () => void;
   onSaved: () => void;
 }>) {
   const t = useT();
   const { client: api } = useAdminKit();
   const { busy, error, run } = useAsyncAction();
-  const [kind, setKind] = useState<ExternalKind>(
-    client?.kind === 'qbittorrent' ? 'qbittorrent' : 'transmission',
-  );
-  const [name, setName] = useState(client?.name ?? '');
-  const [url, setUrl] = useState(client?.url ?? '');
-  const [username, setUsername] = useState(client?.username ?? '');
+  const [name, setName] = useState(client.name);
+  const [url, setUrl] = useState(client.url);
+  const [username, setUsername] = useState(client.username);
   const [password, setPassword] = useState('');
 
   const save = () =>
     run(
       async () => {
         const body: SaveDownloadClientBody = {
-          kind: client ? null : kind,
+          kind: null,
           name: name.trim() || null,
           url: url.trim() || null,
           username: username.trim() || null,
@@ -50,8 +39,7 @@ export function DownloadClientModal({
           enabled: null,
           priority: null,
         };
-        if (client) await api.updateDownloadClient(client.id, body);
-        else await api.createDownloadClient(body);
+        await api.updateDownloadClient(client.id, body);
         onSaved();
         onClose();
       },
@@ -61,7 +49,6 @@ export function DownloadClientModal({
   const remove = () =>
     run(
       async () => {
-        if (!client) return;
         await api.deleteDownloadClient(client.id);
         onSaved();
         onClose();
@@ -69,27 +56,13 @@ export function DownloadClientModal({
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
 
-  const placeholder = kind === 'transmission' ? 'http://nas:9091' : 'http://nas:8080';
-
   return (
-    <Modal title={t(client ? 'dlclients.edit' : 'dlclients.add')} onClose={onClose}>
-      {!client ? (
-        <Field label={t('dlclients.kind')}>
-          <SegmentedControl
-            value={kind}
-            onChange={setKind}
-            options={[
-              { value: 'transmission' as const, label: 'Transmission' },
-              { value: 'qbittorrent' as const, label: 'qBittorrent' },
-            ]}
-          />
-        </Field>
-      ) : null}
+    <Modal title={t('dlclients.edit')} onClose={onClose}>
       <Field label={t('dlclients.name')}>
-        <TextInput value={name} onChange={setName} placeholder={kind} className="w-full" />
+        <TextInput value={name} onChange={setName} placeholder={client.kind} className="w-full" />
       </Field>
       <Field label={t('dlclients.url')} hint={t('dlclients.urlHint')}>
-        <TextInput value={url} onChange={setUrl} placeholder={placeholder} className="w-full" />
+        <TextInput value={url} onChange={setUrl} className="w-full" />
       </Field>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t('dlclients.username')}>
@@ -97,7 +70,7 @@ export function DownloadClientModal({
         </Field>
         <Field
           label={t('dlclients.password')}
-          hint={client?.hasPassword ? t('dlclients.passwordKept') : undefined}
+          hint={client.hasPassword ? t('dlclients.passwordKept') : undefined}
         >
           <TextInput
             value={password}
@@ -116,9 +89,9 @@ export function DownloadClientModal({
         busy={busy}
         disabled={!url.trim()}
         destructive={
-          client && !client.builtin
-            ? { label: t('dlclients.delete'), onClick: remove, disabled: busy }
-            : undefined
+          client.builtin
+            ? undefined
+            : { label: t('dlclients.delete'), onClick: remove, disabled: busy }
         }
       />
     </Modal>

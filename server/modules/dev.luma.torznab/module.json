@@ -6,7 +6,13 @@
   "provides": [
     {
       "kind": "indexer-engine",
-      "id": "torznab"
+      "id": "torznab",
+      "label": "Torznab",
+      "fields": [
+        { "key": "url", "label": "field.url", "type": "string", "placeholder": "http://nas:9117/api/v2.0/indexers/xxx/results/torznab", "required": true },
+        { "key": "apiKey", "label": "field.apiKey", "type": "string", "secret": true },
+        { "key": "categories", "label": "field.categories", "type": "string", "placeholder": "2000,5000" }
+      ]
     }
   ],
   "description": "External Torznab / Newznab indexers (Jackett, Prowlarr)."
