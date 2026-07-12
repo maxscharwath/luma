@@ -197,7 +197,29 @@ mod tests {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("luma-bkp-{tag}-{}-{n}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
-        crate::init(&path).unwrap()
+        let pool = crate::init(&path).unwrap();
+        // The acquisition module tables (`indexers` / `download_clients`) are owned
+        // by the module crates now and created by their `ServerModule::migrations`
+        // at boot, not by `init`. Backup still dumps them by name (see `TABLES`),
+        // so recreate the minimal shape here to exercise that path.
+        pool.get()
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS indexers (\
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, \
+                    api_key TEXT NOT NULL DEFAULT '', categories TEXT NOT NULL DEFAULT '2000,5000', \
+                    enabled INTEGER NOT NULL DEFAULT 1, priority INTEGER NOT NULL DEFAULT 0, \
+                    kind TEXT NOT NULL DEFAULT 'torznab', definition_id TEXT, \
+                    settings TEXT NOT NULL DEFAULT '{}', last_ok_at INTEGER, last_error TEXT, \
+                    created_at INTEGER NOT NULL);\
+                 CREATE TABLE IF NOT EXISTS download_clients (\
+                    id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, \
+                    url TEXT NOT NULL DEFAULT '', username TEXT NOT NULL DEFAULT '', \
+                    password TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, \
+                    priority INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);",
+            )
+            .unwrap();
+        pool
     }
 
     fn count(pool: &Pool, table: &str) -> i64 {

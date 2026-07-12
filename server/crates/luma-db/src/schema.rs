@@ -389,79 +389,12 @@ pub(crate) const SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_wanted_request ON wanted(request_id);
     CREATE INDEX IF NOT EXISTS idx_wanted_ident   ON wanted(tmdb_id, season, episode);
 
-    -- Torznab indexers (Jackett / Prowlarr endpoints). `categories` is a comma
-    -- list; `priority` is a flat score tiebreak in the decision engine.
-    -- `kind` is 'torznab' (external Jackett/Prowlarr endpoint; url+api_key) or
-    -- 'builtin' (native Cardigann engine: `definition_id` names the definition,
-    -- `settings` is a JSON map of the admin-entered per-indexer config incl.
-    -- credentials, and `url` is the chosen base link).
-    CREATE TABLE IF NOT EXISTS indexers (
-        id            TEXT PRIMARY KEY,
-        name          TEXT NOT NULL,
-        url           TEXT NOT NULL,
-        api_key       TEXT NOT NULL DEFAULT '',
-        categories    TEXT NOT NULL DEFAULT '2000,5000',
-        enabled       INTEGER NOT NULL DEFAULT 1,
-        priority      INTEGER NOT NULL DEFAULT 0,
-        kind          TEXT NOT NULL DEFAULT 'torznab',
-        definition_id TEXT,
-        settings      TEXT NOT NULL DEFAULT '{}',
-        last_ok_at    INTEGER,
-        last_error    TEXT,
-        created_at    INTEGER NOT NULL
-    );
-
-    -- Download clients (torrent engines). The embedded rqbit engine is seeded
-    -- as a row (id='embedded', kind='rqbit') at boot when compiled in, so
-    -- dispatch and the admin UI treat every engine uniformly; url/username/
-    -- password apply to the external kinds only.
-    CREATE TABLE IF NOT EXISTS download_clients (
-        id         TEXT PRIMARY KEY,
-        kind       TEXT NOT NULL,
-        name       TEXT NOT NULL,
-        url        TEXT NOT NULL DEFAULT '',
-        username   TEXT NOT NULL DEFAULT '',
-        password   TEXT NOT NULL DEFAULT '',
-        enabled    INTEGER NOT NULL DEFAULT 1,
-        priority   INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL
-    );
-
-    -- One row per grab: a release sent to a download client. `client_id` has no
-    -- FK so history survives a deleted client config. `score_breakdown` keeps
-    -- the decision engine's explanation; `episodes` is the JSON list of episode
-    -- numbers a season pack covers; `imported_paths` the library files written.
-    CREATE TABLE IF NOT EXISTS downloads (
-        id              TEXT PRIMARY KEY,
-        client_id       TEXT NOT NULL,
-        client_ref      TEXT NOT NULL,
-        request_id      TEXT REFERENCES requests(id) ON DELETE SET NULL,
-        kind            TEXT NOT NULL,
-        tmdb_id         INTEGER NOT NULL,
-        title           TEXT,
-        year            INTEGER,
-        season          INTEGER,
-        episodes        TEXT,
-        release_title   TEXT NOT NULL,
-        indexer_id      TEXT,
-        info_hash       TEXT,
-        magnet_or_url   TEXT NOT NULL,
-        size_bytes      INTEGER,
-        score           INTEGER,
-        score_breakdown TEXT,
-        status          TEXT NOT NULL DEFAULT 'queued',
-        progress        REAL NOT NULL DEFAULT 0,
-        save_path       TEXT,
-        imported_paths  TEXT,
-        error           TEXT,
-        grabbed_at      INTEGER NOT NULL,
-        completed_at    INTEGER,
-        imported_at     INTEGER,
-        details_url     TEXT,
-        only_files      TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status, grabbed_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_downloads_req    ON downloads(request_id);
+    -- The acquisition MODULE tables (`indexers`, `download_clients`, `downloads`)
+    -- no longer live here: each is owned by its module crate and created at DB
+    -- init via that module's `ServerModule::migrations` (run right after this core
+    -- schema). `downloads.request_id` still FKs the core `requests` table above,
+    -- which is fine because the module schema is applied after this one. Backup
+    -- still dumps `indexers` / `download_clients` by name (see `backup::TABLES`).
 
     -- Known TMDB id for an acquired item, keyed by its (future) logical item id.
     -- Set at import time so enrichment uses the real id instead of re-guessing
@@ -592,12 +525,6 @@ fn migrate(conn: &Connection) {
             mtime INTEGER, size INTEGER, version INTEGER NOT NULL,\
             duration_us INTEGER NOT NULL, v_codec TEXT,\
             segments TEXT NOT NULL, updated_at INTEGER NOT NULL)",
-        // Denormalized import title/year on downloads: lets a manually-added
-        // torrent (no request) still import with correct library naming.
-        "ALTER TABLE downloads ADD COLUMN title TEXT",
-        "ALTER TABLE downloads ADD COLUMN year INTEGER",
-        "ALTER TABLE downloads ADD COLUMN details_url TEXT",
-        "ALTER TABLE downloads ADD COLUMN only_files TEXT",
         // ----- language cache cutover (see db::metadata_core / translations) ------
         // One-time migration for DBs created before the language-agnostic cache.
         // Each statement is idempotent: the backfills are INSERT OR IGNORE, and the
@@ -670,13 +597,17 @@ fn migrate(conn: &Connection) {
             created_at  TEXT NOT NULL,\
             last_used   TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)",
-        // ----- built-in (native Cardigann) indexers ------------------------------
-        // Coexists with external Torznab rows via a `kind` discriminator; the
-        // native engine reads `definition_id` + the JSON `settings` map.
-        "ALTER TABLE indexers ADD COLUMN kind TEXT NOT NULL DEFAULT 'torznab'",
-        "ALTER TABLE indexers ADD COLUMN definition_id TEXT",
-        "ALTER TABLE indexers ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'",
     ] {
         let _ = conn.execute(sql, []);
     }
+}
+
+/// Apply a module's own schema after the core schema at DB init (see
+/// [`luma_module_host::ServerModule::migrations`], run from the binary). The SQL
+/// is `IF NOT EXISTS` DDL, so it is idempotent across every boot; it runs as one
+/// batch, so a syntax error surfaces instead of being silently swallowed. Kept
+/// here (rather than a raw `execute_batch` at the call site) so a module owns its
+/// tables while the core stays the single place that touches the connection.
+pub fn apply_migrations(conn: &Connection, sql: &str) -> Result<()> {
+    conn.execute_batch(sql).context("failed to apply module schema")
 }

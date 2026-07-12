@@ -2,7 +2,7 @@
 //!
 //! `ffmpeg` decodes a window of mono PCM, `rusty-chromaprint` turns it into a
 //! Chromaprint fingerprint, and the crate's `match_fingerprints` aligns two
-//! episodes to surface the run they share — the intro (near the start of the file)
+//! episodes to surface the run they share: the intro (near the start of the file)
 //! or the recurring credits theme (near the end). No external `fpcalc` binary: we
 //! already ship `ffmpeg` and fingerprint in-process.
 
@@ -112,7 +112,7 @@ pub fn pick_range(ranges: &[(f32, f32)], region: (f32, f32), min_len_s: f32) -> 
         .max_by(|x, y| (x.1 - x.0).partial_cmp(&(y.1 - y.0)).unwrap_or(std::cmp::Ordering::Equal))
 }
 
-/// Pure: consensus of per-pair ranges — the median range, accepted only if at
+/// Pure: consensus of per-pair ranges: the median range, accepted only if at
 /// least `min_support` of the candidates start within 3 s of it. `None` otherwise.
 /// Guards against one anomalous episode producing a spurious marker.
 pub fn consensus(mut ranges: Vec<(f32, f32)>, min_support: usize) -> Option<(f32, f32)> {

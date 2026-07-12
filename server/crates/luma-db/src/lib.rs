@@ -30,7 +30,6 @@ mod ingest;
 mod markers;
 mod downloaded_subs;
 mod downloads;
-mod indexers;
 mod accounts;
 mod passkeys;
 mod playback;
@@ -61,7 +60,6 @@ pub use ingest::*;
 pub use markers::*;
 pub use downloaded_subs::*;
 pub use downloads::*;
-pub use indexers::*;
 pub use vectors::*;
 pub use home::*;
 pub use accounts::*;
@@ -75,7 +73,7 @@ pub use taste::*;
 pub use curated::*;
 pub use suggest::*;
 pub use backup::*;
-pub use schema::init;
+pub use schema::{apply_migrations, init};
 pub(crate) use schema::{FILE_COLS, ITEM_COLS, PRAGMAS};
 
 /// A small, cheap-to-clone WAL connection pool. Cloning shares the same idle

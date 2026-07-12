@@ -12,7 +12,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 
-use luma_db as db;
+use crate::db;
 use luma_domain::{Permission, User};
 
 use crate::{

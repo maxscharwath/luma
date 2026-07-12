@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use luma_db as db;
+use crate::db;
 use luma_module_host::{Event, HostCtx};
 use serde_json::json;
 use luma_primitives::now_ms;

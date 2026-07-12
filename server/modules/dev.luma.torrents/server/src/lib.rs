@@ -21,6 +21,7 @@ mod announce;
 // so the core depends on ZERO module crates. They orchestrate the app state
 // (luma-engine) over the scene/indexer/torznab engines this module already deps.
 pub mod acquisition;
+pub mod db;
 pub mod downloads;
 pub mod dtos;
 pub mod module;
@@ -36,6 +37,10 @@ mod rqbit;
 pub use dtos::*;
 pub use module::MODULE;
 pub use rqbit::{RqbitConfig, RqbitEngine};
+// The `downloads` ledger table moved into this crate; the app's request/discover
+// overlay reads its live-grab roll-up, so re-export those two at the crate root
+// (the binary names `luma_torrent::requests_with_active_downloads`).
+pub use db::{requests_with_active_downloads, ActiveDownload};
 // The download manager + monitor (merged in from the former luma-downloads crate),
 // re-exported at the crate root so `luma_torrent::DownloadManager` etc. keep working.
 pub use downloads::{active_proxy_url, DownloadManager, GrabSpec, LABEL};
@@ -73,6 +78,10 @@ pub struct DownloadsModule;
 impl luma_module_host::ServerModule<luma_engine::state::SharedState> for DownloadsModule {
     fn id(&self) -> &'static str {
         MODULE_ID
+    }
+
+    fn migrations(&self) -> &'static str {
+        db::MIGRATIONS
     }
 
     fn admin_routes(

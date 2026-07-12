@@ -2,7 +2,7 @@
 //! monotonic-ish wall-clock timestamps, stable short hashes, and random tokens.
 //!
 //! These are pure computations (plus one `/dev/urandom` read) that several layers
-//! need — the persistence layer stamps `created_at`, adapters key caches by
+//! need: the persistence layer stamps `created_at`, adapters key caches by
 //! content hash, services mint session tokens. They live here, below `luma-db`,
 //! so the lower layers don't have to reach up into `services` for a helper.
 //! The former `services::{jobs::now_ms, scan::{now_iso8601, short_hash},

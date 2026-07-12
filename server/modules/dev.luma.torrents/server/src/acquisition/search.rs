@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use luma_scene::{Candidate, Target};
 use luma_torznab::{Query, Release};
 
-use luma_db::{self as db, IndexerRow, WantedRow};
+use crate::db::{self, IndexerRow, WantedRow};
 use luma_engine::model::RequestKind;
 
 use crate::{InteractiveSearchView, ScoreLineView, ScoredReleaseView};

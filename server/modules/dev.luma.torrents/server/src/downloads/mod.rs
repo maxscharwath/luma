@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use anyhow::{anyhow, bail, Result};
 use crate::{AddTorrentReq, ClientDef, DownloadClient, RqbitConfig, RqbitEngine};
 
-use luma_db::{self as db, DownloadClientRow, DownloadRow};
+use crate::db::{self, DownloadClientRow, DownloadRow};
 use luma_domain::RequestStatus;
 
 use crate::{ScoredReleaseView, VpnStatusView};

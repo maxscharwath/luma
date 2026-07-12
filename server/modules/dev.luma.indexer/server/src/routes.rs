@@ -16,7 +16,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
 
-use luma_db::{self as db, IndexerRow};
+use crate::db::{self, IndexerRow};
 use luma_domain::Permission;
 
 use crate::{

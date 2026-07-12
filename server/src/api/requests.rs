@@ -110,7 +110,7 @@ fn overlay_active_downloads(
     conn: &rusqlite::Connection,
     requests: &mut [MediaRequest],
 ) -> rusqlite::Result<()> {
-    let active: std::collections::HashMap<String, db::ActiveDownload> = db::requests_with_active_downloads(conn)?
+    let active: std::collections::HashMap<String, luma_torrent::ActiveDownload> = luma_torrent::requests_with_active_downloads(conn)?
         .into_iter()
         .map(|a| (a.request_id.clone(), a))
         .collect();

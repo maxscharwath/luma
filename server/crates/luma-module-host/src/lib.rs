@@ -172,6 +172,12 @@ where
     /// The module id (matches its `module.json` and frontend package).
     fn id(&self) -> &'static str;
 
+    /// SQL run once at DB init (after the core schema) so a module owns its own
+    /// tables. `IF NOT EXISTS` DDL only; runs on every boot. Default: no schema.
+    fn migrations(&self) -> &'static str {
+        ""
+    }
+
     /// Routes served under `/api/admin`, or `None` for a lifecycle-only module
     /// (e.g. a download engine). Mounted behind the module's enabled-gate by the
     /// host, so they 404 while it is disabled.

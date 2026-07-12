@@ -12,7 +12,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
 
-use luma_db::{self as db, DownloadClientRow, EMBEDDED_CLIENT_ID};
+use crate::db::{self, DownloadClientRow, EMBEDDED_CLIENT_ID};
 use luma_domain::Permission;
 
 use crate::{ClientTestResult, DownloadClientView, DownloadClientsView, SaveDownloadClientBody};

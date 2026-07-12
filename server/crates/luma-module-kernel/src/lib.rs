@@ -148,6 +148,19 @@ pub fn find_server(id: &str) -> Option<&'static dyn ServerModule<SharedState>> {
     registry().servers.iter().find(|m| m.id() == id).map(|m| m.as_ref())
 }
 
+/// Each compile-time module's own schema (the DDL it owns via
+/// [`ServerModule::migrations`]), in dependency (resolved) order, skipping the
+/// modules that declare none. The binary applies these once at DB init, right
+/// after the core schema, so a module owns its own tables without the core crate
+/// naming them.
+pub fn module_migrations() -> Vec<&'static str> {
+    let order = resolved_order();
+    let mut servers: Vec<&dyn ServerModule<SharedState>> =
+        registry().servers.iter().map(|m| m.as_ref()).collect();
+    servers.sort_by_key(|m| order.iter().position(|id| id == m.id()).unwrap_or(usize::MAX));
+    servers.iter().map(|m| m.migrations()).filter(|s| !s.is_empty()).collect()
+}
+
 /// At boot, bring every enabled module's live services up (and make sure disabled
 /// ones are down), in dependency order, awaiting each so ordering holds (the VPN
 /// bridge starts before the engine that tunnels through it). This is the generic

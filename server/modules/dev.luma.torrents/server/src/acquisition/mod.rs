@@ -10,7 +10,7 @@ pub mod search;
 
 use luma_scene::{Profile, Res};
 
-use luma_db::IndexerRow;
+use crate::db::IndexerRow;
 use luma_engine::services::jobs::now_ms;
 use luma_engine::state::SharedState;
 
@@ -108,7 +108,7 @@ pub fn search_indexer(
         // Healthy if we got releases (a partial per-path error alongside real
         // results must not flag the indexer as broken) or the sweep was clean.
         let note_ok = !outcome.releases.is_empty() || outcome.errors.is_empty();
-        let _ = luma_db::note_indexer_result(
+        let _ = crate::db::note_indexer_result(
             &state.db,
             &row.id,
             note_ok,

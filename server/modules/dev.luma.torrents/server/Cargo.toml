@@ -24,6 +24,9 @@ axum = { workspace = true }
 luma-db = { workspace = true }
 luma-domain = { workspace = true }
 luma-primitives = { workspace = true }
+# The module owns its `downloads` / `download_clients` tables now (schema + typed
+# queries), so it talks to SQLite directly through the pool luma-db hands out.
+rusqlite = { workspace = true }
 # The acquisition + organize verticals (moved out of the core luma-engine crate)
 # live here now: they orchestrate the app (luma-engine) over the scene/indexer/
 # torznab engines. luma-engine no longer names any of these module crates.

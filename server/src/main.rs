@@ -5,8 +5,8 @@
 //! files to clients. It never transcodes: clients decode HEVC/H.265/AV1
 //! themselves. `ffprobe` is used only to read metadata.
 
-// The HTTP router + handlers. Everything below the router — infra adapters,
-// services, app state, the i18n extractor and the wire-model barrel — lives in
+// The HTTP router + handlers. Everything below the router (infra adapters,
+// services, app state, the i18n extractor and the wire-model barrel) lives in
 // the luma-engine crate, aliased here so `crate::{infra,services,state,i18n,model}`
 // call sites in api/ keep resolving. Lower layers (config/db/domain) are their
 // own crates, likewise aliased.
@@ -79,6 +79,16 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let db = db::init(&config.db_path()).context("failed to initialise database")?;
+
+    // Let each module create the tables it owns, once, right after the core
+    // schema (the acquisition module tables live in the module crates now). Runs
+    // before any module reads/writes them (settings load, `apply_enabled_states`).
+    {
+        let conn = db.get().context("failed to get a db connection for module schema")?;
+        for migration in luma_module_kernel::module_migrations() {
+            db::apply_migrations(&conn, migration).context("failed to apply module schema")?;
+        }
+    }
 
     // Persisted settings (incl. the editable library definitions, seeded from
     // LUMA_MEDIA_DIRS on first run).

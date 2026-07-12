@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use luma_db::IndexerRow;
+use crate::db::IndexerRow;
 use luma_module_host::HostCtx;
 use luma_primitives::now_ms;
 use luma_torznab::{Caps, IndexerEndpoint};
@@ -41,10 +41,10 @@ pub fn indexer_caps(host: &dyn HostCtx, row: &IndexerRow) -> anyhow::Result<Caps
     let result = luma_torznab::caps(&endpoint_of(row));
     match &result {
         Ok(_) => {
-            let _ = luma_db::note_indexer_result(host.db(), &row.id, true, None, now_ms());
+            let _ = crate::db::note_indexer_result(host.db(), &row.id, true, None, now_ms());
         }
         Err(e) => {
-            let _ = luma_db::note_indexer_result(
+            let _ = crate::db::note_indexer_result(
                 host.db(),
                 &row.id,
                 false,

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
 
-use luma_db::{self as db, DownloadRow};
+use crate::db::{self, DownloadRow};
 use luma_engine::model::RequestKind;
 use luma_engine::services::jobs::now_ms;
 use crate::organize::naming;

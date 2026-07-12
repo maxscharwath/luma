@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod category;
 pub mod context;
+pub mod db;
 pub mod definition;
 pub mod dtos;
 pub mod engine;
@@ -65,6 +66,10 @@ impl<S: luma_module_host::HostCtx + Clone + Send + Sync + 'static>
         MODULE_ID
     }
 
+    fn migrations(&self) -> &'static str {
+        db::MIGRATIONS
+    }
+
     fn admin_routes(&self, _host: &S) -> Option<axum::Router<S>> {
         Some(routes::routes::<S>())
     }
@@ -93,7 +98,7 @@ impl luma_contracts::TorrentFetchPort for IndexerTorrentFetch {
             Ok(conn) => conn,
             Err(e) => return Some(Err(e.into())),
         };
-        let row = match luma_db::get_indexer(&conn, indexer_id) {
+        let row = match crate::db::get_indexer(&conn, indexer_id) {
             Ok(Some(row)) => row,
             Ok(None) => return None,
             Err(e) => return Some(Err(e.into())),
