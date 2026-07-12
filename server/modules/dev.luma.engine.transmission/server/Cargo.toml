@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 luma-torrent = { workspace = true }
 luma-module-host = { workspace = true }
+luma-module-sdk = { workspace = true }
 luma-http = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }

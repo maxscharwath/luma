@@ -3334,7 +3334,6 @@ dependencies = [
  "luma-module-host",
  "luma-module-sdk",
  "luma-module-wasm",
- "luma-modules-generated",
  "luma-primitives",
  "luma-vector",
  "luma-whisper",
@@ -3435,20 +3434,9 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "luma-engine",
- "luma-indexer",
- "luma-mdns",
  "luma-module-host",
  "luma-module-sdk",
  "luma-modules-generated",
- "luma-qbittorrent",
- "luma-remote",
- "luma-scene",
- "luma-torrent",
- "luma-torznab",
- "luma-transmission",
- "luma-vector",
- "luma-vpn",
- "luma-whisper",
  "tracing",
 ]
 
@@ -3478,8 +3466,21 @@ dependencies = [
 name = "luma-modules-generated"
 version = "0.0.0"
 dependencies = [
+ "luma-engine",
+ "luma-indexer",
+ "luma-mdns",
  "luma-module-dev-luma-hello",
+ "luma-module-host",
  "luma-module-sdk",
+ "luma-qbittorrent",
+ "luma-remote",
+ "luma-scene",
+ "luma-torrent",
+ "luma-torznab",
+ "luma-transmission",
+ "luma-vector",
+ "luma-vpn",
+ "luma-whisper",
 ]
 
 [[package]]
@@ -3498,6 +3499,7 @@ dependencies = [
  "anyhow",
  "luma-http",
  "luma-module-host",
+ "luma-module-sdk",
  "luma-torrent",
  "serde_json",
 ]
@@ -3622,6 +3624,7 @@ dependencies = [
  "anyhow",
  "luma-http",
  "luma-module-host",
+ "luma-module-sdk",
  "luma-torrent",
  "serde_json",
 ]

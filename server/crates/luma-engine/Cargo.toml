@@ -28,7 +28,6 @@ luma-i18n = { workspace = true }
 luma-module-sdk = { workspace = true }
 luma-module-host = { workspace = true }
 luma-module-wasm = { workspace = true }
-luma-modules-generated = { workspace = true }
 luma-http = { workspace = true }
 # Relocated module backends: the app depends on them (one-way, no cycle - they
 # name only the HostCtx seam), constructs their services, and injects them.

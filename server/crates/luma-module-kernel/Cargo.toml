@@ -13,22 +13,10 @@ luma-engine = { workspace = true }
 luma-module-host = { workspace = true }
 # Module manifest primitives (Registry, EmbeddedModule, ModuleManifest).
 luma-module-sdk = { workspace = true }
-# Generated aggregator: registers every single-file (codegen) module.
+# Generated aggregator: owns the whole compile-time roster (every module's
+# manifest + the backend behaviors), built from modules/roster.yaml. The kernel
+# names no individual module, so it needs none of them as a direct dependency.
 luma-modules-generated = { workspace = true }
 
 axum = { workspace = true }
 tracing = { workspace = true }
-
-# Every compile-time module whose MODULE manifest and/or server_module() the
-# composition root names directly.
-luma-indexer = { workspace = true }
-luma-torrent = { workspace = true }
-luma-torznab = { workspace = true }
-luma-scene = { workspace = true }
-luma-whisper = { workspace = true }
-luma-vector = { workspace = true }
-luma-mdns = { workspace = true }
-luma-vpn = { workspace = true }
-luma-remote = { workspace = true }
-luma-transmission = { workspace = true }
-luma-qbittorrent = { workspace = true }

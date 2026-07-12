@@ -12,10 +12,11 @@
 //!    generically, so the core is not aware of any specific module;
 //!  - or it is **runtime-loaded** (a WASM module in the [`WasmHost`]).
 //!
-//! [`build`] declares the compile-time modules, asserts every behavior has a
-//! manifest, and the public functions merge in the WASM tier. The whole server
-//! reads modules through this one API; per-module enabled/config state lives in
-//! `luma_engine::modules` (the settings blob).
+//! [`build`] pulls the compile-time roster from the generated
+//! `luma_modules_generated` aggregator (itself expanded from `modules/roster.yaml`),
+//! asserts every behavior has a manifest, and the public functions merge in the
+//! WASM tier. The whole server reads modules through this one API; per-module
+//! enabled/config state lives in `luma_engine::modules` (the settings blob).
 
 use std::sync::{Arc, OnceLock};
 
@@ -25,7 +26,7 @@ use axum::middleware::{from_fn_with_state, Next};
 use axum::response::IntoResponse;
 use axum::Router;
 use luma_module_host::{HostCtx, ServerModule};
-use luma_module_sdk::{EmbeddedModule, ModuleManifest, Registry};
+use luma_module_sdk::{ModuleManifest, Registry};
 
 use luma_engine::state::SharedState;
 
@@ -37,50 +38,17 @@ struct ModuleRegistry {
     servers: Vec<Box<dyn ServerModule<SharedState>>>,
 }
 
-/// Build (once) the compile-time registry: register every module's manifest, then
-/// collect the `ServerModule` each crate exports. The assertion catches a behavior
-/// whose id drifts from any manifest.
+/// Build (once) the compile-time registry from the generated roster. The
+/// assertion catches a behavior whose id drifts from any manifest.
 fn build() -> ModuleRegistry {
+    // The whole compile-time roster (manifests + backend behaviors) is generated
+    // from `modules/roster.yaml` (+ the single-file `*.module.md` modules) into
+    // `luma_modules_generated`. The kernel names NO module here: it only drives
+    // the generated set generically, so nothing in server/crates hardcodes the
+    // module list.
     let mut manifests = Registry::new();
-    // Every compile-time module exports a `MODULE` const (an `EmbeddedModule`
-    // built from its module.json + icon.svg); the codegen ones come in via the
-    // generated aggregator.
-    manifests.register(Box::new(luma_indexer::MODULE));
-    manifests.register(Box::new(luma_torrent::MODULE));
-    manifests.register(Box::new(luma_torznab::MODULE));
-    manifests.register(Box::new(luma_scene::MODULE));
-    manifests.register(Box::new(luma_whisper::MODULE));
-    manifests.register(Box::new(luma_vector::MODULE));
-    manifests.register(Box::new(luma_mdns::MODULE));
-    manifests.register(Box::new(luma_vpn::MODULE));
-    manifests.register(Box::new(luma_remote::MODULE));
-    // Acquisition is a settings-view module (no dedicated routes), so it has a
-    // manifest but no ServerModule behavior.
-    manifests.register(Box::new(EmbeddedModule::new(
-        include_str!("../../../modules/dev.luma.acquisition/module.json"),
-        include_bytes!("../../../modules/dev.luma.acquisition/icon.svg"),
-    )));
-    // Download-engine sub-modules: backend-only (no page/icon), they toggle a
-    // download-client factory kind on the Downloads registry.
-    manifests.register(Box::new(EmbeddedModule::iconless(include_str!(
-        "../../../modules/dev.luma.engine.transmission/module.json"
-    ))));
-    manifests.register(Box::new(EmbeddedModule::iconless(include_str!(
-        "../../../modules/dev.luma.engine.qbittorrent/module.json"
-    ))));
     luma_modules_generated::register_all(&mut manifests);
-
-    // The backend behavior of each module, collected from its crate. The binary
-    // names no module type here beyond calling its `server_module()` constructor
-    // (the composition root); every module now owns its own `ServerModule`.
-    let servers: Vec<Box<dyn ServerModule<SharedState>>> = vec![
-        luma_torrent::server_module(),
-        luma_vpn::server_module(),
-        luma_indexer::server_module(),
-        luma_remote::server_module(),
-        luma_transmission::server_module(),
-        luma_qbittorrent::server_module(),
-    ];
+    let servers = luma_modules_generated::server_modules();
 
     let ids: Vec<String> = manifests.manifests().into_iter().map(|m| m.id).collect();
     for s in &servers {

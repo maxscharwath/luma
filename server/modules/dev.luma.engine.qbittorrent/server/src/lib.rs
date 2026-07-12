@@ -226,6 +226,11 @@ pub fn register(reg: &mut luma_torrent::DownloadClientRegistry) {
 /// This module's id (matches its `module.json`).
 pub const MODULE_ID: &str = "dev.luma.engine.qbittorrent";
 
+/// This module's registry entry (manifest embedded at compile time; backend-only,
+/// so no packaged icon).
+pub const MODULE: luma_module_sdk::EmbeddedModule =
+    luma_module_sdk::EmbeddedModule::iconless(include_str!("../../module.json"));
+
 /// The qBittorrent engine sub-module: a lifecycle-only [`ServerModule`] that
 /// registers / unregisters its download-client kind on the Downloads module's
 /// shared registry as it is enabled / disabled. It reaches the `DownloadManager`

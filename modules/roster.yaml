@@ -1,0 +1,45 @@
+# The compile-time module roster: every hand-authored first-party module the
+# server links in. `bun run modules:gen` expands this (together with the
+# single-file `*.module.md` modules) into the `luma-modules-generated` aggregator
+# crate, so NO Rust crate hand-names the module set. To wire a module in, add it
+# here and re-run `bun run modules:gen`.
+#
+# Fields per entry:
+#   id            reverse-DNS module id (the runtime join key; matches module.json).
+#   crate         its server crate, which exports `pub const MODULE`.
+#   serverModule  also exports `server_module()` (backend routes / lifecycle).
+#   manifestOnly  no server crate: register its module.json (+ icon) directly.
+#   icon          manifestOnly + has an icon.svg to embed (default false).
+
+modules:
+  - id: dev.luma.indexer
+    crate: luma-indexer
+    serverModule: true
+  - id: dev.luma.torrents
+    crate: luma-torrent
+    serverModule: true
+  - id: dev.luma.torznab
+    crate: luma-torznab
+  - id: dev.luma.scene
+    crate: luma-scene
+  - id: dev.luma.whisper
+    crate: luma-whisper
+  - id: dev.luma.vector
+    crate: luma-vector
+  - id: dev.luma.mdns
+    crate: luma-mdns
+  - id: dev.luma.vpn
+    crate: luma-vpn
+    serverModule: true
+  - id: dev.luma.remote
+    crate: luma-remote
+    serverModule: true
+  - id: dev.luma.engine.transmission
+    crate: luma-transmission
+    serverModule: true
+  - id: dev.luma.engine.qbittorrent
+    crate: luma-qbittorrent
+    serverModule: true
+  - id: dev.luma.acquisition
+    manifestOnly: true
+    icon: true
