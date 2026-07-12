@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use luma_db as db;
-use luma_engine::model::{
-    Kind, MediaFile, MediaItem, OrganizeMove, OrganizePlan, OrganizeResult, SampleNames, Show,
-};
+use luma_engine::model::{Kind, MediaFile, MediaItem, Show};
+
+use crate::dtos::{OrganizeMove, OrganizePlan, OrganizeResult, SampleNames};
 use luma_engine::services::settings::library_defs;
 use luma_engine::state::SharedState;
 

@@ -14,7 +14,6 @@ pub mod admin;
 pub mod jobs;
 pub mod pipeline;
 pub mod naming;
-pub mod organize;
 pub mod requests;
 pub mod section;
 
@@ -26,7 +25,6 @@ pub use jobs::*;
 pub use library::*;
 pub use media::*;
 pub use metadata::*;
-pub use organize::*;
 pub use pipeline::*;
 pub use playback::*;
 pub use requests::*;
