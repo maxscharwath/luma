@@ -994,7 +994,6 @@
   "requests.toastDeleted": "deleted",
   "admin.navIndexers": "Indexers",
   "admin.navModules": "Modules",
-  "admin.navStore": "Store",
   "admin.indexersTitle": "Indexers",
   "admin.indexersSub": "Torznab endpoints (Jackett, Prowlarr) used to search for requested titles.",
   "indexers.addBuiltin": "Add built-in",

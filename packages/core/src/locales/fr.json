@@ -994,7 +994,6 @@
   "requests.toastDeleted": "supprimée",
   "admin.navIndexers": "Indexeurs",
   "admin.navModules": "Modules",
-  "admin.navStore": "Store",
   "admin.indexersTitle": "Indexeurs",
   "admin.indexersSub": "Points d'accès Torznab (Jackett, Prowlarr) utilisés pour rechercher les demandes.",
   "indexers.addBuiltin": "Ajouter intégré",

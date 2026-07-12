@@ -2,6 +2,7 @@
 // the data/event context (server info + a tick that bumps on server events so
 // pages can refresh live).
 
+import { AdminKitProvider } from '@luma/admin-kit';
 import {
   hasPermission,
   LumaEvents,
@@ -9,13 +10,12 @@ import {
   type Permission,
   type ServerInfo,
 } from '@luma/core';
-import { AdminKitProvider } from '@luma/admin-kit';
+import type { ModuleNav } from '@luma/module-sdk';
 import { Logo, useT } from '@luma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   IconApps,
   IconArchive,
-  IconBuildingStore,
   IconChevronRight,
   IconClockBolt,
   IconDatabase,
@@ -37,7 +37,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { usePoll } from '#web/features/admin/hooks';
-import type { ModuleNav } from '@luma/module-sdk';
 import { useModuleNavAll } from '#web/modules/ModuleHostProvider';
 import { resolveModuleIcon } from '#web/modules/module-icons';
 import { formatUptime } from '#web/shared/lib/adminFormat';
@@ -172,8 +171,12 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
     labelKey: 'admin.groupAcquisition',
     section: 'acquisition',
     items: [
-      { to: '/admin/modules', labelKey: 'admin.navModules', cap: 'settings.manage', icon: IconApps },
-      { to: '/admin/store', labelKey: 'admin.navStore', cap: 'settings.manage', icon: IconBuildingStore },
+      {
+        to: '/admin/modules',
+        labelKey: 'admin.navModules',
+        cap: 'settings.manage',
+        icon: IconApps,
+      },
     ],
   },
   {
