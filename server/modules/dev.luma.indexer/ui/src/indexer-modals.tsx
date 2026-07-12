@@ -24,7 +24,8 @@ import { useT } from '@luma/ui';
 import { IconLoader2, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 
-function parseCats(text: string): number[] {
+/** Parse a comma-separated Newznab category list into positive category ids. */
+export function parseCats(text: string): number[] {
   return text
     .split(',')
     .map((c) => c.trim())
@@ -33,18 +34,19 @@ function parseCats(text: string): number[] {
     .filter((n) => Number.isFinite(n) && n > 0);
 }
 
-/** Router: an existing built-in row edits in the settings form; everything else
- * (and Torznab create) uses the endpoint form. */
+/** Router for EDITING an existing indexer: a built-in row edits in the settings
+ * form, a Torznab row in the endpoint form. Creation goes through the generic
+ * add-picker (Torznab) or the definition picker (built-in), not this modal. */
 export function IndexerModal({
   indexer,
   onClose,
   onSaved,
 }: Readonly<{
-  indexer: IndexerView | null;
+  indexer: IndexerView;
   onClose: () => void;
   onSaved: () => void;
 }>) {
-  if (indexer && indexer.kind === 'builtin' && indexer.definitionId) {
+  if (indexer.kind === 'builtin' && indexer.definitionId) {
     return (
       <BuiltinIndexerModal
         definitionId={indexer.definitionId}
@@ -64,18 +66,18 @@ function TorznabIndexerModal({
   onClose,
   onSaved,
 }: Readonly<{
-  indexer: IndexerView | null;
+  indexer: IndexerView;
   onClose: () => void;
   onSaved: () => void;
 }>) {
   const t = useT();
   const { client } = useAdminKit();
   const { busy, error, run } = useAsyncAction();
-  const [name, setName] = useState(indexer?.name ?? '');
-  const [url, setUrl] = useState(indexer?.url ?? '');
+  const [name, setName] = useState(indexer.name);
+  const [url, setUrl] = useState(indexer.url);
   const [apiKey, setApiKey] = useState('');
-  const [cats, setCats] = useState((indexer?.categories ?? [2000, 5000]).join(', '));
-  const [priority, setPriority] = useState(String(indexer?.priority ?? 0));
+  const [cats, setCats] = useState(indexer.categories.join(', '));
+  const [priority, setPriority] = useState(String(indexer.priority));
 
   const save = () =>
     run(
@@ -88,8 +90,7 @@ function TorznabIndexerModal({
           enabled: null,
           priority: Number.parseInt(priority, 10) || 0,
         };
-        if (indexer) await client.updateIndexer(indexer.id, body);
-        else await client.createIndexer(body);
+        await client.updateIndexer(indexer.id, body);
         onSaved();
         onClose();
       },
@@ -99,7 +100,6 @@ function TorznabIndexerModal({
   const remove = () =>
     run(
       async () => {
-        if (!indexer) return;
         await client.deleteIndexer(indexer.id);
         onSaved();
         onClose();
@@ -108,7 +108,7 @@ function TorznabIndexerModal({
     );
 
   return (
-    <Modal title={t(indexer ? 'indexers.edit' : 'indexers.add')} onClose={onClose}>
+    <Modal title={t('indexers.edit')} onClose={onClose}>
       <Field label={t('indexers.name')}>
         <TextInput value={name} onChange={setName} placeholder="Jackett - YGG" className="w-full" />
       </Field>
@@ -122,7 +122,7 @@ function TorznabIndexerModal({
       </Field>
       <Field
         label={t('indexers.apiKey')}
-        hint={indexer?.hasApiKey ? t('indexers.apiKeyKept') : undefined}
+        hint={indexer.hasApiKey ? t('indexers.apiKeyKept') : undefined}
       >
         <TextInput value={apiKey} onChange={setApiKey} type="password" className="w-full" />
       </Field>
@@ -142,9 +142,7 @@ function TorznabIndexerModal({
         confirmLabel={busy ? t('common.saving') : t('common.save')}
         busy={busy}
         disabled={!name.trim() || !url.trim()}
-        destructive={
-          indexer ? { label: t('indexers.delete'), onClick: remove, disabled: busy } : undefined
-        }
+        destructive={{ label: t('indexers.delete'), onClick: remove, disabled: busy }}
       />
     </Modal>
   );

@@ -997,7 +997,6 @@
   "admin.navStore": "Store",
   "admin.indexersTitle": "Indexers",
   "admin.indexersSub": "Torznab endpoints (Jackett, Prowlarr) used to search for requested titles.",
-  "indexers.add": "Add (Torznab)",
   "indexers.addBuiltin": "Add built-in",
   "indexers.addTitle": "Add",
   "indexers.noEngines": "No indexer engine enabled",

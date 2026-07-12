@@ -7,13 +7,20 @@
 // so disabling a module hides its add-UI and adding an engine needs no frontend
 // change.
 
-import { apiErrorText, type EngineCapability, type EngineField, type MessageKey } from '@luma/core';
+import {
+  apiErrorText,
+  type EngineCapability,
+  type EngineField,
+  type MessageKey,
+  type ModuleInfo,
+} from '@luma/core';
+import { useQuery } from '@tanstack/react-query';
 import { useT } from '@luma/ui';
 import { useMemo, useState } from 'react';
 import { useAdminKit } from './context';
 import { SegmentedControl } from './controls';
 import { Field, Modal, ModalActions, Select, TextInput } from './forms';
-import { useAsyncAction, usePoll } from './hooks';
+import { useAsyncAction } from './hooks';
 
 /** True when a capability actually has an add-flow to render (a plain field form
  * or a custom `flow`). Engines without one (e.g. the always-on embedded `rqbit`)
@@ -22,28 +29,37 @@ function hasAddFlow(cap: EngineCapability): boolean {
   return cap.flow != null || (cap.fields?.length ?? 0) > 0;
 }
 
-/** The enabled engines that provide `kind` and expose an add-flow. Polls
- * `/api/modules`; a disabled module contributes nothing, so its add-flow
- * disappears from the page. */
-export function useEnabledEngines(kind: string): EngineCapability[] {
+/** Shared read of the module list. Keyed on `['modules']` so it reuses the module
+ * host's existing `GET /api/modules` query (same payload) instead of opening a
+ * second cache entry + a background poll; the host's enable/disable invalidation
+ * keeps it live. */
+function useModules(): ModuleInfo[] {
   const { client } = useAdminKit();
-  const { data } = usePoll(['adminModules'], () => client.modules(), 30000);
+  const { data } = useQuery({ queryKey: ['modules'], queryFn: () => client.modules(), staleTime: 30_000 });
+  return data ?? [];
+}
+
+/** The enabled engines that provide `kind` and expose an add-flow. A disabled
+ * module contributes nothing, so its add-flow disappears from the page. */
+export function useEnabledEngines(kind: string): EngineCapability[] {
+  const modules = useModules();
   return useMemo(
     () =>
-      (data ?? [])
+      modules
         .filter((m) => m.enabled !== false)
         .flatMap((m) => (m.provides ?? []).filter((c) => c.kind === kind && hasAddFlow(c))),
-    [data, kind],
+    [modules, kind],
   );
 }
 
 /** Whether module `id` is enabled. Defaults to true while loading / when unknown,
- * so nothing flickers off before the first poll resolves. */
+ * so nothing flickers off before the module list resolves. */
 export function useModuleEnabled(id: string): boolean {
-  const { client } = useAdminKit();
-  const { data } = usePoll(['adminModules'], () => client.modules(), 30000);
-  const mod = (data ?? []).find((m) => m.id === id);
-  return mod ? mod.enabled !== false : true;
+  const modules = useModules();
+  return useMemo(() => {
+    const mod = modules.find((m) => m.id === id);
+    return mod ? mod.enabled !== false : true;
+  }, [modules, id]);
 }
 
 /** A controlled form over an engine's declared fields. Every label resolves

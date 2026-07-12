@@ -31,6 +31,7 @@ import {
   BuiltinIndexerModal,
   DefinitionPickerModal,
   IndexerModal,
+  parseCats,
 } from './indexer-modals';
 
 type TestState = { busy?: boolean; result?: IndexerTestResult; error?: string };
@@ -146,12 +147,7 @@ export default function IndexersPage() {
                 name: v.name ?? null,
                 url: v.url ?? null,
                 apiKey: v.apiKey ?? null,
-                categories: v.categories
-                  ? v.categories
-                      .split(',')
-                      .map((s) => Number(s.trim()))
-                      .filter((n) => Number.isFinite(n) && n > 0)
-                  : null,
+                categories: v.categories ? parseCats(v.categories) : null,
                 enabled: true,
                 priority: null,
                 definitionId: null,

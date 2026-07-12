@@ -60,22 +60,22 @@ export function DownloadClientsSection() {
       );
   };
 
+  // One button reused by the section header and the empty state (only when an
+  // external download-client engine is enabled).
+  const addButton =
+    engines.length > 0 ? (
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
+      >
+        <IconPlus size={14} stroke={2.4} />
+        {t('dlclients.add')}
+      </button>
+    ) : null;
+
   return (
-    <Section
-      title={t('dlclients.sectionTitle')}
-      right={
-        engines.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
-          >
-            <IconPlus size={14} stroke={2.4} />
-            {t('dlclients.add')}
-          </button>
-        ) : null
-      }
-    >
+    <Section title={t('dlclients.sectionTitle')} right={addButton}>
       {data === null ? <TableSkeleton rows={3} /> : null}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {clients.map((c) => (
@@ -134,18 +134,7 @@ export function DownloadClientsSection() {
         <EmptyState
           icon={<IconServer size={32} stroke={1.5} />}
           title={t('dlclients.empty')}
-          action={
-            engines.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setAddOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
-              >
-                <IconPlus size={14} stroke={2.4} />
-                {t('dlclients.add')}
-              </button>
-            ) : undefined
-          }
+          action={addButton ?? undefined}
         />
       ) : null}
 
