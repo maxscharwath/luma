@@ -1,7 +1,11 @@
 # Module / core decoupling: target architecture
 
-Status: PROPOSAL for review. Nothing here is implemented yet; it is the plan to
-review and adjust before the migration starts.
+Status: IMPLEMENTED (branch `luma-modules-poc`). This was the migration plan; it
+has since been carried out in full. The core (`luma-engine`) and every
+`server/crates/*` foundation crate now depend on zero module crates; the roster
+is generated from `modules/roster.yaml`; `server/src/modules/` is deleted. The
+sections below are kept as the design record (the "before" they describe is the
+pre-migration state).
 
 ## 1. Principle
 

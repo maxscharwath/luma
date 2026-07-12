@@ -229,7 +229,7 @@ fn defaults() -> BTreeMap<String, Value> {
     m.insert("acqMovieLibrary".into(), json!("Auto"));
     m.insert("acqSeriesLibrary".into(), json!("Auto"));
     // File naming templates (Sonarr/Radarr-style tokens), used by import and
-    // the library rename tool. See services::organize::naming for the tokens.
+    // the library rename tool. See luma_torrent::organize::naming for the tokens.
     m.insert("namingMovieFolder".into(), json!("{Title} ({Year})"));
     m.insert("namingMovieFile".into(), json!("{Title} ({Year}) {Quality Full}"));
     m.insert("namingSeriesFolder".into(), json!("{Title} ({Year})"));

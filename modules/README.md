@@ -43,10 +43,12 @@ pub const MODULE: EmbeddedModule =
     EmbeddedModule::new(include_str!("../../module.json"), include_bytes!("../../icon.svg"));
 ```
 
-Register it by hand in `server/crates/luma-engine/src/modules.rs` (`build_registry`)
-and, for a compiled-in frontend, in `clients/web/src/modules/registry.ts`. A
+Register the backend by adding the module to `modules/roster.yaml` (its `id` +
+`crate`, plus `serverModule: true` when it ships one) and running
+`bun run modules:gen`, which regenerates the `luma-modules-generated` aggregator.
+For a compiled-in frontend, add it to `clients/web/src/modules/registry.ts`. A
 module that also owns admin routes + start/stop lifecycle implements
-`ServerModule` in `server/src/modules/` (see `downloads.rs`).
+`ServerModule` in its OWN `server/` crate (see `dev.luma.torrents`).
 
 ## 3. WASM runtime module (install with no rebuild)
 

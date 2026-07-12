@@ -2,9 +2,9 @@
 //! persisted in the `moduleStates` settings blob (`{ id: { enabled, config } }`).
 //!
 //! The module REGISTRY -- which modules exist, their manifests, capabilities and
-//! backend behavior -- lives in the server crate (`server/src/modules`, the one
-//! composition point). This is only the settings-state half, kept in the engine
-//! because engine internals (the downloads monitor + the acquisition jobs) read a
+//! backend behavior -- lives in the `luma-module-kernel` crate (the one
+//! composition point), built from the generated roster. This is only the
+//! settings-state half, kept in the engine because engine internals read a
 //! module's enabled flag to gate their work.
 
 use serde_json::{json, Map, Value};
