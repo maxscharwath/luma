@@ -15,6 +15,9 @@ extism = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
-# Unpacking uploaded module bundles (`.tar` of module.json + module.wasm + fe/).
+# Unpacking uploaded module bundles (a tar of module.json + module.wasm + fe/,
+# raw `.tar` or gzip-compressed `.lmod`). `rust_backend` (miniz_oxide) keeps the
+# fully-static musl build C-dependency-free.
 tar = "0.4"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 tracing = { workspace = true }

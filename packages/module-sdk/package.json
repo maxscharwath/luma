@@ -4,7 +4,8 @@
   "type": "module",
   "description": "LUMA frontend module contract: the LumaModule manifest, host context, typed event bus, and dependency-ordered registry every @luma/module-* package targets. Mirrors the Rust luma-module-sdk.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./vite": "./vite.ts"
   },
   "scripts": {
     "typecheck": "tsgo --noEmit",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/react": "^19",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vite": "^7.0.0"
   }
 }

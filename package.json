@@ -14,6 +14,7 @@
     "modules:new": "bun scripts/new-module.ts",
     "modules:validate": "bun scripts/validate-modules.ts",
     "modules:wasm": "bun scripts/build-wasm-module.ts",
+    "modules:pack": "bun scripts/pack-module.ts",
     "modules:check": "bun run modules:validate && bun run modules:gen && git diff --exit-code -- server/modules server/crates/luma-modules-generated packages/modules-generated",
     "start": "bun run tizen:prepare && bun run dev",
     "dev": "concurrently -k -n server,web,tv -c yellow,cyan,magenta \"bun run server:watch\" \"bun run dev:web\" \"VITE_LUMA_SERVER=http://localhost:4040 bun run dev:tizen\"",

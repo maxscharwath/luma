@@ -50,7 +50,13 @@ export interface ModuleManifestInput {
 }
 
 export interface DefineModuleOptions<Exports = unknown> {
-  /** Message catalogs. Accepts a plain `{ en, fr }` map OR the result of
+  /** The module's `module.json`. Injected automatically by the
+   *  `@luma/module-sdk/vite` plugin (which fills it + `locales` from the module's
+   *  folder), so the options-only `defineModule({ pages })` form works. Pass it
+   *  explicitly via the two-arg form when the plugin is not in play. */
+  manifest?: ModuleManifestInput;
+  /** Message catalogs. Injected by the `@luma/module-sdk/vite` plugin from the
+   *  module's `locales/` folder. Accepts a plain `{ en, fr }` map OR the result of
    *  `import.meta.glob('../../locales/*.json', { eager: true, import: 'default' })`
    *  — path keys like `../../locales/en.json` are normalized to the locale code. */
   locales?: Record<string, Record<string, string>>;
@@ -66,11 +72,27 @@ export interface DefineModuleOptions<Exports = unknown> {
 
 /** Build a `LumaModule` from its manifest + pages: id/version/dependsOn come from
  *  the manifest, locales are normalized (so a glob import works), and each nav
- *  `to` is derived from its page's section + path. */
+ *  `to` is derived from its page's section + path.
+ *
+ *  Two call forms:
+ *  - `defineModule({ pages })` — the manifest + locales are injected from the
+ *    module's folder by the `@luma/module-sdk/vite` plugin (the default).
+ *  - `defineModule(manifest, { pages })` — explicit, for when the plugin is off. */
 export function defineModule<Exports = unknown>(
-  manifest: ModuleManifestInput,
-  options: DefineModuleOptions<Exports> = {},
+  manifestOrOptions: ModuleManifestInput | DefineModuleOptions<Exports>,
+  maybeOptions?: DefineModuleOptions<Exports>,
 ): LumaModule<Exports> {
+  const explicit = maybeOptions !== undefined;
+  const options = (explicit ? maybeOptions : manifestOrOptions) as DefineModuleOptions<Exports>;
+  const manifest = (explicit ? manifestOrOptions : options.manifest) as
+    | ModuleManifestInput
+    | undefined;
+  if (!manifest) {
+    throw new Error(
+      'defineModule: no manifest. Pass it as the first argument, or enable the ' +
+        '@luma/module-sdk/vite plugin, which injects the manifest + locales by convention.',
+    );
+  }
   const pages = options.pages ?? [];
   const routes = pages.map((p) => ({ path: p.path, component: p.component }));
   const navItems: NavItem[] = pages.flatMap((p) =>

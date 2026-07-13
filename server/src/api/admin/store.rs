@@ -1,7 +1,8 @@
 //! Runtime module install / uninstall for the admin Store.
 //!
-//! `POST /api/admin/store/install` takes a `.tar` bundle as the raw request body
-//! (module.json + optional module.wasm + fe/ + icon) and installs it into the
+//! `POST /api/admin/store/install` takes a module bundle as the raw request body
+//! (module.json + optional module.wasm + fe/ + icon) -- a gzip-compressed `.lmod`
+//! (from `bun run modules:pack`) or a raw `.tar` -- and installs it into the
 //! running server; `DELETE /api/admin/store/:id` removes it. Admin-gated
 //! (`settings.manage`). The uploaded WASM guest runs sandboxed under extism (no
 //! ambient FS / network), but installing arbitrary code is an admin-trust action.

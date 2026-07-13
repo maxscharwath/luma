@@ -62,9 +62,13 @@ Look at `wasm-modules/dev.luma.hellowasm/`: a `server/` extism guest (exports
 (the page), `module.json` (with `feRemote`), and `icon.svg`.
 
 ```
-bun run modules:wasm                    # -> dist/wasm-modules/<id>.tar
-# then upload the .tar in Admin -> Modules (Install a module)
+bun run modules:pack                    # -> dist/modules/<id>.lmod
+# then upload the .lmod in Admin -> Modules (Install a module)
 ```
+
+`.lmod` is a gzip-compressed tar of `module.json` + `module.wasm` + `icon` +
+`fe/`. (`bun run modules:wasm` still emits a raw `.tar`; the install endpoint
+auto-detects gzip, so both install the same way.)
 
 The server unpacks it into `<data>/modules/<id>/`, loads it live, serves its page
 same-origin, and it survives restarts. A WASM module is sandboxed

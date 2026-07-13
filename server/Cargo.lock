@@ -3462,6 +3462,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "extism",
+ "flate2",
  "luma-module-manifest",
  "serde",
  "serde_json",

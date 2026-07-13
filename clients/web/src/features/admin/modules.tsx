@@ -92,8 +92,8 @@ export function ModulesAdminPage() {
       <div>
         <h1 className="text-2xl font-bold text-text">Modules</h1>
         <p className="text-sm text-muted">
-          Install, enable, disable and configure the modules on this server. Upload a module bundle
-          (.tar) to add one with no rebuild: its backend loads as a sandboxed WASM plugin and its
+          Install, enable, disable and configure the modules on this server. Upload a module file
+          (.lmod) to add one with no rebuild: its backend loads as a sandboxed WASM plugin and its
           page as a Module Federation remote.
         </p>
       </div>
@@ -104,7 +104,7 @@ export function ModulesAdminPage() {
           <input
             ref={fileRef}
             type="file"
-            accept=".tar"
+            accept=".lmod,.tar"
             className="hidden"
             onChange={(e) => void onPick(e.target.files?.[0])}
           />
@@ -115,10 +115,10 @@ export function ModulesAdminPage() {
               onClick={() => fileRef.current?.click()}
               className="rounded bg-accent-soft px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50"
             >
-              {busy ? 'Working...' : 'Upload bundle (.tar)'}
+              {busy ? 'Working...' : 'Upload module (.lmod)'}
             </button>
             <p className="text-xs text-muted">
-              Build a demo with <code className="text-dim">bun run modules:wasm</code>.
+              Pack one with <code className="text-dim">bun run modules:pack</code>.
             </p>
           </div>
           {error && <p className="text-xs font-semibold text-danger">{error}</p>}

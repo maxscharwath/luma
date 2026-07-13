@@ -1,16 +1,11 @@
 import { defineModule } from '@luma/module-sdk';
 import { lazy } from 'react';
-import manifest from '../../module.json';
 
 // The VPN module (frontend half). Contributes the VPN admin page into the
 // Acquisition sidebar group; the paired VpnModule ServerModule owns the routes +
 // the WireGuard bridge lifecycle, so disabling the module stops the bridge and
 // removes the page + routes together.
-export const vpnModule = defineModule(manifest, {
-  locales: import.meta.glob<Record<string, string>>('../../locales/*.json', {
-    eager: true,
-    import: 'default',
-  }),
+export const vpnModule = defineModule({
   pages: [
     {
       path: 'vpn',

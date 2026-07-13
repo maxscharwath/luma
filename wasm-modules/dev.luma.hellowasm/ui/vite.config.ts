@@ -1,8 +1,11 @@
+import { fileURLToPath } from 'node:url';
 import { federation } from '@module-federation/vite';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+// Consumed by relative path (like the @luma/module-sdk source alias below): this
+// remote build isn't a package dependent of @luma/module-sdk.
+import { lumaModule } from '../../../packages/module-sdk/vite';
 
 // The Hello WASM module's frontend: a Module Federation remote built to static
 // files (remoteEntry.js + chunks) the host fetches at runtime. `base` matches
@@ -18,6 +21,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: '/modules/dev.luma.hellowasm/',
   plugins: [
+    // Injects this module's manifest + locales into its defineModule() call.
+    lumaModule(),
     tailwindcss(),
     react(),
     federation({

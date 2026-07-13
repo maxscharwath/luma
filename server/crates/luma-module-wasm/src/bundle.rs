@@ -1,11 +1,13 @@
 //! Module bundle format + its security-sensitive unpacking.
 //!
-//! A bundle is a `.tar` of `module.json` + optional `module.wasm` + `fe/` +
-//! `icon.{svg,png}`. Because an admin uploads arbitrary bytes, the unpacker
+//! A bundle is a tar of `module.json` + optional `module.wasm` + `fe/` +
+//! `icon.{svg,png}`, either raw (`.tar`) or gzip-compressed (`.lmod`, from
+//! `bun run modules:pack`). Because an admin uploads arbitrary bytes, the unpacker
 //! rebuilds every entry path from its `Normal` components only, so `..`,
 //! absolute, and drive-prefixed entries cannot escape the install dir; and the
 //! module id (which becomes the install directory name) must be a safe name.
 
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -51,9 +53,21 @@ fn sanitized_entry(raw: &Path) -> Option<PathBuf> {
     allowed.then_some(safe)
 }
 
-/// Unpack a bundle tar into `dest`, keeping only allow-listed entries and
-/// neutralizing any path escape (see [`sanitized_entry`]).
-pub fn unpack_validated(tar_bytes: &[u8], dest: &Path) -> Result<()> {
+/// Unpack a bundle into `dest`, keeping only allow-listed entries and
+/// neutralizing any path escape (see [`sanitized_entry`]). Accepts both a raw
+/// tar (`.tar`) and a gzip-compressed tar (`.lmod`), detected by the gzip magic.
+pub fn unpack_validated(bundle_bytes: &[u8], dest: &Path) -> Result<()> {
+    // `.lmod` is a gzip-compressed tar; a plain `.tar` is raw. Detect the gzip
+    // magic (1f 8b) so both install through the same path.
+    let mut decompressed = Vec::new();
+    let tar_bytes: &[u8] = if bundle_bytes.starts_with(&[0x1f, 0x8b]) {
+        flate2::read::GzDecoder::new(bundle_bytes)
+            .read_to_end(&mut decompressed)
+            .context("decompressing gzip (.lmod) bundle")?;
+        &decompressed
+    } else {
+        bundle_bytes
+    };
     let mut archive = tar::Archive::new(tar_bytes);
     for entry in archive.entries().context("reading bundle tar")? {
         let mut entry = entry?;
@@ -111,6 +125,25 @@ mod tests {
         assert!(dir.join("module.json").exists());
         assert!(dir.join("fe/remoteEntry.js").exists());
         assert!(!dir.join("secret.env").exists(), "unknown entries must be dropped");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unpack_accepts_gzip_lmod_bundles() {
+        let dir = std::env::temp_dir().join("luma-bundle-lmod-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        let tar = make_tar(&[("module.json", b"{}"), ("module.wasm", b"\0asm")]);
+        // gzip the tar, the way `.lmod` ships it.
+        let mut gz = Vec::new();
+        {
+            let mut enc = flate2::write::GzEncoder::new(&mut gz, flate2::Compression::default());
+            std::io::Write::write_all(&mut enc, &tar).unwrap();
+            enc.finish().unwrap();
+        }
+        assert_eq!(&gz[..2], &[0x1f, 0x8b], "gzip magic");
+        unpack_validated(&gz, &dir).unwrap();
+        assert!(dir.join("module.json").exists());
+        assert!(dir.join("module.wasm").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
