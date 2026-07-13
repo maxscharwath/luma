@@ -8,10 +8,9 @@ import { IconMoodEmpty } from '@tabler/icons-react';
 import { useNavigate } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { DiscoverCard } from '#web/features/requests/discover-card';
-import { SkeletonRow } from '#web/features/requests/poster-skeleton';
 import type { DiscoverSearchState } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
-import { EmptyState } from '#web/shared/ui';
+import { EmptyState, SkeletonRow } from '#web/shared/ui';
 import { Poster } from '#web/shared/ui/poster';
 
 // Same auto-fill poster grid as the catalogue (see cards.tsx GRID).

@@ -43,7 +43,7 @@ import { formatUptime } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
-export { HeaderAction, PageHeader } from '#web/features/admin/header';
+export { HeaderAction, PageHeader } from '@luma/admin-kit';
 // Data hooks + capability helpers and the page header live in sibling modules;
 // re-exported here so call sites keep importing them from this shell module.
 export { Denied, isAnyAdmin, useAsyncAction, useCap, usePoll } from '#web/features/admin/hooks';
@@ -168,8 +168,15 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
     ],
   },
   {
+    // Section anchor: the acquisition module pages (Indexers, Downloads, ...)
+    // target `section: "acquisition"` and render here; no built-in items of its own.
     labelKey: 'admin.groupAcquisition',
     section: 'acquisition',
+    items: [],
+  },
+  {
+    labelKey: 'admin.groupSystem',
+    section: 'system',
     items: [
       {
         to: '/admin/modules',
@@ -177,12 +184,6 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
         cap: 'settings.manage',
         icon: IconApps,
       },
-    ],
-  },
-  {
-    labelKey: 'admin.groupSystem',
-    section: 'system',
-    items: [
       {
         to: '/admin/general',
         labelKey: 'admin.navGeneral',

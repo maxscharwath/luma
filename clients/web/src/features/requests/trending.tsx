@@ -7,8 +7,7 @@ import { useT } from '@luma/ui';
 import { IconChevronRight, IconFlame } from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';
 import { DiscoverCard } from '#web/features/requests/discover-card';
-import { SkeletonRow } from '#web/features/requests/poster-skeleton';
-import { Rail } from '#web/shared/ui';
+import { Rail, SkeletonRow } from '#web/shared/ui';
 
 const RAIL_HEADING =
   'flex items-center gap-2 font-display text-[22px] font-bold tracking-[-.02em] text-text';

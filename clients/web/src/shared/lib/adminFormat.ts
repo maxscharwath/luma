@@ -1,43 +1,16 @@
-// Formatting + deterministic-gradient helpers for the admin console. Mirrors the
-// helpers baked into the `Admin Serveur` design (poster/avatar gradients, byte +
-// duration formatting, French decimal commas).
+// Formatting + deterministic-gradient helpers for the admin console. The core
+// hue / decimal / formatBytes helpers live in @luma/admin-kit; this module
+// re-exports the ones the web app consumes and keeps the web-specific extras
+// (poster gradient, French durations/uptime, relative timestamps) below.
 
-/** Deterministic hue (0..359) from a string same as the design's `_hue`. */
-export function hue(s: string): number {
-  let h = 0;
-  for (let i = 0; i < (s || '').length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-  return h;
-}
+import { decimal, hue } from '@luma/admin-kit';
 
-/** Avatar gradient for a name (matches the design's `avatarGrad`). */
-export function avatarGradient(name: string): string {
-  const h = hue(name);
-  return `linear-gradient(140deg, hsl(${h} 48% 46%), hsl(${(h + 40) % 360} 54% 26%))`;
-}
+export { decimal, formatBytes } from '@luma/admin-kit';
 
 /** Poster gradient for a title (matches the design's `posterGrad`). */
 export function posterGradient(title: string): string {
   const h = hue(title);
   return `radial-gradient(120% 90% at 30% 16%, hsla(${(h + 22) % 360},60%,46%,.5), transparent 62%), linear-gradient(155deg, hsl(${h} 42% 27%), hsl(${(h + 30) % 360} 48% 10%))`;
-}
-
-/** First letter, upper-cased. */
-export function initial(name: string): string {
-  return (name?.[0] ?? '?').toUpperCase();
-}
-
-/** A French-style decimal (comma) with `digits` places. */
-export function decimal(n: number, digits = 1): string {
-  return n.toFixed(digits).replace('.', ',');
-}
-
-/** Human byte size: To / Go / Mo / Ko. */
-export function formatBytes(bytes: number): string {
-  if (!bytes || bytes < 0) return '0 o';
-  const units = ['o', 'Ko', 'Mo', 'Go', 'To', 'Po'];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  const v = bytes / 1024 ** i;
-  return `${decimal(v, v >= 100 || i <= 1 ? 0 : 1)} ${units[i]}`;
 }
 
 /** Watch time from milliseconds: "4 h 29 min" / "65 min" / "0 min". */

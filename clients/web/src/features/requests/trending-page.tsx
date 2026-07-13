@@ -14,13 +14,12 @@ import {
 import { Link } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { DiscoverCard } from '#web/features/requests/discover-card';
-import { SkeletonRow } from '#web/features/requests/poster-skeleton';
 import {
   type TrendingPageState,
   useTrendingPage,
 } from '#web/features/requests/use-discover-search';
 import { useAuth } from '#web/shared/lib/auth';
-import { EmptyState, PAGE_MAIN, PAGE_TITLE } from '#web/shared/ui';
+import { EmptyState, PAGE_MAIN, PAGE_TITLE, SkeletonRow } from '#web/shared/ui';
 
 // Same auto-fill poster grid as the catalogue (see cards.tsx GRID).
 const GRID =

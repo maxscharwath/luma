@@ -14,7 +14,6 @@
 // Everything is feature-detected against the `tizen` global, so it is a no-op on
 // webOS and in the browser dev server.
 
-export type { DeepLink } from '#tv/shared/preview/types';
-export { buildPreviewData } from '#tv/shared/preview/cards';
 export { onDeepLink, readDeepLink } from '#tv/shared/preview/deeplink';
 export { publishPreview } from '#tv/shared/preview/service';
+export type { DeepLink } from '#tv/shared/preview/types';

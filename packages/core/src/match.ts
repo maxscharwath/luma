@@ -45,11 +45,6 @@ class Matcher<T, R = never> {
   otherwise<U>(fallback: Produce<T, U>): R | U {
     return (this.done ? this.result : evaluate(fallback, this.value)) as R | U;
   }
-
-  /** Resolve, or `undefined` when nothing matched (no fallback). */
-  orUndefined(): R | undefined {
-    return (this.done ? this.result : undefined) as R | undefined;
-  }
 }
 
 /** Start a match chain over `value`. See the examples above. */

@@ -27,9 +27,3 @@ export function slug(id: string): string {
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
 }
-
-/** A reverse-DNS id -> a valid Module Federation remote name (identifier chars
- *  only). MUST match the sanitizer in clients/web/src/modules/remotes.ts. */
-export function mfName(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_]/g, '_');
-}

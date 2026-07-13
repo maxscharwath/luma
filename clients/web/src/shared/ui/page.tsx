@@ -15,9 +15,6 @@ export const PAGE_TITLE =
 /** Dim one-liner under the title. */
 export const PAGE_SUBTITLE = 'mt-1.5 text-[14.5px] font-medium text-dim max-sm:text-[15.5px]';
 
-/** Gap between the page header block and the first content block. */
-export const PAGE_CONTENT_GAP = 'mt-6';
-
 /** Centered "nothing here" block: icon, headline, optional hint and action. */
 export function EmptyState({
   icon,
