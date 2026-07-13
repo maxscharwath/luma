@@ -176,6 +176,15 @@ async fn main() -> anyhow::Result<()> {
         std::sync::Arc::new(luma_torznab::TorznabEngine);
     let (tid, val) = luma_module_host::port_service(torznab);
     module_services.insert(tid, val);
+    // The indexer data + native-search ports, resolved by downloads / acquisition.
+    let idx_db: std::sync::Arc<dyn luma_module_sdk::ports::IndexerDbPort> =
+        std::sync::Arc::new(luma_indexer::IndexerDb);
+    let (tid, val) = luma_module_host::port_service(idx_db);
+    module_services.insert(tid, val);
+    let idx_search: std::sync::Arc<dyn luma_module_sdk::ports::IndexerSearchPort> =
+        std::sync::Arc::new(luma_indexer::IndexerSearch);
+    let (tid, val) = luma_module_host::port_service(idx_search);
+    module_services.insert(tid, val);
     // The download manager (dev.luma.torrents) is now a module service like the
     // rest: the composition root constructs it and injects it by type, so the
     // core (luma-engine) never names the torrent engine. The acquisition services

@@ -40,7 +40,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
 
     let conn = state.db.get()?;
     let due = db::wanted_searchable(&conn, &today_ymd(), BATCH)?;
-    let indexers = db::enabled_indexers(&conn)?;
+    let indexers = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state).ok_or_else(|| anyhow::anyhow!("indexer module unavailable"))?.enabled_indexers(state)?;
     drop(conn);
     if due.is_empty() {
         log("nothing wanted right now".into());

@@ -25,7 +25,6 @@ rusqlite = { workspace = true }
 # orchestrates the app (luma-engine) and parses release names via luma-scene. The
 # db facade re-exports the indexers table from luma-indexer for the queue view.
 # The acquisition vertical is its own crate (luma-acquisition), which deps THIS one.
-luma-indexer = { workspace = true }
 sha1 = "0.10"
 anyhow = { workspace = true }
 serde = { workspace = true }

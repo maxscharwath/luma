@@ -14,7 +14,8 @@ use crate::dtos::{
 };
 use luma_module_sdk::engine::model::RequestKind;
 use luma_module_sdk::engine::state::SharedState;
-use luma_torrent::db::{self, IndexerRow, WantedRow};
+use luma_module_sdk::ports::IndexerRow;
+use luma_torrent::db::{self, WantedRow};
 
 /// A release remembered from the last interactive search of a request, so a
 /// manual grab can hand its magnet/.torrent link to the download manager
@@ -222,7 +223,7 @@ pub fn interactive_search(state: &SharedState, request_id: &str) -> Result<Inter
     let conn = state.db.get()?;
     let req = db::get_request(&conn, request_id)?.ok_or_else(|| anyhow!("request not found"))?;
     let mut wanted = db::wanted_for_request(&conn, request_id)?;
-    let indexers = db::enabled_indexers(&conn)?;
+    let indexers = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state).ok_or_else(|| anyhow::anyhow!("indexer module unavailable"))?.enabled_indexers(state)?;
     drop(conn);
     if indexers.is_empty() {
         return Err(anyhow!("no enabled indexer; add one under Admin > Indexeurs"));
@@ -308,9 +309,9 @@ pub fn grab_cached(
     // fetch (the definition's `download` block) to turn a search row into a
     // magnet / .torrent link.
     let magnet_or_url = {
-        let conn = state.db.get()?;
-        let row = db::get_indexer(&conn, &cached.view.indexer_id)?;
-        drop(conn);
+        let row = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state)
+            .ok_or_else(|| anyhow!("indexer module unavailable"))?
+            .get_indexer(state, &cached.view.indexer_id)?;
         match row {
             Some(r) if r.kind == luma_indexer::admin::KIND_BUILTIN => crate::resolve_builtin_download(
                 state,
@@ -365,7 +366,7 @@ pub fn manual_search(state: &SharedState, query: &str) -> Result<ManualSearchVie
         return Ok(ManualSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
     }
     let conn = state.db.get()?;
-    let indexers = db::enabled_indexers(&conn)?;
+    let indexers = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state).ok_or_else(|| anyhow::anyhow!("indexer module unavailable"))?.enabled_indexers(state)?;
     drop(conn);
     if indexers.is_empty() {
         return Err(anyhow!("no enabled indexer; add one under Admin > Indexeurs"));

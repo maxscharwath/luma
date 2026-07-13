@@ -18,9 +18,8 @@ use rusqlite::{params, Connection, Row};
 pub use luma_module_sdk::db::*;
 // The `indexers` table + queries moved into the Indexers module crate; the
 // acquisition + queue paths reach them through this same facade.
-pub use luma_indexer::db::{
-    enabled_indexers, get_indexer, list_indexers, note_indexer_result, IndexerRow,
-};
+// The indexers table is owned by the indexer module; the queue view + acquisition
+// reach it through luma_module_sdk::ports::IndexerDbPort, not a re-export here.
 
 /// Schema for the download tables this module owns, applied after the core schema
 /// at DB init. `IF NOT EXISTS` DDL only, so it runs harmlessly on every boot.

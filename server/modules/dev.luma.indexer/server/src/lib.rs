@@ -251,3 +251,87 @@ impl luma_module_sdk::ports::IndexerDbPort for IndexerDb {
         db::note_indexer_result(host.db(), id, ok, error, now_ms)
     }
 }
+
+/// The IndexerSearchPort implementation: runs native (Cardigann) searches and
+/// resolves grab targets, hiding the stateful `Session` + the indexer's richer
+/// native types behind the SDK contract shapes. The query/release converters
+/// (formerly in acquisition) live here now.
+pub struct IndexerSearch;
+
+impl luma_module_sdk::ports::IndexerSearchPort for IndexerSearch {
+    fn search_builtin(
+        &self,
+        host: &dyn luma_module_sdk::host::HostCtx,
+        row: &luma_module_sdk::ports::IndexerRow,
+        query: &luma_module_sdk::ports::Query,
+        categories: &[u32],
+    ) -> anyhow::Result<luma_module_sdk::ports::SearchOutcome> {
+        let session = admin::builtin_session(host, row)?;
+        let outcome = session.search(&to_native_query(query), categories);
+        Ok(luma_module_sdk::ports::SearchOutcome {
+            releases: outcome.releases.into_iter().map(release_to_port).collect(),
+            errors: outcome.errors,
+        })
+    }
+
+    fn resolve_download(
+        &self,
+        host: &dyn luma_module_sdk::host::HostCtx,
+        row: &luma_module_sdk::ports::IndexerRow,
+        title: &str,
+        details_url: Option<&str>,
+        magnet_or_url: &str,
+    ) -> anyhow::Result<luma_module_sdk::ports::DownloadTarget> {
+        if magnet_or_url.starts_with("magnet:") {
+            return Ok(luma_module_sdk::ports::DownloadTarget::Magnet(magnet_or_url.to_string()));
+        }
+        let session = admin::builtin_session(host, row)?;
+        let release = Release {
+            title: title.to_string(),
+            magnet: magnet_or_url.starts_with("magnet:").then(|| magnet_or_url.to_string()),
+            link: magnet_or_url.starts_with("http").then(|| magnet_or_url.to_string()),
+            details_url: details_url.map(str::to_string),
+            ..Default::default()
+        };
+        Ok(match session.resolve_download(&release)? {
+            DownloadTarget::Magnet(m) => luma_module_sdk::ports::DownloadTarget::Magnet(m),
+            DownloadTarget::TorrentUrl(u) => luma_module_sdk::ports::DownloadTarget::TorrentUrl(u),
+        })
+    }
+}
+
+/// Map an SDK query shape onto the indexer's native query.
+fn to_native_query(q: &luma_module_sdk::ports::Query) -> Query {
+    match q {
+        luma_module_sdk::ports::Query::Movie { tmdb_id, imdb_id, title, year } => Query::Movie {
+            tmdb_id: *tmdb_id,
+            imdb_id: imdb_id.clone(),
+            title: title.clone(),
+            year: *year,
+        },
+        luma_module_sdk::ports::Query::Episode { tmdb_id, title, season, episode } => {
+            Query::Episode { tmdb_id: *tmdb_id, title: title.clone(), season: *season, episode: *episode }
+        }
+        luma_module_sdk::ports::Query::Season { tmdb_id, title, season } => {
+            Query::Season { tmdb_id: *tmdb_id, title: title.clone(), season: *season }
+        }
+    }
+}
+
+/// Normalize a native release into the SDK release shape the scoring pipeline uses.
+fn release_to_port(r: Release) -> luma_module_sdk::ports::Release {
+    luma_module_sdk::ports::Release {
+        title: r.title,
+        guid: r.guid,
+        link: r.link,
+        magnet: r.magnet,
+        info_hash: r.info_hash,
+        size_bytes: r.size_bytes,
+        seeders: r.seeders,
+        leechers: r.leechers,
+        tmdb_id: r.tmdb_id,
+        imdb_id: r.imdb_id,
+        published_at: r.published_at,
+        details_url: r.details_url,
+    }
+}

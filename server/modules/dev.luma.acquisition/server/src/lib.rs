@@ -28,7 +28,7 @@ use luma_module_sdk::scene::{Profile, Res};
 
 use luma_module_sdk::engine::services::jobs::now_ms;
 use luma_module_sdk::engine::state::SharedState;
-use luma_torrent::db::IndexerRow;
+use luma_module_sdk::ports::IndexerRow;
 
 const GB: u64 = 1_073_741_824;
 
@@ -140,13 +140,17 @@ pub fn search_indexer(
         // Healthy if we got releases (a partial per-path error alongside real
         // results must not flag the indexer as broken) or the sweep was clean.
         let note_ok = !outcome.releases.is_empty() || outcome.errors.is_empty();
-        let _ = luma_torrent::db::note_indexer_result(
-            &state.db,
-            &row.id,
-            note_ok,
-            if note_ok { None } else { outcome.errors.first().map(String::as_str) },
-            now_ms(),
-        );
+        if let Some(idx) =
+            luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state)
+        {
+            let _ = idx.note_indexer_result(
+                state,
+                &row.id,
+                note_ok,
+                if note_ok { None } else { outcome.errors.first().map(String::as_str) },
+                now_ms(),
+            );
+        }
         // Surface an all-error, no-result sweep as an error (so it reads as a
         // broken indexer, not "nothing found").
         if outcome.releases.is_empty() && !outcome.errors.is_empty() {

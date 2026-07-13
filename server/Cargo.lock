@@ -3587,7 +3587,6 @@ dependencies = [
  "anyhow",
  "axum",
  "librqbit",
- "luma-indexer",
  "luma-module-sdk",
  "rusqlite",
  "serde",

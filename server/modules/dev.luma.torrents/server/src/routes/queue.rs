@@ -57,14 +57,21 @@ pub async fn list(
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
     let vpn = dm(&state).vpn_status();
+    // Indexer display names come from the indexer module via its port, resolved
+    // here (before the blocking closure, which can't borrow the host).
+    let indexers: std::collections::HashMap<String, String> =
+        luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(&state)
+            .and_then(|p| p.list_indexers(&state).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|i| (i.id, i.name))
+            .collect();
     let view = query(&state.db, move |pool| {
         let conn = pool.get()?;
         let rows = db::list_downloads(&conn, HISTORY_LIMIT)?;
         // Hydrate display names in one pass (few clients, few requests).
         let clients: std::collections::HashMap<String, String> =
             db::list_download_clients(&conn)?.into_iter().map(|c| (c.id, c.name)).collect();
-        let indexers: std::collections::HashMap<String, String> =
-            db::list_indexers(&conn)?.into_iter().map(|i| (i.id, i.name)).collect();
         let downloads = rows
             .into_iter()
             .map(|d| {
