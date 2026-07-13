@@ -11,14 +11,15 @@ license.workspace = true
 luma-module-manifest = { workspace = true }
 # Host contract: ServerModule, HostCtx, service/port resolution, async_trait.
 luma-module-host = { workspace = true }
-# Cross-module capability ports (runtime-resolved traits).
-luma-contracts = { workspace = true }
 # The application surface modules build against.
 luma-engine = { workspace = true }
 luma-domain = { workspace = true }
 luma-http = { workspace = true }
 luma-db = { workspace = true }
 luma-primitives = { workspace = true }
+# The port contract types derive serde and return anyhow::Result.
+serde = { workspace = true }
+anyhow = { workspace = true }
 # Pure capability-provider modules the facade re-exports (they sit below it, on
 # the manifest layer) so consumer modules reach them via luma_module_sdk::<name>
 # instead of a direct cross-module dependency.

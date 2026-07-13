@@ -19,11 +19,10 @@ pub mod host {
     pub use luma_module_host::*;
 }
 
-/// Cross-module capability ports (runtime-resolved traits), e.g. `VpnProxyPort`,
-/// `TorrentFetchPort`. Depend on these instead of another module's crate.
-pub mod ports {
-    pub use luma_contracts::*;
-}
+/// Cross-module capability ports + their shared contract types (runtime-resolved
+/// traits), e.g. `VpnProxyPort`, `DownloadClientHost`, `TorznabPort`. A module
+/// depends on these instead of another module's crate.
+pub mod ports;
 
 /// The application surface: `state::SharedState`, `services::*`, `model::*`.
 pub mod engine {

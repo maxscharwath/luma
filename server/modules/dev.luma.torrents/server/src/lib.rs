@@ -113,7 +113,7 @@ pub fn server_module() -> Box<dyn luma_module_sdk::host::ServerModule<luma_modul
 }
 
 // The download-client contract (engine trait + shared types + magnet_info_hash)
-// lives in luma-contracts now, so download engine modules depend only on the SDK.
+// lives in the SDK ports module (luma_module_sdk::ports) now, so download engine modules depend only on the SDK.
 // Re-exported so this crate's own modules keep using crate::DownloadClient etc.
 pub use luma_module_sdk::ports::{
     magnet_info_hash, AddTorrentReq, ClientDef, DownloadClient, DownloadClientCtx,
@@ -134,7 +134,7 @@ pub fn register_client_kind(reg: &mut DownloadClientRegistry, kind: &str) -> boo
             #[cfg(feature = "rqbit")]
             reg.register("rqbit", |_def, ctx| {
                 // The ctx carries the embedded engine as an opaque `dyn Any` (the
-                // contract lives in luma-contracts and knows nothing of RqbitEngine).
+                // contract lives in the SDK ports module (luma_module_sdk::ports) and knows nothing of RqbitEngine).
                 let any = ctx.rqbit.as_ref().ok_or_else(|| anyhow::anyhow!("embedded engine not started"))?;
                 let engine = any
                     .clone()

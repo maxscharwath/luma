@@ -127,7 +127,6 @@ luma-module-host = { path = "crates/luma-module-host" }
 # The server-side module kernel: the compile-time composition root (registers
 # every module's manifest + collects their ServerModule behaviors).
 luma-module-kernel = { path = "crates/luma-module-kernel" }
-luma-contracts = { path = "crates/luma-contracts" }
 luma-scene = { path = "modules/dev.luma.scene/server" }
 luma-torznab = { path = "modules/dev.luma.torznab/server" }
 luma-indexer = { path = "modules/dev.luma.indexer/server" }
@@ -179,7 +178,6 @@ luma-engine = { workspace = true }
 # binary re-exports the extractors from their historical `crate::api::extract`
 # path; module crates depend on this leaf instead of the whole engine.
 luma-module-host = { workspace = true }
-luma-contracts = { workspace = true }
 # luma-remote / luma-vpn: module backends the binary names directly in main.rs
 # (their MODULE manifest + routes, injected by the ServerModule glue). The other
 # module backends register transitively via luma-module-kernel.

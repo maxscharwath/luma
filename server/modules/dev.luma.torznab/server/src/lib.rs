@@ -8,7 +8,7 @@
 //! with the indexer milestone.
 
 
-// The Torznab types now live in luma-contracts (so indexer / acquisition use
+// The Torznab types now live in the SDK ports module (luma_module_sdk::ports) (so indexer / acquisition use
 // them without depending on this crate); re-exported here for this crate's fns.
 pub use luma_module_sdk::ports::{
     Caps, IndexerEndpoint, Query, Release, CAT_MOVIES, CAT_TV,

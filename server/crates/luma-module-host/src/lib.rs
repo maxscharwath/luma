@@ -58,7 +58,7 @@ where
 /// Register a peer PORT (a trait object) for the service registry: returns the
 /// `(TypeId, value)` to insert. The registry stores concrete `Any` values, so the
 /// port `Arc<dyn P>` is wrapped in an outer `Arc` keyed by `Arc<dyn P>`'s TypeId.
-/// The port traits themselves live in `luma-contracts`; this is only the generic
+/// The port traits themselves live in `the SDK ports module (luma_module_sdk::ports)`; this is only the generic
 /// plumbing, so the seam names no port trait (and no module).
 pub fn port_service<P: ?Sized + Any + Send + Sync>(
     port: Arc<P>,

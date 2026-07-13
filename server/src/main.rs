@@ -163,16 +163,16 @@ async fn main() -> anyhow::Result<()> {
     let vpn = luma_vpn::Vpn::new(config.data_dir.clone());
     module_services.insert(std::any::TypeId::of::<luma_remote::RemoteAccess>(), remote);
     module_services.insert(std::any::TypeId::of::<luma_vpn::Vpn>(), vpn);
-    let vpn_proxy: std::sync::Arc<dyn luma_contracts::VpnProxyPort> =
+    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> =
         std::sync::Arc::new(luma_vpn::VpnProxy);
     let (tid, val) = luma_module_host::port_service(vpn_proxy);
     module_services.insert(tid, val);
-    let torrent_fetch: std::sync::Arc<dyn luma_contracts::TorrentFetchPort> =
+    let torrent_fetch: std::sync::Arc<dyn luma_module_sdk::ports::TorrentFetchPort> =
         std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
     let (tid, val) = luma_module_host::port_service(torrent_fetch);
     module_services.insert(tid, val);
     // The Torznab search engine (stateless), resolved by indexer / acquisition.
-    let torznab: std::sync::Arc<dyn luma_contracts::TorznabPort> =
+    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> =
         std::sync::Arc::new(luma_torznab::TorznabEngine);
     let (tid, val) = luma_module_host::port_service(torznab);
     module_services.insert(tid, val);
@@ -183,12 +183,12 @@ async fn main() -> anyhow::Result<()> {
     let downloads = luma_torrent::DownloadManager::new(&config.data_dir);
     // Also expose it as the DownloadClientHost port, so the engine modules
     // (transmission / qBittorrent) register their kind without naming this crate.
-    let dc_host: std::sync::Arc<dyn luma_contracts::DownloadClientHost> = downloads.clone();
+    let dc_host: std::sync::Arc<dyn luma_module_sdk::ports::DownloadClientHost> = downloads.clone();
     let (tid, val) = luma_module_host::port_service(dc_host);
     module_services.insert(tid, val);
     // ...and as the DownloadVpnPort, so the VPN module reads the engine's VPN
     // status / seal check / restart without naming this crate.
-    let dc_vpn: std::sync::Arc<dyn luma_contracts::DownloadVpnPort> = downloads.clone();
+    let dc_vpn: std::sync::Arc<dyn luma_module_sdk::ports::DownloadVpnPort> = downloads.clone();
     let (tid, val) = luma_module_host::port_service(dc_vpn);
     module_services.insert(tid, val);
     module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);

@@ -107,10 +107,8 @@ pub struct DownloadsView {
     pub vpn: Option<VpnStatusView>,
 }
 
-/// The kill switch's view of the tunnel. Cross-boundary within the acquisition
-/// stack: the downloads kill switch produces it, and both the VPN admin view
-// VpnStatusView moved to luma-contracts (the download manager's VPN surface is a
-// port now); re-exported at this crate's root for the module's own callers.
+// VpnStatusView now lives in luma_module_sdk::ports (the download manager's VPN
+// surface is a port); it is imported above for the DownloadsView field.
 
 // --- Library rename tool (organize) wire types ---
 // Relocated from the core `luma-domain` crate: the organize engine lives in

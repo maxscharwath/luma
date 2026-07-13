@@ -39,26 +39,9 @@ pub const MIGRATIONS: &str = "
     );
 ";
 
-/// A stored indexer row (full, including the secret; internal only).
-#[derive(Debug, Clone)]
-pub struct IndexerRow {
-    pub id: String,
-    pub name: String,
-    pub url: String,
-    pub api_key: String,
-    pub categories: Vec<u32>,
-    pub enabled: bool,
-    pub priority: i32,
-    /// `torznab` (external Jackett/Prowlarr) or `builtin` (native Cardigann).
-    pub kind: String,
-    /// The Cardigann definition id (file stem) for `builtin` rows.
-    pub definition_id: Option<String>,
-    /// JSON map of per-indexer settings (credentials + toggles) for `builtin`.
-    pub settings: String,
-    pub last_ok_at: Option<i64>,
-    pub last_error: Option<String>,
-    pub created_at: i64,
-}
+// The stored indexer row is the shared IndexerRow contract now, so the downloads
+// queue view + acquisition name it without depending on this crate.
+pub use luma_module_sdk::ports::IndexerRow;
 
 const INDEXER_COLS: &str = "id, name, url, api_key, categories, enabled, priority, \
     kind, definition_id, settings, last_ok_at, last_error, created_at";

@@ -208,3 +208,46 @@ impl Caps {
         }
     }
 }
+
+/// The IndexerDbPort implementation (stateless): reads/updates the `indexers`
+/// table through the host DB pool, so the downloads queue view + acquisition
+/// resolve it instead of depending on this crate.
+pub struct IndexerDb;
+
+impl luma_module_sdk::ports::IndexerDbPort for IndexerDb {
+    fn list_indexers(
+        &self,
+        host: &dyn luma_module_sdk::host::HostCtx,
+    ) -> anyhow::Result<Vec<luma_module_sdk::ports::IndexerRow>> {
+        let conn = host.db().get()?;
+        Ok(db::list_indexers(&conn)?)
+    }
+
+    fn enabled_indexers(
+        &self,
+        host: &dyn luma_module_sdk::host::HostCtx,
+    ) -> anyhow::Result<Vec<luma_module_sdk::ports::IndexerRow>> {
+        let conn = host.db().get()?;
+        Ok(db::enabled_indexers(&conn)?)
+    }
+
+    fn get_indexer(
+        &self,
+        host: &dyn luma_module_sdk::host::HostCtx,
+        id: &str,
+    ) -> anyhow::Result<Option<luma_module_sdk::ports::IndexerRow>> {
+        let conn = host.db().get()?;
+        Ok(db::get_indexer(&conn, id)?)
+    }
+
+    fn note_indexer_result(
+        &self,
+        host: &dyn luma_module_sdk::host::HostCtx,
+        id: &str,
+        ok: bool,
+        error: Option<&str>,
+        now_ms: i64,
+    ) -> anyhow::Result<()> {
+        db::note_indexer_result(host.db(), id, ok, error, now_ms)
+    }
+}

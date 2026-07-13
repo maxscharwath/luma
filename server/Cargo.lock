@@ -3304,15 +3304,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "luma-contracts"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-module-host",
- "serde",
-]
-
-[[package]]
 name = "luma-db"
 version = "0.1.0"
 dependencies = [
@@ -3458,7 +3449,7 @@ dependencies = [
 name = "luma-module-sdk"
 version = "0.1.0"
 dependencies = [
- "luma-contracts",
+ "anyhow",
  "luma-db",
  "luma-domain",
  "luma-engine",
@@ -3467,6 +3458,7 @@ dependencies = [
  "luma-module-manifest",
  "luma-primitives",
  "luma-scene",
+ "serde",
 ]
 
 [[package]]
@@ -3555,7 +3547,6 @@ dependencies = [
  "jpeg-encoder",
  "luma-acquisition",
  "luma-config",
- "luma-contracts",
  "luma-db",
  "luma-engine",
  "luma-indexer",
