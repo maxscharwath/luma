@@ -79,6 +79,11 @@ impl Supervisor {
         self.procs.read().unwrap().get(id).map(|p| p.port)
     }
 
+    /// The shared secret the callback API authenticates module -> core with.
+    pub fn host_token(&self) -> &str {
+        &self.cfg.host_token
+    }
+
     /// Spawn a module process (idempotent: a no-op if already running). Picks a
     /// free localhost port, launches `<id>/module` with the runtime env, and
     /// tracks the child. Errors if the binary is missing.

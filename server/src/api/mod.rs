@@ -32,11 +32,14 @@ mod suggest;
 mod themes;
 mod util;
 
-use axum::extract::{Request, State};
+use std::sync::Arc;
+
+use axum::extract::{Path, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
-use axum::response::Response;
-use axum::Router;
+use axum::response::{IntoResponse, Response};
+use axum::{Extension, Router};
+use luma_module_supervisor::Supervisor;
 use tower_http::compression::predicate::{NotForContentType, Predicate};
 use tower_http::compression::{CompressionLayer, DefaultPredicate};
 use tower_http::cors::CorsLayer;
@@ -70,7 +73,23 @@ async fn require_session(State(state): State<SharedState>, req: Request, next: N
 }
 
 /// Build the application router with all `/api` routes plus CORS and tracing.
-pub fn router(state: SharedState) -> Router {
+/// Reverse-proxy `/api/module/<id>/<rest>` to the installed module's process
+/// (the module validates the forwarded bearer itself against the shared DB).
+async fn module_proxy(
+    Extension(sup): Extension<Arc<Supervisor>>,
+    Path((id, rest)): Path<(String, String)>,
+    req: Request,
+) -> Response {
+    match sup.port_of(&id) {
+        Some(port) => {
+            let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+            luma_module_supervisor::proxy_to(port, &format!("/{rest}{query}"), req).await
+        }
+        None => (StatusCode::NOT_FOUND, "module not running").into_response(),
+    }
+}
+
+pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
     // Public endpoints reachable before (or without) a session: the auth
     // handshake + roster + invites, uploaded avatars/art, liveness, and the media
     // byte streams (a `<video>`/hls element can't attach a bearer these carry no
@@ -112,7 +131,17 @@ pub fn router(state: SharedState) -> Router {
     // Each feature module owns its routes via a `routes()` function. The admin
     // subtree gets its own `/admin` prefix and self-gates per-handler (permission
     // checks), so it lives outside the blanket content layer.
-    let api = public.merge(content).nest("/admin", admin::routes(state.clone()));
+    // Out-of-process (.lmod) modules: the /api/_host/* callback API they call back
+    // into (token-authed, resolved against the core's HostCtx), and a reverse
+    // proxy `/api/module/<id>/*` forwarding to the installed module's process.
+    let api = public
+        .merge(content)
+        .merge(luma_module_supervisor::host_router::<SharedState>(
+            supervisor.host_token().to_string(),
+        ))
+        .route("/module/:id/*rest", axum::routing::any(module_proxy))
+        .nest("/admin", admin::routes(state.clone()))
+        .layer(Extension(supervisor));
 
     let mut app = Router::new().nest("/api", api);
 

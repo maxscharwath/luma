@@ -231,6 +231,9 @@ luma-mdns = { workspace = true }
 luma-module-sdk = { workspace = true }
 # Runtime WASM module host (install/load .wasm modules at runtime via extism).
 luma-module-wasm = { workspace = true }
+# Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
+luma-module-supervisor = { workspace = true }
+rand = "0.8"
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.

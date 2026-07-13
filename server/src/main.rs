@@ -279,13 +279,35 @@ async fn main() -> anyhow::Result<()> {
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
     let local_discovery = state.settings.get_bool("localDiscovery", true);
 
-    let app = api::router(state);
+    // The out-of-process module supervisor: it spawns each installed .lmod
+    // module's binary, reverse-proxies its HTTP, and answers its host callbacks.
+    // A fresh random token authenticates those callbacks for this process.
+    let host_token: String = {
+        use rand::Rng;
+        rand::thread_rng()
+            .sample_iter(rand::distributions::Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect()
+    };
+    let supervisor = luma_module_supervisor::Supervisor::new(luma_module_supervisor::SupervisorConfig {
+        modules_dir: state.config.data_dir.join("modules"),
+        core_url: format!("http://127.0.0.1:{}", state.config.port),
+        host_token,
+        db_path: state.config.db_path(),
+        data_dir: state.config.data_dir.clone(),
+    });
+
+    let app = api::router(state.clone(), supervisor.clone());
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("failed to bind {addr}"))?;
 
     info!("LUMA listening on http://{addr}  (API under /api)");
+
+    // Bring up every installed out-of-process module whose enabled flag is on.
+    supervisor.spawn_enabled(&*state);
 
     // Advertise over mDNS so LAN clients can auto-discover us, unless disabled in
     // settings. Best-effort: held alive until the process exits; failure (no
