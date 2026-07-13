@@ -226,7 +226,6 @@ luma-indexer = { workspace = true }
 luma-torznab = { workspace = true }
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
-luma-mdns = { workspace = true }
 # The admin modules endpoint names ModuleManifest for its flattened response.
 luma-module-sdk = { workspace = true }
 # Runtime WASM module host (install/load .wasm modules at runtime via extism).

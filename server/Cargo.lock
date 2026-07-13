@@ -3394,9 +3394,11 @@ name = "luma-mdns"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "luma-module-runtime",
  "luma-module-sdk",
  "mdns-sd",
  "serde_json",
+ "tokio",
  "tracing",
 ]
 
@@ -3512,7 +3514,6 @@ dependencies = [
  "luma-acquisition",
  "luma-engine",
  "luma-indexer",
- "luma-mdns",
  "luma-module-host",
  "luma-module-manifest",
  "luma-qbittorrent",
@@ -3582,7 +3583,6 @@ dependencies = [
  "luma-db",
  "luma-engine",
  "luma-indexer",
- "luma-mdns",
  "luma-module-host",
  "luma-module-kernel",
  "luma-module-sdk",

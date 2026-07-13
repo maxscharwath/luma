@@ -277,7 +277,6 @@ async fn main() -> anyhow::Result<()> {
     luma_module_kernel::apply_enabled_states(&state).await;
 
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
-    let local_discovery = state.settings.get_bool("localDiscovery", true);
 
     // The out-of-process module supervisor: it spawns each installed .lmod
     // module's binary, reverse-proxies its HTTP, and answers its host callbacks.
@@ -307,23 +306,9 @@ async fn main() -> anyhow::Result<()> {
     info!("LUMA listening on http://{addr}  (API under /api)");
 
     // Bring up every installed out-of-process module whose enabled flag is on.
+    // (mDNS advertising moved into the `dev.luma.mdns` module — install its .lmod
+    // to advertise the server over `_luma._tcp` / `luma.local`.)
     supervisor.spawn_enabled(&*state);
-
-    // Advertise over mDNS so LAN clients can auto-discover us, unless disabled in
-    // settings. Best-effort: held alive until the process exits; failure (no
-    // multicast, etc.) is non-fatal.
-    let _mdns = if local_discovery {
-        match luma_mdns::advertise(addr.port(), "LUMA") {
-            Ok(daemon) => Some(daemon),
-            Err(e) => {
-                warn!(error = %e, "mDNS advertising unavailable; clients must use an explicit address");
-                None
-            }
-        }
-    } else {
-        info!("local discovery (mDNS) disabled in settings");
-        None
-    };
 
     // `into_make_service_with_connect_info` so handlers can read the client's
     // socket address (LAN/WAN classification for playback sessions).

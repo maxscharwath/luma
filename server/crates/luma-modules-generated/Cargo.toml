@@ -17,7 +17,6 @@ luma-torznab = { path = "../../modules/dev.luma.torznab/server" }
 luma-scene = { path = "../../modules/dev.luma.scene/server" }
 luma-whisper = { path = "../../modules/dev.luma.whisper/server" }
 luma-vector = { path = "../../modules/dev.luma.vector/server" }
-luma-mdns = { path = "../../modules/dev.luma.mdns/server" }
 luma-vpn = { path = "../../modules/dev.luma.vpn/server" }
 luma-remote = { path = "../../modules/dev.luma.remote/server" }
 luma-transmission = { path = "../../modules/dev.luma.engine.transmission/server" }

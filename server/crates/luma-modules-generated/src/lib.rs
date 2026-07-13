@@ -16,7 +16,6 @@ pub fn register_all(reg: &mut Registry) {
     reg.register(Box::new(luma_scene::MODULE));
     reg.register(Box::new(luma_whisper::MODULE));
     reg.register(Box::new(luma_vector::MODULE));
-    reg.register(Box::new(luma_mdns::MODULE));
     reg.register(Box::new(luma_vpn::MODULE));
     reg.register(Box::new(luma_remote::MODULE));
     reg.register(Box::new(luma_transmission::MODULE));
