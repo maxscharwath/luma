@@ -136,7 +136,7 @@ export function ModulesAdminPage() {
                 <img
                   src={moduleIconUrl(m.id, apiBase())}
                   alt=""
-                  className="mt-0.5 h-8 w-8 shrink-0"
+                  className="mt-0.5 h-8 w-8 shrink-0 rounded-lg"
                   onError={(e) => {
                     e.currentTarget.style.visibility = 'hidden';
                   }}
