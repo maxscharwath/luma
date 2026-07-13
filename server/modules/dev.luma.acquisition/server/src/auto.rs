@@ -10,7 +10,7 @@ use anyhow::Result;
 
 use luma_module_sdk::engine::services::requests::today_ymd;
 use luma_module_sdk::engine::state::SharedState;
-use luma_torrent::db;
+use luma_module_sdk::db;
 
 use crate::search::{score_release, targets_for_wanted, wanted_ids_by};
 

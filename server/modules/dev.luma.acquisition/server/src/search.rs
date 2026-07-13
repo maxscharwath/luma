@@ -15,7 +15,7 @@ use crate::dtos::{
 use luma_module_sdk::engine::model::RequestKind;
 use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::ports::IndexerRow;
-use luma_torrent::db::{self, WantedRow};
+use luma_module_sdk::db::{self, WantedRow};
 
 /// A release remembered from the last interactive search of a request, so a
 /// manual grab can hand its magnet/.torrent link to the download manager
@@ -63,8 +63,8 @@ pub fn grab_spec_from_release(
     year: Option<u32>,
     request_id: Option<String>,
     wanted_ids: Vec<String>,
-) -> luma_torrent::GrabSpec {
-    luma_torrent::GrabSpec {
+) -> luma_module_sdk::ports::GrabSpec {
+    luma_module_sdk::ports::GrabSpec {
         magnet_or_url: magnet_or_url.to_string(),
         kind: release.target.clone(),
         tmdb_id,
@@ -292,7 +292,7 @@ pub fn grab_cached(
     request_id: &str,
     guid: &str,
     indexer_id: &str,
-) -> Result<db::DownloadRow> {
+) -> Result<luma_module_sdk::ports::DownloadRow> {
     // The search cache is in-memory, so a server restart (common in dev with
     // cargo-watch) or a direct grab with no prior search would miss it. On a
     // miss, re-run the interactive search to repopulate, then look up again.

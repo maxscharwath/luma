@@ -7,12 +7,9 @@ description = "The acquisition vertical: interactive/manual search, release scor
 license.workspace = true
 
 [dependencies]
-# The Downloads module owns the engine + queue + organize; acquisition depends on
-# it (DownloadManager, GrabSpec, the db facade, the naming templates) but NEVER the
-# reverse, so there is no cycle. It resolves the DownloadManager through the host
-# service registry, exactly like the download admin routes do.
-luma-torrent = { path = "../../dev.luma.torrents/server" }
-luma-torznab = { workspace = true }
+# SDK-only: acquisition reaches the Downloads / Indexer / Torznab modules purely
+# through the SDK ports (DownloadGrabPort, DownloadDbPort, IndexerSearchPort, ...),
+# resolved at runtime through the host registry, so it names no sibling crate.
 luma-module-sdk = { workspace = true }
 axum = { workspace = true }
 anyhow = { workspace = true }

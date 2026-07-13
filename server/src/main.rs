@@ -200,6 +200,15 @@ async fn main() -> anyhow::Result<()> {
     let dc_vpn: std::sync::Arc<dyn luma_module_sdk::ports::DownloadVpnPort> = downloads.clone();
     let (tid, val) = luma_module_host::port_service(dc_vpn);
     module_services.insert(tid, val);
+    // ...and as the DownloadGrabPort + DownloadDbPort, so the Acquisition module
+    // grabs releases + reads/updates the downloads ledger without naming this crate.
+    let dc_grab: std::sync::Arc<dyn luma_module_sdk::ports::DownloadGrabPort> = downloads.clone();
+    let (tid, val) = luma_module_host::port_service(dc_grab);
+    module_services.insert(tid, val);
+    let dc_db: std::sync::Arc<dyn luma_module_sdk::ports::DownloadDbPort> =
+        std::sync::Arc::new(luma_torrent::DownloadDb);
+    let (tid, val) = luma_module_host::port_service(dc_db);
+    module_services.insert(tid, val);
     module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);
     // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
     // registered alongside the core built-ins so the core roster names no module.

@@ -1,14 +1,15 @@
 //! Acquisition orchestration: the quality profile from settings and the search
 //! DISPATCH (interactive via [`search`]; the automatic wanted-list pass in
-//! [`auto`]), plus grab + import. Extracted out of the `luma-torrent` crate so
-//! disabling the Acquisition module gates the whole search / grab / auto feature.
+//! [`auto`]), plus grab + import. Its own module so disabling it gates the whole
+//! search / grab / auto feature.
 //!
-//! The coupling is one-way and clean: acquisition resolves the
-//! [`luma_torrent::DownloadManager`] through the host service registry, and the
-//! Downloads module (engine + queue) NEVER calls acquisition. So this crate
-//! depends on `luma-torrent`, never the reverse (no cycle). The per-indexer
-//! capability caching + native-engine session building live in the Indexers
-//! module (its search port); this calls into it.
+//! SDK-only: acquisition names no sibling crate. It reaches the Downloads module
+//! (grab / ledger) through [`DownloadGrabPort`](luma_module_sdk::ports::DownloadGrabPort)
+//! + [`DownloadDbPort`](luma_module_sdk::ports::DownloadDbPort), the Indexers
+//! module through [`IndexerSearchPort`](luma_module_sdk::ports::IndexerSearchPort)
+//! + [`IndexerDbPort`](luma_module_sdk::ports::IndexerDbPort), all resolved at
+//! runtime through the host port registry. The coupling stays one-way (those
+//! modules never call acquisition), so there is no cycle.
 
 // The axum `Response` is intentionally the Err type of request guards so handlers
 // short-circuit with `?`; boxing every guard for `result_large_err` would churn
@@ -48,12 +49,23 @@ pub const MODULE: luma_module_sdk::EmbeddedModule = luma_module_sdk::EmbeddedMod
     include_bytes!("../../icon.svg"),
 );
 
-/// Resolve the Downloads module's download manager from the host service
-/// registry. Acquisition reaches the engine only by type through `HostCtx`, so
-/// it never holds a concrete `AppState` field for it.
-pub(crate) fn downloads(state: &SharedState) -> std::sync::Arc<luma_torrent::DownloadManager> {
-    luma_module_sdk::host::service::<luma_torrent::DownloadManager>(&**state)
-        .expect("download manager registered")
+/// Resolve the Downloads module's grab surface (grab / gate / activate / drop /
+/// list-files) from the host port registry. Acquisition reaches it only through
+/// the SDK port, so it never names the torrents crate.
+pub(crate) fn downloads(
+    state: &SharedState,
+) -> std::sync::Arc<dyn luma_module_sdk::ports::DownloadGrabPort> {
+    luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::DownloadGrabPort>(state)
+        .expect("download grab port registered")
+}
+
+/// Resolve the downloads-ledger read/write port (completed rows + status flips)
+/// the import pass needs, through the SDK port registry.
+pub(crate) fn download_db(
+    state: &SharedState,
+) -> std::sync::Arc<dyn luma_module_sdk::ports::DownloadDbPort> {
+    luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::DownloadDbPort>(state)
+        .expect("download db port registered")
 }
 
 /// Build the decision engine's profile from the admin settings.
@@ -141,7 +153,7 @@ pub fn resolve_builtin_download(
 /// add admin routes (behind its enabled-gate) and contributes the search /
 /// import / match jobs. Disabling it 404s those routes and no-ops the jobs, so
 /// the whole search / grab / auto feature is gated on this module. It reaches the
-/// [`luma_torrent::DownloadManager`] through the host service registry.
+/// Downloads / Indexer modules through their SDK ports (see the module docs).
 ///
 /// Like the download / vpn / indexer modules it orchestrates the app's concrete
 /// `AppState` (settings / config / DB), so it is a `ServerModule<SharedState>`.

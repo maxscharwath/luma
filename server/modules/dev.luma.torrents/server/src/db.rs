@@ -182,48 +182,8 @@ pub fn delete_download_client(pool: &Pool, id: &str) -> Result<bool> {
 
 // ----- downloads (grab ledger) ----------------------------------------------------
 
-/// A stored download row.
-#[derive(Debug, Clone)]
-pub struct DownloadRow {
-    pub id: String,
-    pub client_id: String,
-    /// The engine's identifier (info-hash hex).
-    pub client_ref: String,
-    pub request_id: Option<String>,
-    /// `movie` | `episode` | `season`.
-    pub kind: String,
-    pub tmdb_id: u64,
-    /// Display / import title (denormalized so a manual grab imports without a
-    /// request). `None` = fall back to parsing the release title.
-    pub title: Option<String>,
-    pub year: Option<u32>,
-    pub season: Option<u32>,
-    pub episodes: Option<Vec<u32>>,
-    pub release_title: String,
-    pub indexer_id: Option<String>,
-    pub info_hash: Option<String>,
-    pub magnet_or_url: String,
-    pub size_bytes: Option<u64>,
-    pub score: Option<i32>,
-    pub score_breakdown: Option<String>,
-    pub status: String,
-    pub progress: f64,
-    pub save_path: Option<String>,
-    /// Library files written by the import (persisted for the record / future
-    /// "reveal in library"; not surfaced in a view yet).
-    #[allow(dead_code)]
-    pub imported_paths: Option<Vec<String>>,
-    pub error: Option<String>,
-    pub grabbed_at: i64,
-    pub completed_at: Option<i64>,
-    pub imported_at: Option<i64>,
-    /// The tracker's human-viewable torrent page (Sonarr/Radarr's info link).
-    pub details_url: Option<String>,
-    /// Selected torrent file indices for a partial grab (`None` = whole torrent).
-    /// Persisted so the background add (`crate::downloads`) keeps the selection
-    /// even though it runs after the request returned.
-    pub only_files: Option<Vec<usize>>,
-}
+// DownloadRow moved to luma_module_sdk::ports; re-exported for this crate.
+pub use luma_module_sdk::ports::DownloadRow;
 
 const DL_COLS: &str = "id, client_id, client_ref, request_id, kind, tmdb_id, title, year, \
     season, episodes, release_title, indexer_id, info_hash, magnet_or_url, size_bytes, score, \

@@ -17,8 +17,12 @@ pub use torznab::*;
 // The indexer data + native-search contract (shared row + IndexerDbPort /
 // IndexerSearchPort), so downloads / acquisition don't depend on the indexer crate.
 pub mod indexer;
-pub mod naming;
 pub use indexer::*;
+// The download-ledger contract (grab spec + row + DownloadGrabPort/DownloadDbPort).
+pub mod download;
+pub use download::*;
+// The Sonarr/Radarr-style naming engine, shared by torrents (organize) + acquisition.
+pub mod naming;
 
 /// The VPN module's local SOCKS5 bridge, for modules that route traffic through it
 /// (downloads always; indexers when opted in). `None` when no bridge is configured

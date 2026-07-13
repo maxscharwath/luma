@@ -3286,8 +3286,6 @@ dependencies = [
  "anyhow",
  "axum",
  "luma-module-sdk",
- "luma-torrent",
- "luma-torznab",
  "serde",
  "serde_json",
  "tokio",

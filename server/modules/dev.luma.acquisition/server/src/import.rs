@@ -11,8 +11,9 @@ use luma_module_sdk::engine::model::RequestKind;
 use luma_module_sdk::engine::services::jobs::now_ms;
 use luma_module_sdk::engine::services::settings::{library_defs, LibraryDef};
 use luma_module_sdk::engine::state::SharedState;
-use luma_torrent::db::{self, DownloadRow};
+use luma_module_sdk::db as db;
 use luma_module_sdk::ports::naming;
+use luma_module_sdk::ports::DownloadRow;
 
 /// The facts import needs about a title, from the request, the download row, or
 /// (last resort) the parsed release name.
@@ -54,9 +55,7 @@ fn finalize_import(state: &SharedState, row: &DownloadRow) {
 /// Import every `completed` download. Failures land on the row's `error`
 /// (visible in the queue) without blocking the others.
 pub fn import_pass(state: &SharedState, log: &dyn Fn(String)) -> Result<ImportSummary> {
-    let conn = state.db.get()?;
-    let ready = db::completed_downloads(&conn)?;
-    drop(conn);
+    let ready = crate::download_db(state).completed_downloads(state)?;
     let mut summary = ImportSummary::default();
     for row in ready {
         match import_one(state, &row) {
@@ -64,13 +63,18 @@ pub fn import_pass(state: &SharedState, log: &dyn Fn(String)) -> Result<ImportSu
                 log(format!("imported \"{}\" ({} files)", row.release_title, paths.len()));
                 summary.imported += 1;
                 summary.files += paths.len();
-                db::mark_download_imported(&state.db, &row.id, &paths, now_ms())?;
+                crate::download_db(state).mark_download_imported(state, &row.id, &paths, now_ms())?;
                 finalize_import(state, &row);
             }
             Err(e) => {
                 log(format!("import failed for \"{}\": {e:#}", row.release_title));
                 summary.failed += 1;
-                db::set_download_status(&state.db, &row.id, "completed", Some(&format!("import: {e:#}")))?;
+                crate::download_db(state).set_download_status(
+                    state,
+                    &row.id,
+                    "completed",
+                    Some(&format!("import: {e:#}")),
+                )?;
             }
         }
     }

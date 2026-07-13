@@ -119,7 +119,7 @@ pub async fn manual_add(
         .unwrap_or_else(|| "manual".to_string());
     let episodes = body.episode.map(|e| vec![e]);
     let only_files = body.only_files.filter(|f| !f.is_empty());
-    let spec = luma_torrent::GrabSpec {
+    let spec = luma_module_sdk::ports::GrabSpec {
         magnet_or_url: magnet,
         kind: body.kind,
         tmdb_id: body.tmdb_id.unwrap_or(0),

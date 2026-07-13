@@ -44,7 +44,7 @@ pub use rqbit::{RqbitConfig, RqbitEngine};
 pub use db::{requests_with_active_downloads, ActiveDownload};
 // The download manager + monitor (merged in from the former luma-downloads crate),
 // re-exported at the crate root so `luma_torrent::DownloadManager` etc. keep working.
-pub use downloads::{active_proxy_url, DownloadManager, GrabSpec, LABEL};
+pub use downloads::{active_proxy_url, DownloadDb, DownloadManager, GrabSpec, LABEL};
 
 /// Whether the embedded engine is compiled into this build.
 pub const RQBIT_COMPILED: bool = cfg!(feature = "rqbit");

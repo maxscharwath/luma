@@ -670,33 +670,8 @@ impl DownloadManager {
     }
 }
 
-/// Everything needed to grab a torrent + import it. Built from a scored release
-/// (auto / interactive) or from admin-provided fields (manual add / magnet).
-#[derive(Debug, Clone, Default)]
-pub struct GrabSpec {
-    pub magnet_or_url: String,
-    /// `movie` | `episode` | `season`.
-    pub kind: String,
-    pub tmdb_id: u64,
-    /// Import title (`None` => derive from the release name at import time).
-    pub title: Option<String>,
-    pub year: Option<u32>,
-    pub season: Option<u32>,
-    pub episodes: Option<Vec<u32>>,
-    pub release_title: String,
-    pub indexer_id: Option<String>,
-    pub size_bytes: Option<u64>,
-    pub score: Option<i32>,
-    pub score_breakdown: Option<String>,
-    pub request_id: Option<String>,
-    /// Wanted rows this grab covers (flip to `grabbed`); empty for manual adds.
-    pub wanted_ids: Vec<String>,
-    /// Download only these file indices (Sonarr/Radarr-style selection). `None`
-    /// = the whole torrent.
-    pub only_files: Option<Vec<usize>>,
-    /// The tracker's torrent page, stored so the queue can link back to it.
-    pub details_url: Option<String>,
-}
+// GrabSpec moved to luma_module_sdk::ports; re-exported for this crate.
+pub use luma_module_sdk::ports::GrabSpec;
 
 // A `GrabSpec` is built from a scored release by the acquisition crate (which
 // owns `ScoredReleaseView` now) or field-by-field for a manual add. This crate
@@ -794,5 +769,61 @@ impl luma_module_sdk::ports::DownloadVpnPort for DownloadManager {
 
     async fn restart_engine(&self, host: &dyn HostCtx) {
         self.start_rqbit(host).await;
+    }
+}
+
+// --- Cross-module capability ports (resolved by the Acquisition module) ---
+// The grab + ledger surfaces acquisition needs, exposed as SDK ports so it never
+// depends on this crate. Both just forward to the inherent methods / free fns.
+
+impl luma_module_sdk::ports::DownloadGrabPort for DownloadManager {
+    fn grab(&self, host: &dyn HostCtx, spec: GrabSpec) -> Result<DownloadRow> {
+        DownloadManager::grab(self, host, spec)
+    }
+    fn list_files(
+        &self,
+        host: &dyn HostCtx,
+        magnet_or_url: &str,
+    ) -> Result<Vec<crate::TorrentFileEntry>> {
+        DownloadManager::list_files(self, host, magnet_or_url)
+    }
+    fn gate_open(&self) -> bool {
+        DownloadManager::gate_open(self)
+    }
+    fn activate(&self, host: &dyn HostCtx, row: &DownloadRow) {
+        DownloadManager::activate(self, host, row);
+    }
+    fn drop_data(&self, host: &dyn HostCtx, row: &DownloadRow) {
+        DownloadManager::drop_data(self, host, row);
+    }
+}
+
+/// The downloads-ledger read/write port (a ZST; the ledger operations are free
+/// functions on the pool). Registered at boot so acquisition's import pass reads
+/// completed rows + flips status without naming this crate.
+pub struct DownloadDb;
+
+impl luma_module_sdk::ports::DownloadDbPort for DownloadDb {
+    fn completed_downloads(&self, host: &dyn HostCtx) -> Result<Vec<DownloadRow>> {
+        let conn = host.db().get()?;
+        Ok(db::completed_downloads(&conn)?)
+    }
+    fn mark_download_imported(
+        &self,
+        host: &dyn HostCtx,
+        id: &str,
+        paths: &[String],
+        now_ms: i64,
+    ) -> Result<()> {
+        db::mark_download_imported(host.db(), id, paths, now_ms)
+    }
+    fn set_download_status(
+        &self,
+        host: &dyn HostCtx,
+        id: &str,
+        status: &str,
+        error: Option<&str>,
+    ) -> Result<bool> {
+        db::set_download_status(host.db(), id, status, error)
     }
 }
