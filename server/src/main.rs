@@ -176,6 +176,11 @@ async fn main() -> anyhow::Result<()> {
     // core (luma-engine) never names the torrent engine. The acquisition services
     // and the download admin routes resolve it through the HostCtx registry.
     let downloads = luma_torrent::DownloadManager::new(&config.data_dir);
+    // Also expose it as the DownloadClientHost port, so the engine modules
+    // (transmission / qBittorrent) register their kind without naming this crate.
+    let dc_host: std::sync::Arc<dyn luma_contracts::DownloadClientHost> = downloads.clone();
+    let (tid, val) = luma_module_host::port_service(dc_host);
+    module_services.insert(tid, val);
     module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);
     // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
     // registered alongside the core built-ins so the core roster names no module.

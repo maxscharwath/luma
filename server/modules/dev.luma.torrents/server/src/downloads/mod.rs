@@ -183,23 +183,11 @@ impl DownloadManager {
         };
         self.clients.read().expect("download client registry lock").build(
             &def,
-            &crate::DownloadClientCtx { rqbit: self.rqbit(), state_dir: &self.state_dir },
+            &crate::DownloadClientCtx {
+                rqbit: self.rqbit().map(|e| e as std::sync::Arc<dyn std::any::Any + Send + Sync>),
+                state_dir: &self.state_dir,
+            },
         )
-    }
-
-    /// Add a download sub-engine to the registry via its crate's `register` fn.
-    /// The engine sub-modules call this from their enable lifecycle (and the
-    /// binary at boot), so an engine crate plugs itself in without this crate
-    /// naming it.
-    pub fn register_engine(&self, register: impl FnOnce(&mut crate::DownloadClientRegistry)) {
-        let mut reg = self.clients.write().expect("download client registry lock");
-        register(&mut reg);
-    }
-
-    /// Remove a download sub-engine `kind` from the registry (its module was
-    /// disabled), so a client row of that kind fails to build until re-enabled.
-    pub fn unregister_engine(&self, kind: &str) {
-        self.clients.write().expect("download client registry lock").unregister(kind);
     }
 
     // ----- kill switch ----------------------------------------------------------
@@ -770,4 +758,18 @@ fn fetch_torrent_file(url: &str) -> Result<Vec<u8>> {
 
 fn snippet(body: &[u8]) -> String {
     String::from_utf8_lossy(body).chars().take(120).collect::<String>().replace('\n', " ")
+}
+
+/// The download manager IS the download-client host: engine modules resolve this
+/// port (`luma_module_sdk::ports::DownloadClientHost`) and register/unregister
+/// their client kind on enable/disable, without depending on this crate.
+impl luma_module_sdk::ports::DownloadClientHost for DownloadManager {
+    fn register_engine(&self, register: fn(&mut crate::DownloadClientRegistry)) {
+        let mut reg = self.clients.write().expect("download client registry lock");
+        register(&mut reg);
+    }
+
+    fn unregister_engine(&self, kind: &str) {
+        self.clients.write().expect("download client registry lock").unregister(kind);
+    }
 }

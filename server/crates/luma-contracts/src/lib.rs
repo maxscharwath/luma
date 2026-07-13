@@ -6,6 +6,11 @@
 
 use luma_module_host::HostCtx;
 
+// The download-client contract (engine trait + shared types + the host port), so
+// download engine modules depend on the SDK, not on the torrents crate.
+pub mod download_client;
+pub use download_client::*;
+
 /// The VPN module's local SOCKS5 bridge, for modules that route traffic through it
 /// (downloads always; indexers when opted in). `None` when no bridge is configured
 /// or the VPN module is absent.

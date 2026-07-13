@@ -9,3 +9,4 @@ description = "Peer port traits that modules implement and resolve through the h
 [dependencies]
 luma-module-host = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }

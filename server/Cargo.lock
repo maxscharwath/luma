@@ -3309,6 +3309,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "luma-module-host",
+ "serde",
 ]
 
 [[package]]
@@ -3519,7 +3520,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "luma-module-sdk",
- "luma-torrent",
  "serde_json",
 ]
 
@@ -3623,7 +3623,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "luma-module-sdk",
- "luma-torrent",
  "serde_json",
 ]
 

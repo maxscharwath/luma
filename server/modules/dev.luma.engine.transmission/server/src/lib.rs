@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
-use luma_torrent::{AddTorrentReq, ClientDef, DownloadClient, TorrentState, TorrentStatus};
+use luma_module_sdk::ports::{AddTorrentReq, ClientDef, DownloadClient, TorrentState, TorrentStatus};
 
 const SESSION_HEADER: &str = "X-Transmission-Session-Id";
 const STATUS_FIELDS: &[&str] = &[
@@ -227,7 +227,7 @@ pub const KIND: &str = "transmission";
 
 /// Register the Transmission factory into a download-client registry (called by
 /// the engine module's ServerModule on enable).
-pub fn register(reg: &mut luma_torrent::DownloadClientRegistry) {
+pub fn register(reg: &mut luma_module_sdk::ports::DownloadClientRegistry) {
     reg.register(KIND, |def, _ctx| {
         Ok(Box::new(Transmission::new(def)) as Box<dyn DownloadClient>)
     });
@@ -256,13 +256,13 @@ impl<S: luma_module_sdk::host::HostCtx + Clone + Send + Sync + 'static>
     }
 
     async fn on_enable(&self, host: std::sync::Arc<dyn luma_module_sdk::host::HostCtx>) {
-        if let Some(dm) = luma_module_sdk::host::service::<luma_torrent::DownloadManager>(host.as_ref()) {
+        if let Some(dm) = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::DownloadClientHost>(host.as_ref()) {
             dm.register_engine(register);
         }
     }
 
     async fn on_disable(&self, host: std::sync::Arc<dyn luma_module_sdk::host::HostCtx>) {
-        if let Some(dm) = luma_module_sdk::host::service::<luma_torrent::DownloadManager>(host.as_ref()) {
+        if let Some(dm) = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::DownloadClientHost>(host.as_ref()) {
             dm.unregister_engine(KIND);
         }
     }
