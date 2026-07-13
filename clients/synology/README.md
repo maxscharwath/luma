@@ -26,7 +26,30 @@ The script: builds the web SPA → cross-compiles `luma-server` to
 `x86_64-unknown-linux-musl` in a Docker musl image → downloads a static ffmpeg →
 assembles the `.spk`. Re-run faster with `SKIP_WEB=1` / `SKIP_RUST=1`.
 
-## Install on the NAS
+## Install via the package source (recommended, auto-updates)
+
+LUMA publishes a **Synology package source** on GitHub Pages, so you install and
+**auto-update** straight from Package Center no manual `.spk` uploads. The `.spk`
+itself is hosted on the GitHub Release (GitHub's CDN); Pages only serves a small
+catalog. Nothing to host, no server.
+
+1. **Package Center → Settings → Package Sources → Add**
+   - Name: `LUMA`
+   - Location: `https://maxscharwath.github.io/luma/catalog.json`
+2. **Settings → General → Trust Level → Any publisher** (LUMA is not Synology-signed).
+3. Open the **Community** tab, install **LUMA**, and follow the wizard (below).
+
+New releases then show an **Update** button automatically.
+
+**Nightly channel (optional):** every push to `main` publishes a nightly `.spk` to
+a separate beta catalog. To ride nightlies, add
+`https://maxscharwath.github.io/luma/nightly.json` as a second source and enable
+*Settings &rarr; General &rarr; beta packages*. Note the two catalogs describe the
+same `luma` package, and nightlies share the stable base version (`0.1.4.<build>`),
+so a nightly is always version-higher a NAS with *both* sources added rides the
+nightly. Subscribe to one channel, not both.
+
+## Install on the NAS (manual `.spk`)
 
 1. **Package Center → Manual Install →** pick the `.spk`. (It's unsigned/3rd-party,
    so first enable *Package Center → Settings → Trust Level → Any publisher*.)
@@ -62,3 +85,32 @@ package.
   default (or the optional data folder you chose in the wizard) and survives
   upgrades.
 - The TV apps (Tizen/webOS) connect to this server over the LAN via mDNS, unchanged.
+
+## Publishing a release (and how updates work)
+
+One workflow owns the whole Synology deliverable: `.github/workflows/synology.yml`.
+A `vX.Y.Z` tag builds the stable `.spk` and attaches it to that GitHub Release; a
+push to `main` builds a nightly `.spk` into the rolling `nightly` prerelease. Either
+way the same run then regenerates BOTH catalogs `catalog.json` (stable) +
+`nightly.json` (beta) from the latest releases via the `@luma/synology-repo`
+package and deploys them to GitHub Pages. NASes on either source update
+automatically. (Stable + nightly share one build job, so there is no separate
+Pages workflow to keep in sync.)
+
+To iterate on the store landing page without a build, run
+`bun run --filter @luma/synology-repo preview` (live-reload; `CATALOG_BETA=true`
+for the nightly variant).
+
+**Version rule (do not regress this):** DSM installs a `.spk` over an existing one
+only when the version is **strictly greater**; otherwise it refuses with the
+misleading `4521 "invalid file format"`. DSM's manual-install check compares the
+dotted **feature** version and IGNORES the `-build` suffix (proven on a real NAS:
+two `0.1.2-<build>` spks read as "same version already installed"). So `build.sh`
+stamps `X.Y.Z.BUILD-BUILD` with `BUILD` in a **4th feature segment** (`BUILD` =
+minutes since 2020, monotonic) this way every build is strictly newer, including
+tag-less **nightlies** that share the same `X.Y.Z`. An earlier commit broke this by
+shrinking that segment `0.1.3.<minutes>` (~3.4M) &rarr; `0.1.3.<days>` (~2.4k), so
+any NAS with the big-numbered build saw every new build as a **downgrade** and
+rejected it forever. Two rules: (1) the base was bumped to `0.1.4` so it outranks
+every poisoned `0.1.3.*` at the micro segment; (2) **never shrink the counter's
+magnitude** the version number must only ever go up.

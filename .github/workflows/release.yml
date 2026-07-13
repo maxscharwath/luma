@@ -64,65 +64,8 @@ jobs:
           echo "triplet=$T" >> "$GITHUB_OUTPUT"
           echo "Version: $V (TV manifests: $T)"
 
-  synology:
-    name: Synology .spk (x86_64 musl)
-    needs: version
-    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","spk"]'), github.event.inputs.targets) }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      # Caches the static ffmpeg download + the musl cargo registry across runs
-      # (see clients/synology/.cache in build.sh) to keep rebuilds fast.
-      - name: Cache build inputs
-        uses: actions/cache@v4
-        with:
-          path: clients/synology/.cache
-          key: synology-${{ hashFiles('server/Cargo.lock') }}
-          restore-keys: synology-
-
-      # build.sh: web SPA -> static musl luma-server (Docker musl image) ->
-      # static ffmpeg -> assembles the .spk (appends its own -<build> number).
-      - name: Build .spk
-        run: clients/synology/build.sh "${{ needs.version.outputs.version }}"
-
-      # The musl cross-build runs as root in Docker and writes root-owned files
-      # into the cache (cargo registry), so actions/cache's tar save fails (exit 2)
-      # and the cache never persists. Hand ownership back to the runner so the next
-      # build restores it and is fast.
-      - name: Fix cache permissions
-        if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" clients/synology/.cache || true
-
-      - name: Upload .spk artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: luma-synology-spk
-          path: clients/synology/dist/*.spk
-          if-no-files-found: error
-
-      # The web SPA is built as a side effect of build.sh publish it too so it
-      # can be dropped behind any static host / reverse proxy.
-      - name: Upload web SPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: luma-web
-          path: clients/web/dist/client
-          if-no-files-found: error
-
-      - name: Publish GitHub Release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: clients/synology/dist/*.spk
-          generate_release_notes: true
+  # NB: the Synology .spk + its GitHub Pages "package source" (stable + nightly)
+  # live in their own workflow, .github/workflows/synology.yml.
 
   # Runtime-installable module bundles: every WASM module packed to a
   # gzip-compressed .lmod you upload in Admin -> Modules (no server rebuild).

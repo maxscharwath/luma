@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{DNAME}} - Synology package source</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        max-width: 720px;
+        margin: 6vh auto;
+        padding: 0 20px;
+      }
+      h1 {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 1.7rem;
+      }
+      h1 img {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+      }
+      code {
+        background: rgba(127, 127, 127, 0.18);
+        padding: 0.15em 0.45em;
+        border-radius: 6px;
+      }
+      .url {
+        display: block;
+        margin: 0.6em 0 1.4em;
+        padding: 0.8em 1em;
+        border-radius: 10px;
+        background: rgba(127, 127, 127, 0.12);
+        font-family: ui-monospace, monospace;
+        word-break: break-all;
+      }
+      ol {
+        padding-left: 1.2em;
+      }
+      li {
+        margin: 0.4em 0;
+      }
+      a.btn {
+        display: inline-block;
+        margin-top: 1.4em;
+        padding: 0.7em 1.2em;
+        border-radius: 10px;
+        background: #d9a521;
+        color: #1a1a1a;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .muted {
+        opacity: 0.7;
+        font-size: 0.9em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1><img src="{{ICON_FILE}}" alt="{{DNAME}}" /> {{DNAME}} for Synology{{CHANNEL_SUFFIX}}</h1>
+    <p>Install {{DNAME}} on your Synology NAS through Package Center, with automatic updates.</p>
+    <h2>Add the package source</h2>
+    <ol>
+      <li>Package Center &rarr; <b>Settings</b> &rarr; <b>Package Sources</b> &rarr; <b>Add</b>.</li>
+      <li>Name: <code>{{SOURCE_NAME}}</code>. Location:</li>
+    </ol>
+    <span class="url">{{CATALOG_URL}}</span>
+    <ol start="3">
+      <li>Settings &rarr; General &rarr; Trust Level &rarr; <b>Any publisher</b>{{BETA_TRUST_HINT}}.</li>
+      <li>Open the <b>Community</b> tab and install <b>{{DNAME}}</b>.</li>
+    </ol>
+    <p class="muted">Current version: <code>{{VERSION}}</code> &middot; {{ARCH}} DSM {{DSM_FLOOR}}+</p>
+    <a class="btn" href="{{DOWNLOAD_URL}}">Download the .spk directly</a>
+  </body>
+</html>

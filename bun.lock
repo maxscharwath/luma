@@ -230,6 +230,16 @@
         "react": ">=18",
       },
     },
+    "packages/synology-repo": {
+      "name": "@luma/synology-repo",
+      "version": "0.1.4",
+      "bin": {
+        "luma-synology-repo": "./src/gen-catalog.ts",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.0",
+      },
+    },
     "packages/tv": {
       "name": "@luma/tv",
       "version": "0.1.3",
@@ -528,6 +538,8 @@
     "@luma/module-vpn": ["@luma/module-vpn@workspace:server/modules/dev.luma.vpn/ui"],
 
     "@luma/modules-generated": ["@luma/modules-generated@workspace:packages/modules-generated"],
+
+    "@luma/synology-repo": ["@luma/synology-repo@workspace:packages/synology-repo"],
 
     "@luma/tizen": ["@luma/tizen@workspace:clients/tizen"],
 

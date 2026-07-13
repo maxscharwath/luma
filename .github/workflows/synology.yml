@@ -1,0 +1,190 @@
+name: Synology
+
+# Everything for the Synology deliverable in ONE workflow:
+#   tag vX.Y.Z  -> build the stable .spk + attach it to that GitHub Release
+#   push main   -> build a nightly .spk -> rolling `nightly` prerelease
+#   either      -> rebuild both package-source catalogs (catalog.json + nightly.json)
+#                  from the latest releases and deploy them to GitHub Pages
+# Stable + nightly share one build job (only the version differs), so the Pages
+# deploy is just the final job of the same run - no cross-workflow workflow_run,
+# no two workflows clobbering the one Pages site.
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create/update releases + upload assets
+  pages: write
+  id-token: write
+
+concurrency:
+  group: synology-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: '1.3.14'
+
+jobs:
+  build:
+    name: Build .spk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Tag -> that version minus the leading `v`. main / dispatch -> empty, so
+      # build.sh derives it from server/Cargo.toml and stamps the nightly build.
+      - id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Caches the static ffmpeg download + the musl cargo registry across runs.
+      - name: Cache build inputs
+        uses: actions/cache@v4
+        with:
+          path: clients/synology/.cache
+          key: synology-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: synology-
+
+      # build.sh: web SPA -> static musl luma-server -> static ffmpeg -> .spk.
+      - name: Build .spk
+        run: clients/synology/build.sh ${{ steps.ver.outputs.version }}
+
+      # The Docker musl build writes root-owned files into the cache; hand them
+      # back so actions/cache can save (else it fails and never persists).
+      - name: Fix cache permissions
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" clients/synology/.cache || true
+
+      - name: Upload .spk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-synology-spk
+          path: clients/synology/dist/*.spk
+          if-no-files-found: error
+
+      # The web SPA is a side effect of build.sh publish it for any static host.
+      - name: Upload web SPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-web
+          path: clients/web/dist/client
+          if-no-files-found: error
+
+  # tag -> attach the .spk to that version's GitHub Release.
+  publish-stable:
+    name: Attach .spk to the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: luma-synology-spk
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.spk
+          generate_release_notes: true
+
+  # main -> rolling `nightly` prerelease with a FIXED asset name, so the catalog
+  # link stays stable while the .spk bytes (and INFO version) change each build.
+  publish-nightly:
+    name: Publish nightly prerelease
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: luma-synology-spk
+          path: dist
+      - name: Upload to the nightly prerelease
+        run: |
+          cp dist/*.spk luma-nightly-x86_64.spk
+          gh release view nightly >/dev/null 2>&1 \
+            || gh release create nightly --prerelease --title "LUMA nightly" \
+                 --notes "Rolling nightly build from main. Unstable; auto-updates via the nightly package source (nightly.json)."
+          gh release upload nightly luma-nightly-x86_64.spk --clobber
+
+  # Rebuild BOTH package-source catalogs from the latest releases and deploy to
+  # Pages. Runs after whichever publish job fired (the other is skipped).
+  pages:
+    name: Deploy package source to Pages
+    # Either publish job succeeding already implies build succeeded (they need it).
+    needs: [publish-stable, publish-nightly]
+    if: >-
+      always()
+      && (needs.publish-stable.result == 'success' || needs.publish-nightly.result == 'success')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: synology-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Rebuild both catalogs from the latest releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          OWNER_REPO="$GITHUB_REPOSITORY"
+          PAGES_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          mkdir -p _site
+
+          # Regenerate one channel's catalog from a published release into _site.
+          build_channel() { # <release-ref> <catalog-name> <beta?>
+            gh release download "$1" -p '*.spk' -D "dl-$1" --clobber
+            local spk; spk="$(ls "dl-$1"/*.spk | head -1)"
+            CATALOG_SPK="$spk" \
+            CATALOG_DOWNLOAD_URL="https://github.com/$OWNER_REPO/releases/download/$1/$(basename "$spk")" \
+            CATALOG_PAGES_URL="$PAGES_URL" CATALOG_OUT_DIR=_site \
+            CATALOG_NAME="$2" CATALOG_BETA="${3:-false}" \
+              bun packages/synology-repo/src/gen-catalog.ts
+          }
+
+          # Nightly FIRST so the stable landing page wins as the site root.
+          if gh release view nightly >/dev/null 2>&1; then
+            build_channel nightly nightly.json true
+          fi
+          # Stable = latest non-draft, non-prerelease release (robust across gh versions).
+          TAG="$(gh release list -L 30 --json tagName,isPrerelease,isDraft \
+                   -q 'map(select(.isPrerelease==false and .isDraft==false)) | .[0].tagName // empty' || true)"
+          if [ -n "$TAG" ]; then
+            build_channel "$TAG" catalog.json
+          fi
+
+          # Never deploy an empty site on the very first run (before any release).
+          [ -f _site/index.html ] || printf '<!doctype html><meta charset=utf-8><title>LUMA</title><p>No LUMA package published yet.\n' > _site/index.html
+          echo "Site contents:"; ls -la _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

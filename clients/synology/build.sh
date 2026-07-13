@@ -22,25 +22,45 @@ set -euo pipefail
 _CARGO_TOML="$(cd "$(dirname "$0")/../.." && pwd)/server/Cargo.toml"
 CARGO_VERSION="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$_CARGO_TOML" | head -1)"
 VERSION="${1:-${CARGO_VERSION:-0.1.0}}"
-# DSM's Manual-Install *upgrade* check rejects any package whose version is not
-# STRICTLY GREATER than the installed one, and surfaces the refusal as the
-# misleading "invalid file format" error (webapi code 4521), forcing a delete +
-# reinstall that wipes var (config, DB, cache, Whisper model). To auto-upgrade we
-# stamp a monotonic build into the version — but it must stay inside the envelope
-# every known-good package uses (Plex `1.40.2.8395-46`, Synology's own
-# `1.7.0-10082`): at most 4 dotted feature segments, each a SMALL number. The
-# previous scheme's 7-digit minute counter (`0.1.3.3429372-3429372`) sat far
-# outside that envelope and DSM's upgrade-time version parse choked on it —
-# fresh installs worked (nothing to compare), every upgrade failed with 4521.
-# Scheme: `X.Y.Z.DAY-HHMM`. DAY = days since 2020-01-01 UTC (4 digits, +1/day)
-# in the 4th feature segment, so cross-day builds always compare strictly newer;
-# HHMM (UTC build time) is the build suffix that tie-breaks same-day builds (DSM
-# does weigh it: Synology's own packages update `1.7.0-10082` → `1.7.0-10090`).
-# A real X.Y.Z bump in server/Cargo.toml still wins at the 3rd segment; it's
-# only needed for human-visible releases. Override with BUILD_DAY=/BUILD_TIME=
-# if you need specific numbers.
-BUILD_DAY="${BUILD_DAY:-$(( ( $(date -u +%s) - 1577836800 ) / 86400 ))}"
-BUILD_TIME="${BUILD_TIME:-$(date -u +%H%M)}"
+# ---------------------------------------------------------------------------
+# VERSION / UPGRADE ORDERING - the thing that kept breaking in-place upgrades.
+#
+# DSM installs a manual .spk over an existing one ONLY when the new version is
+# STRICTLY GREATER than the installed one; anything else is refused, and DSM
+# surfaces the refusal as the misleading webapi 4521 "invalid file format",
+# which pushes you into a delete + reinstall that wipes var/ (config, DB, cache,
+# Whisper model).
+#
+# Two DIFFERENT failures both showed up as 4521 and got conflated:
+#   1. A bad OUTER tar format (GNU vs POSIX ustar) - a genuine "invalid format".
+#      Fixed separately by TAR_CLEAN=--format=ustar below.
+#   2. A version that is not strictly greater than what's installed.
+# Fixing (2) by eye while (1) was still live spawned three version schemes, and
+# the last one REGRESSED the number: builds used to stamp a big 4th segment
+# `0.1.3.<minutes-since-2020>` (~3.4M); a later "fix" shrank it to
+# `0.1.3.<days-since-2020>` (~2.4k). On any NAS that already had a big-numbered
+# build, every new build then read as a DOWNGRADE (2383 < 3429372) and DSM
+# refused it for good. That is why upgrades "still" failed.
+#
+# Fix (two parts):
+#   a) Put the monotonic BUILD in a 4th FEATURE segment: `X.Y.Z.BUILD-BUILD`.
+#      DSM's manual-install upgrade check compares the dotted FEATURE version and
+#      IGNORES the -build suffix (confirmed on a real NAS: two `0.1.2-<build>`
+#      spks read as "same version already installed"), so the differentiator MUST
+#      live before the dash. This keeps EVERY build strictly newer than the last
+#      - including tag-less NIGHTLIES that share the same human X.Y.Z, which is
+#      exactly what nightly builds need to stay upgradable in place. BUILD =
+#      minutes since 2020-01-01 UTC (monotonic, same scheme as the Android
+#      versionCode in release.yml).
+#   b) One-time: bump `server/Cargo.toml` 0.1.3 -> 0.1.4 so the 3rd segment alone
+#      outranks every poisoned `0.1.3.*` (`0.1.4.x` > `0.1.3.<anything>`), climbing
+#      out of the numbers stuck on already-installed NASes.
+# THE RULE: the version number must only ever go UP. A real X.Y.Z bump wins at its
+# segment; within one X.Y.Z the minutes counter keeps climbing. Do NOT shrink the
+# counter's magnitude (minutes->days is what broke it last time). Override with
+# BUILD=... if you need a specific number.
+# ---------------------------------------------------------------------------
+BUILD="${BUILD:-$(( ( $(date -u +%s) - 1577836800 ) / 60 ))}"
 ARCH="x86_64"
 TARGET="x86_64-unknown-linux-musl"
 RUST_IMAGE="${RUST_IMAGE:-messense/rust-musl-cross:x86_64-musl}"
@@ -130,13 +150,13 @@ cp "$WORK/package.tgz" "$SPK/package.tgz"
 # INFO extractsize is read in KB on DSM 6+; writing bytes made DSM believe the
 # package needed ~190 GB after extraction.
 EXT_SIZE="$(( $(gzip -dc "$WORK/package.tgz" | wc -c | tr -d ' ') / 1024 ))"
-# `X.Y.Z.DAY-HHMM` (see the version note above): the day count bumps a feature
-# segment so cross-day builds always upgrade in place; same-day builds tie-break
-# on the -HHMM build suffix.
-INFO_VERSION="$VERSION.$BUILD_DAY-$BUILD_TIME"
+# Feature-segment build stamp `X.Y.Z.BUILD-BUILD` (see the version note above):
+# BUILD sits in the 4th FEATURE segment so every build - including same-X.Y.Z
+# nightlies - is strictly newer; repeated after the dash as belt-and-suspenders.
+INFO_VERSION="$VERSION.$BUILD-$BUILD"
 sed -e "s/@INFO_VERSION@/$INFO_VERSION/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
   "$SKEL/INFO.template" > "$SPK/INFO"
-say "DSM package version: $INFO_VERSION (day/time build stamp keeps every build upgradable in place)"
+say "DSM package version: $INFO_VERSION (monotonic 4th-segment build keeps every build - incl. nightlies - upgradable)"
 # Icons: the LUMA brand mark (gold ring + dot), checked in alongside the skeleton.
 cp "$SKEL/PACKAGE_ICON.PNG" "$SKEL/PACKAGE_ICON_256.PNG" "$SPK/"
 
