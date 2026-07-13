@@ -11,7 +11,7 @@ use luma_module_sdk::host::HostCtx;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    luma_module_runtime::serve(
+    luma_module_runtime::serve_one(
         |host| {
             // The module owns its connector; register it so the module's own code
             // (on_enable, the admin routes) resolves it via `service::<RemoteAccess>`.

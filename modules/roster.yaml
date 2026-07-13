@@ -18,8 +18,6 @@ modules:
   - id: dev.luma.torrents
     crate: luma-torrent
     serverModule: true
-  - id: dev.luma.torznab
-    crate: luma-torznab
   - id: dev.luma.scene
     crate: luma-scene
   - id: dev.luma.whisper

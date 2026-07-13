@@ -151,6 +151,28 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let addr = config.socket_addr();
+
+    // The out-of-process module supervisor (spawns/proxies installed .lmod
+    // modules). Built here (before the module services) so ported modules that
+    // moved out of the base build can be resolved as client proxies pointing at
+    // their sidecar process. A fresh random token authenticates host callbacks.
+    let host_token: String = {
+        use rand::Rng;
+        rand::thread_rng()
+            .sample_iter(rand::distributions::Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect()
+    };
+    let supervisor =
+        luma_module_supervisor::Supervisor::new(luma_module_supervisor::SupervisorConfig {
+            modules_dir: config.data_dir.join("modules"),
+            core_url: format!("http://127.0.0.1:{}", config.port),
+            host_token: host_token.clone(),
+            db_path: config.db_path(),
+            data_dir: config.data_dir.clone(),
+        });
+
     // Build the module services + peer ports the composition root owns, so the
     // core (luma-engine) names no module: the Remote connector, the VPN bridge, and
     // the VpnProxy / TorrentFetch ports. AppState builds the download manager (its
@@ -171,9 +193,17 @@ async fn main() -> anyhow::Result<()> {
         std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
     let (tid, val) = luma_module_host::port_service(torrent_fetch);
     module_services.insert(tid, val);
-    // The Torznab search engine (stateless), resolved by indexer / acquisition.
-    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> =
-        std::sync::Arc::new(luma_torznab::TorznabEngine);
+    // The Torznab search engine now runs out-of-process (the dev.luma.torznab
+    // .lmod); resolve it as a client proxy that forwards over localhost to the
+    // module's sidecar (discovered live via the supervisor's port map).
+    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> = {
+        let sup = supervisor.clone();
+        let tok = host_token.clone();
+        let resolve: luma_port_bridge::Resolver = std::sync::Arc::new(move || {
+            sup.port_of("dev.luma.torznab").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
+        });
+        std::sync::Arc::new(luma_port_bridge::TorznabClient::new(resolve))
+    };
     let (tid, val) = luma_module_host::port_service(torznab);
     module_services.insert(tid, val);
     // The indexer data + native-search ports, resolved by downloads / acquisition.
@@ -278,25 +308,8 @@ async fn main() -> anyhow::Result<()> {
 
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
 
-    // The out-of-process module supervisor: it spawns each installed .lmod
-    // module's binary, reverse-proxies its HTTP, and answers its host callbacks.
-    // A fresh random token authenticates those callbacks for this process.
-    let host_token: String = {
-        use rand::Rng;
-        rand::thread_rng()
-            .sample_iter(rand::distributions::Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect()
-    };
-    let supervisor = luma_module_supervisor::Supervisor::new(luma_module_supervisor::SupervisorConfig {
-        modules_dir: state.config.data_dir.join("modules"),
-        core_url: format!("http://127.0.0.1:{}", state.config.port),
-        host_token,
-        db_path: state.config.db_path(),
-        data_dir: state.config.data_dir.clone(),
-    });
-
+    // The supervisor was built earlier (before the module services) so ported
+    // modules resolve as client proxies to their sidecars.
     let app = api::router(state.clone(), supervisor.clone());
 
     let listener = tokio::net::TcpListener::bind(addr)

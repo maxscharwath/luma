@@ -6,9 +6,16 @@ rust-version.workspace = true
 description = "Torznab (Jackett / Prowlarr) indexer client for the LUMA acquisition stack"
 license.workspace = true
 
+[[bin]]
+name = "luma-module-torznab"
+path = "src/bin/module.rs"
+
 [dependencies]
 luma-module-sdk = { workspace = true }
+luma-module-runtime = { workspace = true }
+luma-port-bridge = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
+tokio = { workspace = true }
 quick-xml = { workspace = true }

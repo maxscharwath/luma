@@ -12,7 +12,6 @@ use luma_module_manifest::Registry;
 pub fn register_all(reg: &mut Registry) {
     reg.register(Box::new(luma_indexer::MODULE));
     reg.register(Box::new(luma_torrent::MODULE));
-    reg.register(Box::new(luma_torznab::MODULE));
     reg.register(Box::new(luma_scene::MODULE));
     reg.register(Box::new(luma_whisper::MODULE));
     reg.register(Box::new(luma_vector::MODULE));

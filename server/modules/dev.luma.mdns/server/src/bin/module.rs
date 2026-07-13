@@ -5,5 +5,5 @@ use luma_module_runtime::RemoteHost;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    luma_module_runtime::serve(|_host| {}, luma_mdns::server_module::<RemoteHost>()).await
+    luma_module_runtime::serve_one(|_host| {}, luma_mdns::server_module::<RemoteHost>()).await
 }

@@ -13,7 +13,6 @@ luma-module-host = { workspace = true }
 luma-engine = { workspace = true }
 luma-indexer = { path = "../../modules/dev.luma.indexer/server" }
 luma-torrent = { path = "../../modules/dev.luma.torrents/server" }
-luma-torznab = { path = "../../modules/dev.luma.torznab/server" }
 luma-scene = { path = "../../modules/dev.luma.scene/server" }
 luma-whisper = { path = "../../modules/dev.luma.whisper/server" }
 luma-vector = { path = "../../modules/dev.luma.vector/server" }

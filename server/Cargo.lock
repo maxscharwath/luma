@@ -3520,11 +3520,24 @@ dependencies = [
  "luma-remote",
  "luma-scene",
  "luma-torrent",
- "luma-torznab",
  "luma-transmission",
  "luma-vector",
  "luma-vpn",
  "luma-whisper",
+]
+
+[[package]]
+name = "luma-port-bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "luma-http",
+ "luma-module-host",
+ "luma-module-sdk",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3588,9 +3601,9 @@ dependencies = [
  "luma-module-sdk",
  "luma-module-supervisor",
  "luma-module-wasm",
+ "luma-port-bridge",
  "luma-remote",
  "luma-torrent",
- "luma-torznab",
  "luma-vector",
  "luma-vpn",
  "luma-whisper",
@@ -3635,10 +3648,13 @@ name = "luma-torznab"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "luma-module-runtime",
  "luma-module-sdk",
+ "luma-port-bridge",
  "quick-xml",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

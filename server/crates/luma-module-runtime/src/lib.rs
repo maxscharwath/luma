@@ -220,34 +220,51 @@ impl HostCtx for RemoteHost {
     }
 }
 
-/// Run a module process. `setup` builds the module's own services into the host
-/// (the wiring the core binary used to do); then the module's `admin_routes` are
-/// served on the assigned local port and its `on_enable` lifecycle is started.
-pub async fn serve(
+/// Run a module process serving one `ServerModule`. Convenience over [`serve`].
+pub async fn serve_one(
     setup: impl FnOnce(&RemoteHost),
     module: Box<dyn ServerModule<RemoteHost>>,
+) -> anyhow::Result<()> {
+    serve(setup, vec![module], axum::Router::new()).await
+}
+
+/// Run a module process. `setup` builds the process's own services + port
+/// providers into the host (the wiring the core binary used to do); each module's
+/// `admin_routes` + any `extra` routes (e.g. cross-module port endpoints) are
+/// served on the assigned local port, and every module's `on_enable` runs. A
+/// process may host several modules (an in-process cluster) or none (a
+/// port-provider-only process); `extra` carries their `/_port/*` routes.
+pub async fn serve(
+    setup: impl FnOnce(&RemoteHost),
+    modules: Vec<Box<dyn ServerModule<RemoteHost>>>,
+    extra: axum::Router<RemoteHost>,
 ) -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_env_filter("info").try_init().ok();
     let env = Env::from_process()?;
     let host = RemoteHost::new(&env)?;
     tracing::info!(module = %env.module_id, port = env.port, "module process starting");
 
-    // Apply the module's own schema (idempotent), then let it wire its services.
-    let migrations = module.migrations();
-    if !migrations.is_empty() {
-        let conn = host.db().get()?;
-        luma_db::apply_migrations(&conn, migrations)?;
+    // Apply each module's schema (idempotent), then let the process wire services.
+    for module in &modules {
+        let migrations = module.migrations();
+        if !migrations.is_empty() {
+            let conn = host.db().get()?;
+            luma_db::apply_migrations(&conn, migrations)?;
+        }
     }
     setup(&host);
 
-    // Bring the module's live services up (it only spawns while enabled).
-    let dyn_host: Arc<dyn HostCtx> = Arc::new(host.clone());
-    module.on_enable(dyn_host).await;
+    // Bring every module's live services up (the process only spawns while enabled).
+    for module in &modules {
+        module.on_enable(Arc::new(host.clone()) as Arc<dyn HostCtx>).await;
+    }
 
-    // Serve the module's routes + a health probe on the assigned port.
-    let mut app = axum::Router::new().route("/_health", axum::routing::get(|| async { "ok" }));
-    if let Some(routes) = module.admin_routes(&host) {
-        app = app.merge(routes);
+    // Serve every module's routes + any extra port routes + a health probe.
+    let mut app = extra.route("/_health", axum::routing::get(|| async { "ok" }));
+    for module in &modules {
+        if let Some(routes) = module.admin_routes(&host) {
+            app = app.merge(routes);
+        }
     }
     let app = app.with_state(host);
 

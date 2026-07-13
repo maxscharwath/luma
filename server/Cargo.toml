@@ -114,6 +114,7 @@ luma-module-macros = { path = "crates/luma-module-macros" }
 luma-module-runtime = { path = "crates/luma-module-runtime" }
 # The core side: spawn/supervise module processes + reverse-proxy + callback API.
 luma-module-supervisor = { path = "crates/luma-module-supervisor" }
+luma-port-bridge = { path = "crates/luma-port-bridge" }
 # The module SDK facade (ABOVE engine): the single crate every module depends on.
 # Re-exports the manifest layer + the engine/host/domain/http surface modules use.
 luma-module-sdk = { path = "crates/luma-module-sdk" }
@@ -223,7 +224,7 @@ luma-acquisition = { workspace = true }
 luma-module-kernel = { workspace = true }
 luma-indexer = { workspace = true }
 # Named only to register its stateless TorznabPort engine at the composition root.
-luma-torznab = { workspace = true }
+luma-port-bridge = { workspace = true }
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
 # The admin modules endpoint names ModuleManifest for its flattened response.
