@@ -10,7 +10,6 @@ license.workspace = true
 luma-module-sdk = { workspace = true }
 # The module now owns its admin orchestration + routes (over the HostCtx seam):
 # it needs the DB rows, wire DTOs, shared helpers, the Torznab engine, and axum.
-luma-torznab = { workspace = true }
 # The module owns its `indexers` table now (schema + typed queries), so it talks
 # to SQLite directly through the pool luma-db hands out.
 rusqlite = { workspace = true }

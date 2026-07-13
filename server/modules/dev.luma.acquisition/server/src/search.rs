@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use luma_module_sdk::scene::{Candidate, Target};
-use luma_torznab::{Query, Release};
+use luma_module_sdk::ports::{Query, Release};
 
 use crate::dtos::{
     InteractiveSearchView, ManualReleaseView, ManualSearchView, ScoreLineView, ScoredReleaseView,

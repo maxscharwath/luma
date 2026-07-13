@@ -171,6 +171,11 @@ async fn main() -> anyhow::Result<()> {
         std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
     let (tid, val) = luma_module_host::port_service(torrent_fetch);
     module_services.insert(tid, val);
+    // The Torznab search engine (stateless), resolved by indexer / acquisition.
+    let torznab: std::sync::Arc<dyn luma_contracts::TorznabPort> =
+        std::sync::Arc::new(luma_torznab::TorznabEngine);
+    let (tid, val) = luma_module_host::port_service(torznab);
+    module_services.insert(tid, val);
     // The download manager (dev.luma.torrents) is now a module service like the
     // rest: the composition root constructs it and injects it by type, so the
     // core (luma-engine) never names the torrent engine. The acquisition services

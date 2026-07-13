@@ -10,6 +10,10 @@ use luma_module_host::HostCtx;
 // download engine modules depend on the SDK, not on the torrents crate.
 pub mod download_client;
 pub use download_client::*;
+// The Torznab search contract (types + port), so the indexer / acquisition
+// modules search without depending on the torznab crate.
+pub mod torznab;
+pub use torznab::*;
 
 /// The VPN module's local SOCKS5 bridge, for modules that route traffic through it
 /// (downloads always; indexers when opted in). `None` when no bridge is configured

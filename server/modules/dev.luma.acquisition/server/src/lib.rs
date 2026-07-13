@@ -84,15 +84,15 @@ pub fn profile_from_settings(state: &SharedState) -> Profile {
 }
 
 /// Map a Torznab query onto the indexer-engine query (same shapes).
-fn to_indexer_query(q: &luma_torznab::Query) -> luma_indexer::Query {
+fn to_indexer_query(q: &luma_module_sdk::ports::Query) -> luma_indexer::Query {
     match q {
-        luma_torznab::Query::Movie { tmdb_id, imdb_id, title, year } => luma_indexer::Query::Movie {
+        luma_module_sdk::ports::Query::Movie { tmdb_id, imdb_id, title, year } => luma_indexer::Query::Movie {
             tmdb_id: *tmdb_id,
             imdb_id: imdb_id.clone(),
             title: title.clone(),
             year: *year,
         },
-        luma_torznab::Query::Episode { tmdb_id, title, season, episode } => {
+        luma_module_sdk::ports::Query::Episode { tmdb_id, title, season, episode } => {
             luma_indexer::Query::Episode {
                 tmdb_id: *tmdb_id,
                 title: title.clone(),
@@ -100,7 +100,7 @@ fn to_indexer_query(q: &luma_torznab::Query) -> luma_indexer::Query {
                 episode: *episode,
             }
         }
-        luma_torznab::Query::Season { tmdb_id, title, season } => luma_indexer::Query::Season {
+        luma_module_sdk::ports::Query::Season { tmdb_id, title, season } => luma_indexer::Query::Season {
             tmdb_id: *tmdb_id,
             title: title.clone(),
             season: *season,
@@ -110,8 +110,8 @@ fn to_indexer_query(q: &luma_torznab::Query) -> luma_indexer::Query {
 
 /// Normalize a native-engine release into the Torznab release shape the scoring
 /// pipeline already consumes.
-fn release_from_indexer(r: luma_indexer::Release) -> luma_torznab::Release {
-    luma_torznab::Release {
+fn release_from_indexer(r: luma_indexer::Release) -> luma_module_sdk::ports::Release {
+    luma_module_sdk::ports::Release {
         title: r.title,
         guid: r.guid,
         link: r.link,
@@ -132,8 +132,8 @@ fn release_from_indexer(r: luma_indexer::Release) -> luma_torznab::Release {
 pub fn search_indexer(
     state: &SharedState,
     row: &IndexerRow,
-    query: &luma_torznab::Query,
-) -> anyhow::Result<Vec<luma_torznab::Release>> {
+    query: &luma_module_sdk::ports::Query,
+) -> anyhow::Result<Vec<luma_module_sdk::ports::Release>> {
     if row.kind == luma_indexer::admin::KIND_BUILTIN {
         let session = luma_indexer::admin::builtin_session(state, row)?;
         let outcome = session.search(&to_indexer_query(query), &row.categories);
@@ -155,7 +155,9 @@ pub fn search_indexer(
         Ok(outcome.releases.into_iter().map(release_from_indexer).collect())
     } else {
         let caps = luma_indexer::admin::indexer_caps(state, row)?;
-        luma_torznab::search(&luma_indexer::admin::endpoint_of(row), query, &caps)
+        let port = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::TorznabPort>(state)
+            .ok_or_else(|| anyhow::anyhow!("torznab search engine unavailable"))?;
+        port.search(&luma_indexer::admin::endpoint_of(row), query, &caps)
     }
 }
 

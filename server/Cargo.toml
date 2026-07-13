@@ -219,6 +219,8 @@ luma-acquisition = { workspace = true }
 # admin-mount lifecycle. Formerly server/src/modules; now its own crate.
 luma-module-kernel = { workspace = true }
 luma-indexer = { workspace = true }
+# Named only to register its stateless TorznabPort engine at the composition root.
+luma-torznab = { workspace = true }
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
 luma-mdns = { workspace = true }

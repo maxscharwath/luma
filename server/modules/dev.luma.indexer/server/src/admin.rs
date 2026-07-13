@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use crate::db::IndexerRow;
 use luma_module_sdk::host::HostCtx;
 use luma_module_sdk::primitives::now_ms;
-use luma_torznab::{Caps, IndexerEndpoint};
+use luma_module_sdk::ports::{Caps, IndexerEndpoint};
 
 use crate::store::DefinitionStore;
 use crate::{Caps as EngineCaps, IndexerConfig, Session};
@@ -38,7 +38,9 @@ pub fn indexer_caps(host: &dyn HostCtx, row: &IndexerRow) -> anyhow::Result<Caps
     if let Some(caps) = CAPS_CACHE.lock().unwrap().as_ref().and_then(|m| m.get(&key)).cloned() {
         return Ok(caps);
     }
-    let result = luma_torznab::caps(&endpoint_of(row));
+    let result = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::TorznabPort>(host)
+        .ok_or_else(|| anyhow::anyhow!("torznab search engine unavailable"))
+        .and_then(|p| p.caps(&endpoint_of(row)));
     match &result {
         Ok(_) => {
             let _ = crate::db::note_indexer_result(host.db(), &row.id, true, None, now_ms());
