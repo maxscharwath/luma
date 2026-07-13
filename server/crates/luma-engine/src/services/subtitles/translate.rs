@@ -207,8 +207,7 @@ fn translate_one(
 ) -> std::result::Result<Vec<Option<String>>, String> {
     let start = active.load(Ordering::Relaxed).min(backends.len().saturating_sub(1));
     let mut first_err: Option<String> = None;
-    for i in start..backends.len() {
-        let b = &backends[i];
+    for (i, b) in backends.iter().enumerate().skip(start) {
         match translate_batch(b.client.as_ref(), batch, target_lang, b.token_cap) {
             Ok(v) => {
                 if i != start {

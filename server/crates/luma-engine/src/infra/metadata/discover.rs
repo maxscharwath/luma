@@ -82,6 +82,9 @@ pub enum DiscoverScope {
 
 /// Search TMDB. `All` uses multi-search (drops `person` hits); the scoped
 /// variants hit the movie/tv endpoints directly.
+// The `()` Err is the unit error threaded up from `curl_json` via `?`; callers only
+// care ok/err, so a richer error type would add nothing here.
+#[allow(clippy::result_unit_err)]
 pub fn search(
     api_key: &str,
     language: &str,
@@ -107,6 +110,9 @@ pub fn search(
 /// This week's trending titles. `All` (movies + shows, page 1) powers the
 /// discover empty-state rails; the scoped variants back the full "trending
 /// movies" / "trending shows" pages with real pagination.
+// The `()` Err is the unit error threaded up from `curl_json` via `?`; callers only
+// care ok/err, so a richer error type would add nothing here.
+#[allow(clippy::result_unit_err)]
 pub fn trending(
     api_key: &str,
     language: &str,
@@ -124,6 +130,9 @@ pub fn trending(
 }
 
 /// Fetch one title's detail (+ external ids for the wanted ledger).
+// The `()` Err is the unit error threaded up from `curl_json` via `?`; callers only
+// care ok/err, so a richer error type would add nothing here.
+#[allow(clippy::result_unit_err)]
 pub fn detail(
     api_key: &str,
     language: &str,

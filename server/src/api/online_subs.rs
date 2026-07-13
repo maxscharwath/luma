@@ -40,6 +40,26 @@ pub fn public_routes() -> Router<SharedState> {
     Router::new().route("/items/:id/subtitles/dl/:dl", get(file))
 }
 
+/// Composition-root adapter: wraps the whisper module's free `transcribe` fn into
+/// the engine's [`luma_engine::ports::Whisper`] port, so `subtitles::generate`
+/// (in luma-engine) drives transcription without naming the whisper crate.
+struct WhisperPort;
+impl luma_engine::ports::Whisper for WhisperPort {
+    fn transcribe(
+        &self,
+        data_dir: &std::path::Path,
+        model_spec: &str,
+        input: &std::path::Path,
+        track: u32,
+        lang: Option<&str>,
+        on_stage: &dyn Fn(&str),
+        on_progress: &dyn Fn(usize, usize),
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> Option<String> {
+        luma_whisper::transcribe(data_dir, model_spec, input, track, lang, on_stage, on_progress, cancel)
+    }
+}
+
 /// A generated/cached subtitle as the client sees it, with its WebVTT URL.
 #[derive(Debug, Serialize)]
 pub struct DownloadedSubView {
@@ -179,8 +199,16 @@ pub async fn generate(State(state): State<SharedState>, Path(id): Path<String>, 
         // The model (ffmpeg + Whisper / LLM) is blocking: run it on the blocking pool
         // and finalize the registry entry with its result.
         let _ = tokio::task::spawn_blocking(move || {
-            let result =
-                subtitles::generate(&settings, &data_dir, &pool, &item_id, std::path::Path::new(&abs), &spec, &handle);
+            let result = subtitles::generate(
+                &settings,
+                &data_dir,
+                &pool,
+                &item_id,
+                std::path::Path::new(&abs),
+                &spec,
+                &handle,
+                &WhisperPort,
+            );
             match result {
                 Ok(sub) => handle.done(&sub.id),
                 Err(_) if handle.cancelled() => handle.fail("cancelled"),

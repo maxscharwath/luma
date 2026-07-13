@@ -42,6 +42,7 @@ export function useSubtitleGenerations(
     seenDoneRef.current = new Set();
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `nudge` is a trigger dep, not read in the body; bumping it via refresh() re-arms polling after a new generation is kicked off.
   useEffect(() => {
     if (!active) return;
     let stopped = false;

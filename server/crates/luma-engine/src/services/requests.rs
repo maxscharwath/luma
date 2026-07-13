@@ -336,7 +336,7 @@ pub fn match_one(state: &SharedState, id: &str) -> Result<Option<RequestStatus>>
             let (mut aired, mut have) = (0usize, 0usize);
             for w in &wanted {
                 let (Some(s), Some(e)) = (w.season, w.episode) else { continue };
-                let is_aired = w.air_date.as_deref().map_or(true, |d| d <= today.as_str());
+                let is_aired = w.air_date.as_deref().is_none_or(|d| d <= today.as_str());
                 if !is_aired {
                     continue;
                 }

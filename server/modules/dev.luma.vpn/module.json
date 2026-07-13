@@ -1,0 +1,7 @@
+{
+  "id": "dev.luma.vpn",
+  "name": "VPN",
+  "version": "0.1.0",
+  "provides": [{ "kind": "vpn", "id": "wireguard" }],
+  "description": "Managed WireGuard bridge (any provider) that torrent traffic routes through, with a live seal test. Disable it to stop the bridge and hide its page + routes."
+}

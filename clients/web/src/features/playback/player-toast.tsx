@@ -21,6 +21,7 @@ export function Toast({
       <span className="text-[13px] text-white/90">{children}</span>
       {action}
       <button
+        type="button"
         onClick={onDismiss}
         className="text-white/50 hover:text-white"
         aria-label={t('player.dismiss')}

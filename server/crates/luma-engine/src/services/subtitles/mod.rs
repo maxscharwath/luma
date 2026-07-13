@@ -1,7 +1,7 @@
 //! On-device subtitle generation. Two server-side engines, both producing WebVTT
 //! that is cached under `<data>/subs/downloaded/` and recorded in the DB so it
 //! shows in the item's subtitle list next to embedded tracks:
-//! - **transcribe**: in-process Whisper (candle, [`crate::infra::whisper`]) turns
+//! - **transcribe**: in-process Whisper (candle, [`crate::ports::Whisper`]) turns
 //!   the audio into timestamped text. Model size is picked by [`Quality`].
 //! - **translate**: the app's default LLM ([`translate`]) rewrites an existing
 //!   text track into another language.
@@ -98,6 +98,8 @@ pub struct GenSpec {
 /// success; `Err(reason)` carries *why* it failed (no LLM provider, an LLM/Whisper
 /// error, an empty result, a write/DB error) so the caller can show it instead of a
 /// blank "generation failed". Blocking - call off the async runtime.
+// Threads the whole generation context (settings, IO, spec, ports); a struct would just move the noise.
+#[allow(clippy::too_many_arguments)]
 pub fn generate(
     settings: &Settings,
     data_dir: &Path,
@@ -106,24 +108,26 @@ pub fn generate(
     input: &Path,
     spec: &GenSpec,
     handle: &Handle,
+    whisper: &dyn crate::ports::Whisper,
 ) -> std::result::Result<DownloadedSub, String> {
     let vtt = match spec.mode {
         GenMode::Transcribe => {
             let code = spec.spoken_lang.as_deref().and_then(lang_to_code);
             let cancel = handle.cancel_flag();
-            crate::infra::whisper::transcribe(
-                data_dir,
-                spec.quality.model(),
-                input,
-                spec.audio_track,
-                code,
-                &|stage| handle.stage(stage),
-                &|done, total| handle.progress(done, total),
-                &cancel,
-            )
-            .ok_or_else(|| {
-                "transcription produced no text (wrong audio track, or the Whisper model failed to load; see server logs)".to_string()
-            })?
+            whisper
+                .transcribe(
+                    data_dir,
+                    spec.quality.model(),
+                    input,
+                    spec.audio_track,
+                    code,
+                    &|stage| handle.stage(stage),
+                    &|done, total| handle.progress(done, total),
+                    &cancel,
+                )
+                .ok_or_else(|| {
+                    "transcription produced no text (wrong audio track, or the Whisper model failed to load; see server logs)".to_string()
+                })?
         }
         GenMode::Translate => {
             handle.stage("translate");

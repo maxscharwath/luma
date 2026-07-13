@@ -16,7 +16,11 @@ path = "src/main.rs"
 # while everything still links into this one binary. All existing entry points
 # (`cargo build` from server/, CI, the Synology docker build) are unchanged.
 [workspace]
-members = ["crates/*"]
+# Shared infra crates live under crates/. Self-contained domain *modules* live
+# under modules/<id>/server (paired with their frontend at modules/<id>/ui, their
+# translations at modules/<id>/locales, and a shared modules/<id>/module.json).
+# Modules sit under server/ because cargo refuses members outside the workspace root.
+members = ["crates/*", "modules/*/server"]
 
 # Shared package metadata. Every member (and the root package above) inherits
 # these via `edition.workspace = true` etc. Versions stay per-crate: the libs
@@ -102,19 +106,40 @@ webauthn-rs = "0.5.5"
 mimalloc = { version = "0.1", default-features = false }
 # In-workspace crates, referenced by path so a member bumping its own version
 # doesn't force a churn here.
+# Low manifest layer (below engine): manifest/registry/embedded types that
+# engine, kernel and wasm build on. Modules never depend on this directly.
+luma-module-manifest = { path = "crates/luma-module-manifest" }
+luma-module-macros = { path = "crates/luma-module-macros" }
+# The module SDK facade (ABOVE engine): the single crate every module depends on.
+# Re-exports the manifest layer + the engine/host/domain/http surface modules use.
+luma-module-sdk = { path = "crates/luma-module-sdk" }
+# Runtime hot-load tier: loads WASM modules (extism) into the running server.
+luma-module-wasm = { path = "crates/luma-module-wasm" }
+# Generated aggregator: registers every single-file (codegen) module. Owned by
+# scripts/gen-modules.ts; run `bun run modules:gen` after adding a *.module.md.
+luma-modules-generated = { path = "crates/luma-modules-generated" }
 luma-config = { path = "crates/luma-config" }
 luma-primitives = { path = "crates/luma-primitives" }
 luma-domain = { path = "crates/luma-domain" }
 luma-i18n = { path = "crates/luma-i18n" }
 luma-db = { path = "crates/luma-db" }
 luma-http = { path = "crates/luma-http" }
-luma-scene = { path = "crates/luma-scene" }
-luma-torznab = { path = "crates/luma-torznab" }
-luma-indexer = { path = "crates/luma-indexer" }
-luma-torrent = { path = "crates/luma-torrent" }
-luma-whisper = { path = "crates/luma-whisper" }
-luma-vector = { path = "crates/luma-vector" }
-luma-mdns = { path = "crates/luma-mdns" }
+luma-module-host = { path = "crates/luma-module-host" }
+# The server-side module kernel: the compile-time composition root (registers
+# every module's manifest + collects their ServerModule behaviors).
+luma-module-kernel = { path = "crates/luma-module-kernel" }
+luma-scene = { path = "modules/dev.luma.scene/server" }
+luma-torznab = { path = "modules/dev.luma.torznab/server" }
+luma-indexer = { path = "modules/dev.luma.indexer/server" }
+luma-remote = { path = "modules/dev.luma.remote/server" }
+luma-vpn = { path = "modules/dev.luma.vpn/server" }
+luma-transmission = { path = "modules/dev.luma.engine.transmission/server" }
+luma-qbittorrent = { path = "modules/dev.luma.engine.qbittorrent/server" }
+luma-torrent = { path = "modules/dev.luma.torrents/server" }
+luma-acquisition = { path = "modules/dev.luma.acquisition/server" }
+luma-whisper = { path = "modules/dev.luma.whisper/server" }
+luma-vector = { path = "modules/dev.luma.vector/server" }
+luma-mdns = { path = "modules/dev.luma.mdns/server" }
 luma-engine = { path = "crates/luma-engine" }
 
 [features]
@@ -127,27 +152,38 @@ default = ["whisper-local", "torrent-rqbit"]
 # Embedded BitTorrent engine (librqbit). ON by default. Off drops the librqbit
 # graph; the "rqbit" client kind reports "not compiled" and Transmission /
 # qBittorrent (plain curl) remain.
-torrent-rqbit = ["luma-engine/torrent-rqbit"]
+torrent-rqbit = ["luma-torrent/rqbit"]
 
 # Multilingual semantic embeddings (MiniLM via candle). OFF by default (the
-# dependency-free lexical embedder is the default). See luma-vector.
-semantic-embeddings = ["luma-engine/semantic-embeddings"]
+# dependency-free lexical embedder is the default). Forwarded straight to the
+# vector module crate now that the engine names it only through a port.
+semantic-embeddings = ["luma-vector/semantic"]
 
 # In-process Whisper transcription (candle, no external whisper.cpp). ON by
 # default. Off compiles a stub and the "transcribe" capability reports false.
-whisper-local = ["luma-engine/whisper-local"]
+# Forwarded straight to the whisper module crate (the engine drives it via a port).
+whisper-local = ["luma-whisper/local"]
 
 # GPU-accelerated Whisper for local dev builds (never the musl single binary).
 # metal = Apple-Silicon, cuda = NVIDIA, accelerate = Apple vecLib BLAS. The engine
 # picks the device at runtime and falls back to CPU. See luma-whisper.
-whisper-metal = ["luma-engine/whisper-metal"]
-whisper-cuda = ["luma-engine/whisper-cuda"]
-whisper-accelerate = ["luma-engine/whisper-accelerate"]
+whisper-metal = ["luma-whisper/metal"]
+whisper-cuda = ["luma-whisper/cuda"]
+whisper-accelerate = ["luma-whisper/accelerate"]
 
 [dependencies]
 # The binary is now a thin HTTP shell: the router + handlers (src/api) over the
 # business logic in luma-engine. It pulls only what api/main touch directly.
 luma-engine = { workspace = true }
+# The host seam: shared HTTP extractors (AuthUser) + the HostCtx contract. The
+# binary re-exports the extractors from their historical `crate::api::extract`
+# path; module crates depend on this leaf instead of the whole engine.
+luma-module-host = { workspace = true }
+# luma-remote / luma-vpn: module backends the binary names directly in main.rs
+# (their MODULE manifest + routes, injected by the ServerModule glue). The other
+# module backends register transitively via luma-module-kernel.
+luma-remote = { workspace = true }
+luma-vpn = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
 # `crate::model` wire types come through `luma-engine`.
 luma-config = { workspace = true }
@@ -155,7 +191,6 @@ luma-db = { workspace = true }
 
 axum = { workspace = true }
 tokio = { workspace = true }
-tower = { workspace = true }
 tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -167,14 +202,31 @@ anyhow = { workspace = true }
 rusqlite = { workspace = true }
 # Used directly by api handlers: time (timestamp formatting), hex, zip (backup
 # download), walkdir + sysinfo (storage/stats endpoints), and the acquisition
-# view types from luma-torrent / luma-scene.
+# view types from luma-torrent.
 time = { workspace = true }
 hex = { workspace = true }
 zip = { workspace = true }
 walkdir = { workspace = true }
 sysinfo = { workspace = true }
 luma-torrent = { workspace = true }
-luma-scene = { workspace = true }
+# The acquisition vertical (search / grab / analyze routes + the search/import/
+# match jobs). The binary repoints the request-tied search/grab handlers here and
+# passes its JOBS to AppState. It deps luma-torrent, never the reverse (no cycle).
+luma-acquisition = { workspace = true }
+# The module kernel (composition root): registers every compile-time module's
+# `MODULE` const, collects their ServerModules, and drives the enable/disable +
+# admin-mount lifecycle. Formerly server/src/modules; now its own crate.
+luma-module-kernel = { workspace = true }
+luma-indexer = { workspace = true }
+# Named only to register its stateless TorznabPort engine at the composition root.
+luma-torznab = { workspace = true }
+luma-whisper = { workspace = true }
+luma-vector = { workspace = true }
+luma-mdns = { workspace = true }
+# The admin modules endpoint names ModuleManifest for its flattened response.
+luma-module-sdk = { workspace = true }
+# Runtime WASM module host (install/load .wasm modules at runtime via extism).
+luma-module-wasm = { workspace = true }
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.

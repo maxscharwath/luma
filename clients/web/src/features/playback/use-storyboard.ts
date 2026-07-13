@@ -19,6 +19,7 @@ export function useStoryboard(itemId: string, opts?: { generate?: boolean }) {
   // single client for the component's life, re-created only if the session token
   // changes.
   const token = loadSession()?.accessToken;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: token is an intentional trigger, not a referenced value. lumaClient() reads the session token internally, so we re-mint the client only when the token changes (per the comment above); dropping `token` would freeze the client on its first value.
   const client = useMemo(() => lumaClient(), [token]);
   return useSharedStoryboard(client, itemId, opts);
 }

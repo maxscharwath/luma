@@ -51,20 +51,20 @@ export function TvPin() {
     return () => clearInterval(id);
   }, [cooldown]);
 
-  const headerUser =
-    intent === 'verify' && account
-      ? {
-          name: account.user.username,
-          seed: account.user.id,
-          src: artUrl(account.serverUrl ?? '', account.user.avatarUrl),
-        }
-      : activeUser
-        ? {
-            name: activeUser.username,
-            seed: activeUser.id,
-            src: activeClient?.resolveArt(activeUser.avatarUrl),
-          }
-        : null;
+  let headerUser: { name: string; seed: string; src?: string | null } | null = null;
+  if (intent === 'verify' && account) {
+    headerUser = {
+      name: account.user.username,
+      seed: account.user.id,
+      src: artUrl(account.serverUrl ?? '', account.user.avatarUrl),
+    };
+  } else if (activeUser) {
+    headerUser = {
+      name: activeUser.username,
+      seed: activeUser.id,
+      src: activeClient?.resolveArt(activeUser.avatarUrl),
+    };
+  }
 
   let subtitle: MessageKey = 'pin.verifySubtitle';
   if (intent === 'set') subtitle = first == null ? 'pin.setSubtitle' : 'pin.confirmSubtitle';

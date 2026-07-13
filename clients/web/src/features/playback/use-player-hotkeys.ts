@@ -120,6 +120,8 @@ export function usePlayerHotkeys(
     activeSub,
     subs,
     avOpen,
+    setAvOpen,
+    setStatsOpen,
     onClose,
     poke,
     seekTo,

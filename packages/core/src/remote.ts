@@ -78,7 +78,7 @@ export function resolveRemoteKey(e: KeyboardEvent): RemoteKey | null {
 /** A remote-key handler. Return `false` to mark the key *unhandled* (so the event
  * keeps its default e.g. let a text field own ◀ ▶ / Enter); anything else
  * (incl. `undefined`) counts as handled and the event is `preventDefault`-ed. */
-export type RemoteKeyHandler = (e: KeyboardEvent) => void | boolean;
+export type RemoteKeyHandler = (e: KeyboardEvent) => unknown;
 /** Declarative key → action table: `{ Enter: () => …, Back: () => … }`. */
 export type RemoteKeyMap = Partial<Record<RemoteKey, RemoteKeyHandler>>;
 

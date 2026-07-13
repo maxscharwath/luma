@@ -54,6 +54,7 @@ export function TvAddProfile() {
   // A single "Serveurs disponibles" section: discovered servers first (tagged
   // "nouveau" when not yet saved), then any saved-but-not-discovered, then the
   // manual-entry row exactly the design's layout.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `pick` and `nav` are stable enough here; rows rebuild on the reactive inputs (discovered/servers/t) only.
   const rows = useMemo<Row[]>(() => {
     const localUrls = discovered.map(norm);
     const out: Row[] = [];
@@ -87,7 +88,6 @@ export function TvAddProfile() {
       onSelect: () => nav.go('connect'),
     });
     return out;
-    // biome-ignore lint/correctness/useExhaustiveDependencies: pick/nav are stable enough here.
   }, [discovered, servers, t]);
 
   // Probe each listed server so a row shows whether it actually answers (a saved

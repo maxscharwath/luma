@@ -200,7 +200,7 @@ export const OrganizeResult = z.object({
 });
 export type OrganizeResult = z.infer<typeof OrganizeResult>;
 
-/** `POST /api/admin/downloads/analyze` body. */
+/** `POST /api/admin/acquisition/analyze` body. */
 export const AnalyzeBody = z.object({
   magnetOrUrl: z.string(),
 });

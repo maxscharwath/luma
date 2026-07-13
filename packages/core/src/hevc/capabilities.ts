@@ -140,5 +140,6 @@ export function detectCapabilities(): PlaybackCapabilities {
 let cached: PlaybackCapabilities | null = null;
 /** Cached variant capabilities don't change within a session. */
 export function capabilities(): PlaybackCapabilities {
-  return (cached ??= detectCapabilities());
+  cached ??= detectCapabilities();
+  return cached;
 }

@@ -5,7 +5,7 @@
 import type { AdminFsList } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconCheck, IconChevronRight, IconCornerLeftUp, IconFolder } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { lumaClient } from '#web/shared/lib/api';
 
 export function FolderPicker({
@@ -41,6 +41,32 @@ export function FolderPicker({
   const canSelect = !atRoot;
   const isSelected = !atRoot && value === path;
 
+  let listBody: ReactNode;
+  if (loading && entries.length === 0) {
+    listBody = (
+      <div className="px-3 py-6 text-center text-[12.5px] text-dim">{t('common.loading')}</div>
+    );
+  } else if (entries.length === 0) {
+    listBody = (
+      <div className="px-3 py-6 text-center text-[12.5px] text-dim">{t('admin.noSubfolders')}</div>
+    );
+  } else {
+    listBody = entries.map((e) => (
+      <button
+        key={e.path}
+        type="button"
+        onClick={() => setPath(e.path)}
+        className="flex w-full items-center gap-2.5 px-3 py-2.25 text-left hover:bg-white/5"
+      >
+        <IconFolder size={16} stroke={1.8} className="shrink-0 text-accent" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text/78">
+          {e.name}
+        </span>
+        <IconChevronRight size={14} stroke={2} className="shrink-0 text-text/35" />
+      </button>
+    ));
+  }
+
   return (
     <div className="overflow-hidden rounded-[10px] border border-border-strong bg-[#0F0F13]">
       <div className="flex items-center gap-2 border-b border-white/6 px-3 py-2.5">
@@ -60,30 +86,7 @@ export function FolderPicker({
         </span>
       </div>
 
-      <div className="max-h-52 overflow-y-auto">
-        {loading && entries.length === 0 ? (
-          <div className="px-3 py-6 text-center text-[12.5px] text-dim">{t('common.loading')}</div>
-        ) : entries.length === 0 ? (
-          <div className="px-3 py-6 text-center text-[12.5px] text-dim">
-            {t('admin.noSubfolders')}
-          </div>
-        ) : (
-          entries.map((e) => (
-            <button
-              key={e.path}
-              type="button"
-              onClick={() => setPath(e.path)}
-              className="flex w-full items-center gap-2.5 px-3 py-2.25 text-left hover:bg-white/5"
-            >
-              <IconFolder size={16} stroke={1.8} className="shrink-0 text-accent" />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text/78">
-                {e.name}
-              </span>
-              <IconChevronRight size={14} stroke={2} className="shrink-0 text-text/35" />
-            </button>
-          ))
-        )}
-      </div>
+      <div className="max-h-52 overflow-y-auto">{listBody}</div>
 
       <div className="flex items-center justify-between gap-2 border-t border-white/6 px-3 py-2.5">
         <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-dim">

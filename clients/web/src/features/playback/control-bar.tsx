@@ -29,7 +29,7 @@ const PREVIEW_W = 168;
 /** Skip-to-next-episode glyph (⏭). */
 function IconNext() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M6 5l9 7-9 7V5zm11 0h2v14h-2V5z" />
     </svg>
   );
@@ -196,7 +196,10 @@ export function ControlBar({
         {/* playback speed */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="rounded-lg px-3 py-2 text-[13px] font-semibold text-white hover:bg-white/10 max-md:hidden">
+            <button
+              type="button"
+              className="rounded-lg px-3 py-2 text-[13px] font-semibold text-white hover:bg-white/10 max-md:hidden"
+            >
               {rate}×
             </button>
           </DropdownMenu.Trigger>
@@ -224,6 +227,7 @@ export function ControlBar({
         </DropdownMenu.Root>
 
         <button
+          type="button"
           onClick={onToggleStats}
           className={`rounded-lg p-2.5 hover:bg-white/10 max-md:hidden ${statsOpen ? 'text-accent' : 'text-white'}`}
           aria-label={t('player.stats')}
@@ -232,6 +236,7 @@ export function ControlBar({
         </button>
 
         <button
+          type="button"
           onClick={onOpenAv}
           className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-semibold text-accent-ink hover:bg-accent-hover"
         >
@@ -263,6 +268,7 @@ function CtrlButton({
 }>) {
   return (
     <button
+      type="button"
       onClick={onClick}
       aria-label={label}
       className={`flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 ${className ?? ''}`}

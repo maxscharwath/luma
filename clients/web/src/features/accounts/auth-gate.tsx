@@ -14,7 +14,7 @@ import {
 } from '@luma/core';
 import { type ActivateResult, Logo, useT } from '@luma/ui';
 import { IconLock, IconPlus } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { LoginForm, RegisterForm } from '#web/features/accounts/auth-forms';
 import { UserAvatar } from '#web/features/accounts/user-avatar';
 import { useAuth } from '#web/shared/lib/auth';
@@ -427,6 +427,23 @@ function PinEntry({
     setShake((s) => s + 1);
   };
 
+  // Status line content: spinner while verifying, else the error / cooldown.
+  let status: ReactNode = null;
+  if (busy) {
+    status = (
+      <>
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-accent" />
+        <span className="text-[13px] font-medium text-muted">{t('pin.verifying')}</span>
+      </>
+    );
+  } else if (error) {
+    status = (
+      <span className="text-[13px] font-medium text-danger">
+        {cooldown > 0 ? t('pin.lockedRetry', { seconds: cooldown }) : error}
+      </span>
+    );
+  }
+
   return (
     <div className="flex w-full max-w-90 flex-col items-center gap-6">
       <UserAvatar
@@ -455,18 +472,7 @@ function PinEntry({
       </div>
 
       {/* Status line: spinner while verifying, else the error / cooldown. */}
-      <div className="flex h-5 items-center gap-2">
-        {busy ? (
-          <>
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-accent" />
-            <span className="text-[13px] font-medium text-muted">{t('pin.verifying')}</span>
-          </>
-        ) : error ? (
-          <span className="text-[13px] font-medium text-danger">
-            {cooldown > 0 ? t('pin.lockedRetry', { seconds: cooldown }) : error}
-          </span>
-        ) : null}
-      </div>
+      <div className="flex h-5 items-center gap-2">{status}</div>
 
       <button
         type="button"

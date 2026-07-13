@@ -91,6 +91,7 @@ export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<Intro
 
       {/* embers */}
       {embers.map(({ anim, ...s }, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: EMBERS is a fixed, static list that is never reordered.
         <div key={i} style={{ position: 'absolute', borderRadius: '50%', animation: anim, ...s }} />
       ))}
 
@@ -129,6 +130,7 @@ export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<Intro
             }}
           />
           <svg
+            aria-hidden="true"
             viewBox="0 0 100 100"
             style={{
               position: 'absolute',

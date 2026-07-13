@@ -91,8 +91,11 @@ export function RequestRowView({
       </div>
 
       <div className="flex justify-end gap-1.5">
+        {/* This row is itself a <button>, and a <button> can't be nested inside a
+            button, so the quick approve/deny controls are role="button" spans. */}
         {canReview && req.status === 'pending' ? (
           <>
+            {/* biome-ignore lint/a11y/useSemanticElements: cannot be a native <button> because it lives inside the row's <button> */}
             <span
               role="button"
               tabIndex={-1}
@@ -100,17 +103,32 @@ export function RequestRowView({
                 e.stopPropagation();
                 onApprove();
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onApprove();
+                }
+              }}
               title={t('requests.approve')}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#46D08D]/30 bg-[#46D08D]/10 text-[#46D08D] transition-colors hover:bg-[#46D08D]/20"
             >
               <IconCheck size={14} stroke={2.6} />
             </span>
+            {/* biome-ignore lint/a11y/useSemanticElements: cannot be a native <button> because it lives inside the row's <button> */}
             <span
               role="button"
               tabIndex={-1}
               onClick={(e) => {
                 e.stopPropagation();
                 onDeny();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDeny();
+                }
               }}
               title={t('requests.deny')}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E8536A]/30 bg-[#E8536A]/10 text-[#E8536A] transition-colors hover:bg-[#E8536A]/20"

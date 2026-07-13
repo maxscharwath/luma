@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { lumaModule } from '@luma/module-sdk/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
@@ -18,6 +19,9 @@ export default defineConfig({
   // app ships as static files the Rust server serves on the same origin (the
   // single-binary Synology package). No Node runtime needed in production.
   plugins: [
+    // Injects each module's manifest + locales into its defineModule() call by
+    // convention (must precede the transforms that expand import.meta.glob).
+    lumaModule(),
     // Exposes `virtual:build-info` (version, commit, branch, build date).
     buildInfoPlugin(),
     tailwindcss(),

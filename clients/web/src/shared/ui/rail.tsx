@@ -95,8 +95,14 @@ export function Rail({ children, gap = 18, padded = false, label }: Readonly<Rai
 
   return (
     <div className="group/rail relative">
+      {/* `group` is the correct ARIA role for a set of related items (this
+          horizontal slide scroller) and, unlike a plain <div>, supports the
+          aria-label naming it. The rule suggests <fieldset>, but that is a
+          form-controls grouping and wrong here. */}
+      {/* biome-ignore lint/a11y/useSemanticElements: role="group" names a scroller, not a form fieldset */}
       <div
         ref={ref}
+        role="group"
         aria-label={label}
         // `py-4` + the horizontal inset give the cards' hover-lift + amber focus
         // ring room before the overflow clips them. Non-padded (home) rails inset

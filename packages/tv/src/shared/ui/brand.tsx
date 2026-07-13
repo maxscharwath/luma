@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 export function LumaMark({ size = 30 }: Readonly<{ size?: number }>) {
   return (
     <div className="flex items-center gap-3">
-      <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
         <circle cx="16" cy="16" r="13" stroke="#F4B642" strokeWidth="2.4" />
         <circle cx="16" cy="16" r="4.5" fill="#F4B642" />
       </svg>

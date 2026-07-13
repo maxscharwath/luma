@@ -85,6 +85,7 @@ export function useSubtitleGen(
 
   const start = useCallback(() => {
     refresh(); // (re)arm polling: a new generation is about to be in flight
+    // biome-ignore lint/style/noNonNullAssertion: GEN_LANGS is a non-empty constant list, so index 0 always exists.
     const lang = GEN_LANGS[form.langIndex] ?? GEN_LANGS[0]!;
     if (form.mode === 'transcribe') {
       void client
@@ -118,6 +119,7 @@ export function useSubtitleGen(
     (dir: number) =>
       setForm((f) => ({
         ...f,
+        // biome-ignore lint/style/noNonNullAssertion: mod() keeps the index within the non-empty GEN_QUALITIES, so the element always exists.
         quality: GEN_QUALITIES[mod(GEN_QUALITIES.indexOf(f.quality) + dir, GEN_QUALITIES.length)]!,
       })),
     [],

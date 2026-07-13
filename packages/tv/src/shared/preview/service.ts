@@ -9,7 +9,7 @@
 //   • the service (clients/tizen/public/service/preview-service.js) reads that
 //     file and calls webapis.preview.setPreviewData(), which the TV shows.
 
-import { type ContinueItem, type LumaClient, type MediaItem } from '@luma/core';
+import type { ContinueItem, LumaClient, MediaItem } from '@luma/core';
 import { buildPreviewData } from '#tv/shared/preview/cards';
 import { type Tizen, type TizenFile, tizen } from '#tv/shared/preview/tizen';
 

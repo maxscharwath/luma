@@ -14,6 +14,7 @@ use crate::infra::events::ServerEvent;
 use crate::model::Permission;
 use crate::services::settings;
 use crate::state::SharedState;
+use crate::DownloadsExt;
 use axum::routing::get;
 use axum::Router;
 
@@ -67,7 +68,7 @@ pub async fn put_settings(
         .any(|k| matches!(k.as_str(), "rqbitPort" | "rqbitDownKbps" | "rqbitUpKbps"))
     {
         let st = state.clone();
-        tokio::spawn(async move { st.downloads.start_rqbit(&st).await });
+        tokio::spawn(async move { st.downloads().start_rqbit(&st).await });
     }
     state.events.publish(ServerEvent::SettingsUpdated);
     Ok(Json(json!({ "updated": written })).into_response())

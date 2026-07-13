@@ -255,7 +255,7 @@ export function Player({
           OR the audio language changes, so hls.js always does a clean fresh attach
           (a re-attach on a reused element is flaky and the chosen audio is muxed
           per-stream). */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      {/* biome-ignore lint/a11y/useMediaCaption: subtitle tracks are attached at runtime by the player's subtitle system */}
       <video
         key={`${pb.anchor}:${pb.audioIndex}`}
         ref={videoRef}
@@ -314,6 +314,7 @@ export function Player({
           onDismiss={() => setShowResume(false)}
           action={
             <button
+              type="button"
               onClick={() => {
                 pb.seekTo(0); // restart from the beginning
                 setShowResume(false);
@@ -366,6 +367,7 @@ export function Player({
         style={{ opacity: controls ? 1 : 0, pointerEvents: controls ? 'auto' : 'none' }}
       >
         <button
+          type="button"
           onClick={onClose}
           className="flex h-10.5 w-10.5 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/20"
           aria-label={t('player.back')}

@@ -5,7 +5,6 @@
 //! this module re-exports them as a single flat namespace so existing
 //! `crate::model::X` call sites keep resolving unchanged.
 
-pub use crate::domain::acquisition::*;
 pub use crate::domain::media::*;
 pub use crate::domain::metadata::*;
 pub use crate::domain::accounts::*;
@@ -13,7 +12,6 @@ pub use crate::domain::playback::*;
 pub use crate::domain::library::*;
 pub use crate::domain::admin::*;
 pub use crate::domain::jobs::*;
-pub use crate::domain::organize::*;
 pub use crate::domain::pipeline::*;
 pub use crate::domain::requests::*;
 pub use crate::domain::section::*;

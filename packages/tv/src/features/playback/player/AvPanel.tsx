@@ -123,21 +123,20 @@ export function AvPanel({
       </div>
 
       {/* Create a missing subtitle, or the generate sheet when it is open. */}
-      {canCreate ? (
-        genOpen ? (
-          <GeneratePanel form={form} sources={sources} genFocus={genFocus} />
-        ) : (
-          <div
-            className={`mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-3.5 ${focus === createIndex ? 'border-[rgba(124,111,240,0.75)] bg-[rgba(124,111,240,0.14)] shadow-(--ring-focus-sm)' : 'border-[rgba(124,111,240,0.45)]'}`}
-          >
-            <span className="text-[#b3a9f5]">
-              <SparkleGlyph />
-            </span>
-            <span className="font-sans text-[15px] font-bold text-[#b3a9f5]">
-              {t('player.subCreateMissing')}
-            </span>
-          </div>
-        )
+      {canCreate && genOpen ? (
+        <GeneratePanel form={form} sources={sources} genFocus={genFocus} />
+      ) : null}
+      {canCreate && !genOpen ? (
+        <div
+          className={`mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-3.5 ${focus === createIndex ? 'border-[rgba(124,111,240,0.75)] bg-[rgba(124,111,240,0.14)] shadow-(--ring-focus-sm)' : 'border-[rgba(124,111,240,0.45)]'}`}
+        >
+          <span className="text-[#b3a9f5]">
+            <SparkleGlyph />
+          </span>
+          <span className="font-sans text-[15px] font-bold text-[#b3a9f5]">
+            {t('player.subCreateMissing')}
+          </span>
+        </div>
       ) : null}
     </div>
   );

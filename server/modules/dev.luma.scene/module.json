@@ -1,0 +1,13 @@
+{
+  "id": "dev.luma.scene",
+  "name": "Release parser",
+  "version": "0.1.0",
+  "dependsOn": [],
+  "provides": [
+    {
+      "kind": "release-parser",
+      "id": "scene"
+    }
+  ],
+  "description": "Scene / P2P release-name parsing and scoring for the acquisition stack."
+}

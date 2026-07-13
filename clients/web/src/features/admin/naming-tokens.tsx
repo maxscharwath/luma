@@ -151,11 +151,13 @@ export function NamingTokenModal({
   };
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: presentational backdrop; the click only dismisses the modal (a mouse convenience). Keyboard users close via the X / Close buttons.
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
       role="presentation"
     >
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the onClick only stops propagation so an inside-click doesn't reach the backdrop; there is no user action to mirror on the keyboard. */}
       <div
         className="flex max-h-[88vh] w-full max-w-3xl flex-col rounded-2xl border border-border bg-surface-1 shadow-pop"
         onClick={(e) => e.stopPropagation()}

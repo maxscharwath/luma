@@ -114,7 +114,7 @@ function CheckGlyph() {
       strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      aria-hidden
+      aria-hidden="true"
     >
       <path d="M20 6 9 17l-5-5" />
     </svg>

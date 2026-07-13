@@ -6,7 +6,7 @@ import { type DiscoverEntry, posterColors, sizedImageUrl } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconPlus, IconStarFilled } from '@tabler/icons-react';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 
 export function DiscoverCard({
@@ -22,6 +22,21 @@ export function DiscoverCard({
   const showImg = Boolean(art) && imgOk;
   const owned = entry.inLibrary && entry.localId;
   const canRequest = !owned && !entry.requestStatus;
+
+  // The overlaid availability/request chip: owned titles show "available",
+  // requested ones show their live request status, and the rest show nothing.
+  let statusChip: ReactNode = null;
+  if (owned) {
+    statusChip = <RequestStatusChip status="available" size="card" />;
+  } else if (entry.requestStatus) {
+    statusChip = (
+      <RequestStatusChip
+        status={entry.requestStatus}
+        size="card"
+        progress={entry.requestProgress}
+      />
+    );
+  }
 
   const open = () => {
     if (owned) {
@@ -66,17 +81,7 @@ export function DiscoverCard({
           {/* top gradient scrim keeps the chips legible over bright art */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/55 to-transparent opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 pointer-coarse:opacity-100" />
 
-          <div className="absolute left-2 top-2 flex flex-col gap-1.5">
-            {owned ? (
-              <RequestStatusChip status="available" size="card" />
-            ) : entry.requestStatus ? (
-              <RequestStatusChip
-                status={entry.requestStatus}
-                size="card"
-                progress={entry.requestProgress}
-              />
-            ) : null}
-          </div>
+          <div className="absolute left-2 top-2 flex flex-col gap-1.5">{statusChip}</div>
 
           {entry.rating ? (
             <span className="absolute right-2 top-2 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10.5px] font-bold text-[#F4B642] backdrop-blur-[4px]">

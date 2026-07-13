@@ -164,20 +164,6 @@ export const SectionPoster = memo(function SectionPoster({
   );
 });
 
-export function MovieRail({ title, movies }: Readonly<{ title: string; movies: MovieView[] }>) {
-  if (movies.length === 0) return null;
-  return (
-    <section>
-      <h2 className={SECTION_TITLE}>{title}</h2>
-      <Rail label={title}>
-        {movies.map((item) => (
-          <MoviePoster key={item.id} item={item} />
-        ))}
-      </Rail>
-    </section>
-  );
-}
-
 export function ShowRail({ title, shows }: Readonly<{ title: string; shows: ShowView[] }>) {
   if (shows.length === 0) return null;
   return (

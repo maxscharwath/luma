@@ -107,7 +107,6 @@ export function usePlaybackHeartbeat(params: PlaybackHeartbeatParams): void {
   }, [params.pingSignal]);
 
   // Listen for an admin terminating this session (matched by session id).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-subscribe only on enabled/url.
   useEffect(() => {
     if (!params.enabled) return;
     const ev = new LumaEvents(params.eventsBaseUrl, {

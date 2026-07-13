@@ -1,0 +1,10 @@
+{
+  "id": "dev.luma.hellowasm",
+  "name": "Hello WASM",
+  "version": "0.1.0",
+  "description": "A demo module installed at runtime: a sandboxed WASM backend plus a Module Federation page, with no server rebuild.",
+  "provides": [],
+  "permissions": [],
+  "config": [],
+  "feRemote": { "module": "./module" }
+}

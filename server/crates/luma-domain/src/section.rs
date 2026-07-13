@@ -29,8 +29,8 @@ pub struct Section {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum SectionItem {
-    Movie { item: MediaItem },
-    Show { show: Show },
+    Movie { item: Box<MediaItem> },
+    Show { show: Box<Show> },
 }
 
 impl SectionItem {

@@ -178,7 +178,7 @@ pub fn worst_status(pool: &Pool, stage: &str, subject_ids: &[String]) -> Result<
     let mut worst: Option<String> = None;
     for st in rows {
         let st = st?;
-        if worst.as_deref().map_or(true, |w| rank(&st) > rank(w)) {
+        if worst.as_deref().is_none_or(|w| rank(&st) > rank(w)) {
             worst = Some(st);
         }
     }

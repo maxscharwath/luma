@@ -12,6 +12,10 @@ use anyhow::Result;
 use crate::services::jobs::JobContext;
 use crate::state::SharedState;
 
+/// Enumerate every subject a stage currently applies to, each paired with a cheap
+/// signature of its inputs: `(subject_id, signature)`.
+type EnumerateFn = fn(&SharedState) -> Result<Vec<(String, String)>>;
+
 /// One stage of the per-element pipeline.
 pub struct Stage {
     /// Short key stored in `pipeline_tasks.stage` and used as the i18n base
@@ -31,7 +35,7 @@ pub struct Stage {
     /// of its inputs. Dependencies are encoded *here* (e.g. storyboard only
     /// enumerates items whose file is already probed), so there is no separate DAG
     /// gate to maintain. Should be one set-based query, not N point lookups.
-    pub enumerate: fn(&SharedState) -> Result<Vec<(String, String)>>,
+    pub enumerate: EnumerateFn,
     /// Process ONE subject, addressed by its id. Wraps existing code and may write
     /// the DB with that code's established pattern. Returning `Err` records the
     /// task as `failed` (with the message); `Ok` records it `done`.

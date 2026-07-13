@@ -3,7 +3,7 @@
 //!
 //! LUMA is open source and self-hosted, so the user chooses *which* model and
 //! *where* it runs. Backends sit behind one [`LlmClient`] trait, mirroring the
-//! [`crate::infra::embed`] design:
+//! embedder-port design (see [`crate::ports::Embedder`]):
 //!   * [`http`] any **OpenAI-compatible** server (Ollama, llama.cpp, LM Studio,
 //!     vLLM, OpenRouter, …) **or** the **Anthropic** Messages API (Claude). Shells
 //!     out to `curl`, exactly like the TMDB client no heavy HTTP dep.

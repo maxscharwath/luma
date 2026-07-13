@@ -25,9 +25,14 @@ export function avatarGradient(seed: string): string {
 /** Up-to-two-letter initials from a display name. */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+  const first = parts[0];
+  if (!first) return '?';
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  // `parts` came from `filter(Boolean)`, so every entry is a non-empty string:
+  // `last` exists (length >= 2) and both first chars are present. The `?? ''`
+  // fallbacks are only there to satisfy the type-checker and never trigger.
+  const last = parts[parts.length - 1] ?? first;
+  return ((first[0] ?? '') + (last[0] ?? '')).toUpperCase();
 }
 
 /**

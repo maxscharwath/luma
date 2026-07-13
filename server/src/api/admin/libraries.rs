@@ -250,7 +250,7 @@ fn browse_dirs(raw: String) -> Result<Value, BrowseErr> {
     }
 
     let entries = read_subdirs(&canon)?;
-    let is_root = canon == Path::new("/") || roots.iter().any(|r| canon == *r);
+    let is_root = canon == Path::new("/") || roots.contains(&canon);
     let parent = if is_root {
         Value::Null
     } else {

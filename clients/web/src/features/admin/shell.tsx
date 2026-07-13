@@ -2,6 +2,7 @@
 // the data/event context (server info + a tick that bumps on server events so
 // pages can refresh live).
 
+import { AdminKitProvider } from '@luma/admin-kit';
 import {
   hasPermission,
   LumaEvents,
@@ -9,24 +10,21 @@ import {
   type Permission,
   type ServerInfo,
 } from '@luma/core';
+import type { ModuleNav } from '@luma/module-sdk';
 import { Logo, useT } from '@luma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  IconAntenna,
+  IconApps,
   IconArchive,
   IconChevronRight,
   IconClockBolt,
-  IconCloud,
   IconDatabase,
-  IconDownload,
   IconFileText,
   IconInbox,
   IconLayoutDashboard,
   IconLibrary,
-  IconMagnet,
   IconMenu2,
   IconSettings,
-  IconShieldLock,
   IconSitemap,
   IconSparkles,
   IconTransform,
@@ -37,13 +35,15 @@ import {
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { usePoll } from '#web/features/admin/hooks';
+import { useModuleNavAll } from '#web/modules/ModuleHostProvider';
+import { resolveModuleIcon } from '#web/modules/module-icons';
 import { formatUptime } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
-export { HeaderAction, PageHeader } from '#web/features/admin/header';
+export { HeaderAction, PageHeader } from '@luma/admin-kit';
 // Data hooks + capability helpers and the page header live in sibling modules;
 // re-exported here so call sites keep importing them from this shell module.
 export { Denied, isAnyAdmin, useAsyncAction, useCap, usePoll } from '#web/features/admin/hooks';
@@ -57,8 +57,12 @@ interface AdminCtx {
 const AdminContext = createContext<AdminCtx | null>(null);
 
 export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const { client } = useAuth();
+  const { client, user } = useAuth();
   const queryClient = useQueryClient();
+  // The admin UI kit (@luma/admin-kit) reads the authed client / user / API
+  // origin from this context, so both built-in and module admin pages share one
+  // data + capability surface without importing app internals.
+  const kit = useMemo(() => ({ client, user, apiBase: apiBase() }), [client, user]);
   // Server info (uptime etc.) as a plain admin poll it refetches on the 15s tick
   // and whenever the event stream below invalidates the `['admin']` namespace.
   const { data: serverInfo } = usePoll(['admin', 'server'], () => client.adminServer(), 15000);
@@ -90,7 +94,11 @@ export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
     };
   }, [queryClient]);
 
-  return <AdminContext.Provider value={{ serverInfo }}>{children}</AdminContext.Provider>;
+  return (
+    <AdminKitProvider value={kit}>
+      <AdminContext.Provider value={{ serverInfo }}>{children}</AdminContext.Provider>
+    </AdminKitProvider>
+  );
 }
 
 export function useAdmin(): AdminCtx {
@@ -113,9 +121,10 @@ interface NavItem {
   exact?: boolean;
 }
 
-const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
+const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] = [
   {
     labelKey: 'admin.groupManagement',
+    section: 'management',
     items: [
       {
         to: '/admin',
@@ -135,6 +144,7 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
   },
   {
     labelKey: 'admin.groupMedia',
+    section: 'media',
     items: [
       {
         to: '/admin/libraries',
@@ -158,27 +168,22 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
     ],
   },
   {
+    // Section anchor: the acquisition module pages (Indexers, Downloads, ...)
+    // target `section: "acquisition"` and render here; no built-in items of its own.
     labelKey: 'admin.groupAcquisition',
-    items: [
-      {
-        to: '/admin/acquisition',
-        labelKey: 'admin.navAcquisition',
-        cap: 'settings.manage',
-        icon: IconMagnet,
-      },
-      {
-        to: '/admin/indexers',
-        labelKey: 'admin.navIndexers',
-        cap: 'settings.manage',
-        icon: IconAntenna,
-      },
-      { to: '/admin/downloads', labelKey: 'admin.navDownloads', cap: null, icon: IconDownload },
-      { to: '/admin/vpn', labelKey: 'admin.navVpn', cap: 'settings.manage', icon: IconShieldLock },
-    ],
+    section: 'acquisition',
+    items: [],
   },
   {
     labelKey: 'admin.groupSystem',
+    section: 'system',
     items: [
+      {
+        to: '/admin/modules',
+        labelKey: 'admin.navModules',
+        cap: 'settings.manage',
+        icon: IconApps,
+      },
       {
         to: '/admin/general',
         labelKey: 'admin.navGeneral',
@@ -191,11 +196,11 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavItem[] }[] = [
         cap: 'settings.manage',
         icon: IconWorld,
       },
-      { to: '/admin/remote', labelKey: 'admin.navRemote', cap: 'settings.manage', icon: IconCloud },
     ],
   },
   {
     labelKey: 'admin.groupMaintenance',
+    section: 'maintenance',
     items: [
       { to: '/admin/jobs', labelKey: 'admin.navJobs', cap: 'settings.manage', icon: IconClockBolt },
       {
@@ -243,11 +248,19 @@ function AdminSidebarBody() {
   const { serverInfo } = useAdmin();
   const { user } = useAuth();
   const visible = (cap: Permission | null) => !cap || (!!user && hasPermission(user, cap));
-  // Filter each section's items, then drop sections left empty for this user.
+  // Module pages target a nav-group by `section` (e.g. Torrents -> "acquisition"),
+  // so they render INSIDE the matching group beside the built-in pages. A disabled
+  // module drops out, so its link vanishes with the rest of its system.
+  const moduleNav = useModuleNavAll();
+  const knownSections = new Set(NAV_GROUPS.map((g) => g.section));
   const groups = NAV_GROUPS.map((g) => ({
     labelKey: g.labelKey,
     items: g.items.filter((n) => visible(n.cap)),
-  })).filter((g) => g.items.length > 0);
+    modules: moduleNav.filter((m) => (m.section ?? 'library') === g.section),
+  })).filter((g) => g.items.length > 0 || g.modules.length > 0);
+  // Module pages whose section names no built-in group (e.g. `section: "admin"`
+  // or a custom id) fall into a generic "Module pages" group.
+  const orphanModules = moduleNav.filter((m) => !knownSections.has(m.section ?? 'library'));
   return (
     <>
       {/* Fixed header: back-to-app link */}
@@ -279,8 +292,18 @@ function AdminSidebarBody() {
                 {t(n.labelKey)}
               </Link>
             ))}
+            {g.modules.map((m) => (
+              <ModuleNavLink key={`${m.moduleId}:${m.to}`} item={m} />
+            ))}
           </SidebarGroup>
         ))}
+        {orphanModules.length > 0 && (
+          <SidebarGroup label={t('admin.groupModulePages')}>
+            {orphanModules.map((m) => (
+              <ModuleNavLink key={`${m.moduleId}:${m.to}`} item={m} />
+            ))}
+          </SidebarGroup>
+        )}
       </nav>
 
       {/* Fixed footer: live server status */}
@@ -310,6 +333,9 @@ function AdminMobileTopbar() {
   const t = useT();
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Close the drawer on navigation: `pathname` is read only in the dep array so
+  // the effect re-runs on each route change (removing it would break that).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional re-run key; pathname closes the drawer on navigation
   useEffect(() => setOpen(false), [pathname]);
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-[#0C0C0E]/95 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
@@ -348,6 +374,17 @@ function AdminMobileTopbar() {
         </Dialog.Portal>
       </Dialog.Root>
     </header>
+  );
+}
+
+/** A nav link contributed by a module (resolved icon + localized label). */
+function ModuleNavLink({ item }: Readonly<{ item: ModuleNav }>) {
+  const Icon = resolveModuleIcon(item.icon);
+  return (
+    <Link to={item.to} className={linkCls}>
+      <Icon size={18} stroke={1.7} />
+      {item.label}
+    </Link>
   );
 }
 

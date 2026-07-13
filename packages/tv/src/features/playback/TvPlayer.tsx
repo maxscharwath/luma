@@ -1,6 +1,6 @@
 import { audioSupport, type MediaItem, playerSubtitle } from '@luma/core';
 import { useLocale, useT } from '@luma/ui';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { endsAtClock } from '#tv/features/catalog/detail/parts';
 import { AvPanel } from '#tv/features/playback/player/AvPanel';
@@ -231,6 +231,37 @@ export function TvPlayer() {
     warn = t(verdict.messageKey, verdict.messageVars);
   else if (!audio.canPlay && audio.messageKey) warn = t(audio.messageKey, audio.messageVars);
 
+  let surfaceEl: ReactNode;
+  if (playback.surface === 'avplay') {
+    // Native AVPlay renders to a hardware video plane BEHIND the page; this
+    // <object> is the placeholder surface and the page is transparent here so
+    // the plane shows through. The HTML chrome + subtitles sit on top.
+    surfaceEl = (
+      <object
+        ref={playback.objectRef}
+        type="application/avplayer"
+        className="h-full w-full"
+        aria-label={item.title}
+      />
+    );
+  } else if (playback.surface === 'mpv' || playback.surface === 'exo') {
+    // Native mpv (Steam Deck) renders to its OWN window behind the transparent
+    // Tauri UI window; ExoPlayer (Android TV) to a SurfaceView behind the
+    // transparent WebView - so there is no in-page media element; the page is
+    // transparent here and the HTML chrome + subtitles sit on top.
+    surfaceEl = <div className="h-full w-full" role="img" aria-label={item.title} />;
+  } else {
+    surfaceEl = (
+      // biome-ignore lint/a11y/useMediaCaption: subtitles are rendered by the custom <TvSubtitles> overlay, not native <track> elements.
+      <video
+        ref={playback.videoRef}
+        className="h-full w-full bg-black object-contain"
+        autoPlay
+        playsInline
+      />
+    );
+  }
+
   return (
     <div
       className={`fixed inset-0 z-60 ${playback.surface === 'video' ? 'bg-black' : 'bg-transparent'} ${controls ? '' : 'cursor-none'}`}
@@ -239,31 +270,7 @@ export function TvPlayer() {
         if (e.pointerType !== 'touch') poke();
       }}
     >
-      {playback.surface === 'avplay' ? (
-        // Native AVPlay renders to a hardware video plane BEHIND the page; this
-        // <object> is the placeholder surface and the page is transparent here so
-        // the plane shows through. The HTML chrome + subtitles sit on top.
-        <object
-          ref={playback.objectRef}
-          type="application/avplayer"
-          className="h-full w-full"
-          aria-label={item.title}
-        />
-      ) : playback.surface === 'mpv' || playback.surface === 'exo' ? (
-        // Native mpv (Steam Deck) renders to its OWN window behind the transparent
-        // Tauri UI window; ExoPlayer (Android TV) to a SurfaceView behind the
-        // transparent WebView - so there is no in-page media element; the page is
-        // transparent here and the HTML chrome + subtitles sit on top.
-        <div className="h-full w-full" aria-label={item.title} />
-      ) : (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <video
-          ref={playback.videoRef}
-          className="h-full w-full bg-black object-contain"
-          autoPlay
-          playsInline
-        />
-      )}
+      {surfaceEl}
       <TvSubtitles
         positionSec={cur}
         playing={playing && !waiting}

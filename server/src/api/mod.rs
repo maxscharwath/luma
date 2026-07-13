@@ -18,6 +18,7 @@ mod images;
 mod invites;
 mod media;
 mod metadata;
+mod modules;
 mod people;
 mod pin;
 mod recommend;
@@ -25,6 +26,7 @@ mod requests;
 mod search;
 mod online_subs;
 mod passkeys;
+mod plugin;
 mod stream;
 mod suggest;
 mod themes;
@@ -83,6 +85,7 @@ pub fn router(state: SharedState) -> Router {
         .merge(stream::routes())
         .merge(online_subs::public_routes())
         .merge(themes::routes())
+        .merge(modules::public_routes())
         .merge(ws::routes());
 
     // Content endpoints require a valid session: the catalogue listing + detail,
@@ -102,14 +105,21 @@ pub fn router(state: SharedState) -> Router {
         .merge(playback::routes())
         .merge(discover::routes())
         .merge(requests::routes())
+        .merge(modules::routes())
+        .merge(plugin::routes())
         .route_layer(from_fn_with_state(state.clone(), require_session));
 
     // Each feature module owns its routes via a `routes()` function. The admin
     // subtree gets its own `/admin` prefix and self-gates per-handler (permission
     // checks), so it lives outside the blanket content layer.
-    let api = public.merge(content).nest("/admin", admin::routes());
+    let api = public.merge(content).nest("/admin", admin::routes(state.clone()));
 
     let mut app = Router::new().nest("/api", api);
+
+    // Installed modules' frontend (Module Federation) assets, served from
+    // `<data>/modules/<id>/fe/` at `/modules/<id>/*`, same origin as the API and
+    // BEFORE the SPA fallback so an installed remote's `remoteEntry.js` resolves.
+    app = app.merge(plugin::asset_routes());
 
     // Single-binary deploy: serve the built web SPA on the same origin as the API.
     // Static assets are served from disk; any unmatched route falls back to the

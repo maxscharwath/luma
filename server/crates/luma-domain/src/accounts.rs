@@ -52,6 +52,16 @@ impl User {
     pub fn can(&self, perm: Permission) -> bool {
         self.permissions.contains(&perm)
     }
+
+    /// Whether this user holds ANY management capability (unlocks the admin
+    /// console shell). `requests.manage` counts: a requests moderator needs the
+    /// console for the demandes queue even without user/library/settings rights.
+    pub fn is_any_admin(&self) -> bool {
+        self.can(Permission::UsersManage)
+            || self.can(Permission::LibraryManage)
+            || self.can(Permission::SettingsManage)
+            || self.can(Permission::RequestsManage)
+    }
 }
 
 /// A granular capability. Stored on each user as a JSON array of the string keys

@@ -13,7 +13,7 @@
 //  - exo      : force the native media3/ExoPlayer engine (Android TV shell).
 
 import type { MessageKey } from '@luma/core';
-import { exoAvailable, getTauri } from '#tv/features/playback/player/engine';
+import { exoAvailable, mpvAvailable } from '#tv/features/playback/player/engine';
 
 export type EnginePref = 'auto' | 'avplay' | 'webview' | 'remux' | 'mpv' | 'exo';
 
@@ -52,12 +52,9 @@ export function availableEngines(): EnginePref[] {
   if (/tizen/i.test(ua)) return ['auto', 'avplay', 'remux'];
   if (/web0?s/i.test(ua)) return ['auto', 'webview', 'remux'];
   const list: EnginePref[] = ['auto', 'webview', 'remux'];
-  const isLinux = /Linux/i.test(ua) && !/Android/i.test(ua);
   // mpv is offered when a native mpv engine is present: the Linux/Deck shell (mpv
-  // binary), or the macOS shell when its in-process libmpv engine flagged itself
-  // (window.__LUMA_MPV__, set by the Rust `setup`).
-  const macMpv = '__LUMA_MPV__' in globalThis;
-  if (getTauri() != null && (isLinux || macMpv)) list.splice(1, 0, 'mpv');
+  // binary), or the macOS shell whose in-process libmpv engine flagged itself.
+  if (mpvAvailable()) list.splice(1, 0, 'mpv');
   return list;
 }
 

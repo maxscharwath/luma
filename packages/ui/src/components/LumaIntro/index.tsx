@@ -109,6 +109,7 @@ export function LumaIntro({
     start();
   }, [start]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only intro timeline; arm audio once per `audioSrc`. start/exit/replay are stable useCallbacks and are intentionally omitted so the effect never re-arms (which would restart the sting) on unrelated re-renders.
   useEffect(() => {
     const a = new Audio(audioSrc);
     a.preload = 'auto';

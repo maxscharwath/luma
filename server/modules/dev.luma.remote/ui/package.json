@@ -1,0 +1,24 @@
+{
+  "name": "@luma/module-remote",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "LUMA Remote access module (frontend half): the Remote access admin page (share URL + managed Cloudflare Tunnel). Paired with the RemoteModule ServerModule via the shared module.json.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@luma/module-sdk": "workspace:*",
+    "@tabler/icons-react": "^3.44.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5.6.3"
+  }
+}

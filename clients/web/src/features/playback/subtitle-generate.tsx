@@ -40,18 +40,22 @@ export function SubtitleGenerate({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const qualityLabel = (q: GenQuality) =>
-    q === 'fast'
-      ? t('player.subQualityFast')
-      : q === 'accurate'
-        ? t('player.subQualityAccurate')
-        : t('player.subQualityBalanced');
+  const qualityLabel = (q: GenQuality) => {
+    if (q === 'fast') return t('player.subQualityFast');
+    if (q === 'accurate') return t('player.subQualityAccurate');
+    return t('player.subQualityBalanced');
+  };
 
   const run = async () => {
     setBusy(true);
     setError(null);
     try {
-      const target = LANGS.find((l) => l.code === lang) ?? LANGS[0]!;
+      const target = LANGS.find((l) => l.code === lang) ?? LANGS[0];
+      if (!target) {
+        setError(t('player.subGenError'));
+        setBusy(false);
+        return;
+      }
       if (mode === 'transcribe') {
         await lumaClient().generateSubtitle(item.id, {
           mode: 'transcribe',
@@ -86,6 +90,7 @@ export function SubtitleGenerate({
     const on = mode === m;
     return (
       <button
+        type="button"
         onClick={() => enabled && setMode(m)}
         disabled={!enabled}
         className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors
@@ -103,6 +108,7 @@ export function SubtitleGenerate({
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-[15px] font-bold text-text">{t('player.subGenerate')}</h3>
         <button
+          type="button"
           onClick={onClose}
           className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-white hover:bg-white/16"
           aria-label={t('player.subGenClose')}
@@ -167,6 +173,7 @@ export function SubtitleGenerate({
             {QUALITIES.map((q) => (
               <button
                 key={q}
+                type="button"
                 onClick={() => setQuality(q)}
                 className={`flex-1 rounded-[7px] px-3 py-2 text-[13px] font-semibold transition-colors
                   ${quality === q ? 'bg-accent text-accent-ink' : 'text-white/70 hover:text-white'}`}
@@ -187,6 +194,7 @@ export function SubtitleGenerate({
         </div>
       ) : null}
       <button
+        type="button"
         onClick={() => void run()}
         disabled={busy || (mode === 'translate' && !sources.length)}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-[14px] font-bold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"

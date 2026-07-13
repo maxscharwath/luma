@@ -5,7 +5,7 @@
 import { type DiscoverType, hasPermission } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconMoodEmpty, IconSearch, IconX } from '@tabler/icons-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { SearchResults } from '#web/features/requests/search-results';
 import { TrendingBrowse } from '#web/features/requests/trending';
 import { useDiscoverSearch, useTrending } from '#web/features/requests/use-discover-search';
@@ -30,6 +30,17 @@ export function SearchPage() {
   const state = useDiscoverSearch(query, type);
   const trending = useTrending(canDiscover);
   const searching = query.trim().length > 0;
+
+  // Page body: search results while searching, else the trending browse (when
+  // discovery is available) or a local-only empty state.
+  let body: ReactNode;
+  if (searching) {
+    body = <SearchResults state={state} />;
+  } else if (canDiscover) {
+    body = <TrendingBrowse entries={trending.entries} loading={trending.loading} type={type} />;
+  } else {
+    body = <EmptyState icon={<IconMoodEmpty size={32} stroke={1.5} />} title={t('discover.empty')} />;
+  }
 
   return (
     <main className="min-w-0 pb-20">
@@ -86,15 +97,7 @@ export function SearchPage() {
         </div>
       </div>
 
-      <div className="px-(--gutter-web)">
-        {searching ? (
-          <SearchResults state={state} />
-        ) : canDiscover ? (
-          <TrendingBrowse entries={trending.entries} loading={trending.loading} type={type} />
-        ) : (
-          <EmptyState icon={<IconMoodEmpty size={32} stroke={1.5} />} title={t('discover.empty')} />
-        )}
-      </div>
+      <div className="px-(--gutter-web)">{body}</div>
     </main>
   );
 }

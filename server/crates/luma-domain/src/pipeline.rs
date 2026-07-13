@@ -1,7 +1,7 @@
 //! Wire types for the per-element processing pipeline admin API
 //! (`/api/admin/pipeline`) and the `pipeline.stats` live event. Pure data (serde
 //! + ts-rs); the engine that produces them lives in
-//! `crate::services::pipeline`, persistence in `crate::db::pipeline`.
+//!   `crate::services::pipeline`, persistence in `crate::db::pipeline`.
 //!
 //! A *stage* (probe, metadata, storyboard, markers, embed) processes one subject
 //! (a file / item / show / season) at a time and records the outcome in the

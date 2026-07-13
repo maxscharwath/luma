@@ -165,7 +165,7 @@ export function TvNavProvider({
 
   const value = useMemo<TvNav>(
     () => ({
-      route: stack[stack.length - 1]!,
+      route: stack[stack.length - 1] ?? HOME,
       depth: stack.length,
       canGoBack: stack.length > 1,
       go,

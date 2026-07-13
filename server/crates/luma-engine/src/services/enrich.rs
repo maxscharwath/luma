@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 use crate::services::activity::{self, Shared as Activity};
 use crate::db::{self, Pool};
-use crate::infra::embed::{self, Embedder};
+use crate::ports::Embedder;
 use crate::infra::events::{Bus, ServerEvent};
 use crate::infra::image;
 use crate::infra::metadata::{self, Cache, Target};
@@ -204,6 +204,8 @@ fn episode_metadata(art: &metadata::EpisodeArt) -> Metadata {
 /// resolved (one TMDB call per season). Best-effort never blocks the show art.
 /// Seasons whose episodes already have a backdrop AND whose cast is stored are
 /// skipped, so re-scans don't refetch.
+// Threads the enrichment context; a struct would just move the noise.
+#[allow(clippy::too_many_arguments)]
 fn enrich_episodes(
     pool: &Pool,
     api_key: &str,
@@ -338,7 +340,7 @@ fn process_job(eng: &Engine, counters: &Counters, total: usize, activity: Option
     let meta = if eng.theme_songs { theme::localize(&eng.data_dir, meta) } else { meta };
     // Embed the title from its (title, year, genres, cast, overview) for
     // similar-to / themed / "For You" rows.
-    let doc = embed::build_doc(&job.title, job.year, &meta);
+    let doc = luma_domain::build_doc(&job.title, job.year, &meta);
     let vector = eng.embedder.embed(&doc);
     let write = if job.is_show {
         db::set_show_metadata(&eng.pool, &job.id, &meta)
@@ -401,7 +403,7 @@ fn bump(eng: &Engine, counters: &Counters, total: usize, activity: Option<&Activ
     let done = counters.processed.fetch_add(1, Ordering::Relaxed) + 1;
     if let Some(activity) = activity {
         activity::enrich_progress(activity, done);
-        if done % 25 == 0 {
+        if done.is_multiple_of(25) {
             eng.bus.publish(ServerEvent::EnrichProgress { done, total });
         }
     }

@@ -224,13 +224,10 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
   const direct = eng === 'video-direct';
   // mpv / ExoPlayer / AVPlay render to their own plane behind the transparent UI,
   // so none of them uses an in-page media element.
-  const surface: 'video' | 'avplay' | 'mpv' | 'exo' = useMpv
-    ? 'mpv'
-    : useExo
-      ? 'exo'
-      : useAvplay
-        ? 'avplay'
-        : 'video';
+  let surface: 'video' | 'avplay' | 'mpv' | 'exo' = 'video';
+  if (useMpv) surface = 'mpv';
+  else if (useExo) surface = 'exo';
+  else if (useAvplay) surface = 'avplay';
   // Env-aware: Safari's native HLS decodes AC3/E-AC3 so its master is stream-copied
   // (5.1 kept); Chromium/webOS MSE can't, so `selectEngine` marks those AAC.
   const masterAac = decision.aacMaster;
@@ -285,6 +282,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
 
   // Build + tear down the engine for this item. Audio switches do NOT re-create
   // it (they call setAudioRendition in place, below).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: env.nativeHls is a session-constant capability; the dep list is intentionally curated to rebuild only on item/engine changes.
   useEffect(() => {
     setReady(false);
     startedRef.current = false;

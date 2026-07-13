@@ -14,8 +14,9 @@ use crate::model::{Kind, MediaFile, MediaItem, Show};
 use super::ids::{detect_edition, episode_logical_id, movie_logical_id, short_hash, show_key};
 use super::now_iso8601;
 
-/// Extensions we treat as playable video.
-pub(crate) const VIDEO_EXTENSIONS: &[&str] = &["mkv", "mp4", "m4v", "mov", "webm", "avi", "ts"];
+/// Extensions we treat as playable video. Public so the relocated acquisition
+/// importer (dev.luma.torrents) can share the exact same set.
+pub const VIDEO_EXTENSIONS: &[&str] = &["mkv", "mp4", "m4v", "mov", "webm", "avi", "ts"];
 
 /// Scan one folder belonging to `lib_id`, accumulating items (by logical id) and
 /// shows into the shared maps. Flags/ids track what this library contributed so

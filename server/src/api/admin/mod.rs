@@ -9,20 +9,16 @@
 //! capability guards live here.
 
 mod backup;
-mod download_clients;
-mod downloads;
-mod indexers;
 mod jobs;
 mod libraries;
 mod llm;
-mod organize;
+mod modules;
 mod pipeline;
-mod remote;
 mod settings;
 mod stats;
 mod storage;
+mod store;
 mod users;
-mod vpn;
 
 use axum::extract::{Path as AxPath, State};
 use axum::http::StatusCode;
@@ -45,27 +41,30 @@ use crate::state::SharedState;
 /// so every path here is relative to that prefix. Each managed noun owns its
 /// routes in its submodule; the dashboard handlers (status / sessions / metrics)
 /// live in this file.
-pub fn routes() -> Router<SharedState> {
-    Router::new()
+pub fn routes(state: SharedState) -> Router<SharedState> {
+    // Core admin routers merged directly; each backend module's routers are
+    // mounted behind its enabled-gate (404 when the module is disabled), so a
+    // disabled module's whole admin surface disappears. The Downloads / VPN /
+    // Indexers / Remote routers are modules now, so they are no longer merged
+    // here -- they come in via `luma_module_kernel::mount_admin` below.
+    let mut router = Router::new()
         .route("/server", get(server_info))
         .route("/sessions", get(sessions))
         .route("/sessions/:id/stop", post(terminate_session))
         .route("/metrics", get(metrics))
         .merge(users::routes())
         .merge(libraries::routes())
-        .merge(organize::routes())
         .merge(settings::routes())
         .merge(storage::routes())
         .merge(stats::routes())
-        .merge(download_clients::routes())
-        .merge(downloads::routes())
-        .merge(indexers::routes())
         .merge(jobs::routes())
         .merge(llm::routes())
+        .merge(modules::routes())
+        .merge(store::routes())
         .merge(pipeline::routes())
-        .merge(remote::routes())
-        .merge(vpn::routes())
-        .merge(backup::routes())
+        .merge(backup::routes());
+    router = router.merge(luma_module_kernel::mount_admin(state.clone()));
+    router
 }
 
 // ----- guards -----------------------------------------------------------------
@@ -75,10 +74,7 @@ pub fn routes() -> Router<SharedState> {
 /// no `Accept-Language` needed. Falls back to the default for an unset/unknown
 /// preference.
 fn user_locale(user: &User) -> &'static str {
-    user.language
-        .as_deref()
-        .and_then(i18n::normalize)
-        .unwrap_or(i18n::DEFAULT_LOCALE)
+    i18n::user_locale(user)
 }
 
 fn require(user: &User, perm: Permission) -> Result<(), Response> {
@@ -90,14 +86,8 @@ fn require(user: &User, perm: Permission) -> Result<(), Response> {
 }
 
 /// Any management capability unlocks the read-only dashboard panels.
-/// `requests.manage` counts: a requests moderator needs the console shell (and
-/// the downloads queue) even without user/library/settings rights.
 fn require_any_admin(user: &User) -> Result<(), Response> {
-    if user.can(Permission::UsersManage)
-        || user.can(Permission::LibraryManage)
-        || user.can(Permission::SettingsManage)
-        || user.can(Permission::RequestsManage)
-    {
+    if user.is_any_admin() {
         Ok(())
     } else {
         Err(lerr(user_locale(user), StatusCode::FORBIDDEN, "error.permissionDenied"))

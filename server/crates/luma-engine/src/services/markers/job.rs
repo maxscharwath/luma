@@ -3,8 +3,8 @@
 //!   * **chapters** - embedded chapter titles (cheap ffprobe).
 //!   * **fingerprint** - decode each episode's start/end audio, align the season
 //!     pairwise (`rusty-chromaprint`), keep the shared intro / credits run.
-//! Embedded chapters win when present (human-authored); fingerprint fills the gaps
-//! and cross-checks. The heavy decode runs on a bounded thread pool for speed.
+//!     Embedded chapters win when present (human-authored); fingerprint fills the gaps
+//!     and cross-checks. The heavy decode runs on a bounded thread pool for speed.
 //!
 //! Modes (`introDetection` setting): `off` (skip) · `chapters` (chapter pass only)
 //! · `fingerprint` (both + compare, the powerful default).
@@ -184,10 +184,14 @@ fn decode_one(
     EpData { chapters, start_fp, end_fp }
 }
 
+/// How to pick a window fingerprint for a marker kind, plus its search region and
+/// minimum run length: `(picker, (region_start_s, region_end_s), min_len_s)`.
+type MarkerPick = (fn(&EpData) -> &Option<WindowFp>, (f32, f32), f32);
+
 /// The fingerprint-derived range for `kind` on episode `i`, via pairwise alignment
 /// + season consensus. Returns absolute ms; credits run to the episode end.
 fn align(data: &[EpData], i: usize, kind: MarkerKind, support: usize, e: &MediaItem) -> Option<(u64, u64)> {
-    let (pick, region, min_len): (fn(&EpData) -> &Option<WindowFp>, (f32, f32), f32) = match kind {
+    let (pick, region, min_len): MarkerPick = match kind {
         MarkerKind::Intro => (|d| &d.start_fp, (0.0, INTRO_REGION_END_S), MIN_INTRO_S),
         MarkerKind::Credits => {
             (|d| &d.end_fp, (0.0, CREDITS_WINDOW_S as f32 - MIN_CREDITS_S), MIN_CREDITS_S)

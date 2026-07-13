@@ -34,14 +34,14 @@ const COLS: &str = "id, item_id, language, label, provider, path";
 pub fn downloaded_subs_for_item(conn: &Connection, item_id: &str) -> rusqlite::Result<Vec<DownloadedSub>> {
     let mut stmt =
         conn.prepare(&format!("SELECT {COLS} FROM downloaded_subtitles WHERE item_id = ?1 ORDER BY created_at"))?;
-    let rows = stmt.query_map(params![item_id], |r| from_row(r))?;
+    let rows = stmt.query_map(params![item_id], from_row)?;
     rows.collect()
 }
 
 /// One downloaded subtitle by id (for serving its WebVTT).
 pub fn downloaded_sub(conn: &Connection, id: &str) -> rusqlite::Result<Option<DownloadedSub>> {
     let mut stmt = conn.prepare(&format!("SELECT {COLS} FROM downloaded_subtitles WHERE id = ?1"))?;
-    let mut rows = stmt.query_map(params![id], |r| from_row(r))?;
+    let mut rows = stmt.query_map(params![id], from_row)?;
     rows.next().transpose()
 }
 

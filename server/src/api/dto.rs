@@ -113,7 +113,7 @@ pub enum QuickPoll {
     Authorized {
         token: String,
         access_token: String,
-        user: User,
+        user: Box<User>,
     },
 }
 

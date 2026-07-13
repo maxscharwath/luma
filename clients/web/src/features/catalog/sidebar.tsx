@@ -25,6 +25,8 @@ import { type ReactNode, useEffect, useState } from 'react';
 import buildInfo from 'virtual:build-info';
 import { CapabilityChip } from '#web/features/accounts/capability-chip';
 import { UserAvatar } from '#web/features/accounts/user-avatar';
+import { useModuleNav } from '#web/modules/ModuleHostProvider';
+import { resolveModuleIcon } from '#web/modules/module-icons';
 import { useAuth } from '#web/shared/lib/auth';
 import { serverQueries } from '#web/shared/lib/queries';
 import { Logo } from '#web/shared/ui';
@@ -75,6 +77,7 @@ function SidebarBody() {
           </Link>
         ))}
         <RequestsLink />
+        <ModuleNavLinks />
       </nav>
       {/* Footer block: invite / device / admin / account / device prefs */}
       <div className="mt-auto flex flex-col gap-2.5 pt-6">
@@ -106,6 +109,9 @@ export function MobileTopbar() {
   const t = useT();
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Close the drawer on navigation: `pathname` is read only in the dep array so
+  // the effect re-runs on each route change (removing it would break that).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional re-run key; pathname closes the drawer on navigation
   useEffect(() => setOpen(false), [pathname]);
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-[#0C0C0E]/95 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
@@ -223,6 +229,26 @@ function AdminLink() {
       <IconSettings size={18} />
       {t('nav.server')}
     </Link>
+  );
+}
+
+/** Nav entries contributed by enabled `section: "library"` modules (each links to
+ * its /m/<path> page). Driven by the frontend module registry, capability-gated,
+ * so a disabled module's link vanishes with the rest of its system. */
+function ModuleNavLinks() {
+  const items = useModuleNav('library');
+  return (
+    <>
+      {items.map((n) => {
+        const Icon = resolveModuleIcon(n.icon);
+        return (
+          <Link key={`${n.moduleId}:${n.to}`} to={n.to} className={itemCls}>
+            <Icon size={18} />
+            {n.label}
+          </Link>
+        );
+      })}
+    </>
   );
 }
 

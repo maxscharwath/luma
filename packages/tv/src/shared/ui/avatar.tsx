@@ -23,9 +23,11 @@ export function gradFor(seed: string): string {
 /** 1–2 letter initials for an avatar fallback. */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+  const first = parts[0];
+  if (!first) return '?';
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  const last = parts[parts.length - 1] ?? first;
+  return ((first[0] ?? '') + (last[0] ?? '')).toUpperCase();
 }
 
 /** Rounded-square profile avatar uploaded photo when present, else a
@@ -95,7 +97,7 @@ export function LockGlyph({ size = 16 }: Readonly<{ size?: number }>) {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      aria-hidden
+      aria-hidden="true"
     >
       <path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" />
       <path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />

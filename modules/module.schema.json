@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://luma.dev/module.schema.json",
+  "title": "LUMA module manifest",
+  "description": "Schema for a module's module.json (and the YAML frontmatter of a .module.md).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+      "description": "Reverse-DNS identifier, e.g. dev.luma.torrents. The runtime join key."
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+    "description": { "type": "string" },
+    "dependsOn": {
+      "description": "Hard dependencies as a package.json-style map { \"<id>\": \"<semver range>\" } (a bare \"*\" means any version). A legacy array of ids / 'id@range' strings / { id, version } objects is also accepted. Enforced on the backend.",
+      "oneOf": [
+        { "type": "object", "additionalProperties": { "type": "string" } },
+        { "type": "array" }
+      ]
+    },
+    "optionalDependsOn": {
+      "description": "Soft dependencies (same shape as dependsOn): version-checked and ordered first when present, but not required.",
+      "oneOf": [
+        { "type": "object", "additionalProperties": { "type": "string" } },
+        { "type": "array" }
+      ]
+    },
+    "requires": {
+      "type": "array",
+      "description": "Capability dependencies, satisfied by any module providing the (kind[, id]).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "provides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "minLength": 1 },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name / i18n key shown in the admin add-picker (engine capabilities)."
+          },
+          "flow": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A non-form add-flow discriminator (e.g. \"definition\"); the host page renders it."
+          },
+          "fields": {
+            "type": "array",
+            "description": "The add-form schema the admin renders for this engine.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "label", "type"],
+              "properties": {
+                "key": { "type": "string", "minLength": 1 },
+                "label": { "type": "string", "minLength": 1 },
+                "type": { "enum": ["string", "bool", "number", "select"] },
+                "default": { "type": "string" },
+                "options": { "type": "array", "items": { "type": "string" } },
+                "placeholder": { "type": "string" },
+                "secret": { "type": "boolean" },
+                "required": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "permissions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "feRemote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module"],
+      "description": "Frontend Module Federation remote (runtime-loaded modules). The entry URL is derived by the server as /modules/<id>/remoteEntry.js.",
+      "properties": {
+        "module": { "type": "string", "minLength": 1 }
+      }
+    },
+    "config": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "type"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["string", "bool", "number", "select"] },
+          "default": { "type": "string" },
+          "options": { "type": "array", "items": { "type": "string" } },
+          "placeholder": { "type": "string" },
+          "secret": { "type": "boolean" },
+          "required": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

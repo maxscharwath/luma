@@ -213,12 +213,13 @@ pub struct DiskInfo {
 
 /// Read all mounted volumes (deduped by mount point), largest first. Enumerating
 /// + statfs'ing every mount is comparatively expensive on a NAS with many
-/// volumes, and usage moves slowly, so results are cached for a short window
-/// (the storage page and dashboard poll this endpoint repeatedly).
+///   volumes, and usage moves slowly, so results are cached for a short window
+///   (the storage page and dashboard poll this endpoint repeatedly).
 pub fn read_disks() -> Vec<DiskInfo> {
     use std::sync::OnceLock;
     use std::time::Instant;
-    static CACHE: OnceLock<RwLock<Option<(Instant, Vec<DiskInfo>)>>> = OnceLock::new();
+    type DiskCache = OnceLock<RwLock<Option<(Instant, Vec<DiskInfo>)>>>;
+    static CACHE: DiskCache = OnceLock::new();
     const TTL: Duration = Duration::from_secs(15);
 
     let cache = CACHE.get_or_init(|| RwLock::new(None));
@@ -253,6 +254,6 @@ fn read_disks_uncached() -> Vec<DiskInfo> {
             available_bytes: avail,
         });
     }
-    out.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes));
+    out.sort_by_key(|b| std::cmp::Reverse(b.total_bytes));
     out
 }

@@ -107,36 +107,10 @@ pub enum ServerEvent {
     /// available...). Low-frequency: clients refetch their request lists on it.
     #[serde(rename = "request.updated")]
     RequestUpdated { id: String, status: String },
-    /// Live download progress (~one frame per active torrent per monitor
-    /// tick). High-frequency: the admin shell SKIPS it for its tick (like
-    /// job.progress); pages wanting smooth bars consume it on their own
-    /// stream.
-    #[serde(rename = "download.progress")]
-    DownloadProgress {
-        id: String,
-        #[serde(rename = "requestId")]
-        request_id: Option<String>,
-        progress: f64,
-        #[serde(rename = "downBps")]
-        down_bps: u64,
-        #[serde(rename = "upBps")]
-        up_bps: u64,
-        peers: u32,
-        #[serde(rename = "peersSeen")]
-        peers_seen: u32,
-        state: String,
-    },
-    /// A download finished (import follows).
-    #[serde(rename = "download.completed")]
-    DownloadCompleted { id: String, title: String },
-    /// The VPN kill-switch state changed.
-    #[serde(rename = "vpn.status")]
-    VpnStatus {
-        connected: bool,
-        #[serde(rename = "exitIp")]
-        exit_ip: Option<String>,
-        paused: bool,
-    },
+    // Module events (download.progress / download.completed / vpn.status, ...) are
+    // NOT here: modules publish them generically via `HostCtx::publish(Event)` and
+    // the bus fans out the raw JSON (see `Bus::publish_value`), so the core owns no
+    // module event type.
 }
 
 /// Cheap-to-clone handle to the broadcast channel. The channel carries the
@@ -161,6 +135,18 @@ impl Bus {
             return;
         }
         if let Ok(json) = serde_json::to_string(&event) {
+            let _ = self.tx.send(json.into());
+        }
+    }
+
+    /// Fan a pre-shaped module event out (already a `{ "type": ..., ... }` object).
+    /// The generic path modules reach through `HostCtx::publish(Event)`, so the bus
+    /// carries module events without the core naming their types.
+    pub fn publish_value(&self, value: serde_json::Value) {
+        if self.tx.receiver_count() == 0 {
+            return;
+        }
+        if let Ok(json) = serde_json::to_string(&value) {
             let _ = self.tx.send(json.into());
         }
     }

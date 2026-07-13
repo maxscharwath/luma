@@ -52,7 +52,7 @@ pub struct Initiated {
 /// Result of [`QuickConnectInner::poll`].
 pub enum PollState {
     Pending,
-    Authorized { token: String, access_token: String, user: User },
+    Authorized { token: String, access_token: String, user: Box<User> },
     Unknown,
 }
 
@@ -135,7 +135,7 @@ impl QuickConnectInner {
         match (entry.token.clone(), entry.access_token.clone(), entry.user.clone()) {
             (Some(token), Some(access_token), Some(user)) => {
                 map.remove(&code);
-                PollState::Authorized { token, access_token, user }
+                PollState::Authorized { token, access_token, user: Box::new(user) }
             }
             _ => PollState::Pending,
         }

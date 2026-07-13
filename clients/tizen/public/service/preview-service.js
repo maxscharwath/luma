@@ -21,9 +21,9 @@ function log(msg) {
   // `console` may be absent in the Tizen service runtime, so guard it.
   try {
     if (typeof console !== 'undefined' && console.log) {
-      console.log('[luma preview] ' + msg);
+      console.log(`[luma preview] ${msg}`);
     }
-  } catch (e) {
+  } catch (_e) {
     /* logging must never break the service */
   }
 }
@@ -31,7 +31,7 @@ function log(msg) {
 function exit() {
   try {
     tizen.application.getCurrentApplication().exit();
-  } catch (e) {
+  } catch (_e) {
     /* nothing else to do */
   }
 }
@@ -80,10 +80,10 @@ function publish(data) {
       reject(new Error('no preview data on disk yet'));
       return;
     }
-    log('read ' + data.length + ' bytes from disk');
+    log(`read ${data.length} bytes from disk`);
     var hasApi =
       typeof webapis !== 'undefined' && webapis.preview && webapis.preview.setPreviewData;
-    log('webapis.preview.setPreviewData present: ' + !!hasApi);
+    log(`webapis.preview.setPreviewData present: ${!!hasApi}`);
     if (!hasApi) {
       reject(new Error('webapis.preview.setPreviewData unavailable'));
       return;
@@ -111,7 +111,7 @@ function refresh() {
       log('preview published OK');
     })
     .catch((err) => {
-      log('skip: ' + (err && err.message ? err.message : JSON.stringify(err)));
+      log(`skip: ${err?.message ? err.message : JSON.stringify(err)}`);
     })
     .then(exit, exit);
 }
@@ -121,7 +121,7 @@ function safe(fn) {
     try {
       fn();
     } catch (e) {
-      log('lifecycle error: ' + (e && e.message ? e.message : e));
+      log(`lifecycle error: ${e?.message ? e.message : e}`);
       exit();
     }
   };

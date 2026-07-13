@@ -162,7 +162,7 @@ pub async fn login(
     let ip = client_ip(&headers, &addr);
     // Reject while locked out *before* touching the database or hashing.
     if let Some(secs) = loginguard::lock_remaining(&ip) {
-        return login_locked(&loc, secs);
+        return login_locked(loc, secs);
     }
 
     let identifier = body.email.trim().to_string();
@@ -172,10 +172,10 @@ pub async fn login(
     };
     // Same response whether the email is unknown or the password is wrong.
     let Some((user, hash)) = found else {
-        return login_failed(&ip, &loc);
+        return login_failed(&ip, loc);
     };
     if !auth::verify_password(&body.password, &hash) {
-        return login_failed(&ip, &loc);
+        return login_failed(&ip, loc);
     }
     // A correct login clears the source's failure record.
     loginguard::reset(&ip);

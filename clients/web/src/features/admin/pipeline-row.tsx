@@ -165,12 +165,22 @@ export function ElementRowView({
       </div>
 
       <div className="flex justify-end">
+        {/* This row is itself a <button>, and a <button> can't be nested inside a
+            button, so the reprocess control is a role="button" span instead. */}
+        {/* biome-ignore lint/a11y/useSemanticElements: cannot be a native <button> because it lives inside the row's <button> */}
         <span
           role="button"
           tabIndex={-1}
           onClick={(e) => {
             e.stopPropagation();
             onReprocess();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              onReprocess();
+            }
           }}
           title={t('pipeline.reprocessItem')}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-accent/25 bg-accent/10 text-accent transition-colors hover:bg-accent/20"

@@ -6,16 +6,6 @@ rust-version.workspace = true
 description = "LUMA business logic: infra adapters + services + app state (everything the HTTP layer drives)"
 license.workspace = true
 
-[features]
-# Forwarded from the binary; each flips a leaf crate's feature. Cargo unifies
-# features globally so enabling here lights up the graph wherever it's used.
-torrent-rqbit = ["luma-torrent/rqbit"]
-semantic-embeddings = ["luma-vector/semantic"]
-whisper-local = ["luma-whisper/local"]
-whisper-metal = ["luma-whisper/metal"]
-whisper-cuda = ["luma-whisper/cuda"]
-whisper-accelerate = ["luma-whisper/accelerate"]
-
 [dependencies]
 # Lower layers (aliased inside lib.rs as crate::{db,config,domain}).
 luma-domain = { workspace = true }
@@ -23,16 +13,15 @@ luma-db = { workspace = true }
 luma-config = { workspace = true }
 luma-primitives = { workspace = true }
 luma-i18n = { workspace = true }
-# Acquisition stack used by services.
+# Module registry contract + the module descriptors from the leaf crates.
+luma-module-manifest = { workspace = true }
+luma-module-host = { workspace = true }
+luma-module-wasm = { workspace = true }
 luma-http = { workspace = true }
-luma-scene = { workspace = true }
-luma-torznab = { workspace = true }
-luma-indexer = { workspace = true }
-luma-torrent = { workspace = true }
-# Heavy/optional adapters (aliased in infra/mod.rs as crate::infra::{whisper,embed,discovery}).
-luma-whisper = { workspace = true }
-luma-vector = { workspace = true }
-luma-mdns = { workspace = true }
+# The heavy/optional adapters (embeddings, whisper transcription, mDNS) are no
+# longer named here: the engine consumes them through the port traits in
+# `crate::ports`, and the binary (composition root) wraps the concrete module
+# crates into those ports and injects them. luma-engine names ZERO module crates.
 
 axum = { workspace = true }
 tokio = { workspace = true }
@@ -50,8 +39,5 @@ chacha20poly1305 = { workspace = true }
 zip = { workspace = true }
 notify = { workspace = true }
 sysinfo = { workspace = true }
-tiny-skia = { workspace = true }
-fontdue = { workspace = true }
-jpeg-encoder = { workspace = true }
 tantivy = { workspace = true }
 rusty-chromaprint = { workspace = true }

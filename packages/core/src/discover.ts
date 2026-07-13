@@ -199,7 +199,8 @@ function raceForServer(
 
     const pump = () => {
       while (active < concurrency && next < total && !settled) {
-        const url = urls[next++]!;
+        const url = urls[next++];
+        if (url === undefined) break;
         active += 1;
         void probe(fetchFn, url, timeoutMs).then((ok) => {
           active -= 1;

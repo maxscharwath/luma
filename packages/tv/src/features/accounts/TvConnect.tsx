@@ -22,6 +22,7 @@ export function TvConnect() {
   useFocusNav({ onBack: nav.back, resetKey: discovered.length });
 
   // When LAN discovery finds something, prefill the field (host only) so OK adds it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: prefill once when discovery yields a hit; intentionally not re-run on `value` edits.
   useEffect(() => {
     const found = discovered.at(-1);
     if (found && !value) {
@@ -31,7 +32,6 @@ export function TvConnect() {
         setValue(found);
       }
     }
-    // biome-ignore lint/correctness/useExhaustiveDependencies: prefill once on a fresh hit.
   }, [discovered]);
 
   const submit = () => {

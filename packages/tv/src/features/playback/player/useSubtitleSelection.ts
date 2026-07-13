@@ -32,6 +32,7 @@ export function useSubtitleSelection(client: LumaClient, item: MediaItem): Subti
   const [downloaded, setDownloaded] = useState<DownloadedSub[]>([]);
   const [nonce, setNonce] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `nonce` is the reload trigger (bumped by reload()) that forces a re-fetch after a generation completes; it is intentionally a dependency though the body does not read it.
   useEffect(() => {
     let cancelled = false;
     client

@@ -1,7 +1,7 @@
 import type { PlaybackSession } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconPlayerStopFilled } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Avatar, C, Card, Modal, ProgressBar } from '#web/features/admin/ui';
 import { useStoryboard } from '#web/features/playback/use-storyboard';
 import { formatMbps, posterGradient, timecode } from '#web/shared/lib/adminFormat';
@@ -216,6 +216,7 @@ export function StopStreamModal({
 }: Readonly<{ session: PlaybackSession; onClose: () => void; onStopped: () => void }>) {
   const t = useT();
   const { client } = useAuth();
+  const messageId = useId();
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -234,10 +235,14 @@ export function StopStreamModal({
       <p className="mb-4 text-[13px] text-dim">
         {t('admin.stopStreamDesc', { user: session.username })}
       </p>
-      <label className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim">
+      <label
+        htmlFor={messageId}
+        className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim"
+      >
         {t('admin.stopMessageLabel')}
       </label>
       <textarea
+        id={messageId}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         rows={2}

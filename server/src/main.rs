@@ -5,8 +5,13 @@
 //! files to clients. It never transcodes: clients decode HEVC/H.265/AV1
 //! themselves. `ffprobe` is used only to read metadata.
 
-// The HTTP router + handlers. Everything below the router — infra adapters,
-// services, app state, the i18n extractor and the wire-model barrel — lives in
+// The axum `Response` is intentionally the Err type of request guards so handlers
+// short-circuit with `?`; boxing every guard for `result_large_err` would churn
+// dozens of signatures for no real gain on these error paths.
+#![allow(clippy::result_large_err)]
+
+// The HTTP router + handlers. Everything below the router (infra adapters,
+// services, app state, the i18n extractor and the wire-model barrel) lives in
 // the luma-engine crate, aliased here so `crate::{infra,services,state,i18n,model}`
 // call sites in api/ keep resolving. Lower layers (config/db/domain) are their
 // own crates, likewise aliased.
@@ -21,6 +26,39 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use crate::config::Config;
 use crate::state::AppState;
+
+/// Resolve the dev.luma.torrents download manager from the host service
+/// registry. It was a direct `AppState` field until the acquisition vertical
+/// moved into the module crate; the download admin routes (and the grab path)
+/// now look it up by type through the `HostCtx` seam, exactly like every other
+/// module service. Kept as an extension method so the many `state.downloads`
+/// call sites read the same after the move.
+pub(crate) trait DownloadsExt {
+    fn downloads(&self) -> std::sync::Arc<luma_torrent::DownloadManager>;
+}
+
+impl DownloadsExt for luma_engine::state::SharedState {
+    fn downloads(&self) -> std::sync::Arc<luma_torrent::DownloadManager> {
+        luma_module_host::service::<luma_torrent::DownloadManager>(&**self)
+            .expect("download manager registered")
+    }
+}
+
+/// Composition-root adapter: wraps the vector module's embedder into the engine's
+/// [`luma_engine::ports::Embedder`] port, so `AppState` holds the capability
+/// without the core naming the concrete embedder crate.
+struct EmbedderPort(std::sync::Arc<dyn luma_vector::Embedder>);
+impl luma_engine::ports::Embedder for EmbedderPort {
+    fn dim(&self) -> usize {
+        self.0.dim()
+    }
+    fn embed(&self, text: &str) -> Vec<f32> {
+        self.0.embed(text)
+    }
+    fn relevance_floor(&self) -> f32 {
+        self.0.relevance_floor()
+    }
+}
 
 // On the Linux/musl single binary, musl's malloc is a global-lock design that
 // collapses under our thread mix (tokio workers + rayon walks + candle tensors);
@@ -63,6 +101,16 @@ async fn main() -> anyhow::Result<()> {
 
     let db = db::init(&config.db_path()).context("failed to initialise database")?;
 
+    // Let each module create the tables it owns, once, right after the core
+    // schema (the acquisition module tables live in the module crates now). Runs
+    // before any module reads/writes them (settings load, `apply_enabled_states`).
+    {
+        let conn = db.get().context("failed to get a db connection for module schema")?;
+        for migration in luma_module_kernel::module_migrations() {
+            db::apply_migrations(&conn, migration).context("failed to apply module schema")?;
+        }
+    }
+
     // Persisted settings (incl. the editable library definitions, seeded from
     // LUMA_MEDIA_DIRS on first run).
     let settings = services::settings::Settings::load(&db);
@@ -103,7 +151,77 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let addr = config.socket_addr();
-    let state = AppState::new(config, ffprobe_available, db, settings);
+    // Build the module services + peer ports the composition root owns, so the
+    // core (luma-engine) names no module: the Remote connector, the VPN bridge, and
+    // the VpnProxy / TorrentFetch ports. AppState builds the download manager (its
+    // one direct module field) and merges these in.
+    let mut module_services: std::collections::HashMap<
+        std::any::TypeId,
+        std::sync::Arc<dyn std::any::Any + Send + Sync>,
+    > = std::collections::HashMap::new();
+    let remote = luma_remote::RemoteAccess::new(config.data_dir.clone());
+    let vpn = luma_vpn::Vpn::new(config.data_dir.clone());
+    module_services.insert(std::any::TypeId::of::<luma_remote::RemoteAccess>(), remote);
+    module_services.insert(std::any::TypeId::of::<luma_vpn::Vpn>(), vpn);
+    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> =
+        std::sync::Arc::new(luma_vpn::VpnProxy);
+    let (tid, val) = luma_module_host::port_service(vpn_proxy);
+    module_services.insert(tid, val);
+    let torrent_fetch: std::sync::Arc<dyn luma_module_sdk::ports::TorrentFetchPort> =
+        std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
+    let (tid, val) = luma_module_host::port_service(torrent_fetch);
+    module_services.insert(tid, val);
+    // The Torznab search engine (stateless), resolved by indexer / acquisition.
+    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> =
+        std::sync::Arc::new(luma_torznab::TorznabEngine);
+    let (tid, val) = luma_module_host::port_service(torznab);
+    module_services.insert(tid, val);
+    // The indexer data + native-search ports, resolved by downloads / acquisition.
+    let idx_db: std::sync::Arc<dyn luma_module_sdk::ports::IndexerDbPort> =
+        std::sync::Arc::new(luma_indexer::IndexerDb);
+    let (tid, val) = luma_module_host::port_service(idx_db);
+    module_services.insert(tid, val);
+    let idx_search: std::sync::Arc<dyn luma_module_sdk::ports::IndexerSearchPort> =
+        std::sync::Arc::new(luma_indexer::IndexerSearch);
+    let (tid, val) = luma_module_host::port_service(idx_search);
+    module_services.insert(tid, val);
+    // The download manager (dev.luma.torrents) is now a module service like the
+    // rest: the composition root constructs it and injects it by type, so the
+    // core (luma-engine) never names the torrent engine. The acquisition services
+    // and the download admin routes resolve it through the HostCtx registry.
+    let downloads = luma_torrent::DownloadManager::new(&config.data_dir);
+    // Also expose it as the DownloadClientHost port, so the engine modules
+    // (transmission / qBittorrent) register their kind without naming this crate.
+    let dc_host: std::sync::Arc<dyn luma_module_sdk::ports::DownloadClientHost> = downloads.clone();
+    let (tid, val) = luma_module_host::port_service(dc_host);
+    module_services.insert(tid, val);
+    // ...and as the DownloadVpnPort, so the VPN module reads the engine's VPN
+    // status / seal check / restart without naming this crate.
+    let dc_vpn: std::sync::Arc<dyn luma_module_sdk::ports::DownloadVpnPort> = downloads.clone();
+    let (tid, val) = luma_module_host::port_service(dc_vpn);
+    module_services.insert(tid, val);
+    // ...and as the DownloadGrabPort + DownloadDbPort, so the Acquisition module
+    // grabs releases + reads/updates the downloads ledger without naming this crate.
+    let dc_grab: std::sync::Arc<dyn luma_module_sdk::ports::DownloadGrabPort> = downloads.clone();
+    let (tid, val) = luma_module_host::port_service(dc_grab);
+    module_services.insert(tid, val);
+    let dc_db: std::sync::Arc<dyn luma_module_sdk::ports::DownloadDbPort> =
+        std::sync::Arc::new(luma_torrent::DownloadDb);
+    let (tid, val) = luma_module_host::port_service(dc_db);
+    module_services.insert(tid, val);
+    module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);
+    // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
+    // registered alongside the core built-ins so the core roster names no module.
+    let state = AppState::new(
+        config,
+        ffprobe_available,
+        db,
+        settings,
+        std::sync::Arc::new(EmbedderPort(luma_vector::default_embedder()))
+            as std::sync::Arc<dyn luma_engine::ports::Embedder>,
+        module_services,
+        luma_acquisition::JOBS,
+    );
     services::activity::scan_completed(
         &state.activity,
         data.libraries.len(),
@@ -150,35 +268,13 @@ async fn main() -> anyhow::Result<()> {
     // refresh, …). Manual + scheduled runs are tracked in the admin "Tâches" UI.
     state.jobs.clone().spawn_scheduler(state.clone());
 
-    // Acquisition stack: bring the WireGuard bridge up first (when configured)
-    // so the embedded engine's SOCKS5 URL points at a live proxy, then seed
-    // the embedded engine's client row (compiled-in builds only; INSERT OR
-    // IGNORE keeps admin edits), start the engine (fastresume restores
-    // in-flight torrents) and the downloads monitor.
-    state.vpn.apply(&state).await;
-    if luma_torrent::RQBIT_COMPILED {
-        let _ = db::insert_download_client(
-            &state.db,
-            &db::DownloadClientRow {
-                id: db::EMBEDDED_CLIENT_ID.to_string(),
-                kind: "rqbit".into(),
-                name: "Moteur intégré".into(),
-                url: String::new(),
-                username: String::new(),
-                password: String::new(),
-                enabled: true,
-                priority: 100,
-                created_at: services::jobs::now_ms(),
-            },
-        );
-        state.downloads.start_rqbit(&state).await;
-    }
-    state.downloads.spawn_monitor(state.clone());
-
-    // Managed Cloudflare Tunnel connector: bring the tunnel up at boot if the admin
-    // enabled it with a token (installs with their own tunnel leave it off), and
-    // keep it alive via a watchdog. No-op otherwise.
-    state.remote.clone().spawn_boot(state.clone());
+    // Bring every ENABLED module's live services up in dependency order (the VPN
+    // bridge before the engine that tunnels through it; the download engines +
+    // their monitor + client-row seed; the remote tunnel), and leave disabled ones
+    // down. Each module seeds/starts/monitors its OWN resources in on_enable, so
+    // this shell names no module and touches no module-specific data (onion
+    // boundary); a module's enabled state is also durable across a restart.
+    luma_module_kernel::apply_enabled_states(&state).await;
 
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
     let local_discovery = state.settings.get_bool("localDiscovery", true);
@@ -195,7 +291,7 @@ async fn main() -> anyhow::Result<()> {
     // settings. Best-effort: held alive until the process exits; failure (no
     // multicast, etc.) is non-fatal.
     let _mdns = if local_discovery {
-        match infra::discovery::advertise(addr.port(), "LUMA") {
+        match luma_mdns::advertise(addr.port(), "LUMA") {
             Ok(daemon) => Some(daemon),
             Err(e) => {
                 warn!(error = %e, "mDNS advertising unavailable; clients must use an explicit address");

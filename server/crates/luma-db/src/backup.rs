@@ -66,14 +66,31 @@ pub struct BackupDoc {
     pub assets: BTreeMap<String, String>,
 }
 
-/// Dump every portable table to a [`BackupDoc`].
+/// Dump every portable table to a [`BackupDoc`]. Tables owned by a module
+/// (`indexers` / `download_clients`) only exist once that module's migrations
+/// have run, so a table that is absent (module never installed / disabled before
+/// its schema was created) is skipped rather than erroring.
 pub fn export_portable(pool: &Pool) -> Result<BackupDoc> {
     let conn = pool.get()?;
     let mut tables = BTreeMap::new();
     for &t in TABLES {
+        if !table_exists(&conn, t)? {
+            continue;
+        }
         tables.insert(t.to_string(), dump_query(&conn, &format!("SELECT * FROM {t}"))?);
     }
     Ok(BackupDoc { version: VERSION, exported_at: now_or_blank(), tables, assets: BTreeMap::new() })
+}
+
+/// Whether `name` is a table in the current database (module-owned tables may not
+/// be, see [`export_portable`]).
+fn table_exists(conn: &Connection, name: &str) -> Result<bool> {
+    let n: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+        [name],
+        |r| r.get(0),
+    )?;
+    Ok(n > 0)
 }
 
 /// Restore a [`BackupDoc`] into the database, replacing rows by primary key.
@@ -102,12 +119,19 @@ fn restore_all(conn: &mut rusqlite::Connection, doc: &BackupDoc, reset: bool) ->
     let tx = conn.transaction()?;
     if reset {
         for &t in TABLES {
-            tx.execute(&format!("DELETE FROM {t}"), [])?;
+            if table_exists(&tx, t)? {
+                tx.execute(&format!("DELETE FROM {t}"), [])?;
+            }
         }
     }
     let mut summary = Vec::new();
     for &t in TABLES {
         if let Some(rows) = doc.tables.get(t) {
+            // Skip a table the target lacks (a module present in the source but
+            // absent here); its config simply isn't restored.
+            if !table_exists(&tx, t)? {
+                continue;
+            }
             let n = restore_rows(&tx, t, rows).with_context(|| format!("restoring {t}"))?;
             summary.push((t.to_string(), n));
         }
@@ -197,7 +221,29 @@ mod tests {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("luma-bkp-{tag}-{}-{n}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
-        crate::init(&path).unwrap()
+        let pool = crate::init(&path).unwrap();
+        // The acquisition module tables (`indexers` / `download_clients`) are owned
+        // by the module crates now and created by their `ServerModule::migrations`
+        // at boot, not by `init`. Backup still dumps them by name (see `TABLES`),
+        // so recreate the minimal shape here to exercise that path.
+        pool.get()
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS indexers (\
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, \
+                    api_key TEXT NOT NULL DEFAULT '', categories TEXT NOT NULL DEFAULT '2000,5000', \
+                    enabled INTEGER NOT NULL DEFAULT 1, priority INTEGER NOT NULL DEFAULT 0, \
+                    kind TEXT NOT NULL DEFAULT 'torznab', definition_id TEXT, \
+                    settings TEXT NOT NULL DEFAULT '{}', last_ok_at INTEGER, last_error TEXT, \
+                    created_at INTEGER NOT NULL);\
+                 CREATE TABLE IF NOT EXISTS download_clients (\
+                    id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, \
+                    url TEXT NOT NULL DEFAULT '', username TEXT NOT NULL DEFAULT '', \
+                    password TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, \
+                    priority INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);",
+            )
+            .unwrap();
+        pool
     }
 
     fn count(pool: &Pool, table: &str) -> i64 {

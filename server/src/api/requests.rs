@@ -16,6 +16,7 @@ use crate::api::extract::AuthUser;
 use crate::api::util::{blocking, query};
 use crate::db;
 use crate::i18n;
+use crate::DownloadsExt;
 use crate::model::{
     CreateRequestBody, MediaRequest, Permission, RequestCounts, RequestStatus, RequestsView, User,
 };
@@ -40,6 +41,18 @@ fn require(user: &User, perm: Permission) -> Result<(), Response> {
         Ok(())
     } else {
         Err(lerr(locale(user), StatusCode::FORBIDDEN, "error.permissionDenied"))
+    }
+}
+
+/// The request-tied search + grab routes are core (a moderator drives them from
+/// the request page), but the feature they call into lives in the Acquisition
+/// module. Gate them on it so disabling Acquisition removes search / grab
+/// everywhere, not only the module's own admin routes: 404 when it is off.
+fn require_acquisition(state: &SharedState, user: &User) -> Result<(), Response> {
+    if luma_engine::modules::module_enabled(&state.settings, "dev.luma.acquisition") {
+        Ok(())
+    } else {
+        Err(lerr(locale(user), StatusCode::NOT_FOUND, "error.moduleDisabled"))
     }
 }
 
@@ -109,7 +122,7 @@ fn overlay_active_downloads(
     conn: &rusqlite::Connection,
     requests: &mut [MediaRequest],
 ) -> rusqlite::Result<()> {
-    let active: std::collections::HashMap<String, db::ActiveDownload> = db::requests_with_active_downloads(conn)?
+    let active: std::collections::HashMap<String, luma_torrent::ActiveDownload> = luma_torrent::requests_with_active_downloads(conn)?
         .into_iter()
         .map(|a| (a.request_id.clone(), a))
         .collect();
@@ -210,8 +223,9 @@ pub async fn interactive_search(
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
+    require_acquisition(&state, &user)?;
     let view =
-        service(move || crate::services::acquisition::search::interactive_search(&state, &id)).await?;
+        service(move || luma_acquisition::search::interactive_search(&state, &id)).await?;
     Ok(Json(view).into_response())
 }
 
@@ -221,19 +235,20 @@ pub async fn grab(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
-    Json(body): Json<crate::model::GrabBody>,
+    Json(body): Json<luma_acquisition::GrabBody>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
+    require_acquisition(&state, &user)?;
     // Enqueue is fast (DB only); the slow torrent add (magnet resolve / .torrent
     // fetch, up to minutes) runs in the background so the request returns right
     // away instead of timing out the browser.
     let enqueue_state = state.clone();
     let (rid, guid, indexer_id) = (id.clone(), body.guid.clone(), body.indexer_id.clone());
     let row = service(move || {
-        crate::services::acquisition::search::grab_cached(&enqueue_state, &rid, &guid, &indexer_id)
+        luma_acquisition::search::grab_cached(&enqueue_state, &rid, &guid, &indexer_id)
     })
     .await?;
-    tokio::task::spawn_blocking(move || state.downloads.activate(&state, &row));
+    tokio::task::spawn_blocking(move || state.downloads().activate(&state, &row));
     Ok(Json(json!({ "ok": true, "id": id })).into_response())
 }
 

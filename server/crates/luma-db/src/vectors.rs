@@ -7,7 +7,7 @@
 //! grows past ~50k items, swap [`load_vectors`] for an ANN index (sqlite-vec /
 //! HNSW); the public functions here stay the same.
 //!
-//! Vectors are produced by `crate::infra::embed` during enrichment.
+//! Vectors are produced by the embedder port (the vector module) during enrichment.
 
 use std::collections::HashSet;
 

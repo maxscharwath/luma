@@ -11,7 +11,7 @@ function CountdownRing({ seconds, total }: Readonly<{ seconds: number; total: nu
   const frac = total > 0 ? Math.min(1, Math.max(0, seconds / total)) : 0;
   return (
     <span className="relative inline-flex h-6 w-6 items-center justify-center">
-      <svg className="absolute inset-0 h-6 w-6 -rotate-90" viewBox="0 0 24 24" aria-hidden>
+      <svg className="absolute inset-0 h-6 w-6 -rotate-90" viewBox="0 0 24 24" aria-hidden="true">
         <circle
           cx="12"
           cy="12"

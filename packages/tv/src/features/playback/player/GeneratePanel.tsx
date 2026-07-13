@@ -29,14 +29,14 @@ export function GeneratePanel({
   const sourceIdx = 1;
   const startIdx = 3;
 
+  // biome-ignore lint/style/noNonNullAssertion: GEN_LANGS is a non-empty constant list, so index 0 always exists.
   const lang = GEN_LANGS[form.langIndex] ?? GEN_LANGS[0]!;
   const source = sources[form.sourceIndex];
-  const qualityLabel = (q: (typeof GEN_QUALITIES)[number]) =>
-    q === 'fast'
-      ? t('player.subQualityFast')
-      : q === 'accurate'
-        ? t('player.subQualityAccurate')
-        : t('player.subQualityBalanced');
+  const qualityLabel = (q: (typeof GEN_QUALITIES)[number]) => {
+    if (q === 'fast') return t('player.subQualityFast');
+    if (q === 'accurate') return t('player.subQualityAccurate');
+    return t('player.subQualityBalanced');
+  };
   const sourceLabel = source
     ? source.label ||
       (source.language

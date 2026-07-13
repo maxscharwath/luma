@@ -11,7 +11,7 @@
 //! that aggregates them into the [`ScanData`] handed to [`crate::db::sync_all`].
 
 mod ids;
-pub(crate) mod walk;
+pub mod walk;
 
 use std::collections::HashMap;
 use std::path::Path;

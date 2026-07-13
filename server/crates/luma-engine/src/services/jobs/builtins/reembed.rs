@@ -16,7 +16,7 @@ pub(super) const SPEC: Builtin = Builtin {
 };
 
 pub(super) fn run(ctx: &JobContext) -> Result<()> {
-    use crate::infra::embed::build_doc;
+    use luma_domain::build_doc;
     use crate::infra::events::ServerEvent;
     use crate::model::Kind;
 

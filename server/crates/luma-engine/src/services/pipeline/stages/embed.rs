@@ -6,7 +6,7 @@
 
 use anyhow::{anyhow, Result};
 
-use crate::infra::embed::build_doc;
+use luma_domain::build_doc;
 use crate::model::{Category, Kind, Metadata};
 use crate::services::jobs::{Builtin, JobContext, JobKey, Trigger};
 use crate::services::pipeline::stage::Stage;

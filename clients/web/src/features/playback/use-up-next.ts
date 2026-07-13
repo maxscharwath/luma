@@ -66,7 +66,7 @@ export function useUpNext({
     return () => clearInterval(id);
   }, [showUpNext]);
 
-  // Reaching 0 autoplays — never a raw position check (which would fire mid-scrub).
+  // Reaching 0 autoplays, never a raw position check (which would fire mid-scrub).
   useEffect(() => {
     if (showUpNext && countdown === 0) advance();
   }, [showUpNext, countdown, advance]);

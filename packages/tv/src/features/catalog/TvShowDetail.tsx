@@ -37,6 +37,7 @@ export function TvShowDetail() {
 
   // Per-episode resume progress (mapped by item id) for the episode thumbnails.
   const [epProgress, setEpProgress] = useState<Record<string, number>>({});
+  // biome-ignore lint/correctness/useExhaustiveDependencies: show.id intentionally re-fetches when switching shows (the screen is reused on this route); it gates the effect even though the body reads it only indirectly.
   useEffect(() => {
     let cancelled = false;
     client
@@ -129,6 +130,7 @@ export function TvShowDetail() {
     >
       <div className="flex items-center gap-4">
         <button
+          type="button"
           className={TV_PLAY_BTN}
           data-focus=""
           disabled={!playTarget}
@@ -169,6 +171,7 @@ export function TvShowDetail() {
             {detail.seasons.map((s) => (
               <button
                 key={s.number}
+                type="button"
                 className="shrink-0 cursor-pointer rounded-full border-none bg-surface-2 px-5 py-2.25 font-sans text-[15px] font-semibold text-muted transition-transform focus:scale-[1.05] aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink"
                 data-focus=""
                 aria-current={s.number === activeSeason?.number}

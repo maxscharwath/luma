@@ -79,7 +79,7 @@ pub async fn clear_cache(
         let transcode = data_dir.join("hls");
         let images = data_dir.join("images");
         let storyboards = data_dir.join("storyboards");
-        let freed = dir_size(&transcode) + dir_size(&images) + dir_size(&storyboards);
+        let freed = dir_stats(&transcode).0 + dir_stats(&images).0 + dir_stats(&storyboards).0;
         clear_dir(&transcode);
         clear_dir(&images);
         clear_dir(&storyboards);
@@ -139,17 +139,6 @@ fn dir_stats(path: &Path) -> (u64, u64) {
         .filter(|e| e.file_type().is_file())
         .filter_map(|e| e.metadata().ok())
         .fold((0u64, 0u64), |(bytes, count), m| (bytes + m.len(), count + 1))
-}
-
-/// Recursive byte size of a directory tree (0 if missing).
-fn dir_size(path: &Path) -> u64 {
-    walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter_map(|e| e.metadata().ok())
-        .map(|m| m.len())
-        .sum()
 }
 
 /// Remove a directory's contents (keeping the directory itself).

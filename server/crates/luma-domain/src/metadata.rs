@@ -51,7 +51,7 @@ pub struct Metadata {
     pub crew: Vec<CrewMember>,
     /// TMDB keyword tags (e.g. "road movie", "dystopia", "heist") a strong
     /// thematic signal for the recommendation embedding. Internal: consumed
-    /// in-memory by `infra::embed::build_doc` during enrichment; deliberately not
+    /// in-memory by [`build_doc`] during enrichment; deliberately not
     /// persisted to the metadata JSON nor sent to clients.
     #[serde(default, skip_serializing)]
     pub keywords: Vec<String>,
@@ -90,4 +90,36 @@ pub struct CrewMember {
 
 fn default_provider() -> &'static str {
     "tmdb"
+}
+
+/// Assemble the text we embed for one title. Genres are repeated because they're
+/// the strongest "feels like" signal: in the lexical backend repetition up-weights
+/// them; in MiniLM it nudges the sentence meaning. Order is most- to
+/// least-discriminating so a truncating tokenizer keeps the important parts.
+pub fn build_doc(title: &str, year: Option<u32>, meta: &Metadata) -> String {
+    let mut parts: Vec<String> = Vec::with_capacity(8);
+    parts.push(title.to_string());
+    if let Some(y) = year {
+        parts.push(y.to_string());
+    }
+    if !meta.genres.is_empty() {
+        let genres = meta.genres.join(" ");
+        parts.push(genres.clone()); // repeat: genres dominate similarity
+        parts.push(genres);
+    }
+    // Keyword tags ("road movie", "dystopia", "heist") are the strongest signal
+    // for themed rows they carry the vibe the overview rarely states outright.
+    if !meta.keywords.is_empty() {
+        parts.push(meta.keywords.join(" "));
+    }
+    for c in meta.cast.iter().take(6) {
+        parts.push(c.name.clone());
+    }
+    if let Some(tagline) = &meta.tagline {
+        parts.push(tagline.clone());
+    }
+    if let Some(overview) = &meta.overview {
+        parts.push(overview.clone());
+    }
+    parts.join(". ")
 }

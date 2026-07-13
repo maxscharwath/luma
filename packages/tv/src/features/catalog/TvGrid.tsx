@@ -51,24 +51,23 @@ export function TvGrid() {
     ];
   }, [isFilms, isSeries, movies, shows, client, nav, myList, watched]);
 
-  const heroMovie = isFilms
-    ? movies[0]
-    : isSeries
-      ? undefined
-      : movies.find((m) => myList.has(m.id));
-  const heroShow = isSeries
-    ? shows[0]
-    : heroMovie
-      ? undefined
-      : shows.find((s) => myList.has(s.id));
+  let heroMovie: (typeof movies)[number] | undefined;
+  if (isFilms) heroMovie = movies[0];
+  else if (isSeries) heroMovie = undefined;
+  else heroMovie = movies.find((m) => myList.has(m.id));
+  let heroShow: (typeof shows)[number] | undefined;
+  if (isSeries) heroShow = shows[0];
+  else if (heroMovie) heroShow = undefined;
+  else heroShow = shows.find((s) => myList.has(s.id));
   const hero = heroMovie ?? heroShow ?? null;
   const heroBackdrop = hero ? (client.backdropFor(hero) ?? client.posterFor(hero)) : null;
-  const heroBadge = heroMovie
-    ? qualityBadge(heroMovie)
-    : heroShow
-      ? qualityBadgeForVideo(heroShow.video)
-      : null;
-  const label = isFilms ? t('nav.films') : isSeries ? t('nav.series') : t('nav.myList');
+  let heroBadge: string | null = null;
+  if (heroMovie) heroBadge = qualityBadge(heroMovie);
+  else if (heroShow) heroBadge = qualityBadgeForVideo(heroShow.video);
+  let label: string;
+  if (isFilms) label = t('nav.films');
+  else if (isSeries) label = t('nav.series');
+  else label = t('nav.myList');
   const empty = kind === 'mylist' && cards.length === 0;
 
   return (

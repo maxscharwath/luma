@@ -1,9 +1,4 @@
-import {
-  type AuthResult,
-  type LumaClient,
-  type MessageKey,
-  type QuickConnectInit,
-} from '@luma/core';
+import type { AuthResult, LumaClient, MessageKey, QuickConnectInit } from '@luma/core';
 import { useT } from '@luma/ui';
 import { useEffect, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
@@ -108,7 +103,7 @@ export function TvQuickConnect() {
           {qr ? (
             <div
               className="flex h-[280px] w-[280px] items-center justify-center rounded-[28px] bg-white p-5 shadow-pop [&>svg]:h-full [&>svg]:w-full"
-              // eslint-disable-next-line react/no-danger
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: app-generated QR SVG built by qrcode-generator from a trusted server URL + server-issued code, never user input.
               dangerouslySetInnerHTML={{ __html: qr }}
             />
           ) : null}

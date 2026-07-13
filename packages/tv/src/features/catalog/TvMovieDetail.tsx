@@ -42,7 +42,12 @@ export function TvMovieDetail() {
       overview={meta?.overview}
     >
       <div className="flex items-center gap-4">
-        <button className={TV_PLAY_BTN} data-focus="" onClick={() => nav.go('player', { item })}>
+        <button
+          type="button"
+          className={TV_PLAY_BTN}
+          data-focus=""
+          onClick={() => nav.go('player', { item })}
+        >
           <PlayGlyph />
           {t('player.play')}
         </button>

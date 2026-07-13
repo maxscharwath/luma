@@ -78,7 +78,7 @@ pub fn cluster(pool: &Pool, vectors: &VectorCache, watched: &[String], k: usize)
         clusters.push(Cluster { ids, titles, genres, keywords });
     }
     // Biggest taste groups first.
-    clusters.sort_by(|a, b| b.ids.len().cmp(&a.ids.len()));
+    clusters.sort_by_key(|b| std::cmp::Reverse(b.ids.len()));
     clusters
 }
 

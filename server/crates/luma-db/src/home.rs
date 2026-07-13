@@ -122,9 +122,9 @@ pub fn entities_by_ids(pool: &Pool, ids: &[&str]) -> Result<Vec<luma_domain::Sec
     let mut out = Vec::with_capacity(ids.len());
     for id in ids {
         if let Some(item) = item_map.remove(*id) {
-            out.push(SectionItem::Movie { item });
+            out.push(SectionItem::Movie { item: Box::new(item) });
         } else if let Some(show) = show_map.remove(*id) {
-            out.push(SectionItem::Show { show });
+            out.push(SectionItem::Show { show: Box::new(show) });
         }
     }
     Ok(out)

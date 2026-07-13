@@ -20,7 +20,7 @@ function Ring({ value, size, color }: Readonly<{ value: number; size: number; co
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       className="-rotate-90 shrink-0"
-      aria-hidden
+      aria-hidden="true"
     >
       <circle
         cx={c}
@@ -63,8 +63,16 @@ export function RequestStatusChip({
   const pct = downloading ? `${Math.round((progress ?? 0) * 100)}%` : null;
 
   // The leading glyph: a progress ring while downloading, else the status dot.
-  const dotSize = size === 'card' ? 'h-1 w-1' : size === 'hero' ? 'h-2 w-2' : 'h-1.5 w-1.5';
-  const ringSize = size === 'card' ? 11 : size === 'hero' ? 16 : 13;
+  // Sizes vary by surface (card / hero / row-default).
+  let dotSize = 'h-1.5 w-1.5';
+  let ringSize = 13;
+  if (size === 'card') {
+    dotSize = 'h-1 w-1';
+    ringSize = 11;
+  } else if (size === 'hero') {
+    dotSize = 'h-2 w-2';
+    ringSize = 16;
+  }
   const lead = downloading ? (
     <Ring value={progress ?? 0} size={ringSize} color={m.dot} />
   ) : (

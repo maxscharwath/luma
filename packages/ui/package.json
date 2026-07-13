@@ -5,7 +5,8 @@
   "description": "LUMA design-system React components + tokens (ported from the Claude Design source).",
   "exports": {
     ".": "./src/index.ts",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./tailwind.css": "./src/tailwind.css"
   },
   "scripts": {
     "typecheck": "tsgo --noEmit",

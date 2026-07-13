@@ -75,6 +75,7 @@ export function LoginForm({
           autoComplete="username"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
+          // biome-ignore lint/a11y/noAutofocus: deliberate initial focus on the sign-in field
           autoFocus
         />
       )}
@@ -85,7 +86,7 @@ export function LoginForm({
         autoComplete="current-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        // eslint-disable-next-line jsx-a11y/no-autofocus
+        // biome-ignore lint/a11y/noAutofocus: deliberate initial focus on the password when a profile is preselected
         autoFocus={Boolean(profile)}
       />
 

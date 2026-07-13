@@ -14,7 +14,7 @@ name: Build & Release
 # the shared TV shell factory, no LUMA_TV_DEVICE dev mode.
 #
 # Manual runs build artifacts without publishing a Release; `targets` scopes the
-# run (all | spk | desktop | tv).
+# run (all | spk | desktop | tv | modules).
 
 on:
   push:
@@ -27,7 +27,7 @@ on:
       targets:
         description: 'What to build'
         type: choice
-        options: [all, spk, desktop, tv]
+        options: [all, spk, desktop, tv, modules]
         default: all
         required: false
 
@@ -66,6 +66,45 @@ jobs:
 
   # NB: the Synology .spk + its GitHub Pages "package source" (stable + nightly)
   # live in their own workflow, .github/workflows/synology.yml.
+
+  # Runtime-installable module bundles: every WASM module packed to a
+  # gzip-compressed .lmod you upload in Admin -> Modules (no server rebuild).
+  modules:
+    name: Modules (.lmod bundles)
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The WASM module backends compile to wasm32-unknown-unknown (pinned in
+      # rust-toolchain.toml); ensure the target is installed for the guest build.
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      # Build + gzip every runtime-installable module into dist/modules/<id>.lmod.
+      - name: Pack all modules
+        run: bun run modules:pack
+
+      - name: Upload .lmod artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-modules-lmod
+          path: dist/modules/*.lmod
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/modules/*.lmod
 
   # -------------------------------------------------------------------- TV ---
 

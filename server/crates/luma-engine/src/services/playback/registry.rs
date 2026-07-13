@@ -204,7 +204,7 @@ impl Registry {
             .filter(|s| s.last_seen.elapsed() < SESSION_TTL)
             .cloned()
             .collect();
-        v.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        v.sort_by_key(|b| std::cmp::Reverse(b.started_at));
         v
     }
 

@@ -248,6 +248,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   }, [decision.kind, item.id, anchor, audioIndex]);
 
   // A new item starts from a fresh decision.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: item.id is an intentional trigger (not referenced in the effect); reset forceHls whenever the item changes, not on every render.
   useEffect(() => setForceHls(false), [item.id]);
 
   // ----- actions --------------------------------------------------------------

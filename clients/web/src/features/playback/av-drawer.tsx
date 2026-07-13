@@ -49,6 +49,7 @@ function Row({
 }>) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={`flex w-full items-center gap-3.5 rounded-xl border px-4 py-3.5 text-left transition-colors
@@ -64,7 +65,8 @@ function Row({
           <IconSparkles size={11} />
           IA
         </span>
-      ) : tag ? (
+      ) : null}
+      {!ai && tag ? (
         <span className="rounded bg-white/8 px-2 py-0.75 text-[10px] font-bold text-white/70">
           {tag}
         </span>
@@ -101,6 +103,7 @@ function GenRow({
           IA
         </span>
         <button
+          type="button"
           onClick={onCancel}
           aria-label={t('player.subGenCancel')}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/40 hover:bg-red-500/15 hover:text-red-300"
@@ -153,6 +156,7 @@ function Segmented<T extends string>({
       {options.map((o) => (
         <button
           key={o.v}
+          type="button"
           onClick={() => onChange(o.v)}
           className={`rounded-[7px] px-3.5 py-2 text-[13px] font-semibold transition-colors
             ${value === o.v ? 'bg-accent text-accent-ink' : 'text-white/70 hover:text-white'}`}
@@ -267,6 +271,7 @@ export function AvDrawer({
   return (
     <>
       <button
+        type="button"
         className="absolute inset-0 z-68 cursor-default bg-black/35"
         onClick={onClose}
         aria-label={t('common.close')}
@@ -277,6 +282,7 @@ export function AvDrawer({
             {t('player.audioSubtitles')}
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-white/8 text-white hover:bg-white/16"
             aria-label={t('common.close')}
@@ -317,13 +323,15 @@ export function AvDrawer({
           {subs.map((s) => {
             const selectable = Boolean(s.url);
             const ai = Boolean(s.downloaded);
-            const tag = ai
-              ? undefined
-              : selectable
+            let tag: string | undefined;
+            if (!ai) {
+              tag = selectable
                 ? s.codec.toUpperCase()
                 : `${s.codec.toUpperCase()} · ${t('player.pictureSub')}`;
+            }
             const row = (
               <Row
+                key={s.index}
                 code={(s.language ?? 'ST').toUpperCase().slice(0, 3)}
                 label={ai && s.label ? s.label : trackLang(t, s.language)}
                 tag={tag}
@@ -337,6 +345,7 @@ export function AvDrawer({
               <div key={s.index} className="flex items-center gap-2">
                 <div className="flex-1">{row}</div>
                 <button
+                  type="button"
                   onClick={() => onDeleteSub(s.subId as string)}
                   aria-label={t('player.subGenDelete')}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/4 text-white/50 hover:bg-red-500/15 hover:text-red-300"
@@ -353,24 +362,24 @@ export function AvDrawer({
           ))}
         </div>
         {/* ---- create a missing subtitle on-device (Whisper / translate) ---- */}
-        {canAi ? (
-          genOpen ? (
-            <SubtitleGenerate
-              item={item}
-              subs={subs}
-              caps={caps}
-              onStarted={onGenerationStarted}
-              onClose={() => setGenOpen(false)}
-            />
-          ) : (
-            <button
-              onClick={() => setGenOpen(true)}
-              className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[rgba(124,111,240,0.45)] px-4 py-3 text-[14px] font-semibold text-[#b3a9f5] transition-colors hover:bg-[rgba(124,111,240,0.1)]"
-            >
-              <IconSparkles size={15} />
-              {t('player.subCreateMissing')}
-            </button>
-          )
+        {canAi && genOpen ? (
+          <SubtitleGenerate
+            item={item}
+            subs={subs}
+            caps={caps}
+            onStarted={onGenerationStarted}
+            onClose={() => setGenOpen(false)}
+          />
+        ) : null}
+        {canAi && !genOpen ? (
+          <button
+            type="button"
+            onClick={() => setGenOpen(true)}
+            className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[rgba(124,111,240,0.45)] px-4 py-3 text-[14px] font-semibold text-[#b3a9f5] transition-colors hover:bg-[rgba(124,111,240,0.1)]"
+          >
+            <IconSparkles size={15} />
+            {t('player.subCreateMissing')}
+          </button>
         ) : null}
 
         {/* ---- subtitle appearance ---- */}
@@ -393,6 +402,7 @@ export function AvDrawer({
               {SUB_COLORS.map((c) => (
                 <button
                   key={c}
+                  type="button"
                   onClick={() => onStyleChange({ color: c })}
                   aria-label={c}
                   className="h-8 w-8 rounded-full"

@@ -189,16 +189,18 @@ export function TvHome() {
     t,
   ]);
 
-  const heroBackdrop = hero
-    ? hero.type === 'show'
-      ? (client.backdropFor(hero.show) ?? client.showPosterFor(hero.show))
-      : (client.backdropFor(hero.item) ?? client.posterFor(hero.item))
-    : null;
-  const heroBadge = hero
-    ? hero.type === 'show'
-      ? qualityBadgeForVideo(hero.show.video)
-      : qualityBadge(hero.item)
-    : null;
+  let heroBackdrop: string | null = null;
+  if (hero) {
+    heroBackdrop =
+      hero.type === 'show'
+        ? (client.backdropFor(hero.show) ?? client.showPosterFor(hero.show))
+        : (client.backdropFor(hero.item) ?? client.posterFor(hero.item));
+  }
+  let heroBadge: string | null = null;
+  if (hero) {
+    heroBadge =
+      hero.type === 'show' ? qualityBadgeForVideo(hero.show.video) : qualityBadge(hero.item);
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-bg">

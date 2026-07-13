@@ -109,14 +109,6 @@ export interface DetailHeroProps {
   adminAction?: ReactNode;
 }
 
-/** Director/creator names from TMDB crew metadata, for the hero's "Réalisation"
- * line (empty when crew isn't resolved yet). */
-export function directorsOf(meta?: { crew?: { name: string; job: string }[] } | null): string[] {
-  return (meta?.crew ?? [])
-    .filter((c) => c.job === 'Director' || c.job === 'Creator')
-    .map((c) => c.name);
-}
-
 /** Full-bleed cinematic detail hero shared by the movie and series fiches
  * (matches the web DETAIL section of LUMA.dc.html). */
 export function DetailHero({

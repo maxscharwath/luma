@@ -31,13 +31,14 @@ function focusables(): Focusable[] {
 /** Geometric spatial navigation: move focus to the nearest element in `dir`. */
 function moveFocus(dir: 'Up' | 'Down' | 'Left' | 'Right') {
   const els = focusables();
-  if (els.length === 0) return;
+  const first = els[0];
+  if (!first) return; // nothing focusable on screen
 
   const active = document.activeElement as HTMLElement | null;
   const activeFocusable = active && active.dataset.focus !== undefined;
-  const current =
+  const current: Focusable =
     (activeFocusable && els.find((f) => f.el === active)) ||
-    (activeFocusable && active ? { el: active, rect: active.getBoundingClientRect() } : els[0]!);
+    (activeFocusable && active ? { el: active, rect: active.getBoundingClientRect() } : first);
   const r = current.rect;
   const cx = r.left + r.width / 2;
   const cy = r.top + r.height / 2;
@@ -102,6 +103,7 @@ export interface FocusNavHandlers {
  */
 export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers) {
   const { pointer } = useEnv();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resetKey is an intentional re-run trigger (a view switch re-focuses the first element); it is not read inside the effect.
   useEffect(() => {
     registerTvMediaKeys();
     // Arm the OK guard before the keydown listener attaches, so the press that

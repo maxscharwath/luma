@@ -3,7 +3,7 @@ import { useT } from '@luma/ui';
 /** Fast-forward chevrons glyph for the skip-intro pill. */
 function IconSkipIntro() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M4 5l8 7-8 7V5zm9 0l8 7-8 7V5z" />
     </svg>
   );

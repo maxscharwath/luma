@@ -5,7 +5,6 @@
 //! crates can write `luma_domain::MediaItem` regardless of which noun-module a
 //! type lives in (and the server's `crate::model` barrel re-exports this).
 
-pub mod acquisition;
 pub mod media;
 pub mod metadata;
 pub mod accounts;
@@ -15,20 +14,17 @@ pub mod admin;
 pub mod jobs;
 pub mod pipeline;
 pub mod naming;
-pub mod organize;
 pub mod requests;
 pub mod section;
 
 // Flat re-export (mirrors the server's former `model.rs`). `naming` is
 // intentionally not globbed here; reach it via its module path.
-pub use acquisition::*;
 pub use accounts::*;
 pub use admin::*;
 pub use jobs::*;
 pub use library::*;
 pub use media::*;
 pub use metadata::*;
-pub use organize::*;
 pub use pipeline::*;
 pub use playback::*;
 pub use requests::*;

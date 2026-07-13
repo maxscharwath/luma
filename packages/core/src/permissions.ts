@@ -19,13 +19,15 @@ export const PERMISSIONS: readonly PermissionMeta[] = [
   { key: 'library.manage', labelKey: 'admin.permLibrary', hintKey: 'admin.permLibraryHint' },
   { key: 'users.manage', labelKey: 'admin.permUsers', hintKey: 'admin.permUsersHint' },
   { key: 'settings.manage', labelKey: 'admin.permSettings', hintKey: 'admin.permSettingsHint' },
-  { key: 'requests.create', labelKey: 'admin.permRequestCreate', hintKey: 'admin.permRequestCreateHint' },
-  { key: 'requests.manage', labelKey: 'admin.permRequestManage', hintKey: 'admin.permRequestManageHint' },
+  {
+    key: 'requests.create',
+    labelKey: 'admin.permRequestCreate',
+    hintKey: 'admin.permRequestCreateHint',
+  },
+  {
+    key: 'requests.manage',
+    labelKey: 'admin.permRequestManage',
+    hintKey: 'admin.permRequestManageHint',
+  },
   { key: 'requests.auto', labelKey: 'admin.permRequestAuto', hintKey: 'admin.permRequestAutoHint' },
 ];
-
-/** Label key for one permission (falls back to the raw string for unknown
- * keys, e.g. a permission granted by a newer server than this client). */
-export function permissionLabelKey(perm: string): MessageKey | null {
-  return PERMISSIONS.find((p) => p.key === perm)?.labelKey ?? null;
-}

@@ -1,14 +1,14 @@
 //! Process-wide application state. The library lives in SQLite; this just holds
 //! the connection pool, resolved config, and the ffprobe-availability flag.
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+
+use luma_module_wasm::WasmHost;
 
 use crate::services::activity;
 use crate::config::Config;
 use crate::db::Pool;
-use crate::services::downloads::DownloadManager;
-use crate::services::vpn::Vpn;
-use crate::infra::embed::{self, Embedder};
+use crate::ports::Embedder;
 use crate::infra::events::Bus;
 use crate::infra::metadata;
 use crate::infra::metrics::Metrics;
@@ -16,7 +16,6 @@ use crate::infra::storyboard::Storyboard;
 use crate::services::jobs::JobManager;
 use crate::services::playback::Registry;
 use crate::services::quickconnect::{self, QuickConnect};
-use crate::services::remote::RemoteAccess;
 use crate::services::search::SearchEngine;
 use crate::services::sections::VectorCache;
 use crate::services::settings::Settings;
@@ -67,34 +66,68 @@ pub struct AppState {
     /// In-flight on-device subtitle generations (Whisper / translate), tracked so
     /// the player can poll live progress + ETA and cancel.
     pub subtitle_gen: Arc<GenRegistry>,
-    /// Managed Cloudflare Tunnel connector (optional, off by default). Supervises a
-    /// `cloudflared` child when enabled so a box with no tunnel gets a public HTTPS
-    /// endpoint without port-forwarding. See [`crate::services::remote`].
-    pub remote: Arc<RemoteAccess>,
-    /// The acquisition stack's download manager: embedded torrent engine
-    /// lifecycle, grabs ledger, kill-switch gate. The monitor task is spawned
-    /// in `main` next to the other reapers. See [`crate::services::downloads`].
-    pub downloads: Arc<DownloadManager>,
-    /// Managed WireGuard-to-SOCKS5 bridge (wireproxy) for torrent traffic,
-    /// the Proton VPN path. See [`crate::services::vpn`].
-    pub vpn: Arc<Vpn>,
+    /// Runtime-loaded (WASM) modules installed under `<data>/modules`. Behind an
+    /// `RwLock` so the admin store can install / uninstall them live. Their
+    /// manifests are merged into `GET /api/modules` and their HTTP is proxied at
+    /// `/api/plugin/<id>/*`.
+    pub wasm: Arc<RwLock<WasmHost>>,
+    /// Weak self-reference (seeded via `Arc::new_cyclic`) so a relocated module's
+    /// `HostCtx::trigger_job` can hand a background job the full `SharedState` it
+    /// runs against (jobs are `Fn(SharedState)`, and the `Arc` is otherwise lost
+    /// through the blanket `Arc<T>: HostCtx` deref).
+    me: std::sync::Weak<AppState>,
+    /// Typed service registry for dependency injection into relocated modules:
+    /// each module resolves its own engine / bridge by type through the `HostCtx`
+    /// seam (`get_service`), so the binary wires nothing per module. Holds the same
+    /// `Arc`s as the concrete fields above, keyed by `TypeId`.
+    pub(crate) services:
+        std::collections::HashMap<std::any::TypeId, std::sync::Arc<dyn std::any::Any + Send + Sync>>,
 }
 
 pub type SharedState = Arc<AppState>;
 
 impl AppState {
-    pub fn new(config: Config, ffprobe_available: bool, db: Pool, settings: Settings) -> SharedState {
+    /// The `Arc<AppState>` this `&self` is inside (for the few spots that need to
+    /// re-share the whole state, e.g. triggering a job). `None` only before the
+    /// self-reference is seeded in [`AppState::new`].
+    pub(crate) fn shared(&self) -> Option<SharedState> {
+        self.me.upgrade()
+    }
+}
+
+impl AppState {
+    pub fn new(
+        config: Config,
+        ffprobe_available: bool,
+        db: Pool,
+        settings: Settings,
+        // The content embedder, wrapped by the composition root (the binary) from
+        // the vector module's backend into the engine port, so the core names no
+        // concrete embedder crate. A `NoopEmbedder` stands in when absent.
+        embedder: Arc<dyn Embedder>,
+        module_services: std::collections::HashMap<
+            std::any::TypeId,
+            std::sync::Arc<dyn std::any::Any + Send + Sync>,
+        >,
+        // Background jobs contributed by module crates (e.g. the acquisition
+        // jobs from the downloads module), registered alongside the built-ins
+        // so the core roster names no module.
+        module_jobs: &'static [crate::services::jobs::Builtin],
+    ) -> SharedState {
         let hls = hls::HlsEngine::new(
             &config.data_dir,
             crate::services::settings::max_transcodes(&settings),
             crate::services::settings::transcode_cache_limit_bytes(&settings),
         );
         let storyboard = Storyboard::new(&config.data_dir);
-        // Built before the struct literal moves `config`: the connector locates a
-        // server-provided `cloudflared` relative to the data dir.
-        let remote = RemoteAccess::new(config.data_dir.clone());
-        let downloads = DownloadManager::new(&config.data_dir);
-        let vpn = Vpn::new(config.data_dir.clone());
+        // Every module service + peer port (the download manager, the VPN bridge,
+        // the Remote connector, the VpnProxy / TorrentFetch ports) is built by the
+        // binary (the composition root) and passed in via `module_services`, so the
+        // core never names those module types. Modules resolve their own engine by
+        // type through the `HostCtx` seam.
+        let services = module_services;
+        // Load any runtime-installed WASM modules from disk (best-effort).
+        let wasm = Arc::new(RwLock::new(WasmHost::load_all(&config.data_dir.join("modules"))));
         // Seed the process-wide ffmpeg concurrency budget from the setting so the
         // very first background pass already honors it (updated live on write).
         crate::infra::ffmpeg_gate::set_capacity(crate::services::settings::media_workers(&settings));
@@ -102,6 +135,11 @@ impl AppState {
         // persisted schedule overrides. The cron loop is spawned in `main`.
         let mut jobs = JobManager::new();
         crate::services::jobs::register_all(&mut jobs);
+        // Overlay the module-contributed jobs (e.g. acquisition) so the core
+        // roster stays module-free while their handlers still run.
+        for b in module_jobs {
+            jobs.register(b);
+        }
         jobs.load_schedules(&db);
         // Restore the persisted global pipeline-pause so a box rebooted while held
         // stays held until an admin resumes (visible in the Pipeline console).
@@ -112,7 +150,10 @@ impl AppState {
         // Likewise, reset any pipeline ledger task stranded `running` by that
         // crash back to `pending` so its stage picks it up again.
         crate::services::pipeline::recover_on_boot(&db);
-        Arc::new(AppState {
+        // `new_cyclic` seeds the weak self-reference (`me`) during construction so
+        // `trigger_job` can re-share the full state; the closure is FnOnce, so the
+        // pre-built services above move straight in.
+        Arc::new_cyclic(|weak| AppState {
             config,
             ffprobe_available,
             db,
@@ -125,14 +166,14 @@ impl AppState {
             quickconnect: quickconnect::new(),
             playback: Registry::new(),
             metrics: Metrics::new(),
-            embedder: embed::default_embedder(),
+            embedder,
             search: Arc::new(SearchEngine::new().expect("init search index")),
             vectors: Arc::new(VectorCache::new()),
             jobs: Arc::new(jobs),
             subtitle_gen: Arc::new(GenRegistry::default()),
-            remote,
-            downloads,
-            vpn,
+            wasm,
+            me: weak.clone(),
+            services,
         })
     }
 }

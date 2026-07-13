@@ -32,7 +32,7 @@ export function WatchedBadge({ size = 28 }: Readonly<{ size?: number }>) {
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
-        aria-hidden
+        aria-hidden="true"
       >
         <path d="M20 6 9 17l-5-5" />
       </svg>
@@ -68,6 +68,7 @@ export function TvArt({
 }>) {
   const [ok, setOk] = useState(true);
   // Reset the error flag when the source changes (live catalog/art updates).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-running on `src` change is the whole point (reset the error flag for the new source); the body reads only setOk.
   useEffect(() => setOk(true), [src]);
 
   return (
@@ -120,15 +121,11 @@ function TvCardImpl({
   onClick,
 }: Readonly<TvCardProps>) {
   return (
-    <div
-      className="flex-none cursor-pointer rounded-xl transition-transform focus:scale-[1.06]"
+    <button
+      type="button"
+      className="flex-none cursor-pointer rounded-xl border-none bg-transparent p-0 text-left transition-transform focus:scale-[1.06]"
       data-focus=""
-      tabIndex={0}
-      role="button"
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick();
-      }}
       style={{ width }}
     >
       <div className="relative aspect-video overflow-hidden rounded-xl bg-surface-1 shadow-card [contain-intrinsic-size:328px_185px] [content-visibility:auto]">
@@ -151,7 +148,7 @@ function TvCardImpl({
           </div>
         ) : null}
       </div>
-    </div>
+    </button>
   );
 }
 

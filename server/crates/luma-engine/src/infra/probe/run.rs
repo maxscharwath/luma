@@ -106,7 +106,7 @@ pub fn spawn_probe_pass(pool: Pool, ffprobe_present: bool, bus: Bus, activity: A
                 }
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                 activity::probe_progress(&activity, n);
-                if n % 25 == 0 {
+                if n.is_multiple_of(25) {
                     bus.publish(ServerEvent::ProbeProgress { done: n, total });
                 }
             }));

@@ -365,7 +365,7 @@ impl JobManager {
             .iter()
             .copied()
             .filter(|job| self.jobs.get(job).is_some_and(|b| b.triggers.contains(&t)))
-            .filter(|job| schedules.get(job).map_or(true, |s| s.enabled))
+            .filter(|job| schedules.get(job).is_none_or(|s| s.enabled))
             .collect()
     }
 

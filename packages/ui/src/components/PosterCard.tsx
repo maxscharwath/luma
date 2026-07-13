@@ -40,6 +40,7 @@ function PosterCardImpl({
   const showImg = Boolean(poster) && imgOk;
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: when onClick is set the card carries role="button", tabIndex and an Enter/Space onKeyDown handler; the rule only fires because that role is applied conditionally.
     <div
       onClick={onClick}
       onKeyDown={(e) => {

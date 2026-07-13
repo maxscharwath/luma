@@ -35,6 +35,7 @@
 html.luma-native-surface,
 html.luma-native-surface body,
 html.luma-native-surface #root {
+  /* biome-ignore lint/complexity/noImportantStyles: needed to override the layered opaque --luma-bg so the native video plane shows through. */
   background: transparent !important;
 }
 
@@ -82,10 +83,13 @@ html.luma-native-surface #root {
 
 @layer base {
   html,
+  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .luma-native-surface overrides). */
   body,
+  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .luma-native-surface overrides). */
   #root {
     height: 100%;
   }
+  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .luma-native-surface overrides). */
   body {
     margin: 0;
     background: var(--luma-bg);

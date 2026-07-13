@@ -181,6 +181,7 @@ export function StatsOverlay({
           {t('stats.title')}
         </span>
         <button
+          type="button"
           onClick={onClose}
           className="text-white/60 hover:text-white"
           aria-label={t('common.close')}

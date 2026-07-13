@@ -46,7 +46,8 @@ export function TvProfileMenu() {
   const [engine, setEngine] = useState<EnginePref>(getEnginePref);
   const cycleEngine = () => {
     const i = engines.indexOf(engine);
-    const next = engines[(i + 1) % engines.length]!;
+    const next = engines[(i + 1) % engines.length];
+    if (!next) return;
     setEngine(next);
     setEnginePref(next);
   };
@@ -55,7 +56,8 @@ export function TvProfileMenu() {
 
   const cycleLocale = () => {
     const i = LOCALES.findIndex((l) => l.code === locale);
-    const next = LOCALES[(i + 1) % LOCALES.length]!;
+    const next = LOCALES[(i + 1) % LOCALES.length];
+    if (!next) return;
     setLocale(next.code);
   };
   const localeLabel = LOCALES.find((l) => l.code === locale)?.labelKey;

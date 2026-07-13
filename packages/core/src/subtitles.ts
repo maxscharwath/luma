@@ -38,7 +38,9 @@ export function parseVtt(raw: string): Cue[] {
     const lines = block.split('\n');
     const ti = lines.findIndex((l) => l.includes('-->'));
     if (ti === -1) continue;
-    const [a, b] = lines[ti]!.split('-->').map((s) => s.trim().split(/\s+/)[0] ?? '');
+    const timing = lines[ti];
+    if (timing === undefined) continue;
+    const [a, b] = timing.split('-->').map((s) => s.trim().split(/\s+/)[0] ?? '');
     const start = parseTs(a ?? '');
     const end = parseTs(b ?? '');
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
@@ -67,7 +69,8 @@ export function activeCueText(
   // Walk forward a few cues (normal playback advances by one).
   if (cur && t > cur.end) {
     for (let i = hint + 1; i < cues.length && i <= hint + 3; i++) {
-      const c = cues[i]!;
+      const c = cues[i];
+      if (!c) continue;
       if (t < c.start) return { text: '', index: hint };
       if (t <= c.end) return { text: c.text, index: i };
     }
@@ -77,7 +80,8 @@ export function activeCueText(
   let hi = cues.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const c = cues[mid]!;
+    const c = cues[mid];
+    if (!c) break;
     if (t < c.start) hi = mid - 1;
     else if (t > c.end) lo = mid + 1;
     else return { text: c.text, index: mid };

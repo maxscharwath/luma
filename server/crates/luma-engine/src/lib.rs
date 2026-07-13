@@ -12,19 +12,22 @@
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
-use serde_json::json;
-
 // Lower-layer crates, aliased to their historical in-crate module paths.
 pub(crate) use luma_config as config;
 pub(crate) use luma_db as db;
 pub(crate) use luma_domain as domain;
 
+/// The `{ "error": message }` JSON response builder now lives in the host-seam
+/// leaf crate; re-exported so `crate::json_error` / `luma_engine::json_error`
+/// call sites (api handlers, `infra::stream`) are unchanged.
+pub use luma_module_host::json_error;
+
+pub mod host_ctx;
 pub mod i18n;
 pub mod infra;
 pub mod model;
+pub mod modules;
+pub mod ports;
 pub mod services;
 pub mod state;
 
@@ -35,10 +38,4 @@ static PROCESS_START: OnceLock<Instant> = OnceLock::new();
 /// When this process started (monotonic). Seeded on first call.
 pub fn process_started() -> Instant {
     *PROCESS_START.get_or_init(Instant::now)
-}
-
-/// Build a `{ "error": message }` JSON response with the given status. Shared by
-/// the api handlers and `infra::stream` (which returns responses directly).
-pub fn json_error(status: StatusCode, message: &str) -> Response {
-    (status, Json(json!({ "error": message }))).into_response()
 }

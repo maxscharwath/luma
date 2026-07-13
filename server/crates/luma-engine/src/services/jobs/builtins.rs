@@ -16,9 +16,6 @@ use crate::model::Category;
 
 use super::{JobContext, JobKey, JobManager, Trigger};
 
-mod acquisition_import;
-mod acquisition_match;
-mod acquisition_search;
 mod cache_cleanup;
 mod library_scan;
 mod metadata_enrich;
@@ -56,9 +53,10 @@ const JOBS: &[Builtin] = &[
     library_scan::SPEC,
     metadata_enrich::SPEC,
     search_reindex::SPEC,
-    acquisition_search::SPEC,
-    acquisition_import::SPEC,
-    acquisition_match::SPEC,
+    // The acquisition jobs (search / import / match) moved out to the
+    // dev.luma.torrents module crate; the binary registers them via the module's
+    // exported job roster passed to `AppState::new`, so the core roster below
+    // names no module.
     // Per-element pipeline stages: each drains its `pipeline_tasks` queue via the
     // shared dispatcher. Marker detection + storyboard pre-generation used to be
     // whole-library jobs that reprocessed everything on each run; the pipeline
