@@ -3,7 +3,7 @@
 //!
 //! A module has up to three facets:
 //!  - its **manifest** (id / capabilities / icon / dependency graph) -- the
-//!    portable `luma_module_sdk::Module`, which every compile-time module exports
+//!    portable `luma_module_manifest::Module`, which every compile-time module exports
 //!    as a `MODULE` const;
 //!  - optionally its **backend behavior** ([`luma_module_host::ServerModule`]):
 //!    the admin routes it serves (behind an enabled-gate) and its async
@@ -26,7 +26,7 @@ use axum::middleware::{from_fn_with_state, Next};
 use axum::response::IntoResponse;
 use axum::Router;
 use luma_module_host::{HostCtx, ServerModule};
-use luma_module_sdk::{ModuleManifest, Registry};
+use luma_module_manifest::{ModuleManifest, Registry};
 
 use luma_engine::state::SharedState;
 

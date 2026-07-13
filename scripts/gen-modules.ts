@@ -234,7 +234,7 @@ const crateDeps = [
 const manifestRegs = [
   ...roster.map((r) =>
     r.manifestOnly
-      ? `    reg.register(Box::new(luma_module_sdk::EmbeddedModule::${
+      ? `    reg.register(Box::new(luma_module_manifest::EmbeddedModule::${
           r.icon
             ? `new(include_str!("../../../modules/${r.id}/module.json"), include_bytes!("../../../modules/${r.id}/icon.svg"))`
             : `iconless(include_str!("../../../modules/${r.id}/module.json"))`
@@ -259,7 +259,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-luma-module-sdk = { workspace = true }
+luma-module-manifest = { workspace = true }
 luma-module-host = { workspace = true }
 # For the concrete SharedState the modules' server_module() constructors return.
 luma-engine = { workspace = true }
@@ -276,7 +276,7 @@ write(
 //! (single-file codegen modules). No other crate hand-names the module set.
 use luma_engine::state::SharedState;
 use luma_module_host::ServerModule;
-use luma_module_sdk::Registry;
+use luma_module_manifest::Registry;
 
 /// Register every module's manifest (+ packaged icon) into the host registry.
 pub fn register_all(reg: &mut Registry) {

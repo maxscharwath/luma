@@ -6,7 +6,7 @@
 //! (single-file codegen modules). No other crate hand-names the module set.
 use luma_engine::state::SharedState;
 use luma_module_host::ServerModule;
-use luma_module_sdk::Registry;
+use luma_module_manifest::Registry;
 
 /// Register every module's manifest (+ packaged icon) into the host registry.
 pub fn register_all(reg: &mut Registry) {

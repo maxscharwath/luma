@@ -3,11 +3,19 @@ name = "luma-module-sdk"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-description = "Runtime-module contract: the Module trait, manifest, registry and event envelope shared by LUMA server modules"
+description = "The LUMA module SDK: the single crate every server module depends on. Re-exports the manifest layer plus the engine/host/domain/http/db surface, so modules never depend on core crates directly."
 license.workspace = true
 
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
-# Semver range checks for versioned module dependencies (dependsOn version reqs).
-semver = "1"
+# Manifest layer (below engine): EmbeddedModule / Registry / ModuleManifest.
+luma-module-manifest = { workspace = true }
+# Host contract: ServerModule, HostCtx, service/port resolution, async_trait.
+luma-module-host = { workspace = true }
+# Cross-module capability ports (runtime-resolved traits).
+luma-contracts = { workspace = true }
+# The application surface modules build against.
+luma-engine = { workspace = true }
+luma-domain = { workspace = true }
+luma-http = { workspace = true }
+luma-db = { workspace = true }
+luma-primitives = { workspace = true }

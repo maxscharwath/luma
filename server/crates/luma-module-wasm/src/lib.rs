@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, bail, Context, Result};
 use extism::convert::Json;
 use extism::{Manifest as ExtismManifest, Plugin, Wasm};
-use luma_module_sdk::ModuleManifest;
+use luma_module_manifest::ModuleManifest;
 
 use bundle::{unpack_validated, validate_id, MANIFEST_FILE, STAGING, WASM_FILE};
 pub use http::{HttpReq, HttpResp};

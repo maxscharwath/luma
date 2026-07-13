@@ -1,74 +1,51 @@
-//! The LUMA server module contract.
+//! The LUMA module SDK: the ONE crate a server module depends on.
 //!
-//! A *module* is a self-contained domain (torrent downloading, indexing,
-//! transcription) that describes itself and declares what it needs and what it
-//! provides. This crate is the shared vocabulary every module and the host
-//! agree on:
-//!
-//! - [`Module`] - the trait a module crate implements.
-//! - [`ModuleManifest`] / [`Capability`] - the serde wire shape the server
-//!   publishes at `GET /api/modules`, and the frontend `@luma/module-sdk`
-//!   registry mirrors, so a module's backend crate and frontend package are
-//!   joined by one `id`.
-//! - [`Registry`] - gathers modules, resolves the dependency graph
-//!   (topological order, missing-dep and cycle detection), and exposes the
-//!   manifests + the capability -> provider index.
-//! - [`ModuleEvent`] - an open, module-authored event envelope, the loose-
-//!   coupling counterpart to direct capability lookups.
-//!
-//! ## Compile-time today, runtime-loadable later
-//!
-//! This is deliberately a *compile-time* contract: a module is a crate linked
-//! into the binary, and "add a module at runtime" means enabling it via config
-//! (the same mental model the `torrent-rqbit` feature + `RQBIT_COMPILED` flag
-//! already use). Whether a `Box<dyn Module>` is constructed by a compiled-in
-//! crate (now), a WASM component (the only mechanism that hot-loads on the
-//! fully-static musl build), or a native dylib (glibc / macOS dev) is a
-//! property of *how the box is produced*, not of this trait. The same registry
-//! and manifests serve every tier, so the runtime-load path is additive.
+//! A module must not depend on `luma-engine`, `luma-db`, `luma-domain`,
+//! `luma-http`, etc. directly. This facade re-exports the manifest layer at the
+//! crate root (`EmbeddedModule`, `ModuleManifest`, `Registry`, ...) and mirrors
+//! the host / engine / domain / http / db / primitives / ports surface under
+//! submodules, so a module writes `luma_module_sdk::engine::state::SharedState`
+//! instead of reaching into the core crate. Cross-module capabilities go through
+//! `luma_module_sdk::ports` (runtime-resolved traits), never a direct dependency
+//! on another module's crate.
 
-mod embedded;
-mod event;
-mod manifest;
-mod registry;
+// Manifest layer (below engine): EmbeddedModule / Module / ModuleManifest /
+// Registry / capability + config types. Re-exported at the crate root.
+pub use luma_module_manifest::*;
 
-pub use embedded::EmbeddedModule;
-pub use event::ModuleEvent;
-pub use manifest::{
-    Capability, CapabilityReq, ConfigField, Dependency, FeRemote, ModuleManifest, Version,
-};
-pub use registry::{ModuleRegistration, Registry, ResolveError};
-
-/// A module's packaged icon: an `icon.svg` / `icon.png` sitting next to the
-/// module's `module.json`, embedded at build time via `include_bytes!` and
-/// served at `GET /api/modules/<id>/icon`.
-pub struct ModuleIcon {
-    /// MIME type, e.g. "image/svg+xml" or "image/png".
-    pub content_type: &'static str,
-    /// The image bytes.
-    pub bytes: &'static [u8],
+/// Host contract: the `ServerModule` trait, `HostCtx`, `service` / `resolve_port`
+/// helpers, and the `async_trait` re-export module impls need.
+pub mod host {
+    pub use luma_module_host::*;
 }
 
-/// A server module.
-///
-/// The host gathers every module into a [`Registry`], resolves the graph, then
-/// serves the manifests. Implementors return a static self-description from
-/// [`manifest`](Module::manifest) and record the capabilities they provide in
-/// [`register`](Module::register).
-pub trait Module: Send + Sync {
-    /// Static self-description: id, version, and declared dependencies.
-    ///
-    /// The `provides` field is filled in by the registry from
-    /// [`register`](Module::register); implementors may leave it empty.
-    fn manifest(&self) -> ModuleManifest;
+/// Cross-module capability ports (runtime-resolved traits), e.g. `VpnProxyPort`,
+/// `TorrentFetchPort`. Depend on these instead of another module's crate.
+pub mod ports {
+    pub use luma_contracts::*;
+}
 
-    /// Record the capabilities this module contributes. Called once at startup
-    /// with a fresh [`ModuleRegistration`]. The default registers nothing.
-    fn register(&self, _reg: &mut ModuleRegistration) {}
+/// The application surface: `state::SharedState`, `services::*`, `model::*`.
+pub mod engine {
+    pub use luma_engine::*;
+}
 
-    /// The module's packaged icon (`icon.svg` / `icon.png` next to its
-    /// `module.json`), embedded at build time. Default: none.
-    fn icon(&self) -> Option<ModuleIcon> {
-        None
-    }
+/// Domain types: permissions and the shared DTOs.
+pub mod domain {
+    pub use luma_domain::*;
+}
+
+/// The outbound HTTP client (`Fetch`, `Response`).
+pub mod http {
+    pub use luma_http::*;
+}
+
+/// Direct SQLite access via the shared pool.
+pub mod db {
+    pub use luma_db::*;
+}
+
+/// Small shared primitives (`now_ms`, ...).
+pub mod primitives {
+    pub use luma_primitives::*;
 }

@@ -12,7 +12,7 @@ luma-engine = { workspace = true }
 # The host seam: ServerModule / HostCtx contracts the kernel drives generically.
 luma-module-host = { workspace = true }
 # Module manifest primitives (Registry, EmbeddedModule, ModuleManifest).
-luma-module-sdk = { workspace = true }
+luma-module-manifest = { workspace = true }
 # Generated aggregator: owns the whole compile-time roster (every module's
 # manifest + the backend behaviors), built from modules/roster.yaml. The kernel
 # names no individual module, so it needs none of them as a direct dependency.

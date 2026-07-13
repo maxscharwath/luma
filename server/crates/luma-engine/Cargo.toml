@@ -14,7 +14,7 @@ luma-config = { workspace = true }
 luma-primitives = { workspace = true }
 luma-i18n = { workspace = true }
 # Module registry contract + the module descriptors from the leaf crates.
-luma-module-sdk = { workspace = true }
+luma-module-manifest = { workspace = true }
 luma-module-host = { workspace = true }
 luma-module-wasm = { workspace = true }
 luma-http = { workspace = true }

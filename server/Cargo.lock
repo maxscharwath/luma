@@ -3350,7 +3350,7 @@ dependencies = [
  "luma-http",
  "luma-i18n",
  "luma-module-host",
- "luma-module-sdk",
+ "luma-module-manifest",
  "luma-module-wasm",
  "luma-primitives",
  "notify",
@@ -3450,13 +3450,13 @@ dependencies = [
  "axum",
  "luma-engine",
  "luma-module-host",
- "luma-module-sdk",
+ "luma-module-manifest",
  "luma-modules-generated",
  "tracing",
 ]
 
 [[package]]
-name = "luma-module-sdk"
+name = "luma-module-manifest"
 version = "0.1.0"
 dependencies = [
  "semver",
@@ -3465,12 +3465,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-module-sdk"
+version = "0.1.0"
+dependencies = [
+ "luma-contracts",
+ "luma-db",
+ "luma-domain",
+ "luma-engine",
+ "luma-http",
+ "luma-module-host",
+ "luma-module-manifest",
+ "luma-primitives",
+]
+
+[[package]]
 name = "luma-module-wasm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "extism",
- "luma-module-sdk",
+ "luma-module-manifest",
  "serde",
  "serde_json",
  "tar",
@@ -3487,7 +3501,7 @@ dependencies = [
  "luma-mdns",
  "luma-module-dev-luma-hello",
  "luma-module-host",
- "luma-module-sdk",
+ "luma-module-manifest",
  "luma-qbittorrent",
  "luma-remote",
  "luma-scene",

@@ -106,6 +106,11 @@ webauthn-rs = "0.5.5"
 mimalloc = { version = "0.1", default-features = false }
 # In-workspace crates, referenced by path so a member bumping its own version
 # doesn't force a churn here.
+# Low manifest layer (below engine): manifest/registry/embedded types that
+# engine, kernel and wasm build on. Modules never depend on this directly.
+luma-module-manifest = { path = "crates/luma-module-manifest" }
+# The module SDK facade (ABOVE engine): the single crate every module depends on.
+# Re-exports the manifest layer + the engine/host/domain/http surface modules use.
 luma-module-sdk = { path = "crates/luma-module-sdk" }
 # Runtime hot-load tier: loads WASM modules (extism) into the running server.
 luma-module-wasm = { path = "crates/luma-module-wasm" }
