@@ -58,7 +58,7 @@ Look at `wasm-modules/dev.luma.hellowasm/`: a `server/` extism guest (exports
 
 ```
 bun run modules:wasm                    # -> dist/wasm-modules/<id>.tar
-# then upload the .tar in the admin Store (Settings -> Store -> Upload bundle)
+# then upload the .tar in Admin -> Modules (Install a module)
 ```
 
 The server unpacks it into `<data>/modules/<id>/`, loads it live, serves its page

@@ -20,7 +20,7 @@ The client auto-targets `http://<host>:4040`. Point it elsewhere with
 ## Build
 
 ```bash
-bun run build:web       # tsc typecheck + vite build → clients/web/dist
+bun run build:web       # vite build + precompress → clients/web/dist
 ```
 
 ## Playback

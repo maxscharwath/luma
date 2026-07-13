@@ -54,7 +54,6 @@
     "concurrently": "^9.1.2",
     "core-js": "^3.40.0",
     "intersection-observer": "^0.12.2",
-    "jsdom": "^25.0.1",
     "lightningcss": "^1.27.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^4",
