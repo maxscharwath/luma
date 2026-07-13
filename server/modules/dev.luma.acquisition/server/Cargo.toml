@@ -13,7 +13,6 @@ license.workspace = true
 # service registry, exactly like the download admin routes do.
 luma-torrent = { path = "../../dev.luma.torrents/server" }
 luma-torznab = { workspace = true }
-luma-indexer = { workspace = true }
 luma-module-sdk = { workspace = true }
 axum = { workspace = true }
 anyhow = { workspace = true }

@@ -3285,7 +3285,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "luma-indexer",
  "luma-module-sdk",
  "luma-torrent",
  "luma-torznab",

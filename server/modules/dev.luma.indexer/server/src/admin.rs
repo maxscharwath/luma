@@ -18,7 +18,7 @@ use crate::store::DefinitionStore;
 use crate::{Caps as EngineCaps, IndexerConfig, Session};
 
 /// `kind` value for a native-engine indexer row.
-pub const KIND_BUILTIN: &str = "builtin";
+pub use luma_module_sdk::ports::KIND_BUILTIN;
 
 pub fn endpoint_of(row: &IndexerRow) -> IndexerEndpoint {
     IndexerEndpoint {

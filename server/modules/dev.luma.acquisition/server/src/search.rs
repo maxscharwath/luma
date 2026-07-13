@@ -313,7 +313,7 @@ pub fn grab_cached(
             .ok_or_else(|| anyhow!("indexer module unavailable"))?
             .get_indexer(state, &cached.view.indexer_id)?;
         match row {
-            Some(r) if r.kind == luma_indexer::admin::KIND_BUILTIN => crate::resolve_builtin_download(
+            Some(r) if r.kind == luma_module_sdk::ports::KIND_BUILTIN => crate::resolve_builtin_download(
                 state,
                 &r,
                 &cached.view.title,

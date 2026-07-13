@@ -259,19 +259,30 @@ impl luma_module_sdk::ports::IndexerDbPort for IndexerDb {
 pub struct IndexerSearch;
 
 impl luma_module_sdk::ports::IndexerSearchPort for IndexerSearch {
-    fn search_builtin(
+    fn search(
         &self,
         host: &dyn luma_module_sdk::host::HostCtx,
         row: &luma_module_sdk::ports::IndexerRow,
         query: &luma_module_sdk::ports::Query,
         categories: &[u32],
     ) -> anyhow::Result<luma_module_sdk::ports::SearchOutcome> {
-        let session = admin::builtin_session(host, row)?;
-        let outcome = session.search(&to_native_query(query), categories);
-        Ok(luma_module_sdk::ports::SearchOutcome {
-            releases: outcome.releases.into_iter().map(release_to_port).collect(),
-            errors: outcome.errors,
-        })
+        if row.kind == admin::KIND_BUILTIN {
+            let session = admin::builtin_session(host, row)?;
+            let outcome = session.search(&to_native_query(query), categories);
+            Ok(luma_module_sdk::ports::SearchOutcome {
+                releases: outcome.releases.into_iter().map(release_to_port).collect(),
+                errors: outcome.errors,
+            })
+        } else {
+            // External Torznab endpoint: build it from the row + cached caps and
+            // resolve the Torznab engine port.
+            let caps = admin::indexer_caps(host, row)?;
+            let endpoint = admin::endpoint_of(row);
+            let tz = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::TorznabPort>(host)
+                .ok_or_else(|| anyhow::anyhow!("torznab search engine unavailable"))?;
+            let releases = tz.search(&endpoint, query, &caps)?;
+            Ok(luma_module_sdk::ports::SearchOutcome { releases, errors: Vec::new() })
+        }
     }
 
     fn resolve_download(

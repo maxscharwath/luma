@@ -46,6 +46,9 @@ pub trait IndexerDbPort: Send + Sync {
     ) -> anyhow::Result<()>;
 }
 
+/// `IndexerRow.kind` value for a native (Cardigann) indexer (vs external Torznab).
+pub const KIND_BUILTIN: &str = "builtin";
+
 /// Where a built-in (native Cardigann) indexer's release can be grabbed from.
 pub enum DownloadTarget {
     Magnet(String),
@@ -63,8 +66,9 @@ pub struct SearchOutcome {
 /// target. Implemented by the indexer module (it owns the Cardigann sessions) and
 /// resolved by acquisition, so acquisition never names the indexer crate.
 pub trait IndexerSearchPort: Send + Sync {
-    /// Run `query` against the built-in indexer `row` over the given categories.
-    fn search_builtin(
+    /// Run `query` against one indexer `row` (native Cardigann or external
+    /// Torznab, dispatched internally) over the given categories.
+    fn search(
         &self,
         host: &dyn HostCtx,
         row: &IndexerRow,
