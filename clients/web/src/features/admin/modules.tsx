@@ -25,6 +25,16 @@ async function installBundle(file: File): Promise<void> {
   }
 }
 
+/** A module available in the registry catalog (GET /api/admin/store/catalog). */
+interface RegistryModule {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  url: string;
+  size: number;
+}
+
 export function ModulesAdminPage() {
   const canManage = useCap('settings.manage');
   const refreshModules = useRefreshModules();
@@ -33,11 +43,33 @@ export function ModulesAdminPage() {
     () => adminApi<AdminModule[]>('/modules'),
     30000,
   );
+  // The registry catalog (fetched server-side). Undefined while loading or if the
+  // registry is unreachable — the browse section just hides then.
+  const { data: catalog } = usePoll(
+    ['admin', 'store', 'catalog'],
+    () => adminApi<{ modules: RegistryModule[] }>('/store/catalog'),
+    300000,
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canManage) return <Denied />;
   const modules = data ?? [];
+  const installedIds = new Set(modules.map((m) => m.id));
+  const available = (catalog?.modules ?? []).filter((m) => !installedIds.has(m.id));
+
+  const installFromRegistry = async (url: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await adminApi('/store/install-url', { method: 'POST', body: JSON.stringify({ url }) });
+      await refreshModules();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const toggle = async (id: string, enabled: boolean) => {
     try {
@@ -92,11 +124,40 @@ export function ModulesAdminPage() {
       <div>
         <h1 className="text-2xl font-bold text-text">Modules</h1>
         <p className="text-sm text-muted">
-          Install, enable, disable and configure the modules on this server. Upload a module file
-          (.lmod) to add one with no rebuild: its backend loads as a sandboxed WASM plugin and its
-          page as a Module Federation remote.
+          Install, enable, disable and configure the modules on this server. Add one with no rebuild
+          from the registry below, or upload a module file (.lmod) directly: its backend runs as a
+          supervised native process and its page as a Module Federation remote.
         </p>
       </div>
+
+      {available.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-dim">
+            Available in the registry ({available.length})
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {available.map((m) => (
+              <Card key={m.id} className="flex items-start justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="font-semibold text-text">{m.name}</div>
+                  <div className="text-[11px] text-dim">
+                    {m.id} · v{m.version} · {(m.size / 1024) | 0} KB
+                  </div>
+                  {m.description && <p className="mt-1 text-xs text-muted">{m.description}</p>}
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void installFromRegistry(m.url)}
+                  className="shrink-0 rounded bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent disabled:opacity-50"
+                >
+                  Install
+                </button>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-dim">Install a module</h2>
