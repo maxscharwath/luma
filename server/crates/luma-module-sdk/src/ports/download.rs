@@ -9,7 +9,7 @@ use super::TorrentFileEntry;
 
 /// Everything needed to grab a torrent + import it. Built from a scored release
 /// (auto / interactive) or from admin-provided fields (manual add / magnet).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct GrabSpec {
     pub magnet_or_url: String,
     /// `movie` | `episode` | `season`.
@@ -36,7 +36,7 @@ pub struct GrabSpec {
 }
 
 /// A stored download row.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DownloadRow {
     pub id: String,
     pub client_id: String,

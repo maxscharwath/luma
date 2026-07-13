@@ -56,7 +56,7 @@ pub trait TorrentFetchPort: Send + Sync {
 // torrents crate.
 
 /// The download engine's VPN / kill-switch status, for the VPN admin page.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VpnStatusView {
     pub connected: bool,
@@ -66,6 +66,7 @@ pub struct VpnStatusView {
 }
 
 /// Outcome of a VPN seal check (is peer traffic actually leaving via the proxy?).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VpnSeal {
     pub sealed: bool,
     pub proxied_ip: Option<String>,

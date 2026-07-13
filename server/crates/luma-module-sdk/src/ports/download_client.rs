@@ -112,7 +112,7 @@ pub trait DownloadClient: Send + Sync {
 }
 
 /// A configured engine, crate-owned mirror of the server's client row.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ClientDef {
     /// `rqbit` | `transmission` | `qbittorrent`.
     pub kind: String,
