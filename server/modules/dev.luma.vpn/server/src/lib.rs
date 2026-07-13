@@ -187,7 +187,7 @@ pub struct VpnAdminView {
     /// The bridge child is currently alive.
     pub bridge_running: bool,
     pub local_port: u16,
-    pub status: Option<luma_torrent::VpnStatusView>,
+    pub status: Option<luma_module_sdk::ports::VpnStatusView>,
 }
 
 /// `PUT /api/admin/vpn` body. `wgConfig` is write-only: pass the full WireGuard

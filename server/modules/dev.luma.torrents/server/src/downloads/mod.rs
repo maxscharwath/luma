@@ -773,3 +773,26 @@ impl luma_module_sdk::ports::DownloadClientHost for DownloadManager {
         self.clients.write().expect("download client registry lock").unregister(kind);
     }
 }
+
+/// The download manager's VPN surface, exposed as a port so the VPN module shows
+/// the engine's kill-switch status, runs a seal check and restarts it after a
+/// config change, without depending on this crate.
+#[luma_module_sdk::host::async_trait]
+impl luma_module_sdk::ports::DownloadVpnPort for DownloadManager {
+    fn vpn_status(&self) -> Option<luma_module_sdk::ports::VpnStatusView> {
+        self.vpn_status()
+    }
+
+    fn vpn_seal_check(&self, host: &dyn HostCtx) -> Option<luma_module_sdk::ports::VpnSeal> {
+        self.vpn_check(host).map(|c| luma_module_sdk::ports::VpnSeal {
+            sealed: c.sealed(),
+            proxied_ip: c.proxied_ip,
+            direct_ip: c.direct_ip,
+            error: c.error,
+        })
+    }
+
+    async fn restart_engine(&self, host: &dyn HostCtx) {
+        self.start_rqbit(host).await;
+    }
+}

@@ -3647,7 +3647,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "luma-module-sdk",
- "luma-torrent",
  "serde",
  "serde_json",
  "tokio",

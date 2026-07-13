@@ -118,6 +118,7 @@ pub fn server_module() -> Box<dyn luma_module_sdk::host::ServerModule<luma_modul
 pub use luma_module_sdk::ports::{
     magnet_info_hash, AddTorrentReq, ClientDef, DownloadClient, DownloadClientCtx,
     DownloadClientHost, DownloadClientRegistry, TorrentFileEntry, TorrentState, TorrentStatus,
+    VpnStatusView,
 };
 
 

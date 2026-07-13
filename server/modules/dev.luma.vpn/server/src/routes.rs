@@ -16,8 +16,7 @@ use serde_json::{json, Value};
 use luma_module_sdk::domain::Permission;
 
 use crate::{SaveVpnBody, VpnAdminView, VpnTestResult};
-use luma_torrent::DownloadManager;
-use luma_module_sdk::host::{blocking, service, AuthUser, HostCtx};
+use luma_module_sdk::host::{blocking, resolve_port, service, AuthUser, HostCtx};
 
 use crate::wg_configured;
 
@@ -46,7 +45,7 @@ async fn status<S: HostCtx + Clone + Send + Sync + 'static>(
         wg_configured: wg_configured(&state),
         bridge_running,
         local_port: state.setting_i64("vpnLocalPort", 25345).clamp(1, 65535) as u16,
-        status: service::<DownloadManager>(&state).and_then(|d| d.vpn_status()),
+        status: resolve_port::<dyn luma_module_sdk::ports::DownloadVpnPort>(&state).and_then(|d| d.vpn_status()),
     };
     Ok(Json(view).into_response())
 }
@@ -72,8 +71,8 @@ async fn save<S: HostCtx + Clone + Send + Sync + 'static>(
         if let Some(vpn) = service::<Vpn>(&state) {
             vpn.apply(&state).await;
         }
-        if let Some(downloads) = service::<DownloadManager>(&state) {
-            downloads.start_rqbit(&state).await;
+        if let Some(downloads) = resolve_port::<dyn luma_module_sdk::ports::DownloadVpnPort>(&state) {
+            downloads.restart_engine(&state).await;
         }
     }
     Ok(Json(json!({ "ok": true, "wgConfigured": wg_configured(&state) })).into_response())
@@ -86,9 +85,9 @@ async fn test<S: HostCtx + Clone + Send + Sync + 'static>(
 ) -> Result<Response, Response> {
     state.require(&user, Permission::SettingsManage)?;
     let result = blocking(move || {
-        Ok(match service::<DownloadManager>(&state).and_then(|d| d.vpn_check(&state)) {
+        Ok(match resolve_port::<dyn luma_module_sdk::ports::DownloadVpnPort>(&state).and_then(|d| d.vpn_seal_check(&state)) {
             Some(check) => VpnTestResult {
-                sealed: check.sealed(),
+                sealed: check.sealed,
                 proxied_ip: check.proxied_ip,
                 direct_ip: check.direct_ip,
                 error: check.error,

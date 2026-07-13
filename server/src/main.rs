@@ -181,6 +181,11 @@ async fn main() -> anyhow::Result<()> {
     let dc_host: std::sync::Arc<dyn luma_contracts::DownloadClientHost> = downloads.clone();
     let (tid, val) = luma_module_host::port_service(dc_host);
     module_services.insert(tid, val);
+    // ...and as the DownloadVpnPort, so the VPN module reads the engine's VPN
+    // status / seal check / restart without naming this crate.
+    let dc_vpn: std::sync::Arc<dyn luma_contracts::DownloadVpnPort> = downloads.clone();
+    let (tid, val) = luma_module_host::port_service(dc_vpn);
+    module_services.insert(tid, val);
     module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);
     // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
     // registered alongside the core built-ins so the core roster names no module.

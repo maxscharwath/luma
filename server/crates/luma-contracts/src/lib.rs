@@ -35,3 +35,38 @@ pub trait TorrentFetchPort: Send + Sync {
         url: &str,
     ) -> Option<anyhow::Result<Vec<u8>>>;
 }
+
+// --- Download manager VPN surface -------------------------------------------
+// The VPN module's admin page shows the download engine's kill-switch status,
+// runs a seal check, and restarts the engine after the VPN config changes. These
+// live here so the VPN module resolves them as a port instead of naming the
+// torrents crate.
+
+/// The download engine's VPN / kill-switch status, for the VPN admin page.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VpnStatusView {
+    pub connected: bool,
+    pub exit_ip: Option<String>,
+    /// Downloads are currently held by the kill switch.
+    pub paused: bool,
+}
+
+/// Outcome of a VPN seal check (is peer traffic actually leaving via the proxy?).
+pub struct VpnSeal {
+    pub sealed: bool,
+    pub proxied_ip: Option<String>,
+    pub direct_ip: Option<String>,
+    pub error: Option<String>,
+}
+
+/// The download manager's VPN surface, resolved by the VPN module.
+#[luma_module_host::async_trait]
+pub trait DownloadVpnPort: Send + Sync {
+    /// Latest VPN/kill-switch status of the download engine.
+    fn vpn_status(&self) -> Option<VpnStatusView>;
+    /// Run the VPN seal check now.
+    fn vpn_seal_check(&self, host: &dyn HostCtx) -> Option<VpnSeal>;
+    /// Restart the embedded engine (e.g. after the VPN config changed).
+    async fn restart_engine(&self, host: &dyn HostCtx);
+}

@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use luma_module_sdk::ports::VpnStatusView;
+
 /// One configured download client, as listed to admins (password write-only).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,16 +109,8 @@ pub struct DownloadsView {
 
 /// The kill switch's view of the tunnel. Cross-boundary within the acquisition
 /// stack: the downloads kill switch produces it, and both the VPN admin view
-/// (`luma_vpn::VpnAdminView`) and the downloads-queue view embed it. It lives
-/// here because `luma-vpn` depends on `luma-torrent` (not the reverse).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VpnStatusView {
-    pub connected: bool,
-    pub exit_ip: Option<String>,
-    /// Downloads are currently held by the kill switch.
-    pub paused: bool,
-}
+// VpnStatusView moved to luma-contracts (the download manager's VPN surface is a
+// port now); re-exported at this crate's root for the module's own callers.
 
 // --- Library rename tool (organize) wire types ---
 // Relocated from the core `luma-domain` crate: the organize engine lives in
