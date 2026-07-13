@@ -120,6 +120,62 @@ impl Supervisor {
         }
     }
 
+    /// Install a `.lmod` bundle: unpack it under `<modules_dir>/<id>/` (path-safe,
+    /// allow-listed), make the binary executable, and spawn it. Returns the
+    /// module's manifest JSON.
+    pub fn install(&self, bytes: &[u8]) -> anyhow::Result<Value> {
+        // `.lmod` is a gzip tar; a raw tar is also accepted.
+        let mut decompressed = Vec::new();
+        let tar_bytes: &[u8] = if bytes.starts_with(&[0x1f, 0x8b]) {
+            std::io::Read::read_to_end(
+                &mut flate2::read::GzDecoder::new(bytes),
+                &mut decompressed,
+            )?;
+            &decompressed
+        } else {
+            bytes
+        };
+
+        let staging = self.cfg.modules_dir.join(format!(".staging-{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&staging)?;
+        let result = (|| {
+            unpack_validated(tar_bytes, &staging)?;
+            let manifest: Value =
+                serde_json::from_str(&std::fs::read_to_string(staging.join("module.json"))?)?;
+            let id = manifest
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("module.json has no id"))?
+                .to_string();
+            validate_id(&id)?;
+            // Swap the install dir atomically-ish: stop the old, replace, spawn.
+            self.stop(&id);
+            let dest = self.dir(&id);
+            let _ = std::fs::remove_dir_all(&dest);
+            std::fs::rename(&staging, &dest)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let bin = dest.join(MODULE_BIN);
+                if bin.exists() {
+                    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755))?;
+                }
+            }
+            self.spawn(&id)?;
+            Ok::<Value, anyhow::Error>(manifest)
+        })();
+        let _ = std::fs::remove_dir_all(&staging);
+        result
+    }
+
+    /// Uninstall a module: stop its process and delete its install dir.
+    pub fn uninstall(&self, id: &str) -> anyhow::Result<()> {
+        validate_id(id)?;
+        self.stop(id);
+        std::fs::remove_dir_all(self.dir(id))?;
+        Ok(())
+    }
+
     /// Spawn every installed module whose enabled flag (checked via `host`) is on.
     pub fn spawn_enabled(&self, host: &dyn HostCtx) {
         for manifest in self.installed_manifests() {
@@ -137,6 +193,55 @@ impl Supervisor {
 fn free_port() -> anyhow::Result<u16> {
     let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
     Ok(listener.local_addr()?.port())
+}
+
+/// A module id must be a safe directory name (it becomes `<modules>/<id>/`).
+fn validate_id(id: &str) -> anyhow::Result<()> {
+    let ok = !id.is_empty()
+        && id.len() <= 128
+        && id != "."
+        && id != ".."
+        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+    anyhow::ensure!(ok, "invalid module id {id:?}");
+    Ok(())
+}
+
+/// Rebuild an archive entry path from its `Normal` components only (dropping
+/// `..`, absolute + drive prefixes) and keep it only if it is an allow-listed
+/// bundle file. An admin uploads arbitrary bytes, so the path can never escape
+/// the install dir.
+fn sanitized_entry(raw: &std::path::Path) -> Option<PathBuf> {
+    use std::path::Component;
+    let safe: PathBuf = raw
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(p) => Some(p),
+            _ => None,
+        })
+        .collect();
+    if safe.as_os_str().is_empty() {
+        return None;
+    }
+    let rel = safe.to_string_lossy().replace('\\', "/");
+    let allowed = matches!(rel.as_ref(), "module.json" | "module" | "icon.svg" | "icon.png")
+        || rel.starts_with("fe/");
+    allowed.then_some(safe)
+}
+
+/// Unpack an installed-module tar into `dest`, keeping only allow-listed entries.
+fn unpack_validated(tar_bytes: &[u8], dest: &std::path::Path) -> anyhow::Result<()> {
+    let mut archive = tar::Archive::new(tar_bytes);
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let raw = entry.path()?.into_owned();
+        let Some(safe) = sanitized_entry(&raw) else { continue };
+        let out = dest.join(&safe);
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        entry.unpack(&out)?;
+    }
+    Ok(())
 }
 
 /// Reverse-proxy `req` (its path already rewritten to the module-local path) to a
