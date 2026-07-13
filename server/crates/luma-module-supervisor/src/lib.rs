@@ -168,6 +168,17 @@ impl Supervisor {
         result
     }
 
+    /// Download a `.lmod` from a registry URL and install it.
+    pub async fn install_from_url(&self, url: &str) -> anyhow::Result<Value> {
+        let bytes = reqwest::get(url).await?.error_for_status()?.bytes().await?;
+        self.install(&bytes)
+    }
+
+    /// Fetch a module registry's `catalog.json` (the index the Store browses).
+    pub async fn fetch_catalog(&self, url: &str) -> anyhow::Result<Value> {
+        Ok(reqwest::get(url).await?.error_for_status()?.json().await?)
+    }
+
     /// Uninstall a module: stop its process and delete its install dir.
     pub fn uninstall(&self, id: &str) -> anyhow::Result<()> {
         validate_id(id)?;

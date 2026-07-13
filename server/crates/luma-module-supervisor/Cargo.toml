@@ -12,8 +12,9 @@ luma-module-host = { workspace = true }
 luma-module-manifest = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
-# Async client for reverse-proxying requests to module processes on localhost.
-reqwest = { version = "0.12", default-features = false, features = ["stream"] }
+# Async client: reverse-proxy to module processes on localhost + fetch .lmod /
+# catalog.json from a registry over https (rustls keeps the musl build C-free).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
