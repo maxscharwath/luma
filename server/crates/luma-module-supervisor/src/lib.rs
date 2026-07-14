@@ -250,6 +250,12 @@ impl Supervisor {
     pub fn spawn_enabled(&self, host: &dyn HostCtx) {
         for manifest in self.installed_manifests() {
             let Some(id) = manifest.get("id").and_then(Value::as_str) else { continue };
+            // A stray `.lmod` for a built-in id (installed before the reject guard)
+            // must never spawn a process that duplicates the in-core module.
+            if self.cfg.reserved_ids.iter().any(|r| r == id) {
+                tracing::warn!(module = %id, "installed module shadows a built-in; not spawning");
+                continue;
+            }
             // Library modules (no binary) have nothing to spawn.
             if !self.dir(id).join(MODULE_BIN).exists() {
                 continue;
