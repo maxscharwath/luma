@@ -1,6 +1,0 @@
-/* This module's self-contained stylesheet: the shared LUMA Tailwind entry
-   (design tokens + @theme + tailwindcss). Because it is built by THIS module's
-   own vite, Tailwind scans this module's `src/` and emits exactly the utility
-   classes the module uses - so the runtime-installed remote carries its full
-   design with it and doesn't depend on whatever classes the host generated. */
-@import "@luma/ui/tailwind.css";

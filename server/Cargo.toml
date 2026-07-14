@@ -118,8 +118,6 @@ luma-port-bridge = { path = "crates/luma-port-bridge" }
 # The module SDK facade (ABOVE engine): the single crate every module depends on.
 # Re-exports the manifest layer + the engine/host/domain/http surface modules use.
 luma-module-sdk = { path = "crates/luma-module-sdk" }
-# Runtime hot-load tier: loads WASM modules (extism) into the running server.
-luma-module-wasm = { path = "crates/luma-module-wasm" }
 # Generated aggregator: registers every single-file (codegen) module. Owned by
 # scripts/gen-modules.ts; run `bun run modules:gen` after adding a *.module.md.
 luma-modules-generated = { path = "crates/luma-modules-generated" }
@@ -229,8 +227,6 @@ luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
 # The admin modules endpoint names ModuleManifest for its flattened response.
 luma-module-sdk = { workspace = true }
-# Runtime WASM module host (install/load .wasm modules at runtime via extism).
-luma-module-wasm = { workspace = true }
 # Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
 luma-module-supervisor = { workspace = true }
 rand = "0.8"

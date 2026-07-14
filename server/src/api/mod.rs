@@ -125,7 +125,6 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
         .merge(discover::routes())
         .merge(requests::routes())
         .merge(modules::routes())
-        .merge(plugin::routes())
         .route_layer(from_fn_with_state(state.clone(), require_session));
 
     // Each feature module owns its routes via a `routes()` function. The admin
