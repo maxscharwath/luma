@@ -2,6 +2,7 @@
   "id": "dev.luma.scene",
   "name": "Release parser",
   "version": "0.1.0",
+  "library": true,
   "dependsOn": [],
   "provides": [
     {

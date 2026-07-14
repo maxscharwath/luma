@@ -6,6 +6,17 @@ rust-version.workspace = true
 description = "In-process Whisper subtitle transcription (candle, no external whisper.cpp)"
 license.workspace = true
 
+[[bin]]
+# The module's `.lmod` entrypoint: a provider sidecar serving transcription over
+# HTTP with progress/cancel via a shared DB row (see src/bin/module.rs).
+name = "luma-module-whisper"
+path = "src/bin/module.rs"
+
+[package.metadata.lmod]
+# The packed `.lmod` bundles the real candle inference backend (metal auto-enables
+# on Apple-Silicon via the target dep); without it transcribe() is a no-op stub.
+features = ["local"]
+
 [features]
 # Off by default: the public `transcribe()` compiles to a stub returning None.
 # `local` pulls in the candle inference graph (the only real backend).
@@ -20,8 +31,12 @@ accelerate = ["local", "candle-core/accelerate", "candle-nn/accelerate", "candle
 
 [dependencies]
 luma-module-sdk = { workspace = true }
+# The `.lmod` binary: the out-of-process runtime + axum for the transcription route.
+luma-module-runtime = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
 anyhow = { workspace = true }
-# Only used by the candle inference path, so optional + pulled by `local`.
 serde_json = { workspace = true }
 tracing = { workspace = true, optional = true }
 # CPU-only pure-Rust backends by default so the musl single binary keeps linking.

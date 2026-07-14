@@ -180,8 +180,7 @@ fn local_id_for(conn: &Connection, kind: RequestKind, tmdb_id: u64) -> anyhow::R
 fn flag_hits(conn: &Connection, hits: Vec<discover::DiscoverHit>) -> anyhow::Result<Vec<DiscoverEntry>> {
     // One pass over the download ledger (not per-hit), so cards can show the
     // live downloading/importing phase + progress.
-    let active: std::collections::HashMap<String, luma_torrent::ActiveDownload> =
-        luma_torrent::requests_with_active_downloads(conn)?.into_iter().map(|a| (a.request_id.clone(), a)).collect();
+    let active = super::downloads_overlay::active_downloads(conn);
     flag_hits_with(conn, hits, &active)
 }
 
@@ -191,7 +190,7 @@ fn flag_hits(conn: &Connection, hits: Vec<discover::DiscoverHit>) -> anyhow::Res
 fn flag_hits_with(
     conn: &Connection,
     hits: Vec<discover::DiscoverHit>,
-    active: &std::collections::HashMap<String, luma_torrent::ActiveDownload>,
+    active: &std::collections::HashMap<String, super::downloads_overlay::ActiveDownload>,
 ) -> anyhow::Result<Vec<DiscoverEntry>> {
     hits.into_iter()
         .map(|h| {
@@ -219,7 +218,7 @@ fn flag_hits_with(
 
 /// Overlay the live download phase + progress onto a request's stored status.
 fn overlay_active(
-    active: &std::collections::HashMap<String, luma_torrent::ActiveDownload>,
+    active: &std::collections::HashMap<String, super::downloads_overlay::ActiveDownload>,
     request: Option<&(String, RequestStatus)>,
 ) -> (Option<RequestStatus>, Option<f64>) {
     let mut status = request.map(|(_, s)| *s);
@@ -245,8 +244,7 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
 
     // Overlay the live acquisition phase + progress from the download ledger, so
     // the detail page shows "Téléchargement 45%" the same way the queue does.
-    let active: std::collections::HashMap<String, luma_torrent::ActiveDownload> =
-        luma_torrent::requests_with_active_downloads(conn)?.into_iter().map(|a| (a.request_id.clone(), a)).collect();
+    let active = super::downloads_overlay::active_downloads(conn);
     let (request_status, request_progress) = overlay_active(&active, request.as_ref());
 
     // Season flags: available = every listed episode is on disk; requested =

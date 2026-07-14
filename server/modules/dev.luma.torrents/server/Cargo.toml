@@ -6,13 +6,31 @@ rust-version.workspace = true
 description = "DownloadClient trait + torrent engines (embedded librqbit, Transmission, qBittorrent)"
 license.workspace = true
 
+[[bin]]
+# The module's `.lmod` entrypoint: an out-of-process sidecar that hosts the
+# downloads vertical + the co-located torrent engines (see src/bin/module.rs).
+name = "luma-module-torrents"
+path = "src/bin/module.rs"
+
+[package.metadata.lmod]
+# The packed `.lmod` bundles the embedded librqbit engine (modules:pack reads
+# this to add `--features rqbit`).
+features = ["rqbit"]
+
 [features]
 # The embedded librqbit engine. Off = the "rqbit" client kind compiles as a
 # stub reporting "not compiled"; Transmission/qBittorrent (plain curl) remain.
-rqbit = ["dep:librqbit", "dep:tokio"]
+rqbit = ["dep:librqbit", "tokio/rt-multi-thread"]
 
 [dependencies]
 luma-module-sdk = { workspace = true }
+# The `.lmod` binary only (guarded to the bin's use): the out-of-process runtime,
+# the cross-module port bridges, and the sibling torrent-engine modules co-hosted
+# in this process so they register their kind into the shared DownloadManager.
+luma-module-runtime = { workspace = true }
+luma-port-bridge = { workspace = true }
+luma-transmission = { workspace = true }
+luma-qbittorrent = { workspace = true }
 # The download manager + monitor (formerly the luma-downloads crate) live here now,
 # so the module owns its whole backend and nothing download-related sits in crates/.
 # The admin routes (queue / clients / organize) moved into this crate need the
@@ -34,4 +52,7 @@ tracing = { workspace = true }
 # ConnectionOptions shape. default-features off drops native-tls (openssl) and
 # the built-in HTTP API; rust-tls keeps the musl single binary linking.
 librqbit = { version = "8", optional = true, default-features = false, features = ["rust-tls"] }
-tokio = { version = "1", optional = true, features = ["rt"] }
+# The async admin routes + downloads monitor need spawn_blocking + timers
+# unconditionally (independent of the embedded engine); the `rqbit` feature layers
+# on the multi-thread runtime the librqbit session drives.
+tokio = { version = "1", features = ["rt", "time"] }

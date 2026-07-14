@@ -13,7 +13,7 @@ pub const CAT_TV: u32 = 5000;
 
 /// A configured Torznab endpoint (crate-owned config type; the server maps its
 /// DB row into this).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct IndexerEndpoint {
     /// Base URL up to and including the torznab api path, e.g.
     /// `http://nas:9117/api/v2.0/indexers/xyz/results/torznab`.
@@ -24,7 +24,7 @@ pub struct IndexerEndpoint {
 
 /// One search request. Build via the constructors so the query strategy
 /// (id-based first, free-text fallback) stays in one place.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Query {
     Movie { tmdb_id: Option<u64>, imdb_id: Option<String>, title: String, year: Option<u32> },
     Episode { tmdb_id: Option<u64>, title: String, season: u32, episode: u32 },
@@ -55,7 +55,7 @@ pub struct Release {
 
 /// What an indexer advertises via `t=caps`: which query parameters its
 /// backing tracker actually understands (not all support `tmdbid`).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Caps {
     pub search_tmdb: bool,
     pub search_imdb: bool,

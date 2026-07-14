@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 // Validate every module manifest against modules/module.schema.json:
-//   - each server/modules/<id>/module.json  (compiled-in modules)
-//   - each wasm-modules/<id>/module.json     (runtime-loaded modules)
+//   - each server/modules/<id>/module.json  (packable modules)
 //   - the YAML frontmatter of each modules/*.module.md source
 // Enforces the reverse-DNS `id` pattern (among the rest of the schema). Exits
 // non-zero with a report on any violation, so it can gate CI / the build.
@@ -104,10 +103,8 @@ function optionalReaddir(dir: string): string[] {
   }
 }
 
-// Manifest ids seen among the compiled (server/modules) + runtime (wasm-modules)
-// sets: an id present in BOTH is a real collision (a runtime WASM module would
-// shadow a built-in and share its enabled flag). Single-file sources are their
-// own generated mirror, so they are checked at codegen time, not here.
+// Manifest ids seen among the module set. Single-file sources are their own
+// generated mirror, so they are checked at codegen time, not here.
 const compiledWasmIds: { id: string; label: string }[] = [];
 
 /** Read + parse + schema-check one `module.json`, skipping absent dirs. */
@@ -129,10 +126,9 @@ function validateManifestFile(manifestPath: string, label: string): void {
   if (typeof id === 'string') compiledWasmIds.push({ id, label });
 }
 
-// 1) Compiled-in module manifests + 2) runtime (WASM) module manifests.
+// Module manifests (each module's server + shared module.json).
 for (const [root, prefix] of [
   [join(ROOT, 'server', 'modules'), 'server/modules'],
-  [join(ROOT, 'wasm-modules'), 'wasm-modules'],
 ] as const) {
   for (const id of optionalReaddir(root)) {
     validateManifestFile(join(root, id, 'module.json'), `${prefix}/${id}/module.json`);

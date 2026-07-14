@@ -10,7 +10,7 @@ use super::{Query, Release};
 /// A stored indexer row (full, including the secret; internal only). Owned by the
 /// indexer module's `indexers` table but shared so the downloads queue view and
 /// the acquisition search can name it without depending on the indexer crate.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IndexerRow {
     pub id: String,
     pub name: String,
@@ -50,6 +50,7 @@ pub trait IndexerDbPort: Send + Sync {
 pub const KIND_BUILTIN: &str = "builtin";
 
 /// Where a built-in (native Cardigann) indexer's release can be grabbed from.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum DownloadTarget {
     Magnet(String),
     TorrentUrl(String),
@@ -57,6 +58,7 @@ pub enum DownloadTarget {
 
 /// Outcome of one native-engine search sweep: the releases found plus any
 /// per-path errors (a partial error alongside real results is not fatal).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchOutcome {
     pub releases: Vec<Release>,
     pub errors: Vec<String>,

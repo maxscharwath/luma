@@ -33,38 +33,45 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
     let total = movies.len() + shows.len();
     ctx.info(format!("re-embedding to dim {target} ({total} titles; skipping any already at {target})"));
 
-    let mut done = 0usize;
     let mut embedded = 0usize;
     let mut skipped = 0usize;
-    let mut embed_one = |id: &str, title: &str, year: Option<u32>, meta: Option<&crate::model::Metadata>| {
-        done += 1;
-        ctx.progress(done, total);
+    // Collect the titles that need a fresh vector (id + its document), skipping
+    // any already at the active dim. Then embed in CHUNKS: with the embedder now
+    // out-of-process (the dev.luma.vector .lmod), one `embed_batch` per chunk is
+    // a single round-trip, versus one IPC per title (thousands) for `embed`.
+    let mut pending: Vec<(String, String)> = Vec::new();
+    let mut consider = |id: &str, title: &str, year: Option<u32>, meta: Option<&crate::model::Metadata>| {
         if current.get(id).copied() == Some(target) {
             skipped += 1; // already current leave it
-            return;
+        } else if let Some(meta) = meta {
+            pending.push((id.to_string(), build_doc(title, year, meta)));
         }
-        if let Some(meta) = meta {
-            let vec = embedder.embed(&build_doc(title, year, meta));
+    };
+    for m in movies {
+        consider(&m.id, &m.title, m.year, m.metadata.as_ref());
+    }
+    for s in &shows {
+        consider(&s.id, &s.title, s.year, s.metadata.as_ref());
+    }
+
+    const CHUNK: usize = 128;
+    let mut done = skipped;
+    for chunk in pending.chunks(CHUNK) {
+        if ctx.cancelled() {
+            ctx.warn("cancellation requested stopping");
+            return Ok(());
+        }
+        let docs: Vec<String> = chunk.iter().map(|(_, doc)| doc.clone()).collect();
+        // On an absent sidecar `embed_batch` returns empty → the zip is empty and
+        // nothing is stored (graceful no-op), matching the old NoopEmbedder path.
+        for ((id, _), vec) in chunk.iter().zip(embedder.embed_batch(&docs)) {
             match crate::db::set_item_vector(&state.db, id, &vec) {
                 Ok(()) => embedded += 1,
                 Err(e) => ctx.error(format!("{id}: failed to store vector: {e}")),
             }
         }
-    };
-
-    for m in movies {
-        if ctx.cancelled() {
-            ctx.warn("cancellation requested stopping");
-            return Ok(());
-        }
-        embed_one(&m.id, &m.title, m.year, m.metadata.as_ref());
-    }
-    for s in &shows {
-        if ctx.cancelled() {
-            ctx.warn("cancellation requested stopping");
-            return Ok(());
-        }
-        embed_one(&s.id, &s.title, s.year, s.metadata.as_ref());
+        done += chunk.len();
+        ctx.progress(done, total);
     }
 
     ctx.info(format!("re-embedded {embedded} titles, skipped {skipped} already at dim {target}"));

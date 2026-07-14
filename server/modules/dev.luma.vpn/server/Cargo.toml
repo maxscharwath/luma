@@ -6,8 +6,14 @@ rust-version.workspace = true
 description = "LUMA VPN module (backend): the managed WireGuard-to-SOCKS5 bridge (wireproxy) over the HostCtx seam (no dependency on the app)."
 license.workspace = true
 
+[[bin]]
+name = "luma-module-vpn"
+path = "src/bin/module.rs"
+
 [dependencies]
 luma-module-sdk = { workspace = true }
+luma-module-runtime = { workspace = true }
+luma-port-bridge = { workspace = true }
 # The module owns its admin routes now (over the HostCtx seam): it needs the wire
 # DTOs, the download manager (for the kill-switch status + engine restart), axum.
 axum = { workspace = true }
@@ -15,3 +21,4 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+anyhow = { workspace = true }

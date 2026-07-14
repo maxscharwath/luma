@@ -40,11 +40,30 @@ pub fn public_routes() -> Router<SharedState> {
     Router::new().route("/items/:id/subtitles/dl/:dl", get(file))
 }
 
-/// Composition-root adapter: wraps the whisper module's free `transcribe` fn into
-/// the engine's [`luma_engine::ports::Whisper`] port, so `subtitles::generate`
-/// (in luma-engine) drives transcription without naming the whisper crate.
-struct WhisperPort;
-impl luma_engine::ports::Whisper for WhisperPort {
+/// Talks to the Whisper module's `.lmod` sidecar (dev.luma.whisper) over the port
+/// bridge instead of transcribing in-process, so the heavy candle model + its
+/// Metal/CUDA deps run out of the core. Transcription is long and drives live
+/// progress + mid-run cancel, which don't fit `luma-http`'s buffered request/
+/// response, so a shared `whisper_jobs` DB row is the side-channel: the HTTP call
+/// blocks on a helper thread while THIS thread polls the row to drive the
+/// (thread-bound) `on_stage`/`on_progress` callbacks and writes the cancel flag.
+pub struct WhisperClient {
+    resolve: luma_port_bridge::Resolver,
+    pool: luma_db::Pool,
+}
+
+impl WhisperClient {
+    pub fn new(resolve: luma_port_bridge::Resolver, pool: luma_db::Pool) -> Self {
+        Self { resolve, pool }
+    }
+
+    /// Whether the whisper sidecar is currently running (its port resolves).
+    pub fn available(&self) -> bool {
+        (self.resolve)().is_some()
+    }
+}
+
+impl luma_engine::ports::Whisper for WhisperClient {
     fn transcribe(
         &self,
         data_dir: &std::path::Path,
@@ -56,7 +75,87 @@ impl luma_engine::ports::Whisper for WhisperPort {
         on_progress: &dyn Fn(usize, usize),
         cancel: &std::sync::atomic::AtomicBool,
     ) -> Option<String> {
-        luma_whisper::transcribe(data_dir, model_spec, input, track, lang, on_stage, on_progress, cancel)
+        use std::sync::atomic::Ordering;
+        use std::sync::mpsc::TryRecvError;
+        use std::time::Duration;
+
+        let (base, token) = (self.resolve)()?;
+        luma_whisper::ensure_jobs_table(&self.pool);
+        // A per-run coordination row; nanosecond clock + track avoids collisions
+        // across concurrent generations.
+        let job_id = format!(
+            "wj-{}-{track}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        );
+        if let Ok(conn) = self.pool.get() {
+            let _ = conn.execute(
+                "INSERT OR REPLACE INTO whisper_jobs (id, stage, done, total, cancel) VALUES (?1,'',0,0,0)",
+                [&job_id],
+            );
+        }
+
+        // The blocking HTTP call (minutes) runs on a helper thread; its result
+        // returns over the channel so THIS thread can poll progress meanwhile.
+        let (tx, rx) = std::sync::mpsc::channel();
+        {
+            let body = serde_json::json!({
+                "job_id": job_id,
+                "data_dir": data_dir.to_string_lossy(),
+                "model_spec": model_spec,
+                "input": input.to_string_lossy(),
+                "track": track,
+                "lang": lang,
+            });
+            std::thread::spawn(move || {
+                let text: Option<String> = luma_http::Fetch::new()
+                    .header("authorization", format!("Bearer {token}"))
+                    .max_time(3 * 60 * 60)
+                    .post_json(&format!("{base}/_port/whisper/transcribe"), &body)
+                    .and_then(|r| r.ensure_ok())
+                    .and_then(|r| r.json::<Option<String>>())
+                    .ok()
+                    .flatten();
+                let _ = tx.send(text);
+            });
+        }
+
+        let mut last_stage = String::new();
+        let result = loop {
+            match rx.try_recv() {
+                Ok(text) => break text,
+                Err(TryRecvError::Disconnected) => break None,
+                Err(TryRecvError::Empty) => {}
+            }
+            // One pooled connection per tick: push the cancel flag (if latched)
+            // then read progress off the same row.
+            if let Ok(conn) = self.pool.get() {
+                if cancel.load(Ordering::Relaxed) {
+                    let _ = conn.execute("UPDATE whisper_jobs SET cancel = 1 WHERE id = ?1", [&job_id]);
+                }
+                if let Ok((stage, done, total)) = conn.query_row(
+                    "SELECT stage, done, total FROM whisper_jobs WHERE id = ?1",
+                    [&job_id],
+                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?)),
+                ) {
+                    if !stage.is_empty() && stage != last_stage {
+                        on_stage(&stage);
+                        last_stage = stage;
+                    }
+                    if total > 0 {
+                        on_progress(done as usize, total as usize);
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        };
+
+        if let Ok(conn) = self.pool.get() {
+            let _ = conn.execute("DELETE FROM whisper_jobs WHERE id = ?1", [&job_id]);
+        }
+        result
     }
 }
 
@@ -93,7 +192,10 @@ pub struct SubCapabilities {
 /// `GET /api/items/:id/subtitles/capabilities`. Server config, not item-specific,
 /// but kept under the item path for client convenience.
 pub async fn capabilities(State(state): State<SharedState>, Path(_id): Path<String>) -> Response {
-    let transcribe = cfg!(feature = "whisper-local");
+    // Transcription is available when the whisper sidecar (dev.luma.whisper .lmod)
+    // is installed + running, not on a compile-time core feature.
+    let transcribe = luma_module_host::service::<WhisperClient>(&state)
+        .is_some_and(|w| w.available());
     let translate = settings::default_provider(&state.settings).is_some();
     Json(SubCapabilities { transcribe, translate }).into_response()
 }
@@ -196,19 +298,26 @@ pub async fn generate(State(state): State<SharedState>, Path(id): Path<String>, 
         let settings = state.settings.clone();
         let data_dir = state.config.data_dir.clone();
         let pool = state.db.clone();
+        // The whisper transcriber is the out-of-process sidecar proxy (registered
+        // as a service in the composition root); translate-only generations don't
+        // need it, so a missing one only fails a transcribe.
+        let whisper = luma_module_host::service::<WhisperClient>(&state);
         // The model (ffmpeg + Whisper / LLM) is blocking: run it on the blocking pool
         // and finalize the registry entry with its result.
         let _ = tokio::task::spawn_blocking(move || {
-            let result = subtitles::generate(
-                &settings,
-                &data_dir,
-                &pool,
-                &item_id,
-                std::path::Path::new(&abs),
-                &spec,
-                &handle,
-                &WhisperPort,
-            );
+            let result = match whisper.as_ref() {
+                Some(whisper) => subtitles::generate(
+                    &settings,
+                    &data_dir,
+                    &pool,
+                    &item_id,
+                    std::path::Path::new(&abs),
+                    &spec,
+                    &handle,
+                    whisper.as_ref(),
+                ),
+                None => Err("the Whisper module is not installed".to_string()),
+            };
             match result {
                 Ok(sub) => handle.done(&sub.id),
                 Err(_) if handle.cancelled() => handle.fail("cancelled"),

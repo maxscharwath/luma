@@ -6,14 +6,12 @@
   "workspaces": [
     "packages/*",
     "clients/*",
-    "server/modules/*/ui",
-    "wasm-modules/*/ui"
+    "server/modules/*/ui"
   ],
   "scripts": {
     "modules:gen": "bun scripts/gen-modules.ts",
     "modules:new": "bun scripts/new-module.ts",
     "modules:validate": "bun scripts/validate-modules.ts",
-    "modules:wasm": "bun scripts/build-wasm-module.ts",
     "modules:pack": "bun scripts/pack-module.ts",
     "modules:check": "bun run modules:validate && bun run modules:gen && git diff --exit-code -- server/modules server/crates/luma-modules-generated packages/modules-generated",
     "start": "bun run tizen:prepare && bun run dev",

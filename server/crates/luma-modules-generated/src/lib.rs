@@ -10,18 +10,10 @@ use luma_module_manifest::Registry;
 
 /// Register every module's manifest (+ packaged icon) into the host registry.
 pub fn register_all(reg: &mut Registry) {
-    reg.register(Box::new(luma_indexer::MODULE));
-    reg.register(Box::new(luma_torrent::MODULE));
-    reg.register(Box::new(luma_torznab::MODULE));
     reg.register(Box::new(luma_scene::MODULE));
     reg.register(Box::new(luma_whisper::MODULE));
     reg.register(Box::new(luma_vector::MODULE));
-    reg.register(Box::new(luma_mdns::MODULE));
-    reg.register(Box::new(luma_vpn::MODULE));
     reg.register(Box::new(luma_remote::MODULE));
-    reg.register(Box::new(luma_transmission::MODULE));
-    reg.register(Box::new(luma_qbittorrent::MODULE));
-    reg.register(Box::new(luma_acquisition::MODULE));
 }
 
 /// The backend behavior of each module that ships one. Concrete over the app's
@@ -29,12 +21,6 @@ pub fn register_all(reg: &mut Registry) {
 /// specialized to it (the roster is the composition layer, so this is fine).
 pub fn server_modules() -> Vec<Box<dyn ServerModule<SharedState>>> {
     vec![
-        luma_indexer::server_module(),
-        luma_torrent::server_module(),
-        luma_vpn::server_module(),
         luma_remote::server_module(),
-        luma_transmission::server_module(),
-        luma_qbittorrent::server_module(),
-        luma_acquisition::server_module(),
     ]
 }

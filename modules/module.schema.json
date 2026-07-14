@@ -15,6 +15,15 @@
     "name": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
     "description": { "type": "string" },
+    "library": {
+      "type": "boolean",
+      "description": "A library module: its `.lmod` ships no native binary (its code is co-linked into the processes that need it), so the supervisor registers it but spawns no process. E.g. the release-name parser."
+    },
+    "adminPrefixes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "First path segments under /api/admin the module's sidecar owns (e.g. \"downloads\"); the core reverse-proxies /api/admin/<seg>/* to it."
+    },
     "dependsOn": {
       "description": "Hard dependencies as a package.json-style map { \"<id>\": \"<semver range>\" } (a bare \"*\" means any version). A legacy array of ids / 'id@range' strings / { id, version } objects is also accepted. Enforced on the backend.",
       "oneOf": [

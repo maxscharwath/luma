@@ -33,7 +33,7 @@ struct AdminModule {
     enabled: bool,
     /// Current value per config field key (falls back to the field's default).
     config_values: BTreeMap<String, Value>,
-    /// Runtime-installed (WASM) modules can be uninstalled; compile-time ones can't.
+    /// Runtime-installed (`.lmod`) modules can be uninstalled; compile-time ones can't.
     removable: bool,
 }
 
@@ -43,8 +43,10 @@ async fn list_modules(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
+    // Runtime-installed `.lmod` modules (from the supervisor) are removable;
+    // compile-time roster modules are not.
     let removable_ids: std::collections::HashSet<String> =
-        state.wasm.read().map(|h| h.manifests().into_iter().map(|m| m.id).collect()).unwrap_or_default();
+        luma_module_kernel::installed_ids(&state).into_iter().collect();
     let mods: Vec<AdminModule> = luma_module_kernel::manifests(&state)
         .into_iter()
         .map(|m| {

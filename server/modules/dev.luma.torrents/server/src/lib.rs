@@ -61,13 +61,16 @@ pub const MODULE_ID: &str = "dev.luma.torrents";
 /// `optionalDependsOn`. It reaches its [`DownloadManager`] through the host service
 /// registry.
 ///
-/// Unlike the vpn / indexer modules it is NOT generic over the host state: its
-/// routes orchestrate the organize vertical, which runs against `luma-engine`'s
-/// concrete `AppState`, so it is a `ServerModule<SharedState>`.
+/// Generic over the host state `S: HostCtx`, like every other module: it runs
+/// in-process (`S = SharedState`) and out-of-process (`S = RemoteHost`, its
+/// `.lmod` form). The organize vertical reaches settings + library folders + the
+/// DB through the [`HostCtx`] seam, never naming the engine's `AppState`.
 pub struct DownloadsModule;
 
 #[luma_module_sdk::host::async_trait]
-impl luma_module_sdk::host::ServerModule<luma_module_sdk::engine::state::SharedState> for DownloadsModule {
+impl<S: luma_module_sdk::host::HostCtx + Clone + Send + Sync + 'static>
+    luma_module_sdk::host::ServerModule<S> for DownloadsModule
+{
     fn id(&self) -> &'static str {
         MODULE_ID
     }
@@ -76,11 +79,8 @@ impl luma_module_sdk::host::ServerModule<luma_module_sdk::engine::state::SharedS
         db::MIGRATIONS
     }
 
-    fn admin_routes(
-        &self,
-        _host: &luma_module_sdk::engine::state::SharedState,
-    ) -> Option<axum::Router<luma_module_sdk::engine::state::SharedState>> {
-        Some(routes::routes())
+    fn admin_routes(&self, _host: &S) -> Option<axum::Router<S>> {
+        Some(routes::routes::<S>())
     }
 
     async fn on_enable(&self, host: std::sync::Arc<dyn luma_module_sdk::host::HostCtx>) {
@@ -107,8 +107,11 @@ impl luma_module_sdk::host::ServerModule<luma_module_sdk::engine::state::SharedS
     }
 }
 
-/// This module's backend behavior, for the host's generic module roster.
-pub fn server_module() -> Box<dyn luma_module_sdk::host::ServerModule<luma_module_sdk::engine::state::SharedState>> {
+/// This module's backend behavior, for the host's generic module roster. Generic
+/// over the host state so both the in-core roster (`S = SharedState`) and the
+/// `.lmod` binary (`S = RemoteHost`) construct it.
+pub fn server_module<S: luma_module_sdk::host::HostCtx + Clone + Send + Sync + 'static>(
+) -> Box<dyn luma_module_sdk::host::ServerModule<S>> {
     Box::new(DownloadsModule)
 }
 

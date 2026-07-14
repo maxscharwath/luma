@@ -17,6 +17,10 @@ luma-module-manifest = { workspace = true }
 # manifest + the backend behaviors), built from modules/roster.yaml. The kernel
 # names no individual module, so it needs none of them as a direct dependency.
 luma-modules-generated = { workspace = true }
+# The supervisor (resolved as a host service) so the listing endpoints include
+# runtime-installed `.lmod` modules alongside the compile-time roster.
+luma-module-supervisor = { workspace = true }
 
 axum = { workspace = true }
+serde_json = { workspace = true }
 tracing = { workspace = true }

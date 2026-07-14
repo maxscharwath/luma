@@ -1,35 +1,83 @@
 //! Runtime module install / uninstall for the admin Store.
 //!
 //! `POST /api/admin/store/install` takes a module bundle as the raw request body
-//! (module.json + optional module.wasm + fe/ + icon) -- a gzip-compressed `.lmod`
-//! (from `bun run modules:pack`) or a raw `.tar` -- and installs it into the
-//! running server; `DELETE /api/admin/store/:id` removes it. Admin-gated
-//! (`settings.manage`). The uploaded WASM guest runs sandboxed under extism (no
-//! ambient FS / network), but installing arbitrary code is an admin-trust action.
+//! -- a gzip-compressed `.lmod` (from `bun run modules:pack`) carrying the
+//! module's native binary + `module.json` + `fe/` + icon -- and installs it into
+//! the running server: the supervisor unpacks it under `<data>/modules/<id>/` and
+//! spawns it. `DELETE /api/admin/store/:id` stops + removes it. Admin-gated
+//! (`settings.manage`); installing arbitrary native code is an admin-trust action.
+
+use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, post};
-use axum::{Json, Router};
-use serde_json::json;
+use axum::routing::{delete, get, post};
+use axum::{Extension, Json, Router};
+use luma_module_host::HostCtx;
+use luma_module_supervisor::Supervisor;
+use serde_json::{json, Value};
 
 use crate::api::extract::AuthUser;
 use crate::model::Permission;
 use crate::state::SharedState;
 
-/// Max bundle size (wasm + a small frontend bundle). Relative to `/api/admin`.
-const MAX_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
+/// Max bundle size (a native module binary + a small frontend bundle).
+const MAX_BUNDLE_BYTES: usize = 64 * 1024 * 1024;
+
+/// Default module registry (a static `catalog.json` + `.lmod` files) the Store
+/// browses; overridable via the `moduleRegistryUrl` setting.
+const DEFAULT_REGISTRY: &str = "https://maxscharwath.github.io/luma-modules/catalog.json";
 
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/store/install", post(install).layer(DefaultBodyLimit::max(MAX_BUNDLE_BYTES)))
+        .route("/store/install-url", post(install_url))
+        .route("/store/catalog", get(catalog))
         .route("/store/:id", delete(uninstall))
 }
 
-async fn install(
+#[derive(serde::Deserialize)]
+struct InstallUrl {
+    url: String,
+}
+
+/// Install a module straight from a registry URL (one-click from the Store).
+async fn install_url(
+    Extension(sup): Extension<Arc<Supervisor>>,
+    AuthUser(user): AuthUser,
+    Json(body): Json<InstallUrl>,
+) -> Result<Response, Response> {
+    super::require(&user, Permission::SettingsManage)?;
+    let manifest =
+        sup.install_from_url(&body.url).await.map_err(|e| bad(&format!("install failed: {e:#}")))?;
+    Ok(Json(json!({
+        "id": manifest.get("id"),
+        "name": manifest.get("name"),
+        "version": manifest.get("version"),
+    }))
+    .into_response())
+}
+
+/// The module registry catalog the Store lists (fetched server-side to avoid
+/// CORS + centralize the registry URL). Falls back to the default registry.
+async fn catalog(
     State(state): State<SharedState>,
+    Extension(sup): Extension<Arc<Supervisor>>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    super::require(&user, Permission::SettingsManage)?;
+    let url = {
+        let u = state.setting_str("moduleRegistryUrl", DEFAULT_REGISTRY);
+        if u.trim().is_empty() { DEFAULT_REGISTRY.to_string() } else { u }
+    };
+    let cat = sup.fetch_catalog(&url).await.map_err(|e| bad(&format!("registry unreachable: {e:#}")))?;
+    Ok(Json(cat).into_response())
+}
+
+async fn install(
+    Extension(sup): Extension<Arc<Supervisor>>,
     AuthUser(user): AuthUser,
     body: Bytes,
 ) -> Result<Response, Response> {
@@ -37,35 +85,29 @@ async fn install(
     if body.is_empty() {
         return Err(bad("empty bundle"));
     }
-    // fs unpack + wasm instantiate are blocking; keep them off the async runtime.
-    let wasm = state.wasm.clone();
-    let manifest = tokio::task::spawn_blocking(move || {
-        wasm.write().map_err(|_| anyhow::anyhow!("wasm host lock poisoned"))?.install(&body)
-    })
-    .await
-    .map_err(|_| bad("install task panicked"))?
-    .map_err(|e| bad(&format!("install failed: {e:#}")))?;
+    // Unpack + spawn is blocking; keep it off the async runtime.
+    let manifest: Value = tokio::task::spawn_blocking(move || sup.install(&body))
+        .await
+        .map_err(|_| bad("install task panicked"))?
+        .map_err(|e| bad(&format!("install failed: {e:#}")))?;
     Ok(Json(json!({
-        "id": manifest.id,
-        "name": manifest.name,
-        "version": manifest.version,
+        "id": manifest.get("id"),
+        "name": manifest.get("name"),
+        "version": manifest.get("version"),
     }))
     .into_response())
 }
 
 async fn uninstall(
-    State(state): State<SharedState>,
+    Extension(sup): Extension<Arc<Supervisor>>,
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
-    let wasm = state.wasm.clone();
-    tokio::task::spawn_blocking(move || {
-        wasm.write().map_err(|_| anyhow::anyhow!("wasm host lock poisoned"))?.uninstall(&id)
-    })
-    .await
-    .map_err(|_| bad("uninstall task panicked"))?
-    .map_err(|e| bad(&format!("uninstall failed: {e:#}")))?;
+    tokio::task::spawn_blocking(move || sup.uninstall(&id))
+        .await
+        .map_err(|_| bad("uninstall task panicked"))?
+        .map_err(|e| bad(&format!("uninstall failed: {e:#}")))?;
     Ok(Json(json!({ "ok": true })).into_response())
 }
 

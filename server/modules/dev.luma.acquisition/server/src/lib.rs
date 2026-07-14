@@ -22,13 +22,18 @@ pub mod import;
 pub mod jobs;
 pub mod routes;
 pub mod search;
+mod serve;
 
 pub use dtos::*;
+pub use serve::acqsearch_routes;
 
+use std::sync::Arc;
+use std::time::Duration;
+
+use luma_module_sdk::host::HostCtx;
 use luma_module_sdk::scene::{Profile, Res};
 
 use luma_module_sdk::engine::services::jobs::now_ms;
-use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::ports::IndexerRow;
 
 const GB: u64 = 1_073_741_824;
@@ -50,8 +55,8 @@ pub const MODULE: EmbeddedModule = luma_module_sdk::embedded_module!();
 /// Resolve the Downloads module's grab surface (grab / gate / activate / drop /
 /// list-files) from the host port registry. Acquisition reaches it only through
 /// the SDK port, so it never names the torrents crate.
-pub(crate) fn downloads(
-    state: &SharedState,
+pub(crate) fn downloads<S: HostCtx>(
+    state: &S,
 ) -> std::sync::Arc<dyn luma_module_sdk::ports::DownloadGrabPort> {
     luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::DownloadGrabPort>(state)
         .expect("download grab port registered")
@@ -59,23 +64,23 @@ pub(crate) fn downloads(
 
 /// Resolve the downloads-ledger read/write port (completed rows + status flips)
 /// the import pass needs, through the SDK port registry.
-pub(crate) fn download_db(
-    state: &SharedState,
+pub(crate) fn download_db<S: HostCtx>(
+    state: &S,
 ) -> std::sync::Arc<dyn luma_module_sdk::ports::DownloadDbPort> {
     luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::DownloadDbPort>(state)
         .expect("download db port registered")
 }
 
 /// Build the decision engine's profile from the admin settings.
-pub fn profile_from_settings(state: &SharedState) -> Profile {
-    let s = &state.settings;
-    let resolution = match s.get_str("acqResolution", "1080p").as_str() {
+pub fn profile_from_settings<S: HostCtx>(state: &S) -> Profile {
+    let resolution = match state.setting_str("acqResolution", "1080p").as_str() {
         "720p" => Res::R720,
         "2160p" => Res::R2160,
         _ => Res::R1080,
     };
     let list = |key: &str| -> Vec<String> {
-        s.get_str(key, "")
+        state
+            .setting_str(key, "")
             .split(',')
             .map(str::trim)
             .filter(|k| !k.is_empty())
@@ -84,10 +89,10 @@ pub fn profile_from_settings(state: &SharedState) -> Profile {
     };
     Profile {
         resolution,
-        prefer_hevc: s.get_bool("acqPreferHevc", true),
-        min_seeders: s.get_i64("acqMinSeeders", 2).max(0) as u32,
-        max_size_bytes_movie: (s.get_i64("acqMaxSizeGbMovie", 15).max(0) as u64) * GB,
-        max_size_bytes_episode: (s.get_i64("acqMaxSizeGbEpisode", 3).max(0) as u64) * GB,
+        prefer_hevc: state.setting_bool("acqPreferHevc", true),
+        min_seeders: state.setting_i64("acqMinSeeders", 2).max(0) as u32,
+        max_size_bytes_movie: (state.setting_i64("acqMaxSizeGbMovie", 15).max(0) as u64) * GB,
+        max_size_bytes_episode: (state.setting_i64("acqMaxSizeGbEpisode", 3).max(0) as u64) * GB,
         required_keywords: list("acqRequiredKeywords"),
         forbidden_keywords: list("acqForbiddenKeywords"),
     }
@@ -97,8 +102,8 @@ pub fn profile_from_settings(state: &SharedState) -> Profile {
 /// releases. This is the single dispatch point the search pipelines call; the
 /// native-vs-Torznab dispatch + type conversions live behind the indexer's
 /// `IndexerSearchPort`, so acquisition never names the indexer/torznab crates.
-pub fn search_indexer(
-    state: &SharedState,
+pub fn search_indexer<S: HostCtx>(
+    state: &S,
     row: &IndexerRow,
     query: &luma_module_sdk::ports::Query,
 ) -> anyhow::Result<Vec<luma_module_sdk::ports::Release>> {
@@ -131,8 +136,8 @@ pub fn search_indexer(
 /// Resolve the grabbable target (magnet / .torrent URL) for a built-in release,
 /// following the definition's `download` block if the search row carried no
 /// direct link.
-pub fn resolve_builtin_download(
-    state: &SharedState,
+pub fn resolve_builtin_download<S: HostCtx>(
+    state: &S,
     row: &IndexerRow,
     title: &str,
     details_url: Option<&str>,
@@ -153,25 +158,81 @@ pub fn resolve_builtin_download(
 /// the whole search / grab / auto feature is gated on this module. It reaches the
 /// Downloads / Indexer modules through their SDK ports (see the module docs).
 ///
-/// Like the download / vpn / indexer modules it orchestrates the app's concrete
-/// `AppState` (settings / config / DB), so it is a `ServerModule<SharedState>`.
+/// Generic over the host state `S: HostCtx`, like every module. In-core
+/// (`S = SharedState`) the three passes run on the core JobManager via [`JOBS`];
+/// out-of-process (`S = RemoteHost`, its `.lmod`) the sidecar calls [`start_cron`]
+/// instead, since the core scheduler can't reach into the sidecar. It reaches the
+/// Downloads / Indexer modules through their SDK ports (see the module docs).
 pub struct AcquisitionModule;
 
 #[luma_module_sdk::host::async_trait]
-impl luma_module_sdk::host::ServerModule<luma_module_sdk::engine::state::SharedState> for AcquisitionModule {
+impl<S: HostCtx + Clone + Send + Sync + 'static> luma_module_sdk::host::ServerModule<S>
+    for AcquisitionModule
+{
     fn id(&self) -> &'static str {
         MODULE_ID
     }
 
-    fn admin_routes(
-        &self,
-        _host: &luma_module_sdk::engine::state::SharedState,
-    ) -> Option<axum::Router<luma_module_sdk::engine::state::SharedState>> {
-        Some(routes::routes())
+    fn admin_routes(&self, _host: &S) -> Option<axum::Router<S>> {
+        Some(routes::routes::<S>())
     }
 }
 
-/// This module's backend behavior, for the host's generic module roster.
-pub fn server_module() -> Box<dyn luma_module_sdk::host::ServerModule<luma_module_sdk::engine::state::SharedState>> {
+/// Run the search / import / match passes on resident timers. Called ONLY by the
+/// out-of-process sidecar (from its bin), where the core JobManager can't reach:
+/// in-core the same passes run via [`JOBS`], so running both would double every
+/// pass. Spawn once per process; each tick idles while the module is disabled.
+pub fn start_cron(host: Arc<dyn HostCtx>) {
+    spawn_pass_loop(host.clone(), Duration::from_secs(30 * 60), "search", run_search);
+    spawn_pass_loop(host.clone(), Duration::from_secs(60 * 60), "import", run_import);
+    spawn_pass_loop(host, Duration::from_secs(6 * 60 * 60), "match", run_match);
+}
+
+/// Spawn a resident timer that runs `pass` every `period`, skipping while the
+/// module is disabled. The pass is blocking (DB + network), so it runs on the
+/// blocking pool; failures are logged, never fatal to the loop.
+fn spawn_pass_loop(
+    host: Arc<dyn HostCtx>,
+    period: Duration,
+    name: &'static str,
+    pass: fn(&Arc<dyn HostCtx>) -> anyhow::Result<()>,
+) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(period).await;
+            if !host.module_enabled(MODULE_ID) {
+                continue;
+            }
+            let h = host.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                if let Err(e) = pass(&h) {
+                    tracing::warn!(target: "acquisition", job = name, error = %format!("{e:#}"), "pass failed");
+                }
+            })
+            .await;
+        }
+    });
+}
+
+fn run_search(host: &Arc<dyn HostCtx>) -> anyhow::Result<()> {
+    auto::auto_search_pass(host, &|l| tracing::info!(target: "acquisition", "{l}"), &|| false)?;
+    Ok(())
+}
+
+fn run_import(host: &Arc<dyn HostCtx>) -> anyhow::Result<()> {
+    import::import_pass(host, &|l| tracing::info!(target: "acquisition", "{l}"))?;
+    Ok(())
+}
+
+fn run_match(host: &Arc<dyn HostCtx>) -> anyhow::Result<()> {
+    luma_module_sdk::engine::services::requests::availability_pass(host)?;
+    Ok(())
+}
+
+/// This module's backend behavior, for the host's generic module roster. Generic
+/// over the host state so both the in-core roster (`S = SharedState`) and the
+/// `.lmod` binary (`S = RemoteHost`) construct it.
+pub fn server_module<S: HostCtx + Clone + Send + Sync + 'static>(
+) -> Box<dyn luma_module_sdk::host::ServerModule<S>> {
     Box::new(AcquisitionModule)
 }

@@ -16,7 +16,6 @@ use crate::api::extract::AuthUser;
 use crate::api::util::{blocking, query};
 use crate::db;
 use crate::i18n;
-use crate::DownloadsExt;
 use crate::model::{
     CreateRequestBody, MediaRequest, Permission, RequestCounts, RequestStatus, RequestsView, User,
 };
@@ -122,10 +121,7 @@ fn overlay_active_downloads(
     conn: &rusqlite::Connection,
     requests: &mut [MediaRequest],
 ) -> rusqlite::Result<()> {
-    let active: std::collections::HashMap<String, luma_torrent::ActiveDownload> = luma_torrent::requests_with_active_downloads(conn)?
-        .into_iter()
-        .map(|a| (a.request_id.clone(), a))
-        .collect();
+    let active = super::downloads_overlay::active_downloads(conn);
     for r in requests.iter_mut() {
         if !matches!(r.status, RequestStatus::Approved | RequestStatus::PartiallyAvailable) {
             continue;
@@ -224,9 +220,17 @@ pub async fn interactive_search(
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
     require_acquisition(&state, &user)?;
-    let view =
-        service(move || luma_acquisition::search::interactive_search(&state, &id)).await?;
+    let port = acquisition_search(&state, &user)?;
+    let view = service(move || port.interactive_search(&state, &id)).await?;
     Ok(Json(view).into_response())
+}
+
+/// The manual-grab body (one release from the last interactive search).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrabBody {
+    guid: String,
+    indexer_id: String,
 }
 
 /// `POST /api/requests/:id/grab` (requests.manage) manually grab one release
@@ -235,21 +239,26 @@ pub async fn grab(
     State(state): State<SharedState>,
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
-    Json(body): Json<luma_acquisition::GrabBody>,
+    Json(body): Json<GrabBody>,
 ) -> Result<Response, Response> {
     require(&user, Permission::RequestsManage)?;
     require_acquisition(&state, &user)?;
-    // Enqueue is fast (DB only); the slow torrent add (magnet resolve / .torrent
-    // fetch, up to minutes) runs in the background so the request returns right
-    // away instead of timing out the browser.
-    let enqueue_state = state.clone();
-    let (rid, guid, indexer_id) = (id.clone(), body.guid.clone(), body.indexer_id.clone());
-    let row = service(move || {
-        luma_acquisition::search::grab_cached(&enqueue_state, &rid, &guid, &indexer_id)
-    })
-    .await?;
-    tokio::task::spawn_blocking(move || state.downloads().activate(&state, &row));
+    let port = acquisition_search(&state, &user)?;
+    // The port enqueues (fast) and backgrounds the slow torrent add on the
+    // acquisition sidecar, so the request returns right away.
+    let rid = id.clone();
+    service(move || port.grab(&state, &rid, &body.guid, &body.indexer_id)).await?;
     Ok(Json(json!({ "ok": true, "id": id })).into_response())
+}
+
+/// Resolve the acquisition module's search port (its sidecar), or a localized
+/// "module disabled" 404 when it isn't installed / running.
+fn acquisition_search(
+    state: &SharedState,
+    user: &User,
+) -> Result<std::sync::Arc<dyn luma_module_sdk::ports::AcquisitionSearchPort>, Response> {
+    luma_module_host::resolve_port::<dyn luma_module_sdk::ports::AcquisitionSearchPort>(state)
+        .ok_or_else(|| lerr(locale(user), StatusCode::NOT_FOUND, "error.moduleDisabled"))
 }
 
 #[derive(Debug, Deserialize)]

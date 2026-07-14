@@ -6,10 +6,18 @@ rust-version.workspace = true
 description = "LUMA Remote access module (backend): the managed Cloudflare Tunnel connector + its admin routes, over the HostCtx seam (no dependency on the app)."
 license.workspace = true
 
+# The out-of-process module binary: `luma run` → `serve()`. The lib target stays
+# for the (transitional) in-process path; the bin is the .lmod entrypoint.
+[[bin]]
+name = "luma-module-remote"
+path = "src/bin/module.rs"
+
 [dependencies]
 luma-module-sdk = { workspace = true }
+luma-module-runtime = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+anyhow = { workspace = true }

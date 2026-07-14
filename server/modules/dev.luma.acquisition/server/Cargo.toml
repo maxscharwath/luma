@@ -6,11 +6,21 @@ rust-version.workspace = true
 description = "The acquisition vertical: interactive/manual search, release scoring, grab + import, and the automatic wanted-list pass. Rides on the Downloads module's engine."
 license.workspace = true
 
+[[bin]]
+# The module's `.lmod` entrypoint: an out-of-process sidecar running the search /
+# import / match passes on resident timers (see src/bin/module.rs).
+name = "luma-module-acquisition"
+path = "src/bin/module.rs"
+
 [dependencies]
 # SDK-only: acquisition reaches the Downloads / Indexer / Torznab modules purely
 # through the SDK ports (DownloadGrabPort, DownloadDbPort, IndexerSearchPort, ...),
 # resolved at runtime through the host registry, so it names no sibling crate.
 luma-module-sdk = { workspace = true }
+# The `.lmod` binary: the out-of-process runtime + the cross-module port bridges
+# (client proxies to the Downloads + Indexer sidecars).
+luma-module-runtime = { workspace = true }
+luma-port-bridge = { workspace = true }
 axum = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }

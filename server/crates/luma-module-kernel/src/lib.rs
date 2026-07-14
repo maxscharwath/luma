@@ -90,24 +90,54 @@ fn compiled_manifests() -> Vec<ModuleManifest> {
         .collect()
 }
 
-/// Every module's manifest for the listing endpoints: compile-time (dependency
-/// ordered) plus the runtime-loaded (WASM) ones. Used by `/api/modules` and the
-/// admin list -- the one merge point across tiers.
+/// The ids of modules that ship an in-core backend (a compiled `ServerModule`).
+/// These -- and only these -- collide with an installed `.lmod` of the same id
+/// (two live backends for one id), so the store rejects installing them. A
+/// module that is only manifest-registered in-core (its backend IS a sidecar,
+/// e.g. whisper / vector, resolved via the supervisor) is NOT reserved: its
+/// `.lmod` MUST be installable for it to work.
+pub fn backend_ids() -> Vec<String> {
+    registry().servers.iter().map(|m| m.id().to_string()).collect()
+}
+
+/// Resolve the module supervisor from the host service registry (registered by
+/// the composition root). `None` in contexts without it (e.g. a unit test state).
+fn supervisor(state: &SharedState) -> Option<Arc<luma_module_supervisor::Supervisor>> {
+    luma_module_host::service::<luma_module_supervisor::Supervisor>(state)
+}
+
+/// The ids of the runtime-installed `.lmod` modules (from the supervisor). These
+/// are the ones the admin can uninstall; compile-time modules can't.
+pub fn installed_ids(state: &SharedState) -> Vec<String> {
+    supervisor(state).map(|s| s.installed_ids()).unwrap_or_default()
+}
+
+/// Every module's manifest for the listing endpoints: the compile-time roster
+/// (dependency ordered) plus the runtime-installed `.lmod` modules (from the
+/// supervisor), de-duped by id so a built-in shadows an installed copy of the
+/// same id. Used by `/api/modules` and the admin list -- the one merge point.
 pub fn manifests(state: &SharedState) -> Vec<ModuleManifest> {
     let mut all = compiled_manifests();
-    if let Ok(host) = state.wasm.read() {
-        all.extend(host.manifests());
+    if let Some(sup) = supervisor(state) {
+        let have: std::collections::HashSet<String> = all.iter().map(|m| m.id.clone()).collect();
+        for v in sup.installed_manifests() {
+            match serde_json::from_value::<ModuleManifest>(v) {
+                Ok(m) if !have.contains(&m.id) => all.push(m),
+                Ok(_) => {}
+                Err(e) => tracing::warn!(error = %e, "installed module has an invalid module.json"),
+            }
+        }
     }
     all
 }
 
-/// A module's packaged icon bytes (compile-time first, then WASM), for
-/// `GET /api/modules/<id>/icon`. Owned bytes so both tiers share one shape.
+/// A module's packaged icon bytes (compile-time first, then a runtime-installed
+/// `.lmod`'s icon file), for `GET /api/modules/<id>/icon`.
 pub fn icon(state: &SharedState, id: &str) -> Option<(&'static str, Vec<u8>)> {
     if let Some(ic) = registry().manifests.icon_of(id) {
         return Some((ic.content_type, ic.bytes.to_vec()));
     }
-    state.wasm.read().ok().and_then(|host| host.icon(id)).map(|i| (i.content_type, i.bytes))
+    supervisor(state).and_then(|s| s.icon(id))
 }
 
 /// The backend behavior for a module id, if it has any (for the enable/disable
@@ -187,20 +217,24 @@ mod tests {
 
     #[test]
     fn built_in_modules_resolve() {
-        // Also runs build()'s ServerModule<->manifest consistency assertion.
+        // Also runs build()'s ServerModule<->manifest consistency assertion. The
+        // downloads vertical + acquisition ship only as installable `.lmod` now, so
+        // the compile-time roster is the in-core set (scene / whisper / vector /
+        // remote).
         let order = registry().manifests.resolve().expect("built-in module graph resolves");
-        assert!(order.contains(&"dev.luma.torrents".to_string()));
-        assert!(order.contains(&"dev.luma.indexer".to_string()));
-        assert!(order.contains(&"dev.luma.acquisition".to_string()));
+        assert!(order.contains(&"dev.luma.scene".to_string()));
+        assert!(order.contains(&"dev.luma.remote".to_string()));
     }
 
     #[test]
-    fn compiled_manifests_expose_download_client_kinds() {
-        let torrents = compiled_manifests()
-            .into_iter()
-            .find(|m| m.id == "dev.luma.torrents")
-            .expect("torrents module present");
-        assert!(torrents.provides.iter().any(|c| c.kind == "download-client" && c.id == "rqbit"));
+    fn only_in_core_backends_are_reserved() {
+        // reserved_ids come from backend_ids() (compiled ServerModules). The
+        // sidecar modules (torrents / acquisition / whisper / vector) must NOT be
+        // reserved, or their `.lmod` could never install.
+        let reserved = backend_ids();
+        assert!(!reserved.contains(&"dev.luma.torrents".to_string()));
+        assert!(!reserved.contains(&"dev.luma.whisper".to_string()));
+        assert!(!reserved.contains(&"dev.luma.acquisition".to_string()));
     }
 
     #[test]

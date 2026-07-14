@@ -59,3 +59,56 @@ fn primary_lan_ip() -> Option<IpAddr> {
 
 pub mod module;
 pub use module::MODULE;
+
+use std::sync::{Arc, Mutex};
+
+use luma_module_sdk::host::{async_trait, HostCtx, ServerModule};
+
+/// This module's id (matches `module.json`).
+pub const MODULE_ID: &str = "dev.luma.mdns";
+
+/// The mDNS module's backend behavior: on enable it advertises the core's port
+/// over mDNS (gated on the `localDiscovery` setting) and holds the daemon; on
+/// disable it drops it. It has no routes — it's a lifecycle-only service.
+#[derive(Default)]
+pub struct MdnsModule {
+    daemon: Mutex<Option<ServiceDaemon>>,
+}
+
+/// The core's listen port, from the `LUMA_CORE_URL` the supervisor set (so the
+/// advertised `.local` address points at the server, not this helper process).
+fn core_port() -> Option<u16> {
+    std::env::var("LUMA_CORE_URL").ok()?.rsplit(':').next()?.trim_end_matches('/').parse().ok()
+}
+
+#[async_trait]
+impl<S: HostCtx + Clone + Send + Sync + 'static> ServerModule<S> for MdnsModule {
+    fn id(&self) -> &'static str {
+        MODULE_ID
+    }
+
+    async fn on_enable(&self, host: Arc<dyn HostCtx>) {
+        if !host.setting_bool("localDiscovery", true) {
+            info!("mDNS: local discovery disabled in settings");
+            return;
+        }
+        let Some(port) = core_port() else {
+            tracing::warn!("mDNS: no LUMA_CORE_URL port; not advertising");
+            return;
+        };
+        match advertise(port, "LUMA") {
+            Ok(daemon) => *self.daemon.lock().unwrap() = Some(daemon),
+            Err(e) => tracing::warn!(error = %format!("{e:#}"), "mDNS advertising unavailable"),
+        }
+    }
+
+    async fn on_disable(&self, _host: Arc<dyn HostCtx>) {
+        // Dropping the daemon unregisters the service.
+        self.daemon.lock().unwrap().take();
+    }
+}
+
+/// This module's backend behavior, for the out-of-process runtime.
+pub fn server_module<S: HostCtx + Clone + Send + Sync + 'static>() -> Box<dyn ServerModule<S>> {
+    Box::new(MdnsModule::default())
+}

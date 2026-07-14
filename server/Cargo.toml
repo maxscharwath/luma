@@ -110,11 +110,14 @@ mimalloc = { version = "0.1", default-features = false }
 # engine, kernel and wasm build on. Modules never depend on this directly.
 luma-module-manifest = { path = "crates/luma-module-manifest" }
 luma-module-macros = { path = "crates/luma-module-macros" }
+# The out-of-process module runtime (each module binary's serve() entrypoint).
+luma-module-runtime = { path = "crates/luma-module-runtime" }
+# The core side: spawn/supervise module processes + reverse-proxy + callback API.
+luma-module-supervisor = { path = "crates/luma-module-supervisor" }
+luma-port-bridge = { path = "crates/luma-port-bridge" }
 # The module SDK facade (ABOVE engine): the single crate every module depends on.
 # Re-exports the manifest layer + the engine/host/domain/http surface modules use.
 luma-module-sdk = { path = "crates/luma-module-sdk" }
-# Runtime hot-load tier: loads WASM modules (extism) into the running server.
-luma-module-wasm = { path = "crates/luma-module-wasm" }
 # Generated aggregator: registers every single-file (codegen) module. Owned by
 # scripts/gen-modules.ts; run `bun run modules:gen` after adding a *.module.md.
 luma-modules-generated = { path = "crates/luma-modules-generated" }
@@ -183,7 +186,6 @@ luma-module-host = { workspace = true }
 # (their MODULE manifest + routes, injected by the ServerModule glue). The other
 # module backends register transitively via luma-module-kernel.
 luma-remote = { workspace = true }
-luma-vpn = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
 # `crate::model` wire types come through `luma-engine`.
 luma-config = { workspace = true }
@@ -217,16 +219,17 @@ luma-acquisition = { workspace = true }
 # `MODULE` const, collects their ServerModules, and drives the enable/disable +
 # admin-mount lifecycle. Formerly server/src/modules; now its own crate.
 luma-module-kernel = { workspace = true }
-luma-indexer = { workspace = true }
 # Named only to register its stateless TorznabPort engine at the composition root.
-luma-torznab = { workspace = true }
+luma-port-bridge = { workspace = true }
+# The core reaches the out-of-process embedder (dev.luma.vector .lmod) over HTTP.
+luma-http = { workspace = true }
 luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
-luma-mdns = { workspace = true }
 # The admin modules endpoint names ModuleManifest for its flattened response.
 luma-module-sdk = { workspace = true }
-# Runtime WASM module host (install/load .wasm modules at runtime via extism).
-luma-module-wasm = { workspace = true }
+# Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
+luma-module-supervisor = { workspace = true }
+rand = "0.8"
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.
@@ -265,3 +268,12 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# The profile `bun run modules:pack` builds each `.lmod` sidecar with: release +
+# `panic = "abort"`. Dropping the unwinding tables makes the binaries ~11% smaller
+# at NO speed cost (opt-level stays 3). Safe for sidecars specifically: a panic
+# aborts the module process and the supervisor respawns it (the core binary keeps
+# the default unwinding `release` profile). Builds into target/release-lmod/.
+[profile.release-lmod]
+inherits = "release"
+panic = "abort"

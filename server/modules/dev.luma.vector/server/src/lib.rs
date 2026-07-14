@@ -19,6 +19,10 @@ use std::sync::Arc;
 mod lexical;
 pub use lexical::LexicalEmbedder;
 
+// The out-of-process provider routes (the `.lmod`'s embedder-over-HTTP surface).
+mod serve;
+pub use serve::embedder_routes;
+
 #[cfg(feature = "semantic")]
 mod candle;
 

@@ -9,6 +9,10 @@
 #[cfg(feature = "local")]
 mod engine;
 
+// The out-of-process provider routes (the `.lmod`'s transcription-over-HTTP surface).
+mod serve;
+pub use serve::{ensure_jobs_table, whisper_routes};
+
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 

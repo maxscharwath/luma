@@ -21,6 +21,7 @@ luma-db = { workspace = true }
 luma-primitives = { workspace = true }
 # The port contract types derive serde and return anyhow::Result.
 serde = { workspace = true }
+serde_json = { workspace = true }
 anyhow = { workspace = true }
 # Pure capability-provider modules the facade re-exports (they sit below it, on
 # the manifest layer) so consumer modules reach them via luma_module_sdk::<name>

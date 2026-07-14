@@ -6,8 +6,14 @@ rust-version.workspace = true
 description = "Native Cardigann indexer engine: runs Jackett/Prowlarr YAML definitions directly (no external Torznab aggregator)"
 license.workspace = true
 
+[[bin]]
+name = "luma-module-indexer"
+path = "src/bin/module.rs"
+
 [dependencies]
 luma-module-sdk = { workspace = true }
+luma-module-runtime = { workspace = true }
+luma-port-bridge = { workspace = true }
 # The module now owns its admin orchestration + routes (over the HostCtx seam):
 # it needs the DB rows, wire DTOs, shared helpers, the Torznab engine, and axum.
 # The module owns its `indexers` table now (schema + typed queries), so it talks

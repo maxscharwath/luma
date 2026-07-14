@@ -20,9 +20,13 @@ mod storage;
 mod store;
 mod users;
 
-use axum::extract::{Path as AxPath, State};
+use std::sync::Arc;
+
+use axum::extract::{OriginalUri, Path as AxPath, Request, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Extension;
+use luma_module_supervisor::Supervisor;
 use axum::routing::{get, post};
 use axum::Json;
 use axum::Router;
@@ -64,7 +68,29 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
         .merge(pipeline::routes())
         .merge(backup::routes());
     router = router.merge(luma_module_kernel::mount_admin(state.clone()));
-    router
+    // Out-of-process modules with admin routes: anything not matched above is
+    // reverse-proxied to the sidecar that owns the path's first segment (from its
+    // manifest `adminPrefixes`), so a converted module's `/api/admin/<prefix>/*`
+    // still works. Non-module unmatched paths fall through to 404.
+    router.fallback(admin_module_proxy)
+}
+
+/// Reverse-proxy an unmatched `/api/admin/<seg>/*` to the module sidecar owning
+/// `<seg>`; 404 otherwise.
+async fn admin_module_proxy(
+    Extension(sup): Extension<Arc<Supervisor>>,
+    OriginalUri(uri): OriginalUri,
+    req: Request,
+) -> Response {
+    let rest = uri.path().strip_prefix("/api/admin/").unwrap_or_default();
+    let seg = rest.split('/').next().unwrap_or_default();
+    match sup.admin_route_port(seg) {
+        Some(port) => {
+            let query = uri.query().map(|q| format!("?{q}")).unwrap_or_default();
+            luma_module_supervisor::proxy_to(port, &format!("/{rest}{query}"), req).await
+        }
+        None => (StatusCode::NOT_FOUND, "not found").into_response(),
+    }
 }
 
 // ----- guards -----------------------------------------------------------------
