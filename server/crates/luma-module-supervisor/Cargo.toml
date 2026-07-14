@@ -23,3 +23,7 @@ rand = "0.8"
 # Unpacking installed .lmod bundles (gzip tar of module.json + module + fe/ + icon).
 tar = "0.4"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# Pure-Rust zstd decoder for the (smaller) zstd `.lmod` bundles. Decompress-only +
+# no C, so the musl single binary keeps linking; install is one-shot so its
+# throughput doesn't matter.
+ruzstd = "0.7"

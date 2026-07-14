@@ -200,9 +200,14 @@ impl Supervisor {
     /// allow-listed), make the binary executable, and spawn it. Returns the
     /// module's manifest JSON.
     pub fn install(&self, bytes: &[u8]) -> anyhow::Result<Value> {
-        // `.lmod` is a gzip tar; a raw tar is also accepted.
+        // `.lmod` is a zstd tar (smaller); gzip (legacy) + a raw tar are also
+        // accepted, dispatched by magic bytes.
         let mut decompressed = Vec::new();
-        let tar_bytes: &[u8] = if bytes.starts_with(&[0x1f, 0x8b]) {
+        let tar_bytes: &[u8] = if bytes.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
+            let mut dec = ruzstd::StreamingDecoder::new(bytes)?;
+            std::io::Read::read_to_end(&mut dec, &mut decompressed)?;
+            &decompressed
+        } else if bytes.starts_with(&[0x1f, 0x8b]) {
             std::io::Read::read_to_end(
                 &mut flate2::read::GzDecoder::new(bytes),
                 &mut decompressed,

@@ -11,7 +11,15 @@
 //
 // Output: dist/modules/<id>.lmod  (host target; CI packs one per platform)
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 
@@ -94,10 +102,14 @@ async function packOne(moduleDir: string): Promise<string> {
     entries.push('fe');
   }
 
-  // 4) gzip-tar it into a .lmod.
+  // 4) tar + zstd it into a .lmod (zstd is ~20-25% smaller than gzip for these
+  //    native binaries; the supervisor decompresses it with pure-Rust ruzstd).
   mkdirSync(outDir, { recursive: true });
   const lmod = join(outDir, `${id}.lmod`);
-  await $`tar -czf ${lmod} -C ${staging} ${entries}`;
+  const tarPath = `${lmod}.tar`;
+  await $`tar -cf ${tarPath} -C ${staging} ${entries}`;
+  writeFileSync(lmod, Bun.zstdCompressSync(readFileSync(tarPath), { level: 19 }));
+  rmSync(tarPath, { force: true });
   rmSync(staging, { recursive: true, force: true });
   console.log(`  packed: ${lmod}`);
   return lmod;
