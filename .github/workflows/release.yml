@@ -34,6 +34,12 @@ on:
 permissions:
   contents: write # create the Release + upload assets
 
+# Serialize releases per tag/ref, but NEVER cancel an in-flight one: a superseded
+# release build could leave a partially-uploaded Release. Queue instead of cancel.
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   BUN_VERSION: '1.3.14'
 
@@ -44,6 +50,7 @@ jobs:
   version:
     name: Resolve version
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     outputs:
       version: ${{ steps.v.outputs.version }}
       triplet: ${{ steps.v.outputs.triplet }}
@@ -74,6 +81,7 @@ jobs:
     needs: version
     if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -84,12 +92,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The WASM module backends compile to wasm32-unknown-unknown (pinned in
-      # rust-toolchain.toml); ensure the target is installed for the guest build.
-      - name: Add wasm target
-        run: rustup target add wasm32-unknown-unknown
+      # modules:pack compiles a native binary per sidecar (release-lmod profile);
+      # cache the cargo registry + target so a re-run doesn't rebuild from scratch.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
 
-      # Build + gzip every runtime-installable module into dist/modules/<id>.lmod.
+      # Build + zstd-pack every installable module into dist/modules/<id>.lmod.
       - name: Pack all modules
         run: bun run modules:pack
 
@@ -113,6 +123,7 @@ jobs:
     needs: version
     if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -159,6 +170,7 @@ jobs:
     needs: version
     if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       TIZEN_STUDIO_VER: '6.0'
       # Throwaway author certificate generated per run: Samsung TVs in developer
@@ -236,6 +248,7 @@ jobs:
     needs: version
     if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -343,6 +356,7 @@ jobs:
               clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
               clients/desktop/src-tauri/target/release/bundle/deb/*.deb
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 

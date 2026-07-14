@@ -31,6 +31,7 @@ concurrency:
 jobs:
   version:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
@@ -46,6 +47,7 @@ jobs:
   create-release:
     needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     outputs:
       release_id: ${{ steps.mk.outputs.result }}
     steps:
@@ -90,6 +92,7 @@ jobs:
           - os: ubuntu-22.04
             bundles: appimage,deb
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -140,6 +143,7 @@ jobs:
   publish:
     needs: [create-release, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Publish the pre-release (serve latest.json)
         uses: actions/github-script@v7
