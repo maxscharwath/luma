@@ -1,0 +1,33 @@
+# Automated dependency updates. Grouped so a week's patch/minor bumps arrive as a
+# few PRs, not dozens. Majors come as their own PRs (they may need code changes).
+version: 2
+updates:
+  # Rust workspace (root manifest at server/Cargo.toml).
+  - package-ecosystem: cargo
+    directory: /server
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor:
+        update-types: [minor, patch]
+
+  # JS / TS (bun workspaces; root package.json + bun.lock).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor:
+        update-types: [minor, patch]
+
+  # The GitHub Actions themselves (keeps the SHA-pinned `uses:` current).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ['*']
