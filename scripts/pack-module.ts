@@ -30,23 +30,31 @@ function packableModules(): string[] {
     });
 }
 
-/** The crate (package) name + its `[[bin]]` name from a module's server Cargo.toml. */
-function crateAndBin(moduleDir: string): { pkg: string; bin: string } {
+/**
+ * The crate (package) name, its `[[bin]]` name, and any cargo features the
+ * `.lmod` build should enable, from a module's server Cargo.toml. Features are
+ * declared as `[package.metadata.lmod] features = ["rqbit"]` so the build stays
+ * declarative (e.g. torrents bundles the embedded librqbit engine).
+ */
+function crateAndBin(moduleDir: string): { pkg: string; bin: string; features: string[] } {
   const cargo = readFileSync(join(moduleDir, 'server/Cargo.toml'), 'utf8');
   const pkg = cargo.match(/\[package\][\s\S]*?name\s*=\s*"([^"]+)"/)?.[1];
   const bin = cargo.match(/\[\[bin\]\][\s\S]*?name\s*=\s*"([^"]+)"/)?.[1];
   if (!pkg || !bin) throw new Error(`missing package/[[bin]] name in ${moduleDir}/server/Cargo.toml`);
-  return { pkg, bin };
+  const featBlock = cargo.match(/\[package\.metadata\.lmod\][\s\S]*?features\s*=\s*\[([^\]]*)\]/)?.[1] ?? '';
+  const features = [...featBlock.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  return { pkg, bin, features };
 }
 
 async function packOne(moduleDir: string): Promise<string> {
   const manifest = JSON.parse(readFileSync(join(moduleDir, 'module.json'), 'utf8')) as { id: string };
   const { id } = manifest;
-  const { pkg, bin } = crateAndBin(moduleDir);
-  console.log(`\npacking ${id} (${pkg} -> bin ${bin})`);
+  const { pkg, bin, features } = crateAndBin(moduleDir);
+  console.log(`\npacking ${id} (${pkg} -> bin ${bin}${features.length ? ` [+${features.join(',')}]` : ''})`);
 
-  // 1) Build the module's native binary (release).
-  await $`cargo build --release -p ${pkg} --bin ${bin}`.cwd(join(root, 'server'));
+  // 1) Build the module's native binary (release), with any declared features.
+  const featArgs = features.length ? ['--features', features.join(',')] : [];
+  await $`cargo build --release -p ${pkg} --bin ${bin} ${featArgs}`.cwd(join(root, 'server'));
   const binPath = join(root, 'server/target/release', bin);
   if (!existsSync(binPath)) throw new Error(`built no binary at ${binPath}`);
 

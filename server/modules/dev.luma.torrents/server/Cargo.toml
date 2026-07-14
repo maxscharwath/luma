@@ -12,6 +12,11 @@ license.workspace = true
 name = "luma-module-torrents"
 path = "src/bin/module.rs"
 
+[package.metadata.lmod]
+# The packed `.lmod` bundles the embedded librqbit engine (modules:pack reads
+# this to add `--features rqbit`).
+features = ["rqbit"]
+
 [features]
 # The embedded librqbit engine. Off = the "rqbit" client kind compiles as a
 # stub reporting "not compiled"; Transmission/qBittorrent (plain curl) remain.
