@@ -3522,7 +3522,6 @@ dependencies = [
  "luma-torrent",
  "luma-transmission",
  "luma-vector",
- "luma-vpn",
  "luma-whisper",
 ]
 
@@ -3605,7 +3604,6 @@ dependencies = [
  "luma-remote",
  "luma-torrent",
  "luma-vector",
- "luma-vpn",
  "luma-whisper",
  "mimalloc",
  "openssl",
@@ -3685,8 +3683,11 @@ dependencies = [
 name = "luma-vpn"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
+ "luma-module-runtime",
  "luma-module-sdk",
+ "luma-port-bridge",
  "serde",
  "serde_json",
  "tokio",

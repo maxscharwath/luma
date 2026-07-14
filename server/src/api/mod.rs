@@ -145,6 +145,16 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
 
     let mut app = Router::new().nest("/api", api);
 
+    // Serve the DownloadVpnPort bridge (`/_port/downloadvpn/*`) for the
+    // out-of-process VPN module while the torrents engine is still in-core. It
+    // resolves the in-core provider; when torrents also runs out-of-process this
+    // resolves to nothing and the bridge is simply not mounted.
+    if let Some(dvpn) = luma_module_host::resolve_port::<dyn luma_module_sdk::ports::DownloadVpnPort>(
+        &*state,
+    ) {
+        app = app.merge(luma_port_bridge::downloadvpn_routes(dvpn));
+    }
+
     // Installed modules' frontend (Module Federation) assets, served from
     // `<data>/modules/<id>/fe/` at `/modules/<id>/*`, same origin as the API and
     // BEFORE the SPA fallback so an installed remote's `remoteEntry.js` resolves.

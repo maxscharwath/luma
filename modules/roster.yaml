@@ -24,9 +24,6 @@ modules:
     crate: luma-whisper
   - id: dev.luma.vector
     crate: luma-vector
-  - id: dev.luma.vpn
-    crate: luma-vpn
-    serverModule: true
   - id: dev.luma.remote
     crate: luma-remote
     serverModule: true

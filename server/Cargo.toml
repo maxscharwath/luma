@@ -188,7 +188,6 @@ luma-module-host = { workspace = true }
 # (their MODULE manifest + routes, injected by the ServerModule glue). The other
 # module backends register transitively via luma-module-kernel.
 luma-remote = { workspace = true }
-luma-vpn = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
 # `crate::model` wire types come through `luma-engine`.
 luma-config = { workspace = true }

@@ -15,7 +15,6 @@ pub fn register_all(reg: &mut Registry) {
     reg.register(Box::new(luma_scene::MODULE));
     reg.register(Box::new(luma_whisper::MODULE));
     reg.register(Box::new(luma_vector::MODULE));
-    reg.register(Box::new(luma_vpn::MODULE));
     reg.register(Box::new(luma_remote::MODULE));
     reg.register(Box::new(luma_transmission::MODULE));
     reg.register(Box::new(luma_qbittorrent::MODULE));
@@ -29,7 +28,6 @@ pub fn server_modules() -> Vec<Box<dyn ServerModule<SharedState>>> {
     vec![
         luma_indexer::server_module(),
         luma_torrent::server_module(),
-        luma_vpn::server_module(),
         luma_remote::server_module(),
         luma_transmission::server_module(),
         luma_qbittorrent::server_module(),

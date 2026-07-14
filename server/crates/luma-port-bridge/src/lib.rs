@@ -35,5 +35,23 @@ fn call<B: serde::Serialize, T: serde::de::DeserializeOwned>(
     out.map_err(|e| anyhow!(e))
 }
 
+/// Like [`call`] but the provider returns `T` directly (no `Result` envelope) —
+/// used for port methods that return `Option<_>` / infallible values. Any
+/// transport error maps to the caller's own fallback (usually `None`).
+fn call_raw<B: serde::Serialize, T: serde::de::DeserializeOwned>(
+    resolve: &Resolver,
+    path: &str,
+    body: &B,
+) -> anyhow::Result<T> {
+    let (base, token) = resolve().ok_or_else(|| anyhow!("provider module not running"))?;
+    let resp = luma_http::Fetch::new()
+        .header("authorization", format!("Bearer {token}"))
+        .post_json(&format!("{base}/_port/{path}"), &serde_json::to_value(body)?)?
+        .ensure_ok()?;
+    Ok(resp.json()?)
+}
+
 pub mod torznab;
+pub mod vpn;
 pub use torznab::{torznab_routes, TorznabClient};
+pub use vpn::{downloadvpn_routes, vpnproxy_routes, DownloadVpnClient, VpnProxyClient};

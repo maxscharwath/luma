@@ -182,11 +182,17 @@ async fn main() -> anyhow::Result<()> {
         std::sync::Arc<dyn std::any::Any + Send + Sync>,
     > = std::collections::HashMap::new();
     let remote = luma_remote::RemoteAccess::new(config.data_dir.clone());
-    let vpn = luma_vpn::Vpn::new(config.data_dir.clone());
     module_services.insert(std::any::TypeId::of::<luma_remote::RemoteAccess>(), remote);
-    module_services.insert(std::any::TypeId::of::<luma_vpn::Vpn>(), vpn);
-    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> =
-        std::sync::Arc::new(luma_vpn::VpnProxy);
+    // VPN runs out-of-process (the dev.luma.vpn .lmod); resolve VpnProxyPort as a
+    // client proxy to its sidecar (indexer + torrents consume it).
+    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> = {
+        let sup = supervisor.clone();
+        let tok = host_token.clone();
+        let resolve: luma_port_bridge::Resolver = std::sync::Arc::new(move || {
+            sup.port_of("dev.luma.vpn").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
+        });
+        std::sync::Arc::new(luma_port_bridge::VpnProxyClient::new(resolve))
+    };
     let (tid, val) = luma_module_host::port_service(vpn_proxy);
     module_services.insert(tid, val);
     let torrent_fetch: std::sync::Arc<dyn luma_module_sdk::ports::TorrentFetchPort> =
