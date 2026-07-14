@@ -180,7 +180,15 @@ impl Supervisor {
                     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755))?;
                 }
             }
-            self.spawn(&id)?;
+            // A "library" module (e.g. the release-name parser) ships no binary:
+            // its code is a leaf crate co-linked into the processes that need it,
+            // so there is nothing to spawn or reverse-proxy. Its `.lmod` is the
+            // manifest (+ any FE), installable/removable like the rest.
+            if dest.join(MODULE_BIN).exists() {
+                self.spawn(&id)?;
+            } else {
+                tracing::info!(module = %id, "library module installed (no binary to spawn)");
+            }
             Ok::<Value, anyhow::Error>(manifest)
         })();
         let _ = std::fs::remove_dir_all(&staging);
@@ -210,6 +218,10 @@ impl Supervisor {
     pub fn spawn_enabled(&self, host: &dyn HostCtx) {
         for manifest in self.installed_manifests() {
             let Some(id) = manifest.get("id").and_then(Value::as_str) else { continue };
+            // Library modules (no binary) have nothing to spawn.
+            if !self.dir(id).join(MODULE_BIN).exists() {
+                continue;
+            }
             if host.module_enabled(id) {
                 if let Err(e) = self.spawn(id) {
                     tracing::warn!(module = %id, error = %format!("{e:#}"), "module spawn failed");

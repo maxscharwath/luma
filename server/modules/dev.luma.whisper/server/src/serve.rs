@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::routing::post;
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
 use luma_module_sdk::host::HostCtx;
 use luma_module_sdk::db::Pool;
 use serde::Deserialize;
