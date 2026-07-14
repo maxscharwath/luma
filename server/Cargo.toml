@@ -67,7 +67,7 @@ tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 mdns-sd = "0.11"
 # Shared by luma-primitives (and the binary). `time` stays pinned: >= 0.3.37 needs the
 # edition2024 cargo feature.
-time = { version = "=0.3.36", features = ["formatting", "macros"] }
+time = { version = "=0.3.53", features = ["formatting", "macros"] }
 sha2 = "0.10"
 hex = "0.4"
 # Embedded SQLite compiled from source. Shared by luma-db + the binary.
@@ -98,7 +98,7 @@ rusty-chromaprint = "0.3.0"
 # jobserver held at its last 2021-edition release for the tantivy graph. uuid is
 # no longer pinned down: webauthn-rs (passkeys) needs uuid >= 1.19.
 uuid = "1.19"
-jobserver = "=0.1.32"
+jobserver = "=0.1.35"
 # WebAuthn / passkeys relying-party. Requires uuid >= 1.19 (see the pin above)
 # and rust >= 1.88. Pulls openssl transitively (see the binary dep + Dockerfile).
 webauthn-rs = "0.5.5"
