@@ -51,9 +51,11 @@ fn call_raw<B: serde::Serialize, T: serde::de::DeserializeOwned>(
     Ok(resp.json()?)
 }
 
+pub mod download;
 pub mod indexer;
 pub mod torznab;
 pub mod vpn;
+pub use download::{download_routes, DownloadDbClient, DownloadGrabClient};
 pub use indexer::{
     indexer_routes, IndexerDbClient, IndexerSearchClient, TorrentFetchClient,
 };

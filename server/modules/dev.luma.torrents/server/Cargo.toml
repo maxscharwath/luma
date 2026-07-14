@@ -6,6 +6,12 @@ rust-version.workspace = true
 description = "DownloadClient trait + torrent engines (embedded librqbit, Transmission, qBittorrent)"
 license.workspace = true
 
+[[bin]]
+# The module's `.lmod` entrypoint: an out-of-process sidecar that hosts the
+# downloads vertical + the co-located torrent engines (see src/bin/module.rs).
+name = "luma-module-torrents"
+path = "src/bin/module.rs"
+
 [features]
 # The embedded librqbit engine. Off = the "rqbit" client kind compiles as a
 # stub reporting "not compiled"; Transmission/qBittorrent (plain curl) remain.
@@ -13,6 +19,13 @@ rqbit = ["dep:librqbit", "tokio/rt-multi-thread"]
 
 [dependencies]
 luma-module-sdk = { workspace = true }
+# The `.lmod` binary only (guarded to the bin's use): the out-of-process runtime,
+# the cross-module port bridges, and the sibling torrent-engine modules co-hosted
+# in this process so they register their kind into the shared DownloadManager.
+luma-module-runtime = { workspace = true }
+luma-port-bridge = { workspace = true }
+luma-transmission = { workspace = true }
+luma-qbittorrent = { workspace = true }
 # The download manager + monitor (formerly the luma-downloads crate) live here now,
 # so the module owns its whole backend and nothing download-related sits in crates/.
 # The admin routes (queue / clients / organize) moved into this crate need the
