@@ -215,6 +215,20 @@ impl HostCtx for RemoteHost {
             .unwrap_or(true)
     }
 
+    fn library_folders(&self) -> Vec<(String, Vec<String>)> {
+        // The core owns Settings + Config; ask it to resolve the libraries so this
+        // process never links the engine. Shape: `[{ "id": .., "folders": [..] }]`.
+        #[derive(serde::Deserialize)]
+        struct Lib {
+            id: String,
+            folders: Vec<String>,
+        }
+        self.callback()
+            .get_json::<Vec<Lib>>(&self.host_url("libraries"))
+            .map(|libs| libs.into_iter().map(|l| (l.id, l.folders)).collect())
+            .unwrap_or_default()
+    }
+
     fn get_service(&self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
         self.inner.services.read().unwrap().get(&type_id).cloned()
     }

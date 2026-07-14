@@ -331,6 +331,7 @@ where
         .route("/_host/events", post(publish_event::<S>))
         .route("/_host/job", post(trigger_job::<S>))
         .route("/_host/enabled", get(module_enabled::<S>))
+        .route("/_host/libraries", get(library_folders::<S>))
         .route_layer(from_fn_with_state(HostAuth { token }, auth))
 }
 
@@ -412,4 +413,15 @@ async fn module_enabled<S: HostCtx>(
     axum::extract::Query(q): axum::extract::Query<EnabledQuery>,
 ) -> Json<Value> {
     Json(json!({ "enabled": host.module_enabled(&q.id) }))
+}
+
+/// The configured libraries, so an out-of-process import / organize module can
+/// place files under the right root without linking the engine's Settings/Config.
+async fn library_folders<S: HostCtx>(State(host): State<S>) -> Json<Value> {
+    let libs: Vec<Value> = host
+        .library_folders()
+        .into_iter()
+        .map(|(id, folders)| json!({ "id": id, "folders": folders }))
+        .collect();
+    Json(json!(libs))
 }

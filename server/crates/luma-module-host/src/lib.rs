@@ -147,6 +147,13 @@ pub trait HostCtx: Send + Sync + 'static {
     /// resident loop idles when its own module is toggled off).
     fn module_enabled(&self, id: &str) -> bool;
 
+    /// The configured libraries as `(library_id, folder_paths)` pairs. Resolved
+    /// core-side from the persisted `libraries` setting (falling back to the
+    /// env-configured media dirs on first run), so an out-of-process module
+    /// (import / organize) can place files under the right root without naming the
+    /// engine's `Settings`/`Config` types. Empty when no library is configured.
+    fn library_folders(&self) -> Vec<(String, Vec<String>)>;
+
     /// Resolve a host-registered service by its type, so a relocated module can
     /// reach its own engine / bridge without the seam ever naming a module type
     /// (dependency injection). Prefer the typed [`service`] helper. `None` when no
@@ -245,6 +252,9 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     }
     fn module_enabled(&self, id: &str) -> bool {
         (**self).module_enabled(id)
+    }
+    fn library_folders(&self) -> Vec<(String, Vec<String>)> {
+        (**self).library_folders()
     }
     fn get_service(&self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
         (**self).get_service(type_id)

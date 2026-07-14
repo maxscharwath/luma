@@ -16,22 +16,21 @@ use crate::db::{self, DownloadClientRow, EMBEDDED_CLIENT_ID};
 use luma_module_sdk::domain::Permission;
 
 use crate::{ClientTestResult, DownloadClientView, DownloadClientsView, SaveDownloadClientBody};
-use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::host::{blocking, json_error, query, service, AuthUser, HostCtx};
 use luma_module_sdk::primitives::{now_ms, random_token, short_hash};
 
 use crate::DownloadManager;
 
 /// Resolve the module's download manager from the host service registry.
-fn dm(state: &SharedState) -> Arc<DownloadManager> {
-    service::<DownloadManager>(&**state).expect("download manager registered")
+fn dm<S: HostCtx>(state: &S) -> Arc<DownloadManager> {
+    service::<DownloadManager>(state).expect("download manager registered")
 }
 
-pub fn routes() -> Router<SharedState> {
+pub fn routes<S: HostCtx + Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
-        .route("/download-clients", get(list).post(create))
-        .route("/download-clients/:id", axum::routing::put(update).delete(remove))
-        .route("/download-clients/:id/test", post(test))
+        .route("/download-clients", get(list::<S>).post(create::<S>))
+        .route("/download-clients/:id", axum::routing::put(update::<S>).delete(remove::<S>))
+        .route("/download-clients/:id/test", post(test::<S>))
 }
 
 fn view_of(row: &DownloadClientRow) -> DownloadClientView {
@@ -50,12 +49,12 @@ fn view_of(row: &DownloadClientRow) -> DownloadClientView {
 }
 
 /// `GET /api/admin/download-clients`
-pub async fn list(
-    State(state): State<SharedState>,
+pub async fn list<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     state.require(&user, Permission::SettingsManage)?;
-    let view = query(&state.db, |pool| {
+    let view = query(state.db(), |pool| {
         let conn = pool.get()?;
         let clients = db::list_download_clients(&conn)?.iter().map(view_of).collect();
         Ok(DownloadClientsView { clients, rqbit_compiled: crate::RQBIT_COMPILED })
@@ -65,8 +64,8 @@ pub async fn list(
 }
 
 /// `POST /api/admin/download-clients` add an external engine.
-pub async fn create(
-    State(state): State<SharedState>,
+pub async fn create<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<SaveDownloadClientBody>,
 ) -> Result<Response, Response> {
@@ -97,21 +96,21 @@ pub async fn create(
         created_at: now_ms(),
     };
     let view = view_of(&row);
-    query(&state.db, move |pool| db::insert_download_client(&pool, &row)).await?;
+    query(state.db(), move |pool| db::insert_download_client(&pool, &row)).await?;
     Ok(Json(view).into_response())
 }
 
 /// `PUT /api/admin/download-clients/:id` partial update (kind is immutable;
 /// empty password keeps the stored secret).
-pub async fn update(
-    State(state): State<SharedState>,
+pub async fn update<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
     Json(body): Json<SaveDownloadClientBody>,
 ) -> Result<Response, Response> {
     state.require(&user, Permission::SettingsManage)?;
     let id2 = id.clone();
-    let updated = query(&state.db, move |pool| {
+    let updated = query(state.db(), move |pool| {
         db::update_download_client(
             &pool,
             &id2,
@@ -153,7 +152,7 @@ pub async fn update(
         }
     }
     let id3 = id.clone();
-    let row = query(&state.db, move |pool| {
+    let row = query(state.db(), move |pool| {
         let conn = pool.get()?;
         Ok(db::get_download_client(&conn, &id3)?)
     })
@@ -165,8 +164,8 @@ pub async fn update(
 }
 
 /// `DELETE /api/admin/download-clients/:id` (the embedded row is permanent).
-pub async fn remove(
-    State(state): State<SharedState>,
+pub async fn remove<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
@@ -174,7 +173,7 @@ pub async fn remove(
     if id == EMBEDDED_CLIENT_ID {
         return Err(json_error(StatusCode::BAD_REQUEST, "the embedded engine cannot be deleted"));
     }
-    let deleted = query(&state.db, move |pool| db::delete_download_client(&pool, &id)).await?;
+    let deleted = query(state.db(), move |pool| db::delete_download_client(&pool, &id)).await?;
     if !deleted {
         return Err(state.lerr(&user, StatusCode::NOT_FOUND, "error.clientNotFound"));
     }
@@ -182,8 +181,8 @@ pub async fn remove(
 }
 
 /// `POST /api/admin/download-clients/:id/test` live reachability probe.
-pub async fn test(
-    State(state): State<SharedState>,
+pub async fn test<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
@@ -192,7 +191,7 @@ pub async fn test(
     // localized not-found response.
     let st = state.clone();
     let result = blocking(move || {
-        let conn = st.db.get()?;
+        let conn = st.db().get()?;
         let Some(row) = db::get_download_client(&conn, &id)? else {
             return Ok(None);
         };

@@ -13,7 +13,6 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 
 use luma_module_sdk::domain::{Permission, User};
-use luma_module_sdk::engine::state::SharedState;
 
 use crate::dtos::{NamingTemplatesView, NamingView, OrganizePlan, OrganizeResult, SampleBody};
 use luma_module_sdk::host::{blocking, json_error, AuthUser, HostCtx};
@@ -23,15 +22,15 @@ use crate::organize::{
     naming::{Casing, NamingTemplates},
 };
 
-pub fn routes() -> Router<SharedState> {
+pub fn routes<S: HostCtx + Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
-        .route("/organize/naming", get(get_naming).put(save_naming))
-        .route("/organize/sample", post(sample))
-        .route("/organize/preview", get(preview))
-        .route("/organize/apply", post(apply))
+        .route("/organize/naming", get(get_naming::<S>).put(save_naming::<S>))
+        .route("/organize/sample", post(sample::<S>))
+        .route("/organize/preview", get(preview::<S>))
+        .route("/organize/apply", post(apply::<S>))
 }
 
-fn require(state: &SharedState, user: &User) -> Result<(), Response> {
+fn require<S: HostCtx>(state: &S, user: &User) -> Result<(), Response> {
     if user.can(Permission::LibraryManage) {
         Ok(())
     } else {
@@ -62,19 +61,19 @@ fn templates_of(body: &NamingTemplatesView) -> NamingTemplates {
 }
 
 /// `GET /api/admin/organize/naming` current templates + a sample.
-pub async fn get_naming(
-    State(state): State<SharedState>,
+pub async fn get_naming<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require(&state, &user)?;
-    let tpl = NamingTemplates::from_settings(&state.settings);
+    let tpl = NamingTemplates::from_host(&state);
     Ok(Json(NamingView { templates: view_of(&tpl), sample: organize::sample(&tpl) }).into_response())
 }
 
 /// `POST /api/admin/organize/sample` render the sample for the given (unsaved)
 /// templates, for the live preview as the admin types.
-pub async fn sample(
-    State(state): State<SharedState>,
+pub async fn sample<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<SampleBody>,
 ) -> Result<Response, Response> {
@@ -83,8 +82,8 @@ pub async fn sample(
 }
 
 /// `PUT /api/admin/organize/naming` persist the templates.
-pub async fn save_naming(
-    State(state): State<SharedState>,
+pub async fn save_naming<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<NamingTemplatesView>,
 ) -> Result<Response, Response> {
@@ -96,13 +95,13 @@ pub async fn save_naming(
     patch.insert("namingSeasonFolder".into(), json!(body.season_folder.trim()));
     patch.insert("namingEpisodeFile".into(), json!(body.episode_file.trim()));
     patch.insert("namingCase".into(), json!(Casing::from_key(&body.case).as_key()));
-    state.settings.set_patch(&state.db, patch);
+    state.set_settings(patch);
     Ok(Json(json!({ "ok": true })).into_response())
 }
 
 /// `GET /api/admin/organize/preview` the non-destructive rename plan.
-pub async fn preview(
-    State(state): State<SharedState>,
+pub async fn preview<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require(&state, &user)?;
@@ -111,8 +110,8 @@ pub async fn preview(
 }
 
 /// `POST /api/admin/organize/apply` execute the rename (destructive).
-pub async fn apply(
-    State(state): State<SharedState>,
+pub async fn apply<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require(&state, &user)?;

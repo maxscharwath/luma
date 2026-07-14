@@ -89,6 +89,13 @@ impl HostCtx for AppState {
         crate::modules::module_enabled(&self.settings, id)
     }
 
+    fn library_folders(&self) -> Vec<(String, Vec<String>)> {
+        crate::services::settings::library_defs(&self.settings, &self.config)
+            .into_iter()
+            .map(|d| (d.id, d.folders))
+            .collect()
+    }
+
     fn get_service(
         &self,
         type_id: std::any::TypeId,

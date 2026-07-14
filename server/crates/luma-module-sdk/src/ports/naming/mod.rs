@@ -169,6 +169,28 @@ impl NamingTemplates {
         }
     }
 
+    /// The same templates resolved through the generic [`HostCtx`] settings seam
+    /// (string accessors only), so an out-of-process module reads them without
+    /// linking the engine's `Settings` type.
+    pub fn from_host(host: &dyn crate::host::HostCtx) -> Self {
+        let g = |key: &str, default: &str| {
+            let v = host.setting_str(key, default);
+            if v.trim().is_empty() {
+                default.to_string()
+            } else {
+                v
+            }
+        };
+        Self {
+            movie_folder: g("namingMovieFolder", DEFAULT_MOVIE_FOLDER),
+            movie_file: g("namingMovieFile", DEFAULT_MOVIE_FILE),
+            series_folder: g("namingSeriesFolder", DEFAULT_SERIES_FOLDER),
+            season_folder: g("namingSeasonFolder", DEFAULT_SEASON_FOLDER),
+            episode_file: g("namingEpisodeFile", DEFAULT_EPISODE_FILE),
+            case: Casing::from_key(&g("namingCase", "default")),
+        }
+    }
+
     /// Render one template, apply the case transform (the path builders then
     /// sanitize each component for the filesystem).
     fn styled(&self, template: &str, ctx: &NameContext) -> String {

@@ -16,31 +16,30 @@ use crate::db;
 use luma_module_sdk::domain::{Permission, User};
 
 use crate::{DownloadView, DownloadsView};
-use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::host::{blocking, json_error, query, service, AuthUser, HostCtx};
 
 use crate::DownloadManager;
 
 /// Resolve the module's download manager from the host service registry.
-fn dm(state: &SharedState) -> Arc<DownloadManager> {
-    service::<DownloadManager>(&**state).expect("download manager registered")
+fn dm<S: HostCtx>(state: &S) -> Arc<DownloadManager> {
+    service::<DownloadManager>(state).expect("download manager registered")
 }
 
-pub fn routes() -> Router<SharedState> {
+pub fn routes<S: HostCtx + Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
-        .route("/downloads", get(list))
-        .route("/downloads/pause-all", post(pause_all))
-        .route("/downloads/resume-all", post(resume_all))
-        .route("/downloads/reannounce", post(reannounce_all))
-        .route("/downloads/:id/pause", post(pause))
-        .route("/downloads/:id/resume", post(resume))
-        .route("/downloads/:id/retry", post(retry))
-        .route("/downloads/:id/reannounce", post(reannounce))
-        .route("/downloads/:id", axum::routing::delete(remove))
+        .route("/downloads", get(list::<S>))
+        .route("/downloads/pause-all", post(pause_all::<S>))
+        .route("/downloads/resume-all", post(resume_all::<S>))
+        .route("/downloads/reannounce", post(reannounce_all::<S>))
+        .route("/downloads/:id/pause", post(pause::<S>))
+        .route("/downloads/:id/resume", post(resume::<S>))
+        .route("/downloads/:id/retry", post(retry::<S>))
+        .route("/downloads/:id/reannounce", post(reannounce::<S>))
+        .route("/downloads/:id", axum::routing::delete(remove::<S>))
 }
 
 /// Queue access: the requests moderator or a settings admin.
-fn require_downloads(state: &SharedState, user: &User) -> Result<(), Response> {
+fn require_downloads<S: HostCtx>(state: &S, user: &User) -> Result<(), Response> {
     if user.can(Permission::RequestsManage) || user.can(Permission::SettingsManage) {
         Ok(())
     } else {
@@ -51,8 +50,8 @@ fn require_downloads(state: &SharedState, user: &User) -> Result<(), Response> {
 const HISTORY_LIMIT: usize = 200;
 
 /// `GET /api/admin/downloads`
-pub async fn list(
-    State(state): State<SharedState>,
+pub async fn list<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
@@ -66,7 +65,7 @@ pub async fn list(
             .into_iter()
             .map(|i| (i.id, i.name))
             .collect();
-    let view = query(&state.db, move |pool| {
+    let view = query(state.db(), move |pool| {
         let conn = pool.get()?;
         let rows = db::list_downloads(&conn, HISTORY_LIMIT)?;
         // Hydrate display names in one pass (few clients, few requests).
@@ -119,11 +118,11 @@ pub async fn list(
     Ok(Json(view).into_response())
 }
 
-async fn act(
-    state: SharedState,
+async fn act<S: HostCtx + Clone + Send + Sync + 'static>(
+    state: S,
     user: User,
     id: String,
-    f: impl FnOnce(&SharedState, &str) -> anyhow::Result<()> + Send + 'static,
+    f: impl FnOnce(&S, &str) -> anyhow::Result<()> + Send + 'static,
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
     let st = state.clone();
@@ -138,8 +137,8 @@ async fn act(
 }
 
 /// `POST /api/admin/downloads/:id/pause`
-pub async fn pause(
-    State(state): State<SharedState>,
+pub async fn pause<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
@@ -148,8 +147,8 @@ pub async fn pause(
 }
 
 /// `POST /api/admin/downloads/:id/resume`
-pub async fn resume(
-    State(state): State<SharedState>,
+pub async fn resume<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
@@ -158,8 +157,8 @@ pub async fn resume(
 }
 
 /// `POST /api/admin/downloads/:id/reannounce` "ask more peers" for one download.
-pub async fn reannounce(
-    State(state): State<SharedState>,
+pub async fn reannounce<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
@@ -176,8 +175,8 @@ fn bulk_response(out: anyhow::Result<usize>) -> Result<Response, Response> {
 }
 
 /// `POST /api/admin/downloads/pause-all`
-pub async fn pause_all(
-    State(state): State<SharedState>,
+pub async fn pause_all<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
@@ -185,8 +184,8 @@ pub async fn pause_all(
 }
 
 /// `POST /api/admin/downloads/resume-all`
-pub async fn resume_all(
-    State(state): State<SharedState>,
+pub async fn resume_all<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
@@ -195,8 +194,8 @@ pub async fn resume_all(
 
 /// `POST /api/admin/downloads/reannounce` force a tracker re-announce ("ask more
 /// peers") on every active download.
-pub async fn reannounce_all(
-    State(state): State<SharedState>,
+pub async fn reannounce_all<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
@@ -207,14 +206,14 @@ pub async fn reannounce_all(
 /// download whose import failed (e.g. the library volume was offline) is
 /// re-IMPORTED without re-downloading; a `failed` grab is reset and re-added.
 /// Both run in the background so the request returns immediately.
-pub async fn retry(
-    State(state): State<SharedState>,
+pub async fn retry<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
 ) -> Result<Response, Response> {
     require_downloads(&state, &user)?;
     let status = {
-        let conn = state.db.get().map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "db"))?;
+        let conn = state.db().get().map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "db"))?;
         match db::get_download(&conn, &id).ok().flatten() {
             Some(row) => row.status,
             None => return Err(json_error(StatusCode::NOT_FOUND, "download not found")),
@@ -228,7 +227,7 @@ pub async fn retry(
         // row is flipped back to `completed` first; the import is idempotent, so
         // existing library files are skipped and the request is re-fulfilled.
         if status == "imported" {
-            let _ = db::set_download_status(&state.db, &id, "completed", None);
+            let _ = db::set_download_status(state.db(), &id, "completed", None);
         }
         state.trigger_job("acquisition.import", "retry-import");
         return Ok(Json(json!({ "ok": true })).into_response());
@@ -253,8 +252,8 @@ pub struct RemoveParams {
 }
 
 /// `DELETE /api/admin/downloads/:id?deleteData=true`
-pub async fn remove(
-    State(state): State<SharedState>,
+pub async fn remove<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     AxPath(id): AxPath<String>,
     AxQuery(params): AxQuery<RemoveParams>,

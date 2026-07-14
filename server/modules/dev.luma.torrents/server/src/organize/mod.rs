@@ -18,8 +18,7 @@ use luma_module_sdk::db;
 use luma_module_sdk::engine::model::{Kind, MediaFile, MediaItem, Show};
 
 use crate::dtos::{OrganizeMove, OrganizePlan, OrganizeResult, SampleNames};
-use luma_module_sdk::engine::services::settings::library_defs;
-use luma_module_sdk::engine::state::SharedState;
+use luma_module_sdk::host::HostCtx;
 
 use naming::{NameContext, NamingTemplates};
 
@@ -91,15 +90,17 @@ pub fn sample(tpl: &NamingTemplates) -> SampleNames {
 
 /// Compute the rename plan: every library file whose current path doesn't match
 /// the configured templates. Non-destructive.
-pub fn plan(state: &SharedState) -> Result<OrganizePlan> {
-    let tpl = NamingTemplates::from_settings(&state.settings);
-    let libs = library_defs(&state.settings, &state.config);
-    let folders: HashMap<String, Vec<PathBuf>> =
-        libs.into_iter().map(|d| (d.id, d.folders.into_iter().map(PathBuf::from).collect())).collect();
+pub fn plan<S: HostCtx>(state: &S) -> Result<OrganizePlan> {
+    let tpl = NamingTemplates::from_host(state);
+    let folders: HashMap<String, Vec<PathBuf>> = state
+        .library_folders()
+        .into_iter()
+        .map(|(id, folders)| (id, folders.into_iter().map(PathBuf::from).collect()))
+        .collect();
 
-    let shows = db::list_shows(&state.db, None)?;
+    let shows = db::list_shows(state.db(), None)?;
     let shows_by_id = show_info(&shows);
-    let items = db::list_items(&state.db, None)?;
+    let items = db::list_items(state.db(), None)?;
 
     let mut moves = Vec::new();
     let (mut total, mut matching) = (0u32, 0u32);
@@ -133,14 +134,16 @@ pub fn plan(state: &SharedState) -> Result<OrganizePlan> {
 /// Apply the rename plan: recompute + move every mismatched file (same-filesystem
 /// rename preserves the inode; item ids are title/year-based so watched/progress
 /// survive). Emptied source folders are pruned; a scan is chained afterward.
-pub fn apply(state: &SharedState, log: &dyn Fn(String)) -> Result<OrganizeResult> {
-    let tpl = NamingTemplates::from_settings(&state.settings);
-    let libs = library_defs(&state.settings, &state.config);
-    let folders: HashMap<String, Vec<PathBuf>> =
-        libs.into_iter().map(|d| (d.id, d.folders.into_iter().map(PathBuf::from).collect())).collect();
-    let shows = db::list_shows(&state.db, None)?;
+pub fn apply<S: HostCtx>(state: &S, log: &dyn Fn(String)) -> Result<OrganizeResult> {
+    let tpl = NamingTemplates::from_host(state);
+    let folders: HashMap<String, Vec<PathBuf>> = state
+        .library_folders()
+        .into_iter()
+        .map(|(id, folders)| (id, folders.into_iter().map(PathBuf::from).collect()))
+        .collect();
+    let shows = db::list_shows(state.db(), None)?;
     let shows_by_id = show_info(&shows);
-    let items = db::list_items(&state.db, None)?;
+    let items = db::list_items(state.db(), None)?;
 
     let mut result = OrganizeResult { moved: 0, failed: 0, errors: Vec::new() };
     for item in &items {
@@ -168,7 +171,7 @@ pub fn apply(state: &SharedState, log: &dyn Fn(String)) -> Result<OrganizeResult
         }
     }
     if result.moved > 0 {
-        let _ = state.jobs.trigger(state.clone(), luma_module_sdk::engine::services::jobs::JobKey("library.scan"), "organize");
+        state.trigger_job("library.scan", "organize");
     }
     Ok(result)
 }
