@@ -332,6 +332,7 @@ where
         .route("/_host/job", post(trigger_job::<S>))
         .route("/_host/enabled", get(module_enabled::<S>))
         .route("/_host/libraries", get(library_folders::<S>))
+        .route("/_host/tmdb", get(tmdb_config::<S>))
         .route_layer(from_fn_with_state(HostAuth { token }, auth))
 }
 
@@ -418,10 +419,11 @@ async fn module_enabled<S: HostCtx>(
 /// The configured libraries, so an out-of-process import / organize module can
 /// place files under the right root without linking the engine's Settings/Config.
 async fn library_folders<S: HostCtx>(State(host): State<S>) -> Json<Value> {
-    let libs: Vec<Value> = host
-        .library_folders()
-        .into_iter()
-        .map(|(id, folders)| json!({ "id": id, "folders": folders }))
-        .collect();
-    Json(json!(libs))
+    Json(json!(host.library_folders()))
+}
+
+/// The app's TMDB key + resolved metadata language, for a module doing metadata
+/// lookups out-of-process (acquisition's wanted materialization).
+async fn tmdb_config<S: HostCtx>(State(host): State<S>) -> Json<Value> {
+    Json(json!({ "key": host.tmdb_api_key(), "language": host.metadata_language() }))
 }

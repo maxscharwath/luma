@@ -215,18 +215,25 @@ impl HostCtx for RemoteHost {
             .unwrap_or(true)
     }
 
-    fn library_folders(&self) -> Vec<(String, Vec<String>)> {
+    fn library_folders(&self) -> Vec<luma_module_host::LibraryFolders> {
         // The core owns Settings + Config; ask it to resolve the libraries so this
-        // process never links the engine. Shape: `[{ "id": .., "folders": [..] }]`.
-        #[derive(serde::Deserialize)]
-        struct Lib {
-            id: String,
-            folders: Vec<String>,
-        }
+        // process never links the engine.
+        self.callback().get_json(&self.host_url("libraries")).unwrap_or_default()
+    }
+
+    fn tmdb_api_key(&self) -> Option<String> {
         self.callback()
-            .get_json::<Vec<Lib>>(&self.host_url("libraries"))
-            .map(|libs| libs.into_iter().map(|l| (l.id, l.folders)).collect())
-            .unwrap_or_default()
+            .get_json::<serde_json::Value>(&self.host_url("tmdb"))
+            .ok()
+            .and_then(|v| v.get("key").and_then(|x| x.as_str().map(str::to_string)))
+    }
+
+    fn metadata_language(&self) -> String {
+        self.callback()
+            .get_json::<serde_json::Value>(&self.host_url("tmdb"))
+            .ok()
+            .and_then(|v| v.get("language").and_then(|x| x.as_str().map(str::to_string)))
+            .unwrap_or_else(|| "en-US".to_string())
     }
 
     fn get_service(&self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {

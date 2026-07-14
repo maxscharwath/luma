@@ -89,11 +89,24 @@ impl HostCtx for AppState {
         crate::modules::module_enabled(&self.settings, id)
     }
 
-    fn library_folders(&self) -> Vec<(String, Vec<String>)> {
+    fn library_folders(&self) -> Vec<luma_module_host::LibraryFolders> {
         crate::services::settings::library_defs(&self.settings, &self.config)
             .into_iter()
-            .map(|d| (d.id, d.folders))
+            .map(|d| luma_module_host::LibraryFolders {
+                id: d.id,
+                kind: d.kind,
+                name: d.name,
+                folders: d.folders,
+            })
             .collect()
+    }
+
+    fn tmdb_api_key(&self) -> Option<String> {
+        self.config.tmdb_api_key.clone()
+    }
+
+    fn metadata_language(&self) -> String {
+        crate::services::settings::metadata_language(&self.settings, &self.config)
     }
 
     fn get_service(

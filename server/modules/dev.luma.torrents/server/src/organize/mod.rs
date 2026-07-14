@@ -95,7 +95,7 @@ pub fn plan<S: HostCtx>(state: &S) -> Result<OrganizePlan> {
     let folders: HashMap<String, Vec<PathBuf>> = state
         .library_folders()
         .into_iter()
-        .map(|(id, folders)| (id, folders.into_iter().map(PathBuf::from).collect()))
+        .map(|d| (d.id, d.folders.into_iter().map(PathBuf::from).collect()))
         .collect();
 
     let shows = db::list_shows(state.db(), None)?;
@@ -139,7 +139,7 @@ pub fn apply<S: HostCtx>(state: &S, log: &dyn Fn(String)) -> Result<OrganizeResu
     let folders: HashMap<String, Vec<PathBuf>> = state
         .library_folders()
         .into_iter()
-        .map(|(id, folders)| (id, folders.into_iter().map(PathBuf::from).collect()))
+        .map(|d| (d.id, d.folders.into_iter().map(PathBuf::from).collect()))
         .collect();
     let shows = db::list_shows(state.db(), None)?;
     let shows_by_id = show_info(&shows);

@@ -3412,6 +3412,7 @@ dependencies = [
  "axum",
  "luma-db",
  "luma-domain",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",

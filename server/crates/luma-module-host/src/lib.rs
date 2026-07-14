@@ -101,6 +101,19 @@ impl Event {
     }
 }
 
+/// One configured library, in the leaf shape a module needs to place files:
+/// its id (for logical-id hashing), `kind` (`movies` / `shows`, to pick the right
+/// library for a movie vs a show), display `name` (to honor a "preferred library"
+/// setting), and folder roots. The engine's richer `LibraryDef` maps onto this at
+/// the seam so a module never names the engine type.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LibraryFolders {
+    pub id: String,
+    pub kind: String,
+    pub name: String,
+    pub folders: Vec<String>,
+}
+
 /// The slice of the running app a module's backend can reach. The binary's
 /// `AppState` (as `Arc<AppState>` = `SharedState`) implements it; a module crate
 /// names only this trait, never the app, so it stays a leaf and breaks the cycle.
@@ -147,12 +160,22 @@ pub trait HostCtx: Send + Sync + 'static {
     /// resident loop idles when its own module is toggled off).
     fn module_enabled(&self, id: &str) -> bool;
 
-    /// The configured libraries as `(library_id, folder_paths)` pairs. Resolved
-    /// core-side from the persisted `libraries` setting (falling back to the
-    /// env-configured media dirs on first run), so an out-of-process module
-    /// (import / organize) can place files under the right root without naming the
-    /// engine's `Settings`/`Config` types. Empty when no library is configured.
-    fn library_folders(&self) -> Vec<(String, Vec<String>)>;
+    /// The configured libraries as `(library_id, kind, name, folder_paths)`
+    /// tuples. Resolved core-side from the persisted `libraries` setting (falling
+    /// back to the env-configured media dirs on first run), so an out-of-process
+    /// module (import / organize) can place files under the right root without
+    /// naming the engine's `Settings`/`Config` types. Empty when none configured.
+    fn library_folders(&self) -> Vec<LibraryFolders>;
+
+    /// The TMDB v3 API key the app is configured with (`None` when TMDB is not
+    /// set up). Needed by any module doing metadata lookups (acquisition's wanted
+    /// materialization). It lives in the app's env config, not settings, so it is
+    /// its own accessor rather than a `setting_str`.
+    fn tmdb_api_key(&self) -> Option<String>;
+
+    /// The metadata language tag (e.g. `"fr-FR"`) the app resolves from settings +
+    /// config, for TMDB lookups that should match the user's catalog language.
+    fn metadata_language(&self) -> String;
 
     /// Resolve a host-registered service by its type, so a relocated module can
     /// reach its own engine / bridge without the seam ever naming a module type
@@ -253,8 +276,14 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
     fn module_enabled(&self, id: &str) -> bool {
         (**self).module_enabled(id)
     }
-    fn library_folders(&self) -> Vec<(String, Vec<String>)> {
+    fn library_folders(&self) -> Vec<LibraryFolders> {
         (**self).library_folders()
+    }
+    fn tmdb_api_key(&self) -> Option<String> {
+        (**self).tmdb_api_key()
+    }
+    fn metadata_language(&self) -> String {
+        (**self).metadata_language()
     }
     fn get_service(&self, type_id: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
         (**self).get_service(type_id)
