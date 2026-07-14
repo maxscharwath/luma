@@ -52,11 +52,20 @@ pub struct SupervisorConfig {
 pub struct Supervisor {
     cfg: SupervisorConfig,
     procs: RwLock<HashMap<String, Proc>>,
+    /// Cached `installed_manifests` snapshot. The set only changes on install /
+    /// uninstall, yet it is read on every proxied `/api/admin/<seg>/*` request
+    /// (`admin_route_port`) + the module-list endpoints, so caching it avoids a
+    /// directory scan + JSON parse per request. Invalidated on install/uninstall.
+    manifests_cache: RwLock<Option<Vec<Value>>>,
 }
 
 impl Supervisor {
     pub fn new(cfg: SupervisorConfig) -> Arc<Self> {
-        Arc::new(Self { cfg, procs: RwLock::new(HashMap::new()) })
+        Arc::new(Self {
+            cfg,
+            procs: RwLock::new(HashMap::new()),
+            manifests_cache: RwLock::new(None),
+        })
     }
 
     /// The install dir of a module (`<data>/modules/<id>`).
@@ -64,8 +73,24 @@ impl Supervisor {
         self.cfg.modules_dir.join(id)
     }
 
-    /// Read every installed module's `module.json` (best-effort).
+    /// Whether a module ships a native binary (a sidecar). Its absence means a
+    /// library module: nothing to spawn or reverse-proxy.
+    fn has_binary(&self, id: &str) -> bool {
+        self.dir(id).join(MODULE_BIN).exists()
+    }
+
+    /// Every installed module's `module.json` (best-effort), cached; the disk is
+    /// scanned once and re-scanned only after an install / uninstall.
     pub fn installed_manifests(&self) -> Vec<Value> {
+        if let Some(cached) = self.manifests_cache.read().unwrap().clone() {
+            return cached;
+        }
+        let scanned = self.scan_manifests();
+        *self.manifests_cache.write().unwrap() = Some(scanned.clone());
+        scanned
+    }
+
+    fn scan_manifests(&self) -> Vec<Value> {
         let Ok(entries) = std::fs::read_dir(&self.cfg.modules_dir) else {
             return Vec::new();
         };
@@ -75,6 +100,11 @@ impl Supervisor {
             .filter_map(|e| std::fs::read_to_string(e.path().join("module.json")).ok())
             .filter_map(|s| serde_json::from_str(&s).ok())
             .collect()
+    }
+
+    /// Drop the manifest cache so the next read re-scans (after install/uninstall).
+    fn invalidate_manifests(&self) {
+        *self.manifests_cache.write().unwrap() = None;
     }
 
     /// The ids of every installed module (one dir per id under `<data>/modules`).
@@ -216,7 +246,7 @@ impl Supervisor {
             // its code is a leaf crate co-linked into the processes that need it,
             // so there is nothing to spawn or reverse-proxy. Its `.lmod` is the
             // manifest (+ any FE), installable/removable like the rest.
-            if dest.join(MODULE_BIN).exists() {
+            if self.has_binary(&id) {
                 self.spawn(&id)?;
             } else {
                 tracing::info!(module = %id, "library module installed (no binary to spawn)");
@@ -224,6 +254,7 @@ impl Supervisor {
             Ok::<Value, anyhow::Error>(manifest)
         })();
         let _ = std::fs::remove_dir_all(&staging);
+        self.invalidate_manifests(); // the modules dir changed (or attempted to)
         result
     }
 
@@ -243,6 +274,7 @@ impl Supervisor {
         validate_id(id)?;
         self.stop(id);
         std::fs::remove_dir_all(self.dir(id))?;
+        self.invalidate_manifests();
         Ok(())
     }
 
@@ -257,7 +289,7 @@ impl Supervisor {
                 continue;
             }
             // Library modules (no binary) have nothing to spawn.
-            if !self.dir(id).join(MODULE_BIN).exists() {
+            if !self.has_binary(id) {
                 continue;
             }
             if host.module_enabled(id) {

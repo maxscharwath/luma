@@ -44,37 +44,39 @@ impl DownloadsExt for luma_engine::state::SharedState {
     }
 }
 
-/// Composition-root adapter: wraps the vector module's embedder into the engine's
-/// [`luma_engine::ports::Embedder`] port, so `AppState` holds the capability
-/// without the core naming the concrete embedder crate.
-/// Talks to the Vector module's `.lmod` sidecar (dev.luma.vector) over the port
-/// bridge instead of embedding in-process, so the heavy MiniLM/candle model runs
-/// out of the core. `embed_batch` keeps the catalog-wide reembed to one round-trip
-/// per chunk. When the sidecar is absent every call degrades to empty vectors
-/// (like `NoopEmbedder`), so recommendations quietly no-op rather than break.
+/// Composition-root adapter: talks to the Vector module's `.lmod` sidecar
+/// (dev.luma.vector) over the port bridge, wrapping it as the engine's
+/// [`luma_engine::ports::Embedder`] port so the core never names the concrete
+/// embedder crate. The heavy MiniLM/candle model runs out of the core; the
+/// `embed`/`embed_batch` calls reuse the shared bridge helper, and `embed_batch`
+/// keeps the catalog-wide reembed to one round-trip per chunk. When the sidecar
+/// is absent every call degrades to empty vectors (like `NoopEmbedder`), so
+/// recommendations quietly no-op rather than break.
 struct EmbedderClient {
     resolve: luma_port_bridge::Resolver,
+    /// Memoized `/_port/embedder/meta` (dim + relevance_floor), constant for the
+    /// sidecar's life; `dim()` is hit per-item in the pipeline embed stage.
+    meta: std::sync::RwLock<Option<serde_json::Value>>,
 }
 impl EmbedderClient {
-    fn post<B: serde::Serialize, T: serde::de::DeserializeOwned + Default>(&self, path: &str, body: &B) -> T {
-        let Some((base, token)) = (self.resolve)() else {
-            return T::default();
-        };
-        luma_http::Fetch::new()
-            .header("authorization", format!("Bearer {token}"))
-            .post_json(&format!("{base}/_port/embedder/{path}"), &serde_json::to_value(body).unwrap_or_default())
-            .and_then(|r| r.ensure_ok())
-            .and_then(|r| r.json::<T>())
-            .unwrap_or_default()
+    fn new(resolve: luma_port_bridge::Resolver) -> Self {
+        Self { resolve, meta: std::sync::RwLock::new(None) }
     }
     fn meta(&self) -> serde_json::Value {
+        if let Some(v) = self.meta.read().unwrap().clone() {
+            return v;
+        }
         let Some((base, token)) = (self.resolve)() else {
             return serde_json::Value::Null;
         };
-        luma_http::Fetch::new()
+        let v = luma_http::Fetch::new()
             .header("authorization", format!("Bearer {token}"))
             .get_json::<serde_json::Value>(&format!("{base}/_port/embedder/meta"))
-            .unwrap_or(serde_json::Value::Null)
+            .unwrap_or(serde_json::Value::Null);
+        if !v.is_null() {
+            *self.meta.write().unwrap() = Some(v.clone());
+        }
+        v
     }
 }
 impl luma_engine::ports::Embedder for EmbedderClient {
@@ -82,17 +84,15 @@ impl luma_engine::ports::Embedder for EmbedderClient {
         self.meta().get("dim").and_then(serde_json::Value::as_u64).unwrap_or(0) as usize
     }
     fn embed(&self, text: &str) -> Vec<f32> {
-        self.post("embed", &serde_json::json!({ "text": text }))
+        luma_port_bridge::call_raw(&self.resolve, "embedder/embed", &serde_json::json!({ "text": text }))
+            .unwrap_or_default()
     }
     fn embed_batch(&self, texts: &[String]) -> Vec<Vec<f32>> {
-        self.post("embed_batch", &serde_json::json!({ "texts": texts }))
+        luma_port_bridge::call_raw(&self.resolve, "embedder/embed_batch", &serde_json::json!({ "texts": texts }))
+            .unwrap_or_default()
     }
     fn relevance_floor(&self) -> f32 {
-        self.meta()
-            .get("relevance_floor")
-            .and_then(serde_json::Value::as_f64)
-            .map(|f| f as f32)
-            .unwrap_or(1.0)
+        self.meta().get("relevance_floor").and_then(serde_json::Value::as_f64).map(|f| f as f32).unwrap_or(1.0)
     }
 }
 
@@ -207,9 +207,12 @@ async fn main() -> anyhow::Result<()> {
             host_token: host_token.clone(),
             db_path: config.db_path(),
             data_dir: config.data_dir.clone(),
-            // Modules compiled into this binary can't be shadowed by an installed
-            // `.lmod` of the same id (they'd collide), so the store rejects them.
-            reserved_ids: luma_module_kernel::compiled_ids(),
+            // A module with an in-core backend (a compiled ServerModule) can't be
+            // shadowed by an installed `.lmod` of the same id (two live backends),
+            // so the store rejects those. Manifest-only modules whose backend IS a
+            // sidecar (whisper / vector) are NOT reserved -- their `.lmod` must be
+            // installable.
+            reserved_ids: luma_module_kernel::backend_ids(),
         });
 
     // Build the module services + peer ports the composition root owns, so the
@@ -229,51 +232,39 @@ async fn main() -> anyhow::Result<()> {
     );
     let remote = luma_remote::RemoteAccess::new(config.data_dir.clone());
     module_services.insert(std::any::TypeId::of::<luma_remote::RemoteAccess>(), remote);
-    // VPN runs out-of-process (the dev.luma.vpn .lmod); resolve VpnProxyPort as a
-    // client proxy to its sidecar (indexer + torrents consume it).
-    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> = {
-        let sup = supervisor.clone();
-        let tok = host_token.clone();
-        let resolve: luma_port_bridge::Resolver = std::sync::Arc::new(move || {
-            sup.port_of("dev.luma.vpn").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
-        });
-        std::sync::Arc::new(luma_port_bridge::VpnProxyClient::new(resolve))
-    };
-    let (tid, val) = luma_module_host::port_service(vpn_proxy);
-    module_services.insert(tid, val);
-    // The indexer runs out-of-process (dev.luma.indexer .lmod); its torrent-fetch
-    // / data / native-search ports resolve as client proxies to its sidecar
-    // (torrents queue + acquisition consume them).
-    let idx_resolve = || -> luma_port_bridge::Resolver {
-        let sup = supervisor.clone();
-        let tok = host_token.clone();
+
+    // Every out-of-process module the core CONSUMES is reached by a client proxy
+    // that resolves the sidecar's live localhost port from the supervisor. One
+    // resolver builder for all of them: id -> port -> (url, token).
+    let local_resolver = |id: &'static str| -> luma_port_bridge::Resolver {
+        let (sup, tok) = (supervisor.clone(), host_token.clone());
         std::sync::Arc::new(move || {
-            sup.port_of("dev.luma.indexer").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
+            sup.port_of(id).map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
         })
     };
+
+    // VPN (dev.luma.vpn): VpnProxyPort, consumed by indexer + torrents.
+    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> =
+        std::sync::Arc::new(luma_port_bridge::VpnProxyClient::new(local_resolver("dev.luma.vpn")));
+    let (tid, val) = luma_module_host::port_service(vpn_proxy);
+    module_services.insert(tid, val);
+    // Indexers (dev.luma.indexer): torrent-fetch / data / native-search ports,
+    // consumed by the torrents queue + acquisition.
     let torrent_fetch: std::sync::Arc<dyn luma_module_sdk::ports::TorrentFetchPort> =
-        std::sync::Arc::new(luma_port_bridge::TorrentFetchClient::new(idx_resolve()));
+        std::sync::Arc::new(luma_port_bridge::TorrentFetchClient::new(local_resolver("dev.luma.indexer")));
     let (tid, val) = luma_module_host::port_service(torrent_fetch);
     module_services.insert(tid, val);
-    // The Torznab search engine now runs out-of-process (the dev.luma.torznab
-    // .lmod); resolve it as a client proxy that forwards over localhost to the
-    // module's sidecar (discovered live via the supervisor's port map).
-    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> = {
-        let sup = supervisor.clone();
-        let tok = host_token.clone();
-        let resolve: luma_port_bridge::Resolver = std::sync::Arc::new(move || {
-            sup.port_of("dev.luma.torznab").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
-        });
-        std::sync::Arc::new(luma_port_bridge::TorznabClient::new(resolve))
-    };
+    // Torznab (dev.luma.torznab): the external-aggregator search engine.
+    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> =
+        std::sync::Arc::new(luma_port_bridge::TorznabClient::new(local_resolver("dev.luma.torznab")));
     let (tid, val) = luma_module_host::port_service(torznab);
     module_services.insert(tid, val);
     let idx_db: std::sync::Arc<dyn luma_module_sdk::ports::IndexerDbPort> =
-        std::sync::Arc::new(luma_port_bridge::IndexerDbClient::new(idx_resolve()));
+        std::sync::Arc::new(luma_port_bridge::IndexerDbClient::new(local_resolver("dev.luma.indexer")));
     let (tid, val) = luma_module_host::port_service(idx_db);
     module_services.insert(tid, val);
     let idx_search: std::sync::Arc<dyn luma_module_sdk::ports::IndexerSearchPort> =
-        std::sync::Arc::new(luma_port_bridge::IndexerSearchClient::new(idx_resolve()));
+        std::sync::Arc::new(luma_port_bridge::IndexerSearchClient::new(local_resolver("dev.luma.indexer")));
     let (tid, val) = luma_module_host::port_service(idx_search);
     module_services.insert(tid, val);
     // The download manager (dev.luma.torrents) is now a module service like the
@@ -305,27 +296,17 @@ async fn main() -> anyhow::Result<()> {
     // register the client proxy so the subtitles endpoint resolves it by type. It
     // carries the DB pool (the progress/cancel side-channel) + a resolver to the
     // sidecar's port.
-    let whisper_client = {
-        let sup = supervisor.clone();
-        let tok = host_token.clone();
-        let resolve: luma_port_bridge::Resolver = std::sync::Arc::new(move || {
-            sup.port_of("dev.luma.whisper").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
-        });
-        std::sync::Arc::new(api::online_subs::WhisperClient::new(resolve, db.clone()))
-    };
+    let whisper_client = std::sync::Arc::new(api::online_subs::WhisperClient::new(
+        local_resolver("dev.luma.whisper"),
+        db.clone(),
+    ));
     module_services
         .insert(std::any::TypeId::of::<api::online_subs::WhisperClient>(), whisper_client);
     // The embedder runs out-of-process (the dev.luma.vector .lmod); resolve it as a
     // client proxy to its sidecar. Absent sidecar => empty vectors (recommendations
     // quietly no-op), same as the former NoopEmbedder fallback.
-    let embedder: std::sync::Arc<dyn luma_engine::ports::Embedder> = {
-        let sup = supervisor.clone();
-        let tok = host_token.clone();
-        let resolve: luma_port_bridge::Resolver = std::sync::Arc::new(move || {
-            sup.port_of("dev.luma.vector").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
-        });
-        std::sync::Arc::new(EmbedderClient { resolve })
-    };
+    let embedder: std::sync::Arc<dyn luma_engine::ports::Embedder> =
+        std::sync::Arc::new(EmbedderClient::new(local_resolver("dev.luma.vector")));
     // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
     // registered alongside the core built-ins so the core roster names no module.
     let state = AppState::new(

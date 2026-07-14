@@ -66,6 +66,10 @@ struct Inner {
     core_url: String,
     host_token: String,
     services: RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>,
+    /// Memoized `/_host/tmdb` response (key + language). Effectively constant for
+    /// the process, and read on every request-create/approve path, so cache the
+    /// first real answer rather than round-trip twice per call.
+    tmdb: RwLock<Option<serde_json::Value>>,
 }
 
 impl RemoteHost {
@@ -81,8 +85,41 @@ impl RemoteHost {
                 core_url: env.core_url.clone(),
                 host_token: env.host_token.clone(),
                 services: RwLock::new(HashMap::new()),
+                tmdb: RwLock::new(None),
             }),
         })
+    }
+
+    /// A resolver to a sibling module's port bridge, reached through the core
+    /// reverse-proxy (`{core}/api/module/{id}/_port/...`). The runtime already
+    /// holds `core_url` + `host_token`, so a sidecar's setup doesn't re-read the
+    /// env or rebuild this closure per consumed port. The return type IS
+    /// `luma_port_bridge::Resolver` structurally, so it drops straight into the
+    /// bridge clients without this crate depending on port-bridge.
+    pub fn sibling_resolver(
+        &self,
+        id: &str,
+    ) -> Arc<dyn Fn() -> Option<(String, String)> + Send + Sync> {
+        let base = format!("{}/api/module/{id}", self.inner.core_url.trim_end_matches('/'));
+        let token = self.inner.host_token.clone();
+        Arc::new(move || Some((base.clone(), token.clone())))
+    }
+
+    /// The memoized `/_host/tmdb` config (`{ key, language }`); fetches once, then
+    /// serves both `tmdb_api_key` + `metadata_language` from cache.
+    fn tmdb_config(&self) -> serde_json::Value {
+        if let Some(v) = self.inner.tmdb.read().unwrap().clone() {
+            return v;
+        }
+        let v = self
+            .callback()
+            .get_json::<serde_json::Value>(&self.host_url("tmdb"))
+            .unwrap_or(serde_json::Value::Null);
+        // Only cache a real answer so a transient failure retries next call.
+        if !v.is_null() {
+            *self.inner.tmdb.write().unwrap() = Some(v.clone());
+        }
+        v
     }
 
     /// This module's id (as the core supervisor assigned it).
@@ -222,17 +259,13 @@ impl HostCtx for RemoteHost {
     }
 
     fn tmdb_api_key(&self) -> Option<String> {
-        self.callback()
-            .get_json::<serde_json::Value>(&self.host_url("tmdb"))
-            .ok()
-            .and_then(|v| v.get("key").and_then(|x| x.as_str().map(str::to_string)))
+        self.tmdb_config().get("key").and_then(|x| x.as_str().map(str::to_string))
     }
 
     fn metadata_language(&self) -> String {
-        self.callback()
-            .get_json::<serde_json::Value>(&self.host_url("tmdb"))
-            .ok()
-            .and_then(|v| v.get("language").and_then(|x| x.as_str().map(str::to_string)))
+        self.tmdb_config()
+            .get("language")
+            .and_then(|x| x.as_str().map(str::to_string))
             .unwrap_or_else(|| "en-US".to_string())
     }
 

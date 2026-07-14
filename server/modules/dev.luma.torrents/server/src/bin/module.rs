@@ -24,8 +24,6 @@ use luma_torrent::{DownloadDb, DownloadManager};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let core_url = std::env::var("LUMA_CORE_URL")?;
-    let token = std::env::var("LUMA_HOST_TOKEN")?;
     let data_dir = std::path::PathBuf::from(std::env::var("LUMA_DATA_DIR")?);
 
     // One manager instance, shared by this process's own routes (as a service),
@@ -52,22 +50,22 @@ async fn main() -> anyhow::Result<()> {
 
             // Ports consumed from sibling sidecars, reached through the core
             // reverse-proxy (`{core}/api/module/{id}/_port/...`).
-            let sibling = |id: &str| -> luma_port_bridge::Resolver {
-                let base = format!("{core_url}/api/module/{id}");
-                let tok = token.clone();
-                Arc::new(move || Some((base.clone(), tok.clone())))
-            };
-            let vp: Arc<dyn VpnProxyPort> =
-                Arc::new(luma_port_bridge::VpnProxyClient::new(sibling("dev.luma.vpn")));
+            let vp: Arc<dyn VpnProxyPort> = Arc::new(luma_port_bridge::VpnProxyClient::new(
+                host.sibling_resolver("dev.luma.vpn"),
+            ));
             host.register_port(vp);
-            let tf: Arc<dyn TorrentFetchPort> =
-                Arc::new(luma_port_bridge::TorrentFetchClient::new(sibling("dev.luma.indexer")));
+            let tf: Arc<dyn TorrentFetchPort> = Arc::new(luma_port_bridge::TorrentFetchClient::new(
+                host.sibling_resolver("dev.luma.indexer"),
+            ));
             host.register_port(tf);
-            let idb: Arc<dyn IndexerDbPort> =
-                Arc::new(luma_port_bridge::IndexerDbClient::new(sibling("dev.luma.indexer")));
+            let idb: Arc<dyn IndexerDbPort> = Arc::new(luma_port_bridge::IndexerDbClient::new(
+                host.sibling_resolver("dev.luma.indexer"),
+            ));
             host.register_port(idb);
             let isearch: Arc<dyn IndexerSearchPort> =
-                Arc::new(luma_port_bridge::IndexerSearchClient::new(sibling("dev.luma.indexer")));
+                Arc::new(luma_port_bridge::IndexerSearchClient::new(
+                    host.sibling_resolver("dev.luma.indexer"),
+                ));
             host.register_port(isearch);
         },
         vec![

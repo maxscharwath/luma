@@ -129,12 +129,12 @@ impl luma_engine::ports::Whisper for WhisperClient {
                 Err(TryRecvError::Disconnected) => break None,
                 Err(TryRecvError::Empty) => {}
             }
-            if cancel.load(Ordering::Relaxed) {
-                if let Ok(conn) = self.pool.get() {
+            // One pooled connection per tick: push the cancel flag (if latched)
+            // then read progress off the same row.
+            if let Ok(conn) = self.pool.get() {
+                if cancel.load(Ordering::Relaxed) {
                     let _ = conn.execute("UPDATE whisper_jobs SET cancel = 1 WHERE id = ?1", [&job_id]);
                 }
-            }
-            if let Ok(conn) = self.pool.get() {
                 if let Ok((stage, done, total)) = conn.query_row(
                     "SELECT stage, done, total FROM whisper_jobs WHERE id = ?1",
                     [&job_id],

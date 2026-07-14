@@ -14,8 +14,6 @@ use luma_module_sdk::ports::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let core_url = std::env::var("LUMA_CORE_URL")?;
-    let token = std::env::var("LUMA_HOST_TOKEN")?;
     let db: Arc<dyn IndexerDbPort> = Arc::new(luma_indexer::IndexerDb);
     let search: Arc<dyn IndexerSearchPort> = Arc::new(luma_indexer::IndexerSearch);
     let fetch: Arc<dyn TorrentFetchPort> = Arc::new(luma_indexer::IndexerTorrentFetch);
@@ -23,16 +21,13 @@ async fn main() -> anyhow::Result<()> {
     luma_module_runtime::serve(
         move |host| {
             // Reach a sibling module's ports through the core reverse-proxy.
-            let sibling = |id: &str| -> luma_port_bridge::Resolver {
-                let base = format!("{core_url}/api/module/{id}");
-                let tok = token.clone();
-                Arc::new(move || Some((base.clone(), tok.clone())))
-            };
-            let tz: Arc<dyn TorznabPort> =
-                Arc::new(luma_port_bridge::TorznabClient::new(sibling("dev.luma.torznab")));
+            let tz: Arc<dyn TorznabPort> = Arc::new(luma_port_bridge::TorznabClient::new(
+                host.sibling_resolver("dev.luma.torznab"),
+            ));
             host.register_port(tz);
-            let vp: Arc<dyn VpnProxyPort> =
-                Arc::new(luma_port_bridge::VpnProxyClient::new(sibling("dev.luma.vpn")));
+            let vp: Arc<dyn VpnProxyPort> = Arc::new(luma_port_bridge::VpnProxyClient::new(
+                host.sibling_resolver("dev.luma.vpn"),
+            ));
             host.register_port(vp);
         },
         vec![luma_indexer::server_module::<RemoteHost>()],

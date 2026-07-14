@@ -25,7 +25,6 @@ pub mod search;
 
 pub use dtos::*;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -157,17 +156,12 @@ pub fn resolve_builtin_download<S: HostCtx>(
 /// the whole search / grab / auto feature is gated on this module. It reaches the
 /// Downloads / Indexer modules through their SDK ports (see the module docs).
 ///
-/// Generic over the host state `S: HostCtx`, like every module: it runs in-core
-/// (`S = SharedState`, jobs driven by the core JobManager via [`JOBS`]) and
-/// out-of-process (`S = RemoteHost`, its `.lmod`, where `on_enable` spawns the
-/// search / import / match passes on resident timers since the core scheduler
-/// doesn't reach into the sidecar). It reaches the Downloads / Indexer modules
-/// through their SDK ports (see the module docs).
+/// Generic over the host state `S: HostCtx`, like every module. In-core
+/// (`S = SharedState`) the three passes run on the core JobManager via [`JOBS`];
+/// out-of-process (`S = RemoteHost`, its `.lmod`) the sidecar calls [`start_cron`]
+/// instead, since the core scheduler can't reach into the sidecar. It reaches the
+/// Downloads / Indexer modules through their SDK ports (see the module docs).
 pub struct AcquisitionModule;
-
-/// The resident cron loops are spawned once per process (a re-enable must not
-/// stack a second set); the passes themselves idle while the module is disabled.
-static CRON_STARTED: AtomicBool = AtomicBool::new(false);
 
 #[luma_module_sdk::host::async_trait]
 impl<S: HostCtx + Clone + Send + Sync + 'static> luma_module_sdk::host::ServerModule<S>
@@ -180,20 +174,16 @@ impl<S: HostCtx + Clone + Send + Sync + 'static> luma_module_sdk::host::ServerMo
     fn admin_routes(&self, _host: &S) -> Option<axum::Router<S>> {
         Some(routes::routes::<S>())
     }
+}
 
-    async fn on_enable(&self, host: Arc<dyn HostCtx>) {
-        // Out-of-process, the core's JobManager cron can't reach this process, so
-        // the module runs its own timers for the three passes (the in-core path
-        // registers `JOBS` instead and this is a harmless second scheduler only
-        // if the module is ALSO rostered in-core, which the .lmod build isn't).
-        // Spawned once; each tick skips while the module is disabled.
-        if CRON_STARTED.swap(true, Ordering::SeqCst) {
-            return;
-        }
-        spawn_pass_loop(host.clone(), Duration::from_secs(30 * 60), "search", run_search);
-        spawn_pass_loop(host.clone(), Duration::from_secs(60 * 60), "import", run_import);
-        spawn_pass_loop(host, Duration::from_secs(6 * 60 * 60), "match", run_match);
-    }
+/// Run the search / import / match passes on resident timers. Called ONLY by the
+/// out-of-process sidecar (from its bin), where the core JobManager can't reach:
+/// in-core the same passes run via [`JOBS`], so running both would double every
+/// pass. Spawn once per process; each tick idles while the module is disabled.
+pub fn start_cron(host: Arc<dyn HostCtx>) {
+    spawn_pass_loop(host.clone(), Duration::from_secs(30 * 60), "search", run_search);
+    spawn_pass_loop(host.clone(), Duration::from_secs(60 * 60), "import", run_import);
+    spawn_pass_loop(host, Duration::from_secs(6 * 60 * 60), "match", run_match);
 }
 
 /// Spawn a resident timer that runs `pass` every `period`, skipping while the

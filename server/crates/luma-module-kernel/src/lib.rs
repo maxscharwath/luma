@@ -90,11 +90,14 @@ fn compiled_manifests() -> Vec<ModuleManifest> {
         .collect()
 }
 
-/// The ids of the compile-time roster (modules built into this server binary).
-/// These can't be installed as a `.lmod` (an installed copy would collide with
-/// the in-core one), so the store rejects uploads that reuse a built-in id.
-pub fn compiled_ids() -> Vec<String> {
-    registry().manifests.manifests().into_iter().map(|m| m.id).collect()
+/// The ids of modules that ship an in-core backend (a compiled `ServerModule`).
+/// These -- and only these -- collide with an installed `.lmod` of the same id
+/// (two live backends for one id), so the store rejects installing them. A
+/// module that is only manifest-registered in-core (its backend IS a sidecar,
+/// e.g. whisper / vector, resolved via the supervisor) is NOT reserved: its
+/// `.lmod` MUST be installable for it to work.
+pub fn backend_ids() -> Vec<String> {
+    registry().servers.iter().map(|m| m.id().to_string()).collect()
 }
 
 /// Resolve the module supervisor from the host service registry (registered by

@@ -37,8 +37,10 @@ fn call<B: serde::Serialize, T: serde::de::DeserializeOwned>(
 
 /// Like [`call`] but the provider returns `T` directly (no `Result` envelope) —
 /// used for port methods that return `Option<_>` / infallible values. Any
-/// transport error maps to the caller's own fallback (usually `None`).
-fn call_raw<B: serde::Serialize, T: serde::de::DeserializeOwned>(
+/// transport error maps to the caller's own fallback (usually `None`). `pub` so
+/// composition-root adapters for engine-side ports (the embedder client) reuse it
+/// instead of re-hand-rolling the bearer-auth `post_json → ensure_ok → json`.
+pub fn call_raw<B: serde::Serialize, T: serde::de::DeserializeOwned>(
     resolve: &Resolver,
     path: &str,
     body: &B,
