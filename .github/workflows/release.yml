@@ -103,18 +103,18 @@ jobs:
       - name: Pack all modules
         run: bun run modules:pack
 
-      - name: Upload .lmod artifacts
+      - name: Upload .lmod artifacts (+ checksums)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: luma-modules-lmod
-          path: dist/modules/*.lmod
+          path: dist/modules/*.lmod*
           if-no-files-found: error
 
       - name: Attach to the Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: dist/modules/*.lmod
+          files: dist/modules/*.lmod*
 
   # -------------------------------------------------------------------- TV ---
 

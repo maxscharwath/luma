@@ -67,13 +67,20 @@ async function packOne(moduleDir: string): Promise<string> {
   //    and the supervisor respawns it, which drops the unwinding tables for ~11%
   //    smaller binaries at no speed cost (opt-level stays 3). Library modules (no
   //    [[bin]]) skip this: their code is co-linked, not spawned.
+  // Optional cross-target (LMOD_TARGET, e.g. x86_64-unknown-linux-musl). A .lmod
+  // carries a NATIVE binary, so the platform must match the server; when set, the
+  // bundle is suffixed with the triple (see the output name below). Unset = host.
+  const target = process.env.LMOD_TARGET?.trim() || null;
   let binPath: string | null = null;
   if (bin) {
     const featArgs = features.length ? ['--features', features.join(',')] : [];
-    await $`cargo build --profile release-lmod -p ${pkg} --bin ${bin} ${featArgs}`.cwd(
+    const targetArgs = target ? ['--target', target] : [];
+    await $`cargo build --profile release-lmod -p ${pkg} --bin ${bin} ${featArgs} ${targetArgs}`.cwd(
       join(root, 'server'),
     );
-    binPath = join(root, 'server/target/release-lmod', bin);
+    // cargo nests the artifact under target/<triple>/ when --target is given.
+    const outRoot = target ? `server/target/${target}/release-lmod` : 'server/target/release-lmod';
+    binPath = join(root, outRoot, bin);
     if (!existsSync(binPath)) throw new Error(`built no binary at ${binPath}`);
   }
 
@@ -109,11 +116,17 @@ async function packOne(moduleDir: string): Promise<string> {
 
   // 4) tar + zstd it into a .lmod (zstd is ~20-25% smaller than gzip for these
   //    native binaries; the supervisor decompresses it with pure-Rust ruzstd).
+  //    Sidecar bundles are suffixed with the build target so a consumer can tell
+  //    which platform they run on; library modules (no binary) stay unsuffixed.
   mkdirSync(outDir, { recursive: true });
-  const lmod = join(outDir, `${id}.lmod`);
+  const suffix = bin && target ? `-${target}` : '';
+  const lmod = join(outDir, `${id}${suffix}.lmod`);
   const tarPath = `${lmod}.tar`;
   await $`tar -cf ${tarPath} -C ${staging} ${entries}`;
-  writeFileSync(lmod, Bun.zstdCompressSync(readFileSync(tarPath), { level: 19 }));
+  const bytes = Bun.zstdCompressSync(readFileSync(tarPath), { level: 19 });
+  writeFileSync(lmod, bytes);
+  // A SHA-256 sidecar file so a release/registry consumer can verify integrity.
+  writeFileSync(`${lmod}.sha256`, `${Bun.SHA256.hash(bytes, 'hex')}  ${id}${suffix}.lmod\n`);
   rmSync(tarPath, { force: true });
   rmSync(staging, { recursive: true, force: true });
   console.log(`  packed: ${lmod}`);
