@@ -217,20 +217,24 @@ mod tests {
 
     #[test]
     fn built_in_modules_resolve() {
-        // Also runs build()'s ServerModule<->manifest consistency assertion.
+        // Also runs build()'s ServerModule<->manifest consistency assertion. The
+        // downloads vertical + acquisition ship only as installable `.lmod` now, so
+        // the compile-time roster is the in-core set (scene / whisper / vector /
+        // remote).
         let order = registry().manifests.resolve().expect("built-in module graph resolves");
-        assert!(order.contains(&"dev.luma.torrents".to_string()));
-        assert!(order.contains(&"dev.luma.indexer".to_string()));
-        assert!(order.contains(&"dev.luma.acquisition".to_string()));
+        assert!(order.contains(&"dev.luma.scene".to_string()));
+        assert!(order.contains(&"dev.luma.remote".to_string()));
     }
 
     #[test]
-    fn compiled_manifests_expose_download_client_kinds() {
-        let torrents = compiled_manifests()
-            .into_iter()
-            .find(|m| m.id == "dev.luma.torrents")
-            .expect("torrents module present");
-        assert!(torrents.provides.iter().any(|c| c.kind == "download-client" && c.id == "rqbit"));
+    fn only_in_core_backends_are_reserved() {
+        // reserved_ids come from backend_ids() (compiled ServerModules). The
+        // sidecar modules (torrents / acquisition / whisper / vector) must NOT be
+        // reserved, or their `.lmod` could never install.
+        let reserved = backend_ids();
+        assert!(!reserved.contains(&"dev.luma.torrents".to_string()));
+        assert!(!reserved.contains(&"dev.luma.whisper".to_string()));
+        assert!(!reserved.contains(&"dev.luma.acquisition".to_string()));
     }
 
     #[test]

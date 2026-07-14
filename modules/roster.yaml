@@ -11,10 +11,13 @@
 #   manifestOnly  no server crate: register its module.json (+ icon) directly.
 #   icon          manifestOnly + has an icon.svg to embed (default false).
 
+# NOTE: the downloads vertical (dev.luma.torrents + its co-hosted engines
+# dev.luma.engine.transmission / .qbittorrent) and dev.luma.acquisition are NOT
+# listed here -- they ship ONLY as installable `.lmod` sidecars (their manifests
+# come from the installed bundle, their backends run out-of-process). Whisper and
+# vector are manifest-only here (the FE knows they exist) but their backends are
+# sidecars too; scene is a co-linked library; remote is still in-core.
 modules:
-  - id: dev.luma.torrents
-    crate: luma-torrent
-    serverModule: true
   - id: dev.luma.scene
     crate: luma-scene
   - id: dev.luma.whisper
@@ -23,13 +26,4 @@ modules:
     crate: luma-vector
   - id: dev.luma.remote
     crate: luma-remote
-    serverModule: true
-  - id: dev.luma.engine.transmission
-    crate: luma-transmission
-    serverModule: true
-  - id: dev.luma.engine.qbittorrent
-    crate: luma-qbittorrent
-    serverModule: true
-  - id: dev.luma.acquisition
-    crate: luma-acquisition
     serverModule: true

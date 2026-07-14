@@ -14,7 +14,6 @@ use crate::infra::events::ServerEvent;
 use crate::model::Permission;
 use crate::services::settings;
 use crate::state::SharedState;
-use crate::DownloadsExt;
 use axum::routing::get;
 use axum::Router;
 
@@ -60,16 +59,9 @@ pub async fn put_settings(
     if written.iter().any(|k| k == "mediaConcurrency") {
         crate::infra::ffmpeg_gate::set_capacity(settings::media_workers(&state.settings));
     }
-    // The embedded torrent engine reads its listen port / rate limits at
-    // session creation: restart it (cheap + safe, fastresume) so they apply
-    // live. VPN config changes flow through /api/admin/vpn, not here.
-    if written
-        .iter()
-        .any(|k| matches!(k.as_str(), "rqbitPort" | "rqbitDownKbps" | "rqbitUpKbps"))
-    {
-        let st = state.clone();
-        tokio::spawn(async move { st.downloads().start_rqbit(&st).await });
-    }
+    // The embedded torrent engine's listen port / rate limits (rqbit*) are owned
+    // by the Downloads sidecar now; it applies them on its next engine (re)start.
+    // The SettingsUpdated event below is the signal a live-reconfig would key on.
     state.events.publish(ServerEvent::SettingsUpdated);
     Ok(Json(json!({ "updated": written })).into_response())
 }

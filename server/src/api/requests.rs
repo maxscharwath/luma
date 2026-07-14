@@ -16,7 +16,6 @@ use crate::api::extract::AuthUser;
 use crate::api::util::{blocking, query};
 use crate::db;
 use crate::i18n;
-use crate::DownloadsExt;
 use crate::model::{
     CreateRequestBody, MediaRequest, Permission, RequestCounts, RequestStatus, RequestsView, User,
 };

@@ -27,23 +27,6 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use crate::config::Config;
 use crate::state::AppState;
 
-/// Resolve the dev.luma.torrents download manager from the host service
-/// registry. It was a direct `AppState` field until the acquisition vertical
-/// moved into the module crate; the download admin routes (and the grab path)
-/// now look it up by type through the `HostCtx` seam, exactly like every other
-/// module service. Kept as an extension method so the many `state.downloads`
-/// call sites read the same after the move.
-pub(crate) trait DownloadsExt {
-    fn downloads(&self) -> std::sync::Arc<luma_torrent::DownloadManager>;
-}
-
-impl DownloadsExt for luma_engine::state::SharedState {
-    fn downloads(&self) -> std::sync::Arc<luma_torrent::DownloadManager> {
-        luma_module_host::service::<luma_torrent::DownloadManager>(&**self)
-            .expect("download manager registered")
-    }
-}
-
 /// Composition-root adapter: talks to the Vector module's `.lmod` sidecar
 /// (dev.luma.vector) over the port bridge, wrapping it as the engine's
 /// [`luma_engine::ports::Embedder`] port so the core never names the concrete
@@ -273,31 +256,12 @@ async fn main() -> anyhow::Result<()> {
         std::sync::Arc::new(luma_port_bridge::AcquisitionSearchClient::new(local_resolver("dev.luma.acquisition")));
     let (tid, val) = luma_module_host::port_service(acq_search);
     module_services.insert(tid, val);
-    // The download manager (dev.luma.torrents) is now a module service like the
-    // rest: the composition root constructs it and injects it by type, so the
-    // core (luma-engine) never names the torrent engine. The acquisition services
-    // and the download admin routes resolve it through the HostCtx registry.
-    let downloads = luma_torrent::DownloadManager::new(&config.data_dir);
-    // Also expose it as the DownloadClientHost port, so the engine modules
-    // (transmission / qBittorrent) register their kind without naming this crate.
-    let dc_host: std::sync::Arc<dyn luma_module_sdk::ports::DownloadClientHost> = downloads.clone();
-    let (tid, val) = luma_module_host::port_service(dc_host);
-    module_services.insert(tid, val);
-    // ...and as the DownloadVpnPort, so the VPN module reads the engine's VPN
-    // status / seal check / restart without naming this crate.
-    let dc_vpn: std::sync::Arc<dyn luma_module_sdk::ports::DownloadVpnPort> = downloads.clone();
-    let (tid, val) = luma_module_host::port_service(dc_vpn);
-    module_services.insert(tid, val);
-    // ...and as the DownloadGrabPort + DownloadDbPort, so the Acquisition module
-    // grabs releases + reads/updates the downloads ledger without naming this crate.
-    let dc_grab: std::sync::Arc<dyn luma_module_sdk::ports::DownloadGrabPort> = downloads.clone();
-    let (tid, val) = luma_module_host::port_service(dc_grab);
-    module_services.insert(tid, val);
-    let dc_db: std::sync::Arc<dyn luma_module_sdk::ports::DownloadDbPort> =
-        std::sync::Arc::new(luma_torrent::DownloadDb);
-    let (tid, val) = luma_module_host::port_service(dc_db);
-    module_services.insert(tid, val);
-    module_services.insert(std::any::TypeId::of::<luma_torrent::DownloadManager>(), downloads);
+    // The download engine (dev.luma.torrents) is a sidecar: it PROVIDES the
+    // DownloadClientHost / DownloadVpn / DownloadGrab / DownloadDb ports from its
+    // own process (its bin serves them over the bridge), and the sidecars that
+    // consume them (acquisition, vpn) resolve them sibling-to-sibling through the
+    // core proxy. So the core neither constructs the manager nor registers those
+    // ports here.
     // Whisper transcription runs out-of-process (the dev.luma.whisper .lmod);
     // register the client proxy so the subtitles endpoint resolves it by type. It
     // carries the DB pool (the progress/cancel side-channel) + a resolver to the
@@ -313,8 +277,8 @@ async fn main() -> anyhow::Result<()> {
     // quietly no-op), same as the former NoopEmbedder fallback.
     let embedder: std::sync::Arc<dyn luma_engine::ports::Embedder> =
         std::sync::Arc::new(EmbedderClient::new(local_resolver("dev.luma.vector")));
-    // `luma_acquisition::JOBS` are the acquisition jobs (search / import / match),
-    // registered alongside the core built-ins so the core roster names no module.
+    // Acquisition's search / import / match jobs run in ITS sidecar now (resident
+    // timers via `start_cron`), so the core registers no module jobs.
     let state = AppState::new(
         config,
         ffprobe_available,
@@ -322,7 +286,7 @@ async fn main() -> anyhow::Result<()> {
         settings,
         embedder,
         module_services,
-        luma_acquisition::JOBS,
+        &[],
     );
     services::activity::scan_completed(
         &state.activity,

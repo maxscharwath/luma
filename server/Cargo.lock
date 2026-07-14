@@ -2979,15 +2979,11 @@ dependencies = [
 name = "luma-modules-generated"
 version = "0.0.0"
 dependencies = [
- "luma-acquisition",
  "luma-engine",
  "luma-module-host",
  "luma-module-manifest",
- "luma-qbittorrent",
  "luma-remote",
  "luma-scene",
- "luma-torrent",
- "luma-transmission",
  "luma-vector",
  "luma-whisper",
 ]
