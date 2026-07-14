@@ -12,22 +12,21 @@ use axum::{Json, Router};
 use serde_json::json;
 
 use luma_module_sdk::domain::{Permission, User};
-use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::host::{blocking, json_error, AuthUser, HostCtx};
 
 use crate::dtos::{
     AnalyzeBody, ManualAddBody, ManualSearchBody, ManualSearchView, TorrentAnalysis, TorrentFileView,
 };
 
-pub fn routes() -> Router<SharedState> {
+pub fn routes<S: HostCtx + Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
-        .route("/acquisition/search", post(manual_search))
-        .route("/acquisition/analyze", post(analyze))
-        .route("/acquisition/add", post(manual_add))
+        .route("/acquisition/search", post(manual_search::<S>))
+        .route("/acquisition/analyze", post(analyze::<S>))
+        .route("/acquisition/add", post(manual_add::<S>))
 }
 
 /// Acquisition access: the requests moderator or a settings admin.
-fn require_acquisition(state: &SharedState, user: &User) -> Result<(), Response> {
+fn require_acquisition<S: HostCtx>(state: &S, user: &User) -> Result<(), Response> {
     if user.can(Permission::RequestsManage) || user.can(Permission::SettingsManage) {
         Ok(())
     } else {
@@ -37,8 +36,8 @@ fn require_acquisition(state: &SharedState, user: &User) -> Result<(), Response>
 
 /// `POST /api/admin/acquisition/search` free-text sweep of every indexer,
 /// returning parsed releases best-first for the admin to pick from.
-pub async fn manual_search(
-    State(state): State<SharedState>,
+pub async fn manual_search<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<ManualSearchBody>,
 ) -> Result<Response, Response> {
@@ -57,8 +56,8 @@ pub async fn manual_search(
 /// `POST /api/admin/acquisition/analyze` fetch the torrent's file list (metadata
 /// only, no download) and classify what it holds, so the admin can select
 /// episodes / confirm the entity before grabbing.
-pub async fn analyze(
-    State(state): State<SharedState>,
+pub async fn analyze<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<AnalyzeBody>,
 ) -> Result<Response, Response> {
@@ -99,8 +98,8 @@ pub async fn analyze(
 
 /// `POST /api/admin/acquisition/add` grab a pasted magnet / `.torrent` URL (or a
 /// manual-search result) and import it as the given kind into the right library.
-pub async fn manual_add(
-    State(state): State<SharedState>,
+pub async fn manual_add<S: HostCtx + Clone + Send + Sync + 'static>(
+    State(state): State<S>,
     AuthUser(user): AuthUser,
     Json(body): Json<ManualAddBody>,
 ) -> Result<Response, Response> {

@@ -13,7 +13,6 @@ use crate::dtos::{
     InteractiveSearchView, ManualReleaseView, ManualSearchView, ScoreLineView, ScoredReleaseView,
 };
 use luma_module_sdk::engine::model::RequestKind;
-use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::ports::IndexerRow;
 use luma_module_sdk::db::{self, WantedRow};
 
@@ -219,8 +218,8 @@ pub fn score_release(
 /// request's targets and return everything, scored or rejected-with-reason,
 /// accepted-best first. Synchronous and network-heavy: call from a blocking
 /// context only.
-pub fn interactive_search(state: &SharedState, request_id: &str) -> Result<InteractiveSearchView> {
-    let conn = state.db.get()?;
+pub fn interactive_search<S: luma_module_sdk::host::HostCtx>(state: &S, request_id: &str) -> Result<InteractiveSearchView> {
+    let conn = state.db().get()?;
     let req = db::get_request(&conn, request_id)?.ok_or_else(|| anyhow!("request not found"))?;
     let mut wanted = db::wanted_for_request(&conn, request_id)?;
     let indexers = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state).ok_or_else(|| anyhow::anyhow!("indexer module unavailable"))?.enabled_indexers(state)?;
@@ -287,8 +286,7 @@ pub fn interactive_search(state: &SharedState, request_id: &str) -> Result<Inter
 /// Grab one release from the last interactive search of this request. Returns
 /// the queued download row; the caller kicks off the (slow) engine add in the
 /// background via `DownloadManager::activate`.
-pub fn grab_cached(
-    state: &SharedState,
+pub fn grab_cached<S: luma_module_sdk::host::HostCtx>(state: &S,
     request_id: &str,
     guid: &str,
     indexer_id: &str,
@@ -330,7 +328,7 @@ pub fn grab_cached(
     // ledger, so the grab would create a download but leave the request stuck in
     // "pending" forever. Approve it first (materializes the ledger + moves it out
     // of pending), so the grab can flip the right rows to "grabbed".
-    let conn = state.db.get()?;
+    let conn = state.db().get()?;
     let req = db::get_request(&conn, request_id)?.ok_or_else(|| anyhow!("request not found"))?;
     drop(conn);
     let needs_approval = matches!(
@@ -340,7 +338,7 @@ pub fn grab_cached(
     if needs_approval {
         luma_module_sdk::engine::services::requests::approve_request(state, request_id, None)?;
     }
-    let conn = state.db.get()?;
+    let conn = state.db().get()?;
     let req = db::get_request(&conn, request_id)?.ok_or_else(|| anyhow!("request not found"))?;
     let wanted = db::wanted_for_request(&conn, request_id)?;
     drop(conn);
@@ -360,12 +358,12 @@ pub fn grab_cached(
 /// Free-text manual search across every enabled indexer: parse each result for
 /// quality/episode hints and sort best-first, but do NOT accept/reject (there
 /// is no specific target). The admin picks and grabs via the add endpoint.
-pub fn manual_search(state: &SharedState, query: &str) -> Result<ManualSearchView> {
+pub fn manual_search<S: luma_module_sdk::host::HostCtx>(state: &S, query: &str) -> Result<ManualSearchView> {
     let q = query.trim();
     if q.is_empty() {
         return Ok(ManualSearchView { releases: Vec::new(), indexer_errors: Vec::new() });
     }
-    let conn = state.db.get()?;
+    let conn = state.db().get()?;
     let indexers = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state).ok_or_else(|| anyhow::anyhow!("indexer module unavailable"))?.enabled_indexers(state)?;
     drop(conn);
     if indexers.is_empty() {

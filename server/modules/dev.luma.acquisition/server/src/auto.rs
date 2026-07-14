@@ -9,7 +9,6 @@ use std::collections::HashSet;
 use anyhow::Result;
 
 use luma_module_sdk::engine::services::requests::today_ymd;
-use luma_module_sdk::engine::state::SharedState;
 use luma_module_sdk::db;
 
 use crate::search::{score_release, targets_for_wanted, wanted_ids_by};
@@ -27,9 +26,9 @@ pub struct AutoSummary {
     pub errors: Vec<String>,
 }
 
-pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &dyn Fn() -> bool) -> Result<AutoSummary> {
+pub fn auto_search_pass<S: luma_module_sdk::host::HostCtx>(state: &S, log: &dyn Fn(String), cancelled: &dyn Fn() -> bool) -> Result<AutoSummary> {
     let mut summary = AutoSummary::default();
-    if !state.settings.get_bool("acqEnabled", false) {
+    if !state.setting_bool("acqEnabled", false) {
         log("automatic acquisition is disabled (acqEnabled)".into());
         return Ok(summary);
     }
@@ -38,7 +37,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
         return Ok(summary);
     }
 
-    let conn = state.db.get()?;
+    let conn = state.db().get()?;
     let due = db::wanted_searchable(&conn, &today_ymd(), BATCH)?;
     let indexers = luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::IndexerDbPort>(state).ok_or_else(|| anyhow::anyhow!("indexer module unavailable"))?.enabled_indexers(state)?;
     drop(conn);
@@ -64,7 +63,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
         if cancelled() {
             break;
         }
-        let conn = state.db.get()?;
+        let conn = state.db().get()?;
         let Some(req) = db::get_request(&conn, request_id)? else { continue };
         let wanted = db::wanted_for_request(&conn, request_id)?;
         drop(conn);
@@ -140,7 +139,7 @@ pub fn auto_search_pass(state: &SharedState, log: &dyn Fn(String), cancelled: &d
     // Stamp every due row so the next pass rotates to the least recently
     // searched, grabbed or not.
     let stamp: Vec<String> = due.iter().map(|w| w.id.clone()).collect();
-    db::stamp_wanted_searched(&state.db, &stamp, luma_module_sdk::engine::services::jobs::now_ms())?;
+    db::stamp_wanted_searched(state.db(), &stamp, luma_module_sdk::engine::services::jobs::now_ms())?;
     Ok(summary)
 }
 

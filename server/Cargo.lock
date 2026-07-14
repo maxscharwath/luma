@@ -3285,7 +3285,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "luma-module-runtime",
  "luma-module-sdk",
+ "luma-port-bridge",
  "serde",
  "serde_json",
  "tokio",

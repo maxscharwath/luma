@@ -9,8 +9,7 @@ use anyhow::{anyhow, bail, Result};
 
 use luma_module_sdk::engine::model::RequestKind;
 use luma_module_sdk::engine::services::jobs::now_ms;
-use luma_module_sdk::engine::services::settings::{library_defs, LibraryDef};
-use luma_module_sdk::engine::state::SharedState;
+use luma_module_sdk::host::{HostCtx, LibraryFolders};
 use luma_module_sdk::db as db;
 use luma_module_sdk::ports::naming;
 use luma_module_sdk::ports::DownloadRow;
@@ -35,7 +34,7 @@ pub struct ImportSummary {
 /// After a successful import: fulfill the linked request directly (no fragile
 /// tmdbId round-trip) and pin the known tmdbId onto the item so its poster +
 /// metadata resolve and the discover UI recognizes it (no request/library dupe).
-fn finalize_import(state: &SharedState, row: &DownloadRow) {
+fn finalize_import<S: HostCtx>(state: &S, row: &DownloadRow) {
     if let Some(req_id) = row.request_id.as_deref() {
         if let Err(e) = luma_module_sdk::engine::services::requests::on_download_imported(state, req_id) {
             tracing::warn!(request = %req_id, error = %format!("{e:#}"), "post-import request update failed");
@@ -47,14 +46,14 @@ fn finalize_import(state: &SharedState, row: &DownloadRow) {
         }
     }
     // Optionally free the download folder + stop seeding now that it's imported.
-    if state.settings.get_bool("acqDeleteAfterImport", false) {
+    if state.setting_bool("acqDeleteAfterImport", false) {
         crate::downloads(state).drop_data(state, row);
     }
 }
 
 /// Import every `completed` download. Failures land on the row's `error`
 /// (visible in the queue) without blocking the others.
-pub fn import_pass(state: &SharedState, log: &dyn Fn(String)) -> Result<ImportSummary> {
+pub fn import_pass<S: HostCtx>(state: &S, log: &dyn Fn(String)) -> Result<ImportSummary> {
     let ready = crate::download_db(state).completed_downloads(state)?;
     let mut summary = ImportSummary::default();
     for row in ready {
@@ -79,12 +78,12 @@ pub fn import_pass(state: &SharedState, log: &dyn Fn(String)) -> Result<ImportSu
         }
     }
     if summary.imported > 0 {
-        let _ = state.jobs.trigger(state.clone(), luma_module_sdk::engine::services::jobs::JobKey("library.scan"), "acquisition-import");
+        state.trigger_job("library.scan", "acquisition-import");
     }
     Ok(summary)
 }
 
-fn import_one(state: &SharedState, row: &DownloadRow) -> Result<Vec<String>> {
+fn import_one<S: HostCtx>(state: &S, row: &DownloadRow) -> Result<Vec<String>> {
     let meta = resolve_meta(state, row)?;
 
     let save_path = row
@@ -97,7 +96,7 @@ fn import_one(state: &SharedState, row: &DownloadRow) -> Result<Vec<String>> {
     }
 
     let lib_root = target_library_root(state, meta.kind)?;
-    let tpl = naming::NamingTemplates::from_settings(&state.settings);
+    let tpl = naming::NamingTemplates::from_host(state);
     let mut written: Vec<String> = Vec::new();
     match row.kind.as_str() {
         "movie" => {
@@ -193,12 +192,12 @@ fn ext_of(path: &Path) -> &str {
 /// Resolve the title/year/kind to name the import by: the request first (most
 /// authoritative), then the download row's own denormalized fields (manual
 /// add), then the parsed release name (bare magnet, no metadata).
-fn resolve_meta(state: &SharedState, row: &DownloadRow) -> Result<ImportMeta> {
+fn resolve_meta<S: HostCtx>(state: &S, row: &DownloadRow) -> Result<ImportMeta> {
     let kind = if row.kind == "movie" { RequestKind::Movie } else { RequestKind::Show };
     let tmdb_id = (row.tmdb_id != 0).then_some(row.tmdb_id);
 
     if let Some(rid) = row.request_id.as_deref() {
-        let conn = state.db.get()?;
+        let conn = state.db().get()?;
         if let Some(req) = db::get_request(&conn, rid)? {
             return Ok(ImportMeta { kind: req.kind, title: req.title, year: req.year, tmdb_id });
         }
@@ -223,24 +222,24 @@ fn stem_of(path: &Path) -> &str {
 /// Pin the download's known TMDB id to the logical item id the import will
 /// create, so enrichment adopts it (poster/metadata) and Discover sees it as
 /// in-library. Movies only for now (episode ids need the show key).
-fn pin_item_tmdb(state: &SharedState, row: &DownloadRow) -> Result<()> {
+fn pin_item_tmdb<S: HostCtx>(state: &S, row: &DownloadRow) -> Result<()> {
     let meta = resolve_meta(state, row)?;
     if meta.kind != RequestKind::Movie {
         return Ok(());
     }
     let def = target_library_def(state, meta.kind)?;
     let logical = luma_module_sdk::engine::services::scan::movie_logical_id(&def.id, &meta.title, meta.year);
-    db::set_tmdb_hint(&state.db, &logical, row.tmdb_id)
+    db::set_tmdb_hint(state.db(), &logical, row.tmdb_id)
 }
 
-fn target_library_root(state: &SharedState, kind: RequestKind) -> Result<PathBuf> {
+fn target_library_root<S: HostCtx>(state: &S, kind: RequestKind) -> Result<PathBuf> {
     let def = target_library_def(state, kind)?;
     let folder = def.folders.first().ok_or_else(|| anyhow!("library {} has no folder", def.name))?;
     Ok(PathBuf::from(folder))
 }
 
-fn target_library_def(state: &SharedState, kind: RequestKind) -> Result<LibraryDef> {
-    let defs = library_defs(&state.settings, &state.config);
+fn target_library_def<S: HostCtx>(state: &S, kind: RequestKind) -> Result<LibraryFolders> {
+    let defs = state.library_folders();
     if defs.is_empty() {
         bail!("no library configured");
     }
@@ -248,8 +247,8 @@ fn target_library_def(state: &SharedState, kind: RequestKind) -> Result<LibraryD
         RequestKind::Movie => ("acqMovieLibrary", "movies"),
         RequestKind::Show => ("acqSeriesLibrary", "shows"),
     };
-    let preferred = state.settings.get_str(setting, "Auto");
-    let def: &LibraryDef = defs
+    let preferred = state.setting_str(setting, "Auto");
+    let def: &LibraryFolders = defs
         .iter()
         .find(|d| preferred != "Auto" && !preferred.is_empty() && d.name == preferred)
         .or_else(|| defs.iter().find(|d| d.kind == wanted_kind))
