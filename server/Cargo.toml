@@ -221,7 +221,6 @@ luma-acquisition = { workspace = true }
 # `MODULE` const, collects their ServerModules, and drives the enable/disable +
 # admin-mount lifecycle. Formerly server/src/modules; now its own crate.
 luma-module-kernel = { workspace = true }
-luma-indexer = { workspace = true }
 # Named only to register its stateless TorznabPort engine at the composition root.
 luma-port-bridge = { workspace = true }
 luma-whisper = { workspace = true }

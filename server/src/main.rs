@@ -195,8 +195,18 @@ async fn main() -> anyhow::Result<()> {
     };
     let (tid, val) = luma_module_host::port_service(vpn_proxy);
     module_services.insert(tid, val);
+    // The indexer runs out-of-process (dev.luma.indexer .lmod); its torrent-fetch
+    // / data / native-search ports resolve as client proxies to its sidecar
+    // (torrents queue + acquisition consume them).
+    let idx_resolve = || -> luma_port_bridge::Resolver {
+        let sup = supervisor.clone();
+        let tok = host_token.clone();
+        std::sync::Arc::new(move || {
+            sup.port_of("dev.luma.indexer").map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
+        })
+    };
     let torrent_fetch: std::sync::Arc<dyn luma_module_sdk::ports::TorrentFetchPort> =
-        std::sync::Arc::new(luma_indexer::IndexerTorrentFetch);
+        std::sync::Arc::new(luma_port_bridge::TorrentFetchClient::new(idx_resolve()));
     let (tid, val) = luma_module_host::port_service(torrent_fetch);
     module_services.insert(tid, val);
     // The Torznab search engine now runs out-of-process (the dev.luma.torznab
@@ -212,13 +222,12 @@ async fn main() -> anyhow::Result<()> {
     };
     let (tid, val) = luma_module_host::port_service(torznab);
     module_services.insert(tid, val);
-    // The indexer data + native-search ports, resolved by downloads / acquisition.
     let idx_db: std::sync::Arc<dyn luma_module_sdk::ports::IndexerDbPort> =
-        std::sync::Arc::new(luma_indexer::IndexerDb);
+        std::sync::Arc::new(luma_port_bridge::IndexerDbClient::new(idx_resolve()));
     let (tid, val) = luma_module_host::port_service(idx_db);
     module_services.insert(tid, val);
     let idx_search: std::sync::Arc<dyn luma_module_sdk::ports::IndexerSearchPort> =
-        std::sync::Arc::new(luma_indexer::IndexerSearch);
+        std::sync::Arc::new(luma_port_bridge::IndexerSearchClient::new(idx_resolve()));
     let (tid, val) = luma_module_host::port_service(idx_search);
     module_services.insert(tid, val);
     // The download manager (dev.luma.torrents) is now a module service like the

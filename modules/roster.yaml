@@ -12,9 +12,6 @@
 #   icon          manifestOnly + has an icon.svg to embed (default false).
 
 modules:
-  - id: dev.luma.indexer
-    crate: luma-indexer
-    serverModule: true
   - id: dev.luma.torrents
     crate: luma-torrent
     serverModule: true
