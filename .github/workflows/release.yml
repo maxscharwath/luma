@@ -199,6 +199,10 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
           files: |
             dist/modules/*.lmod*
             dist/registry/modules.json
@@ -250,6 +254,10 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
           files: clients/webos/out/*.ipk
 
   tizen:
@@ -328,6 +336,10 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
           files: clients/tizen/dist/*.wgt
 
   androidtv:
@@ -406,6 +418,10 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
           files: out/*.apk
 
   # --------------------------------------------------------------- Desktop ---
@@ -578,4 +594,41 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
           files: ${{ matrix.files }}
+
+  # ------------------------------------------------------------- Publish ---
+
+  # Flip the draft release live ONLY once every artifact job has attached its
+  # assets. This is what keeps `releases/latest/download/modules.json` (the
+  # module Store's default registry URL) stable: without it, the new release
+  # becomes "latest" the moment the FIRST job attaches, and the URL 404s until
+  # the catalog lands (or forever, if a job fails mid-rollout). Publishing is
+  # atomic: either the complete release goes live, or the previous one stays
+  # "latest". A failed rollout leaves a draft to inspect/delete.
+  publish:
+    name: Publish the Release
+    needs: [version, modules-catalog, webos, tizen, androidtv, desktop]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: v${{ needs.version.outputs.version }}
+    steps:
+      - name: Flip the draft live (marked latest)
+        run: |
+          set -euo pipefail
+          # Drafts are not always addressable by tag via `gh release edit`;
+          # resolve the draft's release id explicitly.
+          ID=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=20" \
+            --jq ".[] | select(.tag_name == \"${TAG}\" and .draft) | .id" | head -1)
+          if [ -z "$ID" ]; then
+            echo "no draft release for ${TAG} (already published?)"; exit 0
+          fi
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${ID}" \
+            -F draft=false -f make_latest=true >/dev/null
+          echo "published ${TAG} (release id ${ID})"
