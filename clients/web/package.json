@@ -41,17 +41,20 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@babel/core": "^8.0.1",
+    "@rolldown/plugin-babel": "^0.2.3",
     "@tailwindcss/vite": "^4",
     "@tanstack/react-query-devtools": "^5.101.2",
     "@tanstack/router-cli": "^1.167.17",
     "@tanstack/router-plugin": "^1.168.18",
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^22.10.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@vitejs/plugin-react": "^6.0.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "tailwindcss": "^4",
-    "typescript": "^5.6.3",
-    "vite": "^7.0.0"
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
   }
 }

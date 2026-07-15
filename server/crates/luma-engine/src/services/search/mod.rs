@@ -108,7 +108,10 @@ impl SearchEngine {
             return Vec::new();
         };
         let searcher = active.reader.searcher();
-        let Ok(top) = searcher.search(&query, &TopDocs::with_limit(limit.max(1))) else {
+        // tantivy 0.26 removed TopDocs' blanket Collector impl; `.order_by_score()`
+        // yields the score-ordered collector (same `Vec<(Score, DocAddress)>` fruit).
+        let Ok(top) = searcher.search(&query, &TopDocs::with_limit(limit.max(1)).order_by_score())
+        else {
             return Vec::new();
         };
         let mut hits = Vec::with_capacity(top.len());

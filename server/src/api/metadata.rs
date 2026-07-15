@@ -18,8 +18,8 @@ use axum::Router;
 /// TMDB-enriched metadata for shows and items.
 pub fn routes() -> Router<SharedState> {
     Router::new()
-        .route("/shows/:id/metadata", get(show_metadata))
-        .route("/items/:id/metadata", get(item_metadata))
+        .route("/shows/{id}/metadata", get(show_metadata))
+        .route("/items/{id}/metadata", get(item_metadata))
 }
 
 /// `GET /api/items/:id/metadata` → TMDB details + IDs for one item.

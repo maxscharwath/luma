@@ -42,7 +42,7 @@ use crate::state::SharedState;
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/auth/me/passkeys", get(list))
-        .route("/auth/me/passkeys/:id", axum::routing::delete(remove))
+        .route("/auth/me/passkeys/{id}", axum::routing::delete(remove))
         .route("/auth/me/passkeys/register/start", post(register_start))
         .route("/auth/me/passkeys/register/finish", post(register_finish))
         .route("/auth/passkeys/authenticate/start", post(authenticate_start))

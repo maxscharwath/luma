@@ -11,32 +11,45 @@ use crate::{Caps, Release};
 /// Parse a Torznab RSS search response into releases.
 pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
     let mut reader = Reader::from_reader(xml);
-    reader.config_mut().trim_text(true);
+    // trim_text off so a field split across text + entity-ref + CDATA events keeps
+    // its internal spacing; `apply_field` trims the accumulated value's ends.
+    reader.config_mut().trim_text(false);
+    let decoder = reader.decoder();
 
     let mut out: Vec<Release> = Vec::new();
     let mut current: Option<Release> = None;
     // The simple text element being read inside an item, if any.
     let mut field: Option<&'static str> = None;
+    // Accumulates the current field's text across Text / GeneralRef (entity) /
+    // CDATA events (quick-xml 0.41 splits entities out of text as GeneralRef),
+    // flushed to `apply_field` when the element closes.
+    let mut text = String::new();
     let mut buf = Vec::new();
 
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::Start(e) => match e.local_name().as_ref() {
-                b"item" => current = Some(Release::default()),
-                b"title" if current.is_some() => field = Some("title"),
-                b"guid" if current.is_some() => field = Some("guid"),
-                b"link" if current.is_some() => field = Some("link"),
-                b"comments" if current.is_some() => field = Some("comments"),
-                b"size" if current.is_some() => field = Some("size"),
-                b"pubDate" if current.is_some() => field = Some("pubDate"),
-                _ => field = None,
-            },
+            Event::Start(e) => {
+                text.clear();
+                field = match e.local_name().as_ref() {
+                    b"item" => {
+                        current = Some(Release::default());
+                        None
+                    }
+                    b"title" if current.is_some() => Some("title"),
+                    b"guid" if current.is_some() => Some("guid"),
+                    b"link" if current.is_some() => Some("link"),
+                    b"comments" if current.is_some() => Some("comments"),
+                    b"size" if current.is_some() => Some("size"),
+                    b"pubDate" if current.is_some() => Some("pubDate"),
+                    _ => None,
+                };
+            }
             Event::Empty(e) => match e.local_name().as_ref() {
                 b"error" => {
                     let mut code = String::new();
                     let mut description = String::new();
                     for attr in e.attributes().flatten() {
-                        let v = attr.unescape_value()?.into_owned();
+                        let v = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                         match attr.key.local_name().as_ref() {
                             b"code" => code = v,
                             b"description" => description = v,
@@ -49,7 +62,7 @@ pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
                     if let Some(rel) = current.as_mut() {
                         for attr in e.attributes().flatten() {
                             if attr.key.local_name().as_ref() == b"url" {
-                                let url = attr.unescape_value()?.into_owned();
+                                let url = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                                 if rel.link.is_none() {
                                     rel.link = Some(url);
                                 }
@@ -61,7 +74,7 @@ pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
                     if let Some(rel) = current.as_mut() {
                         let (mut name, mut value) = (String::new(), String::new());
                         for attr in e.attributes().flatten() {
-                            let v = attr.unescape_value()?.into_owned();
+                            let v = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                             match attr.key.local_name().as_ref() {
                                 b"name" => name = v,
                                 b"value" => value = v,
@@ -73,32 +86,45 @@ pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
                 }
                 _ => {}
             },
-            Event::Text(e) => {
-                if let (Some(rel), Some(f)) = (current.as_mut(), field) {
-                    apply_field(rel, f, &e.unescape()?);
-                }
+            // Text carries only literal text in 0.41 (no `&amp;` to unescape).
+            Event::Text(e) if field.is_some() => text.push_str(&e.decode()?),
+            // An entity reference inside a field (`&amp;`, `&#38;`, ...).
+            Event::GeneralRef(r) if field.is_some() => text.push_str(&resolve_entity(&r)),
+            Event::CData(e) if field.is_some() => {
+                text.push_str(&String::from_utf8_lossy(&e));
             }
-            Event::CData(e) => {
-                if let (Some(rel), Some(f)) = (current.as_mut(), field) {
-                    apply_field(rel, f, &String::from_utf8_lossy(&e));
+            Event::End(e) => {
+                // Flush the accumulated field text as the element closes.
+                if let (Some(rel), Some(f)) = (current.as_mut(), field.take()) {
+                    apply_field(rel, f, &text);
                 }
-            }
-            Event::End(e) => match e.local_name().as_ref() {
-                b"item" => {
+                text.clear();
+                if e.local_name().as_ref() == b"item" {
                     if let Some(rel) = current.take() {
                         if !rel.title.is_empty() {
                             out.push(rel);
                         }
                     }
                 }
-                _ => field = None,
-            },
+            }
             Event::Eof => break,
             _ => {}
         }
         buf.clear();
     }
     Ok(out)
+}
+
+/// Resolve a quick-xml `GeneralRef` (the `amp` of `&amp;`, or `#38` of `&#38;`)
+/// to its text by rebuilding the escaped form and running the standard XML
+/// unescaper (predefined entities + numeric refs). Unknown refs drop to empty.
+fn resolve_entity(r: &quick_xml::events::BytesRef) -> String {
+    r.decode()
+        .ok()
+        .and_then(|name| {
+            quick_xml::escape::unescape(&format!("&{name};")).ok().map(|c| c.into_owned())
+        })
+        .unwrap_or_default()
 }
 
 fn apply_field(rel: &mut Release, field: &str, text: &str) {
@@ -153,6 +179,7 @@ fn apply_attr(rel: &mut Release, name: &str, value: &str) {
 pub fn parse_caps(xml: &[u8]) -> Result<Caps> {
     let mut reader = Reader::from_reader(xml);
     reader.config_mut().trim_text(true);
+    let decoder = reader.decoder();
     let mut caps = Caps::default();
     let mut buf = Vec::new();
 
@@ -163,7 +190,7 @@ pub fn parse_caps(xml: &[u8]) -> Result<Caps> {
                 let name = e.local_name().as_ref().to_vec();
                 let mut supported = String::new();
                 for attr in e.attributes().flatten() {
-                    let v = attr.unescape_value()?.into_owned();
+                    let v = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                     match attr.key.local_name().as_ref() {
                         b"supportedParams" => supported = v,
                         b"title" if name == b"server" => caps.server_title = Some(v),

@@ -25,10 +25,10 @@ use axum::Router;
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/jobs", get(list_jobs))
-        .route("/job-runs/:run_id/logs", get(run_logs))
-        .route("/jobs/:key", get(job_detail).patch(update_job))
-        .route("/jobs/:key/run", post(run_job))
-        .route("/jobs/:key/cancel", post(cancel_job))
+        .route("/job-runs/{run_id}/logs", get(run_logs))
+        .route("/jobs/{key}", get(job_detail).patch(update_job))
+        .route("/jobs/{key}/run", post(run_job))
+        .route("/jobs/{key}/cancel", post(cancel_job))
 }
 
 /// Max log lines returned for one run.

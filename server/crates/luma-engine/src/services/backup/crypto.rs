@@ -8,7 +8,7 @@
 //! wrong password surfaces (the Poly1305 tag won't verify).
 
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 
 use crate::services::auth::{pbkdf2_sha256, random_bytes};
 
@@ -44,9 +44,11 @@ pub fn seal(plaintext: &[u8], password: &str) -> anyhow::Result<Vec<u8>> {
     header.extend_from_slice(&salt);
     header.extend_from_slice(&nonce);
 
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+    let cipher = ChaCha20Poly1305::new_from_slice(&key)
+        .map_err(|_| anyhow::anyhow!("backup key init failed"))?;
+    let nonce_ga = Nonce::try_from(&nonce[..]).expect("NONCE_LEN-byte nonce");
     let ct = cipher
-        .encrypt(Nonce::from_slice(&nonce), Payload { msg: plaintext, aad: &header })
+        .encrypt(&nonce_ga, Payload { msg: plaintext, aad: &header })
         .map_err(|_| anyhow::anyhow!("backup encryption failed"))?;
 
     let mut out = header;
@@ -72,9 +74,11 @@ pub fn open(bytes: &[u8], password: &str) -> anyhow::Result<Option<Vec<u8>>> {
     let header = &bytes[..HEADER_LEN];
 
     let key = pbkdf2_sha256(password.as_bytes(), salt, iters);
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+    let cipher = ChaCha20Poly1305::new_from_slice(&key)
+        .map_err(|_| anyhow::anyhow!("backup key init failed"))?;
+    let nonce_ga = Nonce::try_from(nonce).expect("NONCE_LEN-byte nonce");
     Ok(cipher
-        .decrypt(Nonce::from_slice(nonce), Payload { msg: &bytes[HEADER_LEN..], aad: header })
+        .decrypt(&nonce_ga, Payload { msg: &bytes[HEADER_LEN..], aad: header })
         .ok())
 }
 

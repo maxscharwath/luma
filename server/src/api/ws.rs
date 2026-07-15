@@ -32,7 +32,7 @@ async fn pump(mut socket: WebSocket, state: SharedState) {
     }) else {
         return;
     };
-    if socket.send(Message::Text(hello)).await.is_err() {
+    if socket.send(Message::Text(hello.into())).await.is_err() {
         return;
     }
 
@@ -47,7 +47,7 @@ async fn pump(mut socket: WebSocket, state: SharedState) {
             event = rx.recv() => match event {
                 // Already serialized at publish time; per-subscriber cost is a copy.
                 Ok(json) => {
-                    if socket.send(Message::Text(json.to_string())).await.is_err() {
+                    if socket.send(Message::Text(json.to_string().into())).await.is_err() {
                         break; // client gone
                     }
                 }
@@ -61,7 +61,7 @@ async fn pump(mut socket: WebSocket, state: SharedState) {
                 _ => {}
             },
             _ = keepalive.tick() => {
-                if socket.send(Message::Ping(Vec::new())).await.is_err() {
+                if socket.send(Message::Ping(Default::default())).await.is_err() {
                     break; // client gone
                 }
             }

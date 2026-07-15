@@ -22,12 +22,12 @@ use axum::Router;
 /// Direct-play streaming, HLS remux, storyboard previews and subtitle tracks.
 pub fn routes() -> Router<SharedState> {
     Router::new()
-        .route("/items/:id/stream", get(stream_item))
-        .route("/items/:id/hls/:mode/:anchor/:audio/index.m3u8", get(hls_master))
-        .route("/items/:id/hls/:mode/:anchor/:audio/:file", get(hls_file))
-        .route("/items/:id/storyboard", get(storyboard))
-        .route("/items/:id/storyboard.img", get(storyboard_image))
-        .route("/items/:id/subtitles/:track", get(subtitles))
+        .route("/items/{id}/stream", get(stream_item))
+        .route("/items/{id}/hls/{mode}/{anchor}/{audio}/index.m3u8", get(hls_master))
+        .route("/items/{id}/hls/{mode}/{anchor}/{audio}/{file}", get(hls_file))
+        .route("/items/{id}/storyboard", get(storyboard))
+        .route("/items/{id}/storyboard.img", get(storyboard_image))
+        .route("/items/{id}/subtitles/{track}", get(subtitles))
 }
 
 #[derive(Debug, Deserialize)]

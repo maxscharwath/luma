@@ -1,8 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import { lumaModule } from '@luma/module-sdk/vite';
+import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
-import react from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { buildInfoPlugin } from './build-info';
 
@@ -26,10 +27,13 @@ export default defineConfig({
     buildInfoPlugin(),
     tailwindcss(),
     tanstackStart({ spa: { enabled: true } }),
-    // React Compiler auto-memoizes components/hooks (target 19 → uses React's
-    // built-in `react/compiler-runtime`, no extra runtime package). Runs as a
-    // Babel pass, so it also compiles the aliased @luma/ui / @luma/core source.
-    react({ babel: { plugins: [['babel-plugin-react-compiler', { target: '19' }]] } }),
+    react(),
+    // React Compiler auto-memoizes components/hooks (React 19 default target →
+    // uses React's built-in `react/compiler-runtime`, no extra runtime package).
+    // Since plugin-react v6 dropped its built-in Babel pass for an Oxc transform,
+    // the compiler runs as a separate Rolldown/Babel preset, which also compiles
+    // the aliased @luma/ui / @luma/core source.
+    babel({ presets: [reactCompilerPreset()] }),
   ],
   resolve: {
     // `#web/*` → this app's src (mirrors tsconfig.base paths; Vite needs it explicitly).

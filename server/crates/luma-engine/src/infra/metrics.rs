@@ -115,13 +115,13 @@ impl Metrics {
             let mut sys = System::new();
             let cpus = num_cpus_safe(&mut sys);
             loop {
-                sys.refresh_cpu();
+                sys.refresh_cpu_usage();
                 sys.refresh_memory();
                 if let Some(pid) = pid {
-                    sys.refresh_process(pid);
+                    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
                 }
 
-                let cpu_system = sys.global_cpu_info().cpu_usage();
+                let cpu_system = sys.global_cpu_usage();
                 let (cpu_luma, ram_luma_bytes) = pid
                     .and_then(|p| sys.process(p))
                     .map(|proc| ((proc.cpu_usage() / cpus).min(100.0), proc.memory()))
@@ -188,7 +188,7 @@ fn push_cap<T>(buf: &mut VecDeque<T>, v: T) {
 }
 
 fn num_cpus_safe(sys: &mut System) -> f32 {
-    sys.refresh_cpu();
+    sys.refresh_cpu_all();
     let n = sys.cpus().len();
     if n == 0 {
         1.0

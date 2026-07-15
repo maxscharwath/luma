@@ -20,8 +20,8 @@ use crate::state::SharedState;
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/modules", get(list_modules))
-        .route("/modules/:id/enabled", post(set_enabled))
-        .route("/modules/:id/config", put(set_config))
+        .route("/modules/{id}/enabled", post(set_enabled))
+        .route("/modules/{id}/config", put(set_config))
 }
 
 /// A module manifest plus its runtime admin state.

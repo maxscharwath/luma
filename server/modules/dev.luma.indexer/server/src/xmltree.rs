@@ -97,8 +97,20 @@ pub fn parse(body: &str) -> XmlEl {
                 }
             }
             Ok(Event::Text(t)) => {
-                let s = t.unescape().map(|c| c.into_owned()).unwrap_or_default();
+                // quick-xml 0.41 emits entities as separate GeneralRef events, so a
+                // Text event now carries literal text only (no `&amp;` to unescape).
+                let s = t.decode().map(|c| c.into_owned()).unwrap_or_default();
                 if !s.trim().is_empty() {
+                    if let Some(parent) = stack.last_mut() {
+                        parent.children.push(XmlNode::Text(s));
+                    }
+                }
+            }
+            // An entity reference (`&amp;`, `&#38;`, ...) inside text: resolve it and
+            // push as a text node so `.text()` concatenates it back into the value.
+            Ok(Event::GeneralRef(r)) => {
+                let s = resolve_entity(&r);
+                if !s.is_empty() {
                     if let Some(parent) = stack.last_mut() {
                         parent.children.push(XmlNode::Text(s));
                     }
@@ -127,12 +139,29 @@ fn tag_name(raw: &[u8]) -> String {
     String::from_utf8_lossy(raw).into_owned()
 }
 
+/// Resolve a quick-xml `GeneralRef` (the `amp` of `&amp;`, or `#38` of `&#38;`)
+/// to its text by rebuilding the escaped form and running the standard XML
+/// unescaper, which knows the five predefined entities and numeric refs. An
+/// unknown/malformed entity falls back to empty (dropped), as before.
+fn resolve_entity(r: &quick_xml::events::BytesRef) -> String {
+    r.decode()
+        .ok()
+        .and_then(|name| {
+            quick_xml::escape::unescape(&format!("&{name};")).ok().map(|c| c.into_owned())
+        })
+        .unwrap_or_default()
+}
+
 fn read_attrs(e: &quick_xml::events::BytesStart, reader: &Reader<&[u8]>) -> Vec<(String, String)> {
-    let _ = reader;
+    let decoder = reader.decoder();
     let mut out = Vec::new();
     for a in e.attributes().flatten() {
         let key = String::from_utf8_lossy(a.key.as_ref()).into_owned();
-        let val = a.unescape_value().map(|c| c.into_owned()).unwrap_or_default();
+        let val = decoder
+            .decode(&a.value)
+            .ok()
+            .and_then(|d| quick_xml::escape::unescape(&d).ok().map(|c| c.into_owned()))
+            .unwrap_or_default();
         out.push((key, val));
     }
     out

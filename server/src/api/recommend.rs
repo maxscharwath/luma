@@ -19,7 +19,7 @@ use axum::Router;
 /// Similar-items, themed rows and the personalized "For You" feed.
 pub fn routes() -> Router<SharedState> {
     Router::new()
-        .route("/items/:id/similar", get(similar))
+        .route("/items/{id}/similar", get(similar))
         .route("/themed", get(themed))
         .route("/for-you", get(for_you))
 }

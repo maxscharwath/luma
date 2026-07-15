@@ -18,7 +18,7 @@ use crate::state::SharedState;
 
 /// Public FE-asset serving, mounted at the app root (before the SPA fallback).
 pub fn asset_routes() -> Router<SharedState> {
-    Router::new().route("/modules/:id/*path", get(serve_fe))
+    Router::new().route("/modules/{id}/{*path}", get(serve_fe))
 }
 
 async fn serve_fe(State(state): State<SharedState>, Path((id, path)): Path<(String, String)>) -> Response {

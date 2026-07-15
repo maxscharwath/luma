@@ -37,16 +37,20 @@ license = "MIT"
 # `{ workspace = true }`.
 [workspace.dependencies]
 anyhow = "1"
+# axum 0.8 dropped its `async_trait` re-export (traits can use native async fn),
+# but our object-safe host/port traits (dyn HostCtx, dyn *Port) still need the
+# macro for dyn-compatibility, so depend on the crate directly.
+async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
-quick-xml = "0.37"
+quick-xml = "0.41"
 # Cardigann indexer engine (luma-indexer): YAML definitions, HTML scraping with
 # CSS selectors, regex-driven field filters, and flexible date parsing. XPath
 # support (libxml, C) is feature-gated on the crate so the default musl build
 # stays pure-Rust.
 serde_yaml = "0.9"
-scraper = "0.20"
+scraper = "0.27"
 regex = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 libxml = "0.3"
@@ -56,49 +60,48 @@ indexmap = { version = "2", features = ["serde"] }
 # Candle ML stack + tokenizer, shared by luma-whisper (whisper) and luma-vector
 # (semantic). CPU-only pure-Rust by default (default-features off) so the musl
 # single binary keeps linking; the macos target block in each crate adds `metal`.
-candle-core = { version = "0.8", default-features = false }
-candle-nn = { version = "0.8", default-features = false }
-candle-transformers = { version = "0.8", default-features = false }
+candle-core = { version = "0.11", default-features = false }
+candle-nn = { version = "0.11", default-features = false }
+candle-transformers = { version = "0.11", default-features = false }
 # `onig` (Oniguruma, C) is enabled: tokenizers 0.20's regex pre-tokenizer
 # references it unconditionally. C-on-musl is fine. default-features off drops the
 # heavier progressbar/http extras.
-tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 # mDNS / DNS-SD advertising (luma-mdns). Pure Rust.
-mdns-sd = "0.11"
-# Shared by luma-primitives (and the binary). `time` stays pinned: >= 0.3.37 needs the
-# edition2024 cargo feature.
-time = { version = "=0.3.36", features = ["formatting", "macros"] }
+mdns-sd = "0.20"
+# Shared by luma-primitives (and the binary). Unpinned now that the toolchain is
+# 1.96 (edition2024 is stable since 1.85, which >= 0.3.37 needs).
+time = { version = "0.3", features = ["formatting", "macros"] }
 sha2 = "0.10"
 hex = "0.4"
 # Embedded SQLite compiled from source. Shared by luma-db + the binary.
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 # HTTP / async runtime, shared by luma-engine (i18n extractor, stream, services)
 # and the binary (router + handlers).
-axum = { version = "0.7", features = ["macros", "ws"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace", "fs", "compression-gzip", "compression-br"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["cors", "trace", "fs", "compression-gzip", "compression-br"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 walkdir = "2"
 jwalk = "0.8"
-chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
-zip = { version = "2", default-features = false, features = ["deflate"] }
-notify = "6"
-sysinfo = "0.30"
+chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
+notify = "8"
+sysinfo = "0.39"
 # In-process JPEG "card" compositing (tiny-skia raster + fontdue glyphs), shared
 # by luma-engine (storyboard/image) and the binary (api/card.rs).
-tiny-skia = "0.11"
+tiny-skia = "0.12"
 fontdue = "0.9"
-jpeg-encoder = "0.6"
+jpeg-encoder = "0.7"
 # In-RAM full-text search (services/search). default-features off drops mmap.
-tantivy = { version = "0.22", default-features = false, features = ["lz4-compression"] }
+tantivy = { version = "0.26", default-features = false, features = ["lz4-compression"] }
 rusty-chromaprint = "0.3.0"
-# jobserver held at its last 2021-edition release for the tantivy graph. uuid is
-# no longer pinned down: webauthn-rs (passkeys) needs uuid >= 1.19.
+# uuid is no longer pinned down: webauthn-rs (passkeys) needs uuid >= 1.19.
 uuid = "1.19"
-jobserver = "=0.1.32"
+jobserver = "0.1"
 # WebAuthn / passkeys relying-party. Requires uuid >= 1.19 (see the pin above)
 # and rust >= 1.88. Pulls openssl transitively (see the binary dep + Dockerfile).
 webauthn-rs = "0.5.5"
@@ -232,7 +235,7 @@ luma-module-sdk = { workspace = true }
 luma-module-manifest = { workspace = true }
 # Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
 luma-module-supervisor = { workspace = true }
-rand = "0.8"
+rand = "0.10"
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.

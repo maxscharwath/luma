@@ -42,7 +42,7 @@ pub fn routes() -> Router<SharedState> {
         .route("/auth/me", get(me).patch(update_me))
         .route("/auth/me/password", patch(change_password))
         .route("/auth/me/sessions", get(list_sessions))
-        .route("/auth/me/sessions/:id", axum::routing::delete(revoke_session))
+        .route("/auth/me/sessions/{id}", axum::routing::delete(revoke_session))
         .route("/auth/quickconnect/initiate", post(quick_initiate))
         .route("/auth/quickconnect/authorize", post(quick_authorize))
         .route("/auth/quickconnect/poll", get(quick_poll))

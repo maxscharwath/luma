@@ -22,7 +22,7 @@ use axum::Router;
 
 /// `GET /api/items/:id/ai-suggest`.
 pub fn routes() -> Router<SharedState> {
-    Router::new().route("/items/:id/ai-suggest", get(ai_suggest))
+    Router::new().route("/items/{id}/ai-suggest", get(ai_suggest))
 }
 
 /// Seeds currently generating de-dupes concurrent requests for the same item

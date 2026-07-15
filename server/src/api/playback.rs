@@ -27,18 +27,18 @@ use axum::Router;
 /// live-session heartbeats that feed the admin dashboard.
 pub fn routes() -> Router<SharedState> {
     Router::new()
-        .route("/shows/:id/up-next", get(up_next))
-        .route("/items/:id/next", get(next_episode))
+        .route("/shows/{id}/up-next", get(up_next))
+        .route("/items/{id}/next", get(next_episode))
         .route("/progress", get(list_progress))
         .route("/continue", get(continue_watching))
         .route(
-            "/progress/:id",
+            "/progress/{id}",
             get(get_progress).put(save_progress).delete(delete_progress),
         )
         .route("/watched", get(list_watched))
-        .route("/watched/:id", put(mark_watched).delete(unmark_watched))
+        .route("/watched/{id}", put(mark_watched).delete(unmark_watched))
         .route("/my-list", get(list_my_list))
-        .route("/my-list/:id", put(add_to_list).delete(remove_from_list))
+        .route("/my-list/{id}", put(add_to_list).delete(remove_from_list))
         .route("/playback/ping", post(ping))
         .route("/playback/stop", post(stop))
 }
