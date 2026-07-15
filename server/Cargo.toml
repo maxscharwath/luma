@@ -74,7 +74,7 @@ hex = "0.4"
 rusqlite = { version = "0.31", features = ["bundled"] }
 # HTTP / async runtime, shared by luma-engine (i18n extractor, stream, services)
 # and the binary (router + handlers).
-axum = { version = "0.7", features = ["macros", "ws"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
 tower = "0.4"
