@@ -82,13 +82,18 @@ export function tvShellConfig(shellUrl: string, target: TvTarget) {
       cssMinify: 'lightningcss',
       modulePreload: { polyfill: false },
       reportCompressedSize: true,
-      rollupOptions: { output: { manualChunks: undefined } },
-    },
-    // Strip logging/comments from shipped bundles; keep console.* during dev so
-    // on-TV logs still surface in the platform log collector.
-    esbuild: {
-      drop: command === 'build' ? ['console', 'debugger'] : [],
-      legalComments: 'none',
+      rolldownOptions: {
+        // Strip logging from shipped bundles; dev keeps console.* so on-TV logs
+        // still surface in the platform log collector. vite 8 IGNORES
+        // `esbuild.drop` (oxc took over), so dropping lives in the oxc minifier
+        // output options now. Legal comments are already stripped by minify.
+        output: {
+          minify:
+            command === 'build'
+              ? { compress: { dropConsole: true, dropDebugger: true }, mangle: true, codegen: true }
+              : undefined,
+        },
+      },
     },
   });
 }
@@ -126,7 +131,7 @@ export function tvShellLegacyConfig(shellUrl: string, target: TvTarget): UserCon
       cssMinify: false,
       modulePreload: { polyfill: false },
       reportCompressedSize: true,
-      rollupOptions: {
+      rolldownOptions: {
         input: fileURLToPath(new URL('src/main.legacy.ts', shellUrl)),
         output: {
           // No <script type=module> on old engines: one classic self-contained file.
@@ -137,9 +142,15 @@ export function tvShellLegacyConfig(shellUrl: string, target: TvTarget): UserCon
             (info.names?.[0] ?? '').endsWith('.css')
               ? 'style.css'
               : 'assets/[name]-[hash][extname]',
+          // vite 8 ignores `esbuild.drop`: console/debugger stripping moved to
+          // the oxc minifier output options.
+          minify: {
+            compress: { dropConsole: true, dropDebugger: true },
+            mangle: true,
+            codegen: true,
+          },
         },
       },
     },
-    esbuild: { drop: ['console', 'debugger'], legalComments: 'none' },
   };
 }

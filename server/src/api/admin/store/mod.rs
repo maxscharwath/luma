@@ -99,17 +99,21 @@ async fn install_id(
 /// The registry catalog the Store lists, fetched server-side (no CORS, one
 /// registry URL) and enriched per module with this server's verdict: the
 /// artifact matching its build target, installed version, update flag, and
-/// compatibility + reason.
+/// compatibility + reason. An unreachable registry is NOT an HTTP error: the
+/// response carries `registryUrl` + `error` and an empty module list, so the
+/// Store UI can show what failed and offer to fix the URL.
 async fn catalog_view(
     State(state): State<SharedState>,
     Extension(sup): Extension<Arc<Supervisor>>,
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
-    let modules = catalog::fetch(&state, &sup)
-        .await
-        .map_err(|e| bad(&format!("registry unreachable: {e:#}")))?;
-    Ok(Json(catalog::enriched(&state, &modules)).into_response())
+    let url = catalog::registry_url(&state);
+    let body = match catalog::fetch(&sup, &url).await {
+        Ok(modules) => catalog::enriched(&state, &modules, &url),
+        Err(e) => catalog::unreachable(&url, &e),
+    };
+    Ok(Json(body).into_response())
 }
 
 /// Install an uploaded `.lmod` (raw request body). The manual escape hatch:

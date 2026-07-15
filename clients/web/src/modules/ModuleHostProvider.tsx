@@ -5,14 +5,15 @@
 // main app shell and the admin shell can read module contributions. This is the
 // single runtime mount point that replaced the old /modules page.
 
-import { hasPermission, type Locale, type MessageKey, translateIn, type TVars } from '@luma/core';
+import { hasPermission, type Locale, type MessageKey, type TVars, translateIn } from '@luma/core';
 import type { LumaHost, ModuleNav, ModulePanel, ModuleRoute } from '@luma/module-sdk';
 import { useLocale, useT } from '@luma/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
 import { useModuleHost } from '#web/modules/host';
-import { forgetRemote, isLoadedRemote, loadRuntimeRemotes } from '#web/modules/remotes';
+import { hiddenModuleIds } from '#web/modules/module-gating';
 import { moduleRegistry } from '#web/modules/registry';
+import { forgetRemote, isLoadedRemote, loadRuntimeRemotes } from '#web/modules/remotes';
 import { useAuth } from '#web/shared/lib/auth';
 
 /** A translator bound to one module's own catalogs, falling back to the core
@@ -59,16 +60,22 @@ export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode 
   const host = useModuleHost(revision);
 
   // The backend's active-module list carries the enabled flags. Keyed ['modules']
-  // so it dedupes with the host's own fetch. Disabled modules keep their nav
-  // hidden and their pages return the not-found state.
+  // so it dedupes with the host's own fetch. A module is visible only when the
+  // backend lists it AND it is enabled: with the zero-module base build a
+  // compile-time-bundled UI (vpn, downloads, remote, ...) may have NO installed
+  // backend at all, and its nav/pages must hide exactly like a disabled one
+  // (before, only an explicit `enabled: false` hid it, so uninstalled modules
+  // ghosted in the sidebar). While the list is still loading we hide nothing
+  // extra, to avoid flashing the whole nav out and back in.
   const { data: manifest } = useQuery({
     queryKey: ['modules'],
     queryFn: () => (host ? host.api.listModules() : Promise.resolve([])),
     enabled: host != null,
   });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision re-reads the registry ids after an install/uninstall
   const disabledIds = useMemo(
-    () => new Set((manifest ?? []).filter((m) => m.enabled === false).map((m) => m.id)),
-    [manifest],
+    () => hiddenModuleIds(manifest, moduleRegistry.ids()),
+    [manifest, revision],
   );
 
   // Read the registry's contributions once the host is ready, and again whenever
@@ -77,7 +84,11 @@ export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode 
   // `revision` is read only in the dep array on purpose: a runtime install /
   // uninstall bumps it to force re-reading the registry contributions.
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional re-run key; revision re-snapshots contributions after an install/uninstall
-  const contrib = useMemo<{ nav: ModuleNav[]; routes: ModuleRoute[]; panels: ModulePanel[] }>(() => {
+  const contrib = useMemo<{
+    nav: ModuleNav[];
+    routes: ModuleRoute[];
+    panels: ModulePanel[];
+  }>(() => {
     if (!host) return { nav: [], routes: [], panels: [] };
     try {
       return {

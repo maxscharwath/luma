@@ -25,7 +25,7 @@ pub async fn install_with_deps(
     sup: &Supervisor,
     root_id: &str,
 ) -> Result<Value> {
-    let modules = catalog::fetch(state, sup).await?;
+    let modules = catalog::fetch(sup, &catalog::registry_url(state)).await?;
     let by_id: HashMap<&str, &CatalogModule> =
         modules.iter().map(|m| (m.id.as_str(), m)).collect();
     // Everything already on this server (compiled-in roster + installed .lmod),

@@ -6,7 +6,7 @@
 // same catalog and verifies each download's sha256 before unpacking.
 
 import { IconSearch } from '@tabler/icons-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { adminApi } from '#web/features/admin/module-api';
 import { Card } from '#web/features/admin/ui';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
@@ -30,11 +30,14 @@ export interface RegistryModule {
   reason?: string | null;
 }
 
-/** The enriched catalog response. */
+/** The enriched catalog response. `error` is set (with an empty module list)
+ *  when the registry could not be fetched; `registryUrl` is always present. */
 export interface StoreCatalog {
   schema: number;
   serverVersion: string;
   target: string;
+  registryUrl: string;
+  error?: string | null;
   modules: RegistryModule[];
 }
 
@@ -103,51 +106,134 @@ function matches(m: RegistryModule, query: string): boolean {
   return [m.id, m.name, m.description ?? ''].some((s) => s.toLowerCase().includes(q));
 }
 
-/** The "Available in the registry" grid: catalog modules not installed here,
- *  with a search box filtering by id / name / description. Renders nothing
- *  while the catalog is loading/unreachable or fully installed. */
+/** Inline registry-URL editor, shown when the registry is unreachable (and as
+ *  the escape hatch to point the Store at any other catalog: a GitHub release,
+ *  gh-pages, a NAS...). Saves the `moduleRegistryUrl` setting then refetches. */
+function RegistryUrlEditor({
+  current,
+  onSaved,
+}: Readonly<{ current: string; onSaved: () => void }>) {
+  const [url, setUrl] = useState(current);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await adminApi('/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ moduleRegistryUrl: url.trim() }),
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <InputGroup className="h-9 min-w-72 flex-1">
+        <InputGroupInput
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://.../modules.json"
+          className="text-[12px]"
+        />
+      </InputGroup>
+      <button
+        type="button"
+        disabled={saving || !url.trim()}
+        onClick={() => void save()}
+        className="rounded bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent disabled:opacity-50"
+      >
+        {saving ? 'Saving...' : 'Save & retry'}
+      </button>
+    </div>
+  );
+}
+
+/** The registry ("Store") section: always visible so the registry state is
+ *  never a mystery. Shows the catalog grid with a search box when reachable,
+ *  and an explicit error card (failing URL + inline URL editor + how to
+ *  publish) when not. */
 export function StoreSection({
   catalog,
   installedIds,
   busy,
   onInstall,
+  onReload,
 }: Readonly<{
   catalog: StoreCatalog | null | undefined;
   installedIds: Set<string>;
   busy: boolean;
   onInstall: (id: string) => void;
+  onReload: () => void;
 }>) {
   const [query, setQuery] = useState('');
-  const available = (catalog?.modules ?? []).filter((m) => !installedIds.has(m.id));
-  if (available.length === 0) return null;
+  if (!catalog) {
+    return (
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-dim">Registry</h2>
+        <p className="text-xs text-muted">Loading the module registry...</p>
+      </section>
+    );
+  }
+  if (catalog.error) {
+    return (
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-dim">Registry</h2>
+        <Card className="flex flex-col gap-3 p-4">
+          <p className="text-sm font-semibold text-danger">Module registry unreachable</p>
+          <p className="break-all text-xs text-muted">{catalog.error}</p>
+          <p className="text-xs text-muted">
+            The default registry is the <code className="text-dim">modules.json</code> attached to
+            this project's GitHub Releases; it exists once a release is published (tag{' '}
+            <code className="text-dim">vX.Y.Z</code>). You can also point the Store at any other
+            catalog URL:
+          </p>
+          <RegistryUrlEditor current={catalog.registryUrl} onSaved={onReload} />
+        </Card>
+      </section>
+    );
+  }
+  const available = catalog.modules.filter((m) => !installedIds.has(m.id));
   const shown = available.filter((m) => matches(m, query));
+  let body: ReactNode;
+  if (available.length === 0) {
+    body = (
+      <p className="text-xs text-muted">
+        Every module from the registry ({catalog.modules.length}) is installed.
+      </p>
+    );
+  } else if (shown.length === 0) {
+    body = <p className="text-xs text-muted">No module matches "{query.trim()}".</p>;
+  } else {
+    body = (
+      <div className="grid gap-3 md:grid-cols-2">
+        {shown.map((m) => (
+          <StoreCard key={m.id} m={m} busy={busy} onInstall={onInstall} />
+        ))}
+      </div>
+    );
+  }
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-dim">
           Available in the registry ({available.length})
         </h2>
-        <InputGroup className="h-9 w-64">
-          <InputGroupAddon>
-            <IconSearch size={15} />
-          </InputGroupAddon>
-          <InputGroupInput
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search modules..."
-            className="text-[13px]"
-          />
-        </InputGroup>
+        {available.length > 0 && (
+          <InputGroup className="h-9 w-64">
+            <InputGroupAddon>
+              <IconSearch size={15} />
+            </InputGroupAddon>
+            <InputGroupInput
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search modules..."
+              className="text-[13px]"
+            />
+          </InputGroup>
+        )}
       </div>
-      {shown.length === 0 ? (
-        <p className="text-xs text-muted">No module matches "{query.trim()}".</p>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {shown.map((m) => (
-            <StoreCard key={m.id} m={m} busy={busy} onInstall={onInstall} />
-          ))}
-        </div>
-      )}
+      {body}
     </section>
   );
 }

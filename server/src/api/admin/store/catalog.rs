@@ -49,19 +49,36 @@ pub struct CatalogModule {
     pub artifacts: Vec<Artifact>,
 }
 
-/// Fetch the configured registry's catalog and normalize it.
-pub async fn fetch(state: &SharedState, sup: &Supervisor) -> anyhow::Result<Vec<CatalogModule>> {
-    let url = {
-        let u = state.setting_str("moduleRegistryUrl", super::DEFAULT_REGISTRY);
-        if u.trim().is_empty() { super::DEFAULT_REGISTRY.to_string() } else { u }
-    };
-    let raw = sup.fetch_catalog(&url).await?;
+/// The registry URL in effect: the `moduleRegistryUrl` setting, or the
+/// built-in GitHub-Releases default when unset/blank.
+pub fn registry_url(state: &SharedState) -> String {
+    let u = state.setting_str("moduleRegistryUrl", super::DEFAULT_REGISTRY);
+    if u.trim().is_empty() { super::DEFAULT_REGISTRY.to_string() } else { u }
+}
+
+/// Fetch a registry catalog from `url` and normalize it.
+pub async fn fetch(sup: &Supervisor, url: &str) -> anyhow::Result<Vec<CatalogModule>> {
+    let raw = sup.fetch_catalog(url).await?;
     let modules = raw
         .get("modules")
         .and_then(Value::as_array)
         .map(|mods| mods.iter().filter_map(parse_module).collect())
         .unwrap_or_default();
     Ok(modules)
+}
+
+/// The catalog response when the registry could not be fetched: same shape as
+/// [`enriched`] with no modules and the failure in `error`, so the Store UI can
+/// show what URL failed and how to fix it instead of a bare 400.
+pub fn unreachable(url: &str, err: &anyhow::Error) -> Value {
+    json!({
+        "schema": 2,
+        "serverVersion": SERVER_VERSION,
+        "target": BUILD_TARGET,
+        "registryUrl": url,
+        "error": format!("{err:#}"),
+        "modules": [],
+    })
 }
 
 fn parse_module(m: &Value) -> Option<CatalogModule> {
@@ -157,7 +174,7 @@ pub fn compat_verdict(m: &CatalogModule) -> (bool, Option<String>) {
 /// The `GET /api/admin/store/catalog` response: every catalog module resolved
 /// against this server. Field names stay a superset of the legacy schema-1
 /// passthrough (`url`/`size` per module), so an older client keeps working.
-pub fn enriched(state: &SharedState, modules: &[CatalogModule]) -> Value {
+pub fn enriched(state: &SharedState, modules: &[CatalogModule], registry_url: &str) -> Value {
     let installed: std::collections::HashMap<String, String> =
         luma_module_kernel::manifests(state).into_iter().map(|m| (m.id, m.version)).collect();
     let entries: Vec<Value> = modules
@@ -193,6 +210,7 @@ pub fn enriched(state: &SharedState, modules: &[CatalogModule]) -> Value {
         "schema": 2,
         "serverVersion": SERVER_VERSION,
         "target": BUILD_TARGET,
+        "registryUrl": registry_url,
         "modules": entries,
     })
 }

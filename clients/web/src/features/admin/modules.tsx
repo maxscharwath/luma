@@ -152,6 +152,7 @@ export function ModulesAdminPage() {
         installedIds={installedIds}
         busy={busy}
         onInstall={(id) => void installFromRegistry(id)}
+        onReload={() => void reloadCatalog()}
       />
 
       <section className="flex flex-col gap-3">

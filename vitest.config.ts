@@ -11,6 +11,7 @@ export default defineConfig({
       'packages/client/src/**/*.test.ts',
       'packages/core/src/**/*.test.ts',
       'packages/tv/src/**/*.test.ts',
+      'clients/web/src/**/*.test.ts',
     ],
   },
 });
