@@ -177,8 +177,8 @@ async fn main() -> anyhow::Result<()> {
     // their sidecar process. A fresh random token authenticates host callbacks.
     let host_token: String = {
         use rand::Rng;
-        rand::thread_rng()
-            .sample_iter(rand::distributions::Alphanumeric)
+        rand::rng()
+            .sample_iter(rand::distr::Alphanumeric)
             .take(32)
             .map(char::from)
             .collect()
