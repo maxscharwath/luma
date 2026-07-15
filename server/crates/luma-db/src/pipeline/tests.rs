@@ -1,5 +1,5 @@
 use super::*;
-use super::ops::{Subject, MAX_ATTEMPTS};
+use super::ops::{retry_backoff_ms, Subject, MAX_ATTEMPTS};
 use crate::Pool;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -65,19 +65,22 @@ fn failures_retry_up_to_max_then_stick() {
     let p = pool();
     reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 1).unwrap();
 
-    // Fail it MAX_ATTEMPTS times; each reconcile re-queues it while under the
-    // cap, and it stops being retried once the cap is reached.
+    // Fail it MAX_ATTEMPTS times; each reconcile (run after the retry backoff
+    // has elapsed) re-queues it while under the cap, and it stops being retried
+    // once the cap is reached.
     for i in 0..MAX_ATTEMPTS {
         let batch = claim_batch(&p, "s", 10, 10 + i).unwrap();
         assert_eq!(batch.len(), 1, "attempt {i} should have a pending task to claim");
+        let failed_at = 20 + i;
         finish_batch(
             &p,
             "s",
             &[TaskResult { id: "a".into(), error: Some("boom".into()), duration_ms: 1 }],
-            20 + i,
+            failed_at,
         )
         .unwrap();
-        reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 30 + i).unwrap();
+        reconcile(&p, "s", "item", &subj(&[("a", "v1")]), failed_at + retry_backoff_ms(i + 1))
+            .unwrap();
     }
     // Cap reached: failed, and no longer auto-retried.
     assert_eq!(c(&p), (0, 0, 0, 1, 0));
@@ -86,6 +89,69 @@ fn failures_retry_up_to_max_then_stick() {
     // A manual retry clears it back to pending regardless of attempts.
     assert_eq!(retry(&p, "s", Some("a")).unwrap(), 1);
     assert_eq!(c(&p), (1, 0, 0, 0, 0));
+}
+
+#[test]
+fn auto_retry_waits_for_the_backoff_window() {
+    let p = pool();
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 1).unwrap();
+    claim_batch(&p, "s", 10, 2).unwrap();
+    finish_batch(
+        &p,
+        "s",
+        &[TaskResult { id: "a".into(), error: Some("boom".into()), duration_ms: 1 }],
+        3,
+    )
+    .unwrap();
+
+    // Reconciling right away does NOT re-queue the failure: its backoff window
+    // has not elapsed, so a re-kicked stage can't hammer a flaky dependency
+    // with back-to-back retries.
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 4).unwrap();
+    assert_eq!(c(&p), (0, 0, 0, 1, 0));
+
+    // Once the window elapses the auto-retry proceeds as before.
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 3 + retry_backoff_ms(1)).unwrap();
+    assert_eq!(c(&p), (1, 0, 0, 0, 0));
+}
+
+#[test]
+fn changed_signature_requeues_despite_backoff() {
+    let p = pool();
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 1).unwrap();
+    claim_batch(&p, "s", 10, 2).unwrap();
+    finish_batch(
+        &p,
+        "s",
+        &[TaskResult { id: "a".into(), error: Some("boom".into()), duration_ms: 1 }],
+        3,
+    )
+    .unwrap();
+
+    // The inputs changed: that is different work now, so the backoff gate does
+    // not apply and the task re-queues immediately (attempts reset too).
+    reconcile(&p, "s", "item", &subj(&[("a", "v2")]), 4).unwrap();
+    assert_eq!(c(&p), (1, 0, 0, 0, 0));
+}
+
+#[test]
+fn manual_retry_ignores_the_backoff_window() {
+    let p = pool();
+    reconcile(&p, "s", "item", &subj(&[("a", "v1")]), 1).unwrap();
+    claim_batch(&p, "s", 10, 2).unwrap();
+    finish_batch(
+        &p,
+        "s",
+        &[TaskResult { id: "a".into(), error: Some("boom".into()), duration_ms: 1 }],
+        3,
+    )
+    .unwrap();
+
+    // An admin's explicit retry is immediate: no backoff, priority bumped.
+    assert_eq!(retry(&p, "s", Some("a")).unwrap(), 1);
+    assert_eq!(c(&p), (1, 0, 0, 0, 0));
+    let batch = claim_batch(&p, "s", 10, 4).unwrap();
+    assert_eq!(batch.len(), 1);
 }
 
 #[test]

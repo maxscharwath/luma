@@ -37,6 +37,22 @@ pub fn run(stage: &Stage, ctx: &JobContext) -> Result<()> {
     let pool = &ctx.state.db;
     let started = Instant::now();
 
+    // 0. Reclaim orphans. One-run-per-key guarantees no other drain of this
+    //    stage is live, so any `running` row at this point was stranded by an
+    //    earlier drain that died mid-batch (a claim/finish DB error, a hang, a
+    //    crash). Without this, such rows stay `running` until a server restart:
+    //    `reconcile` deliberately never touches them.
+    match db::pipeline::reset_running(pool, Some(stage.short)) {
+        Ok(0) => {}
+        Ok(n) => ctx.warn(format!(
+            "{}: re-queued {n} task(s) left running by an interrupted earlier drain",
+            stage.short
+        )),
+        Err(e) => {
+            ctx.warn(format!("{}: failed to reclaim stranded tasks: {e:#}", stage.short))
+        }
+    }
+
     // 1. Reconcile: fold the current subject set into the ledger (new/changed ->
     //    pending, gone -> deleted, transient failures -> retried).
     let subjects = (stage.enumerate)(&ctx.state)?;
@@ -50,7 +66,10 @@ pub fn run(stage: &Stage, ctx: &JobContext) -> Result<()> {
 
     // 2. Drain. The pending count after reconcile is the progress denominator;
     //    high-priority enqueues arriving mid-run just extend it (progress is
-    //    clamped so the bar never exceeds 100%).
+    //    clamped so the bar never exceeds 100%). The cleanup below runs whether
+    //    the loop finished, was cancelled, or aborted on a DB error: skipping
+    //    `reset_running` on the error path would leave the whole claimed batch
+    //    sitting `running` until the next drain.
     let total = pending_count(pool, stage.short)?;
     if total == 0 {
         ctx.info(format!("{}: nothing to do (already up to date)", stage.short));
@@ -58,6 +77,29 @@ pub fn run(stage: &Stage, ctx: &JobContext) -> Result<()> {
     }
     ctx.info(format!("{}: draining {total} pending task(s)…", stage.short));
 
+    let drained = drain_loop(stage, ctx, total);
+
+    // A mid-batch cancel or an aborted loop can leave tasks claimed-but-
+    // unprocessed: flip any leftover `running` for this stage back to `pending`
+    // so they aren't stranded. Runs on the error path too (see above).
+    if let Err(e) = db::pipeline::reset_running(pool, Some(stage.short)) {
+        ctx.warn(format!("{}: failed to reset leftover running tasks: {e:#}", stage.short));
+    }
+    emit_stats(stage, ctx); // final authoritative push
+    drained?;
+    let (_pending, _running, done, failed, _blocked) = db::pipeline::counts(pool, stage.short)?;
+    ctx.info(format!(
+        "{}: finished in {} - {done} done, {failed} failed",
+        stage.short,
+        fmt_dur(started.elapsed()),
+    ));
+    Ok(())
+}
+
+/// The claim -> process -> record loop of [`run`]. Split out so the caller can
+/// guarantee cleanup on every exit path, including a `?` on a DB error here.
+fn drain_loop(stage: &Stage, ctx: &JobContext, total: usize) -> Result<()> {
+    let pool = &ctx.state.db;
     let drain_started = Instant::now();
     let mut processed = 0usize;
     let mut failed_seen = 0usize;
@@ -102,17 +144,6 @@ pub fn run(stage: &Stage, ctx: &JobContext) -> Result<()> {
         maybe_emit_stats(stage, ctx, &mut stats_flush_ms);
         maybe_log_progress(ctx, stage.short, processed, total, failed_seen, drain_started, &mut log_flush_ms);
     }
-
-    // A mid-batch cancel can leave tasks claimed-but-unprocessed: flip any
-    // leftover `running` for this stage back to `pending` so they aren't stranded.
-    let _ = db::pipeline::reset_running(pool, Some(stage.short));
-    emit_stats(stage, ctx); // final authoritative push
-    let (_pending, _running, done, failed, _blocked) = db::pipeline::counts(pool, stage.short)?;
-    ctx.info(format!(
-        "{}: finished in {} - {done} done, {failed} failed",
-        stage.short,
-        fmt_dur(started.elapsed()),
-    ));
     Ok(())
 }
 
