@@ -329,6 +329,10 @@ pub(crate) const SCHEMA: &str = "
         started_at   INTEGER,
         finished_at  INTEGER,
         duration_ms  INTEGER,
+        -- Earliest epoch-ms a `failed` task may be auto-retried (exponential
+        -- backoff, set by `finish_batch`). NULL = no gate. Manual retry /
+        -- reprocess / enqueue always clear it.
+        next_retry_at INTEGER,
         PRIMARY KEY (stage, subject_kind, subject_id)
     );
     CREATE INDEX IF NOT EXISTS idx_pipeline_ready
@@ -597,6 +601,11 @@ fn migrate(conn: &Connection) {
             created_at  TEXT NOT NULL,\
             last_used   TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)",
+        // ----- pipeline retry backoff ---------------------------------------------
+        // Earliest auto-retry time for a failed pipeline task (exponential backoff
+        // between attempts, so a manually re-kicked stage doesn't hammer a flaky
+        // dependency). NULL for DBs created before the column / non-failed rows.
+        "ALTER TABLE pipeline_tasks ADD COLUMN next_retry_at INTEGER",
     ] {
         let _ = conn.execute(sql, []);
     }

@@ -223,6 +223,12 @@ pub struct ModuleManifest {
     /// One-line description.
     #[serde(default)]
     pub description: String,
+    /// Minimum LUMA server version this module needs: a bare version
+    /// (`"0.2.0"`, shorthand for "at least 0.2.0") or a full semver range
+    /// (`">=0.2, <0.4"`). Checked at install and at spawn (see
+    /// [`crate::server_satisfies`]); absent = compatible with any server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_server: Option<String>,
     /// Hard dependencies on other modules, written as a package.json-style
     /// `{ id: range }` map. Resolution fails if any are absent or version-
     /// incompatible; init order is a topological sort over these edges.
@@ -271,6 +277,7 @@ impl ModuleManifest {
             name: name.into(),
             version: version.into(),
             description: String::new(),
+            min_server: None,
             depends_on: Vec::new(),
             optional_depends_on: Vec::new(),
             requires: Vec::new(),

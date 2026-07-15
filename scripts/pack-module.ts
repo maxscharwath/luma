@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-// Pack modules into installable `.lmod` files. A `.lmod` is a gzip-compressed tar
+// Pack modules into installable `.lmod` files. A `.lmod` is a zstd-compressed tar
 // of a module's native binary (`module`, the out-of-process runtime entrypoint)
 // + `module.json` + `icon.<ext>` + its frontend remote (`fe/`, when it ships one).
 // Install one from Admin -> Modules, or POST it to /api/admin/store/install; the
@@ -30,7 +30,7 @@ const modulesRoot = join(root, 'server/modules');
 /** Every module (any dir with a module.json). Modules with a `[[bin]]` pack a
  * native sidecar; those without pack as a "library" module (manifest + FE only,
  * no spawned process — e.g. the release-name parser, whose code is co-linked). */
-function packableModules(): string[] {
+export function packableModules(): string[] {
   return readdirSync(modulesRoot, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => join(modulesRoot, e.name))
@@ -43,23 +43,32 @@ function packableModules(): string[] {
  * declared as `[package.metadata.lmod] features = ["rqbit"]` so the build stays
  * declarative (e.g. torrents bundles the embedded librqbit engine).
  */
-function crateAndBin(moduleDir: string): { pkg: string; bin: string | null; features: string[] } {
+export function crateAndBin(moduleDir: string): {
+  pkg: string;
+  bin: string | null;
+  features: string[];
+} {
   const cargoPath = join(moduleDir, 'server/Cargo.toml');
   // A module may have no server crate at all (pure FE); then it's library-only.
   const cargo = existsSync(cargoPath) ? readFileSync(cargoPath, 'utf8') : '';
   const pkg = cargo.match(/\[package\][\s\S]*?name\s*=\s*"([^"]+)"/)?.[1] ?? '';
   // A `[[bin]]` means a native sidecar; its absence => a library module (no binary).
   const bin = cargo.match(/\[\[bin\]\][\s\S]*?name\s*=\s*"([^"]+)"/)?.[1] ?? null;
-  const featBlock = cargo.match(/\[package\.metadata\.lmod\][\s\S]*?features\s*=\s*\[([^\]]*)\]/)?.[1] ?? '';
+  const featBlock =
+    cargo.match(/\[package\.metadata\.lmod\][\s\S]*?features\s*=\s*\[([^\]]*)\]/)?.[1] ?? '';
   const features = [...featBlock.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   return { pkg, bin, features };
 }
 
 async function packOne(moduleDir: string): Promise<string> {
-  const manifest = JSON.parse(readFileSync(join(moduleDir, 'module.json'), 'utf8')) as { id: string };
+  const manifest = JSON.parse(readFileSync(join(moduleDir, 'module.json'), 'utf8')) as {
+    id: string;
+  };
   const { id } = manifest;
   const { pkg, bin, features } = crateAndBin(moduleDir);
-  const kind = bin ? `${pkg} -> bin ${bin}${features.length ? ` [+${features.join(',')}]` : ''}` : 'library (no binary)';
+  const kind = bin
+    ? `${pkg} -> bin ${bin}${features.length ? ` [+${features.join(',')}]` : ''}`
+    : 'library (no binary)';
   console.log(`\npacking ${id} (${kind})`);
 
   // 1) Build the module's native binary, with any declared features. Uses the
@@ -71,17 +80,31 @@ async function packOne(moduleDir: string): Promise<string> {
   // carries a NATIVE binary, so the platform must match the server; when set, the
   // bundle is suffixed with the triple (see the output name below). Unset = host.
   const target = process.env.LMOD_TARGET?.trim() || null;
+  // LMOD_SKIP_BUILD: the sidecar binaries were already cross-compiled out of
+  // band (CI builds them inside the musl cross-toolchain image the Synology
+  // build uses, which is proven to link candle / librqbit; this script then
+  // just stages + packs them). Skips the `cargo build` and reads the prebuilt
+  // artifact from the expected path.
+  const skipBuild = process.env.LMOD_SKIP_BUILD === '1';
   let binPath: string | null = null;
   if (bin) {
-    const featArgs = features.length ? ['--features', features.join(',')] : [];
-    const targetArgs = target ? ['--target', target] : [];
-    await $`cargo build --profile release-lmod -p ${pkg} --bin ${bin} ${featArgs} ${targetArgs}`.cwd(
-      join(root, 'server'),
-    );
     // cargo nests the artifact under target/<triple>/ when --target is given.
     const outRoot = target ? `server/target/${target}/release-lmod` : 'server/target/release-lmod';
     binPath = join(root, outRoot, bin);
-    if (!existsSync(binPath)) throw new Error(`built no binary at ${binPath}`);
+    if (!skipBuild) {
+      const featArgs = features.length ? ['--features', features.join(',')] : [];
+      const targetArgs = target ? ['--target', target] : [];
+      await $`cargo build --profile release-lmod -p ${pkg} --bin ${bin} ${featArgs} ${targetArgs}`.cwd(
+        join(root, 'server'),
+      );
+    }
+    if (!existsSync(binPath)) {
+      throw new Error(
+        skipBuild
+          ? `LMOD_SKIP_BUILD set but no prebuilt binary at ${binPath} (build it first)`
+          : `built no binary at ${binPath}`,
+      );
+    }
   }
 
   // 2) Build the frontend remote if the module ships one.
@@ -133,14 +156,18 @@ async function packOne(moduleDir: string): Promise<string> {
   return lmod;
 }
 
-const arg = process.argv[2];
-const dirs = arg ? [join(root, arg)] : packableModules();
-if (dirs.length === 0) {
-  throw new Error('no packable modules (none have a [[bin]] yet)');
+// Only run as a CLI when invoked directly (`bun run modules:pack`); when
+// imported (e.g. by scripts/lmod-build-plan.ts) just expose the helpers above.
+if (import.meta.main) {
+  const arg = process.argv[2];
+  const dirs = arg ? [join(root, arg)] : packableModules();
+  if (dirs.length === 0) {
+    throw new Error('no packable modules (none have a [[bin]] yet)');
+  }
+  const packed: string[] = [];
+  for (const dir of dirs) {
+    packed.push(await packOne(dir));
+  }
+  console.log(`\n${packed.length} module(s) -> ${outDir}`);
+  console.log('install from Admin -> Modules, or POST to /api/admin/store/install.');
 }
-const packed: string[] = [];
-for (const dir of dirs) {
-  packed.push(await packOne(dir));
-}
-console.log(`\n${packed.length} module(s) -> ${outDir}`);
-console.log('install from Admin -> Modules, or POST to /api/admin/store/install.');

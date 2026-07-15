@@ -308,13 +308,38 @@ impl JobManager {
                 status: status.to_string(),
             });
 
-            // Chaining: fire any job that opted to run after this one.
-            for next in manager.jobs_for_trigger(Trigger::AfterJob(job)) {
-                let _ = manager.trigger(state.clone(), next, "chain");
+            // Chaining: fire any job that opted to run after this one, but only
+            // when this run actually succeeded. A failed or cancelled upstream
+            // must not start its dependents (a cancelled storyboard drain
+            // kicking off subtitles would surprise the admin who just cancelled,
+            // and a failed run's outputs are exactly what the next stage needs).
+            if status == "success" {
+                for next in manager.jobs_for_trigger(Trigger::AfterJob(job)) {
+                    if let Err(e) = manager.trigger(state.clone(), next, "chain") {
+                        warn!(job = key, next = %next, error = ?e, "chained job did not start");
+                    }
+                }
             }
         });
 
         Ok(returned_id)
+    }
+
+    /// Request cancellation of every running job (graceful shutdown). Each run
+    /// observes its cancel flag at the next poll tick, records itself
+    /// `cancelled`, and releases its slot; the caller polls [`running_count`]
+    /// to wait for the drain.
+    ///
+    /// [`running_count`]: Self::running_count
+    pub fn cancel_all(&self) {
+        for handle in self.running.read().unwrap().values() {
+            handle.request_cancel();
+        }
+    }
+
+    /// How many jobs are currently running.
+    pub fn running_count(&self) -> usize {
+        self.running.read().unwrap().len()
     }
 
     /// Request cancellation of a job's current run. Returns false if not running.

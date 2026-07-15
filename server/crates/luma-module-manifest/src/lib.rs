@@ -27,6 +27,7 @@
 //! property of *how the box is produced*, not of this trait. The same registry
 //! and manifests serve every tier, so the runtime-load path is additive.
 
+mod compat;
 mod embedded;
 mod event;
 mod manifest;
@@ -42,6 +43,7 @@ pub use event::ModuleEvent;
 pub use manifest::{
     Capability, CapabilityReq, ConfigField, Dependency, FeRemote, ModuleManifest, Version,
 };
+pub use compat::{is_newer, range_matches, server_satisfies};
 pub use registry::{ModuleRegistration, Registry, ResolveError};
 
 /// A module's packaged icon: an `icon.svg` / `icon.png` sitting next to the

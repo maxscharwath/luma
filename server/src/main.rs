@@ -196,6 +196,7 @@ async fn main() -> anyhow::Result<()> {
             // sidecar (whisper / vector) are NOT reserved -- their `.lmod` must be
             // installable.
             reserved_ids: luma_module_kernel::backend_ids(),
+            server_version: env!("CARGO_PKG_VERSION").to_string(),
         });
 
     // Build the module services + peer ports the composition root owns, so the
@@ -355,7 +356,7 @@ async fn main() -> anyhow::Result<()> {
     info!("LUMA listening on http://{addr}  (API under /api)");
 
     // Bring up every installed out-of-process module whose enabled flag is on.
-    // (mDNS advertising moved into the `dev.luma.mdns` module — install its .lmod
+    // (mDNS advertising moved into the `dev.luma.mdns` module; install its .lmod
     // to advertise the server over `_luma._tcp` / `luma.local`.)
     supervisor.spawn_enabled(&*state);
 
@@ -365,10 +366,49 @@ async fn main() -> anyhow::Result<()> {
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal())
     .await
     .context("server error")?;
 
+    // Drain before exiting: ask running jobs to cancel (each records itself
+    // `cancelled` instead of showing up as "interrupted by server restart" at
+    // the next boot) and give them a bounded window to observe the flag, then
+    // stop the module sidecars (child processes survive their parent, so
+    // skipping this orphans them).
+    info!("shutting down: cancelling running jobs + stopping module processes");
+    state.jobs.cancel_all();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    while state.jobs.running_count() > 0 && std::time::Instant::now() < deadline {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    supervisor.stop_all();
+
     Ok(())
+}
+
+/// Resolves on SIGINT (Ctrl-C) or, on unix, SIGTERM (docker stop / systemd /
+/// DSM package stop), so axum stops accepting connections and `main` can drain
+/// jobs + sidecars instead of the process dying mid-write.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
+    }
+    info!("shutdown signal received");
 }
 
 /// Initialise tracing. Honours `RUST_LOG`, defaulting to info-level for our

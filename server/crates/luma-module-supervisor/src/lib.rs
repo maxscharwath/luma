@@ -34,7 +34,7 @@ struct Proc {
 /// Everything the supervisor needs to spawn a module process.
 #[derive(Clone)]
 pub struct SupervisorConfig {
-    /// `<data>/modules` — one subdir per installed module.
+    /// `<data>/modules`: one subdir per installed module.
     pub modules_dir: PathBuf,
     /// The core's own base URL, for the module's callbacks.
     pub core_url: String,
@@ -47,6 +47,9 @@ pub struct SupervisorConfig {
     /// Ids that are compiled into this server (the roster). Installing a `.lmod`
     /// that reuses one is rejected, since it would collide with the in-core copy.
     pub reserved_ids: Vec<String>,
+    /// This server's own version (CARGO_PKG_VERSION), checked against a
+    /// module manifest's `minServer` at install and spawn.
+    pub server_version: String,
 }
 
 pub struct Supervisor {
@@ -234,6 +237,17 @@ impl Supervisor {
                     "'{id}' is built into this server and can't be installed as a module (this build compiles it in)"
                 );
             }
+            // Compatibility gate: a module declaring `minServer` must not be
+            // installed on an older server (it would fail at runtime with
+            // opaque proxy/serde errors instead of a clear message here).
+            let min_server = manifest.get("minServer").and_then(Value::as_str);
+            if !luma_module_manifest::server_satisfies(min_server, &self.cfg.server_version) {
+                anyhow::bail!(
+                    "'{id}' requires LUMA server {} but this server is {}; update the server first",
+                    min_server.unwrap_or("?"),
+                    self.cfg.server_version,
+                );
+            }
             // Swap the install dir atomically-ish: stop the old, replace, spawn.
             self.stop(&id);
             let dest = self.dir(&id);
@@ -263,15 +277,36 @@ impl Supervisor {
         result
     }
 
-    /// Download a `.lmod` from a registry URL and install it.
-    pub async fn install_from_url(&self, url: &str) -> anyhow::Result<Value> {
+    /// Download a `.lmod` from a registry URL and install it, verifying the
+    /// bytes against `expected_sha256` when the registry published one. An
+    /// unverifiable direct URL (no known checksum) still installs: uploading
+    /// arbitrary bytes is already an admin-trust action, but whenever a
+    /// checksum IS known it must match.
+    pub async fn install_from_url(
+        &self,
+        url: &str,
+        expected_sha256: Option<&str>,
+    ) -> anyhow::Result<Value> {
         let bytes = reqwest::get(url).await?.error_for_status()?.bytes().await?;
+        if let Some(expected) = expected_sha256.map(str::trim).filter(|s| !s.is_empty()) {
+            verify_sha256(&bytes, expected)?;
+        }
         self.install(&bytes)
     }
 
     /// Fetch a module registry's `catalog.json` (the index the Store browses).
     pub async fn fetch_catalog(&self, url: &str) -> anyhow::Result<Value> {
         Ok(reqwest::get(url).await?.error_for_status()?.json().await?)
+    }
+
+    /// Stop every running module process (graceful shutdown). Sidecars are
+    /// plain child processes: they survive their parent, so a server shutdown
+    /// that skips this leaves orphaned module processes holding their ports.
+    pub fn stop_all(&self) {
+        let ids: Vec<String> = self.procs.read().unwrap().keys().cloned().collect();
+        for id in ids {
+            self.stop(&id);
+        }
     }
 
     /// Uninstall a module: stop its process and delete its install dir.
@@ -293,6 +328,19 @@ impl Supervisor {
                 tracing::warn!(module = %id, "installed module shadows a built-in; not spawning");
                 continue;
             }
+            // A module installed before a server downgrade (or with a manifest
+            // requiring a newer server) must not spawn against an incompatible
+            // core: skip it with a clear log instead of failing at runtime.
+            let min_server = manifest.get("minServer").and_then(Value::as_str);
+            if !luma_module_manifest::server_satisfies(min_server, &self.cfg.server_version) {
+                tracing::warn!(
+                    module = %id,
+                    requires = min_server.unwrap_or("?"),
+                    server = %self.cfg.server_version,
+                    "installed module requires a newer server; not spawning"
+                );
+                continue;
+            }
             // Library modules (no binary) have nothing to spawn.
             if !self.has_binary(id) {
                 continue;
@@ -304,6 +352,20 @@ impl Supervisor {
             }
         }
     }
+}
+
+/// Verify `bytes` against a lowercase/uppercase hex SHA-256. Refusing on
+/// mismatch is what makes a registry install trustworthy end-to-end: the
+/// catalog pins the hash, so a tampered or truncated download can't reach
+/// `install()`.
+pub fn verify_sha256(bytes: &[u8], expected: &str) -> anyhow::Result<()> {
+    use sha2::Digest;
+    let actual = hex::encode(sha2::Sha256::digest(bytes));
+    anyhow::ensure!(
+        actual.eq_ignore_ascii_case(expected.trim()),
+        "bundle checksum mismatch (expected {expected}, got {actual}); refusing to install"
+    );
+    Ok(())
 }
 
 /// A free localhost TCP port (bind :0, read it back, release).

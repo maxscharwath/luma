@@ -2,6 +2,7 @@
   "id": "dev.luma.acquisition",
   "name": "Acquisition",
   "version": "0.1.0",
+  "minServer": "0.1.4",
   "dependsOn": { "dev.luma.torrents": "^0.1.0" },
   "adminPrefixes": ["acquisition"],
   "requires": [{ "kind": "indexer-engine" }, { "kind": "download-client" }],

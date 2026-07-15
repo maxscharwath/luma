@@ -227,6 +227,9 @@ luma-whisper = { workspace = true }
 luma-vector = { workspace = true }
 # The admin modules endpoint names ModuleManifest for its flattened response.
 luma-module-sdk = { workspace = true }
+# The store endpoints normalize registry catalogs and run the compat/version
+# helpers (server_satisfies / range_matches / is_newer) against manifests.
+luma-module-manifest = { workspace = true }
 # Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
 luma-module-supervisor = { workspace = true }
 rand = "0.8"

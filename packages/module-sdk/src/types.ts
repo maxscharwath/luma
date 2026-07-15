@@ -67,6 +67,9 @@ export interface ModuleManifest {
   name: string;
   version: string;
   description?: string;
+  /** Minimum LUMA server version (bare version or semver range) the module
+   *  needs. Checked server-side at install and spawn. */
+  minServer?: string;
   dependsOn?: Dependency[];
   /** Soft dependencies: ordered first when present, but not required. */
   optionalDependsOn?: Dependency[];

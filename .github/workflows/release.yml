@@ -9,6 +9,9 @@ name: Build & Release
 #     developer mode accept it)
 #   - Android TV .apk (release-signed when the keystore secrets are set, else
 #     debug-signed for sideloading)
+#   - Module bundles (.lmod, zstd, one per build target) + modules.json: the
+#     machine-readable store catalog the in-app Admin -> Modules Store browses
+#     via releases/latest/download/modules.json
 #
 # All bundles are PRODUCTION builds: `vite build`, console/debugger stripped by
 # the shared TV shell factory, no LUMA_TV_DEVICE dev mode.
@@ -74,14 +77,35 @@ jobs:
   # NB: the Synology .spk + its GitHub Pages "package source" (stable + nightly)
   # live in their own workflow, .github/workflows/synology.yml.
 
-  # Runtime-installable module bundles: every WASM module packed to a
-  # gzip-compressed .lmod you upload in Admin -> Modules (no server rebuild).
+  # Runtime-installable module bundles: every module packed to a zstd .lmod the
+  # in-app Store installs (or an admin uploads) with no server rebuild. Built
+  # PER TARGET (a sidecar .lmod carries a native binary, so its platform must
+  # match the server): each matrix entry cross-compiles the sidecar binaries and
+  # suffixes the bundle with the triple; the catalog job below merges every
+  # target into one published index. x86_64 musl is fully static, so the one
+  # build covers the Synology .spk, the Docker image and any x86_64 Linux host.
+  #
+  # The native binaries are built INSIDE the same musl cross-toolchain image the
+  # Synology .spk build uses (messense/rust-musl-cross), which is proven to link
+  # the heavy sidecars (candle in whisper/vector, librqbit in torrents) for musl
+  # a plain host `musl-gcc` lacks the C/C++ sysroot they need. The build plan is
+  # derived from each module's Cargo.toml, then run in the container; the .lmod
+  # staging + zstd packing (and each module's vite frontend) run on the host.
   modules:
-    name: Modules (.lmod bundles)
+    name: Modules (.lmod ${{ matrix.target }})
     needs: version
     if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        # Add an entry (triple + its rust-musl-cross image) to publish more
+        # platforms; the catalog picks up whatever targets appear.
+        include:
+          - target: x86_64-unknown-linux-musl
+            image: messense/rust-musl-cross:x86_64-musl
+    env:
+      LMOD_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
@@ -92,29 +116,92 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # modules:pack compiles a native binary per sidecar (release-lmod profile);
-      # cache the cargo registry + target so a re-run doesn't rebuild from scratch.
-      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      # Cache the cross-build's cargo registry + server/target (both mounted into
+      # the container below) so a re-run doesn't rebuild candle from scratch.
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: server
+          key: lmod-${{ matrix.target }}
 
-      # Build + zstd-pack every installable module into dist/modules/<id>.lmod.
+      # Cross-compile every sidecar binary in the proven musl toolchain image.
+      # Mirrors clients/synology/build.sh: server/ -> /home/rust/src (WORKDIR),
+      # packages/ -> /home/rust/packages (luma-i18n `include_str!`s the shared
+      # locale catalogs from outside server/), cargo registry cached.
+      - name: Cross-compile sidecar binaries (musl)
+        run: |
+          set -euo pipefail
+          bun run scripts/lmod-build-plan.ts > /tmp/lmod-build.sh
+          echo "=== build plan ==="; cat /tmp/lmod-build.sh
+          mkdir -p "$HOME/.cargo/registry"
+          docker run --rm \
+            -v "$PWD/server":/home/rust/src \
+            -v "$PWD/packages":/home/rust/packages \
+            -v "$HOME/.cargo/registry":/root/.cargo/registry \
+            -v /tmp/lmod-build.sh:/tmp/lmod-build.sh:ro \
+            "${{ matrix.image }}" \
+            bash -euo pipefail /tmp/lmod-build.sh
+
+      # Stage + zstd-pack each prebuilt binary (and build its vite frontend) into
+      # dist/modules/<id>-<target>.lmod (+ a .sha256 sidecar each). LMOD_SKIP_BUILD
+      # reuses the binaries the container just produced.
       - name: Pack all modules
+        env:
+          LMOD_SKIP_BUILD: '1'
         run: bun run modules:pack
 
       - name: Upload .lmod artifacts (+ checksums)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: luma-modules-lmod
+          name: luma-modules-${{ matrix.target }}
           path: dist/modules/*.lmod*
           if-no-files-found: error
 
-      - name: Attach to the Release
+  # The module registry index: merge every target's bundles, generate the
+  # machine-readable catalog (schema 2: per-target artifacts, sha256, deps,
+  # minServer), and attach EVERYTHING to the Release together. The catalog is
+  # published as `modules.json`, so
+  #   https://github.com/<owner>/<repo>/releases/latest/download/modules.json
+  # is the stable store URL the server's Admin -> Modules page browses.
+  modules-catalog:
+    name: Modules catalog (modules.json)
+    needs: [version, modules]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Collect every target's bundles
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: luma-modules-*
+          path: dist/modules
+          merge-multiple: true
+
+      - name: Generate the catalog
+        run: |
+          bun run scripts/gen-registry.ts \
+            --base "https://github.com/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}"
+          cp dist/registry/catalog.json dist/registry/modules.json
+
+      - name: Upload registry artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: luma-modules-registry
+          path: dist/registry/modules.json
+          if-no-files-found: error
+
+      - name: Attach bundles + catalog to the Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: dist/modules/*.lmod*
+          files: |
+            dist/modules/*.lmod*
+            dist/registry/modules.json
 
   # -------------------------------------------------------------------- TV ---
 

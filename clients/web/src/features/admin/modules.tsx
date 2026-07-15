@@ -1,18 +1,29 @@
 // Admin "Modules" page: every module installed on this server with its packaged
-// icon, capabilities, an enable toggle and its config, plus install-by-upload and
-// uninstall. Backed by GET/POST/PUT /api/admin/modules and /api/admin/store.
+// icon, capabilities, an enable toggle and its config, plus the registry Store
+// (browse / install / update with dependency auto-install + checksum verify),
+// install-by-upload and uninstall. Backed by GET/POST/PUT /api/admin/modules
+// and /api/admin/store. The Store grid lives in module-store.tsx, the
+// dependency chips in module-deps.tsx.
 
 import { sessionToken } from '@luma/core';
-import { depEntries, moduleIconUrl } from '@luma/module-sdk';
+import { moduleIconUrl } from '@luma/module-sdk';
 import { useRef, useState } from 'react';
 import { type AdminModule, adminApi } from '#web/features/admin/module-api';
 import { ModuleConfigForm } from '#web/features/admin/module-config-form';
+import { ModuleDeps } from '#web/features/admin/module-deps';
+import {
+  installFromStore,
+  installSummary,
+  type RegistryModule,
+  type StoreCatalog,
+  StoreSection,
+} from '#web/features/admin/module-store';
 import { Denied, useCap, usePoll } from '#web/features/admin/shell';
 import { Card, Pill, Toggle } from '#web/features/admin/ui';
 import { useModuleSettingsPanels, useRefreshModules } from '#web/modules/ModuleHostProvider';
 import { apiBase } from '#web/shared/lib/api';
 
-/** POST a module bundle (raw .tar bytes) to the install endpoint. */
+/** POST a module bundle (raw .lmod bytes) to the install endpoint. */
 async function installBundle(file: File): Promise<void> {
   const token = sessionToken();
   const res = await fetch(`${apiBase()}/api/admin/store/install`, {
@@ -25,16 +36,6 @@ async function installBundle(file: File): Promise<void> {
   }
 }
 
-/** A module available in the registry catalog (GET /api/admin/store/catalog). */
-interface RegistryModule {
-  id: string;
-  name: string;
-  version: string;
-  description?: string;
-  url: string;
-  size: number;
-}
-
 export function ModulesAdminPage() {
   const canManage = useCap('settings.manage');
   const refreshModules = useRefreshModules();
@@ -43,27 +44,33 @@ export function ModulesAdminPage() {
     () => adminApi<AdminModule[]>('/modules'),
     30000,
   );
-  // The registry catalog (fetched server-side). Undefined while loading or if the
-  // registry is unreachable — the browse section just hides then.
-  const { data: catalog } = usePoll(
+  // The registry catalog, enriched server-side with this server's verdict per
+  // module. Undefined while loading or if the registry is unreachable; the
+  // Store section just hides then.
+  const { data: catalog, reload: reloadCatalog } = usePoll(
     ['admin', 'store', 'catalog'],
-    () => adminApi<{ modules: RegistryModule[] }>('/store/catalog'),
+    () => adminApi<StoreCatalog>('/store/catalog'),
     300000,
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   if (!canManage) return <Denied />;
   const modules = data ?? [];
   const installedIds = new Set(modules.map((m) => m.id));
-  const available = (catalog?.modules ?? []).filter((m) => !installedIds.has(m.id));
+  // Registry entry per installed module, for the update badge/button.
+  const registryById = new Map((catalog?.modules ?? []).map((m) => [m.id, m]));
 
-  const installFromRegistry = async (url: string) => {
+  const installFromRegistry = async (id: string) => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await adminApi('/store/install-url', { method: 'POST', body: JSON.stringify({ url }) });
+      const report = await installFromStore(id);
+      setNotice(installSummary(report));
       await refreshModules();
+      await reloadCatalog();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -94,6 +101,7 @@ export function ModulesAdminPage() {
     if (!file) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await installBundle(file);
       // Soft-reload: load the new module's remote + re-snapshot nav/pages, so the
@@ -109,9 +117,11 @@ export function ModulesAdminPage() {
   const uninstall = async (id: string) => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await adminApi(`/store/${encodeURIComponent(id)}`, { method: 'DELETE' });
       await refreshModules();
+      await reloadCatalog();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -124,40 +134,25 @@ export function ModulesAdminPage() {
       <div>
         <h1 className="text-2xl font-bold text-text">Modules</h1>
         <p className="text-sm text-muted">
-          Install, enable, disable and configure the modules on this server. Add one with no rebuild
-          from the registry below, or upload a module file (.lmod) directly: its backend runs as a
-          supervised native process and its page as a Module Federation remote.
+          Install, update, enable, disable and configure the modules on this server. Add one with no
+          rebuild from the registry below (dependencies and checksums are handled for you), or
+          upload a module file (.lmod) directly: its backend runs as a supervised native process and
+          its page as a Module Federation remote.
         </p>
       </div>
 
-      {available.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-dim">
-            Available in the registry ({available.length})
-          </h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {available.map((m) => (
-              <Card key={m.id} className="flex items-start justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <div className="font-semibold text-text">{m.name}</div>
-                  <div className="text-[11px] text-dim">
-                    {m.id} · v{m.version} · {(m.size / 1024) | 0} KB
-                  </div>
-                  {m.description && <p className="mt-1 text-xs text-muted">{m.description}</p>}
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void installFromRegistry(m.url)}
-                  className="shrink-0 rounded bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent disabled:opacity-50"
-                >
-                  Install
-                </button>
-              </Card>
-            ))}
-          </div>
-        </section>
+      {(error || notice) && (
+        <p className={`text-xs font-semibold ${error ? 'text-danger' : 'text-success'}`}>
+          {error ?? notice}
+        </p>
       )}
+
+      <StoreSection
+        catalog={catalog}
+        installedIds={installedIds}
+        busy={busy}
+        onInstall={(id) => void installFromRegistry(id)}
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-dim">Install a module</h2>
@@ -182,7 +177,6 @@ export function ModulesAdminPage() {
               Pack one with <code className="text-dim">bun run modules:pack</code>.
             </p>
           </div>
-          {error && <p className="text-xs font-semibold text-danger">{error}</p>}
         </Card>
       </section>
 
@@ -192,51 +186,105 @@ export function ModulesAdminPage() {
         </h2>
         <div className="grid gap-3 md:grid-cols-2">
           {modules.map((m) => (
-            <Card key={m.id} className="p-4">
-              <div className="flex items-start gap-3">
-                <img
-                  src={moduleIconUrl(m.id, apiBase())}
-                  alt=""
-                  className="mt-0.5 h-8 w-8 shrink-0 rounded-lg"
-                  onError={(e) => {
-                    e.currentTarget.style.visibility = 'hidden';
-                  }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-semibold text-text">{m.name}</span>
-                    <Toggle on={m.enabled} onChange={(v) => void toggle(m.id, v)} />
-                  </div>
-                  <div className="text-[11px] text-dim">
-                    {m.id} · v{m.version}
-                  </div>
-                  {m.description && <p className="mt-1 text-xs text-muted">{m.description}</p>}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {(m.provides ?? []).map((c) => (
-                      <Pill key={`${c.kind}:${c.id}`} bg="rgba(255,255,255,.06)">
-                        {c.kind}:{c.id}
-                      </Pill>
-                    ))}
-                  </div>
-                  <ModuleDeps module={m} all={modules} />
-                  <ModuleSettings module={m} onSaved={reload} />
-                  {m.removable && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void uninstall(m.id)}
-                      className="mt-3 self-start rounded border border-border px-3 py-1 text-xs font-semibold text-danger disabled:opacity-50"
-                    >
-                      Uninstall
-                    </button>
-                  )}
-                </div>
-              </div>
-            </Card>
+            <InstalledCard
+              key={m.id}
+              module={m}
+              all={modules}
+              registry={registryById.get(m.id)}
+              busy={busy}
+              onSaved={reload}
+              onToggle={(v) => void toggle(m.id, v)}
+              onUpdate={() => void installFromRegistry(m.id)}
+              onUninstall={() => void uninstall(m.id)}
+            />
           ))}
         </div>
       </section>
     </div>
+  );
+}
+
+function InstalledCard({
+  module: m,
+  all,
+  registry,
+  busy,
+  onSaved,
+  onToggle,
+  onUpdate,
+  onUninstall,
+}: Readonly<{
+  module: AdminModule;
+  all: AdminModule[];
+  registry: RegistryModule | undefined;
+  busy: boolean;
+  onSaved: () => void;
+  onToggle: (enabled: boolean) => void;
+  onUpdate: () => void;
+  onUninstall: () => void;
+}>) {
+  // An update is offered only when the registry has a newer version AND a
+  // compatible artifact for this server (the backend computed both).
+  const update = registry?.updateAvailable && registry.compatible ? registry : undefined;
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-3">
+        <img
+          src={moduleIconUrl(m.id, apiBase())}
+          alt=""
+          className="mt-0.5 h-8 w-8 shrink-0 rounded-lg"
+          onError={(e) => {
+            e.currentTarget.style.visibility = 'hidden';
+          }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate font-semibold text-text">{m.name}</span>
+            <Toggle on={m.enabled} onChange={onToggle} />
+          </div>
+          <div className="text-[11px] text-dim">
+            {m.id} · v{m.version}
+            {update && (
+              <span className="ml-1.5 font-semibold text-accent">v{update.version} available</span>
+            )}
+          </div>
+          {m.description && <p className="mt-1 text-xs text-muted">{m.description}</p>}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {(m.provides ?? []).map((c) => (
+              <Pill key={`${c.kind}:${c.id}`} bg="rgba(255,255,255,.06)">
+                {c.kind}:{c.id}
+              </Pill>
+            ))}
+          </div>
+          <ModuleDeps module={m} all={all} />
+          <ModuleSettings module={m} onSaved={onSaved} />
+          {(update || m.removable) && (
+            <div className="mt-3 flex items-center gap-2">
+              {update && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onUpdate}
+                  className="rounded bg-accent-soft px-3 py-1 text-xs font-semibold text-accent disabled:opacity-50"
+                >
+                  Update to v{update.version}
+                </button>
+              )}
+              {m.removable && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onUninstall}
+                  className="rounded border border-border px-3 py-1 text-xs font-semibold text-danger disabled:opacity-50"
+                >
+                  Uninstall
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -270,111 +318,5 @@ function ModuleSettings({
         />
       )}
     </>
-  );
-}
-
-type DepState = 'ok' | 'missing' | 'disabled' | 'optional';
-
-/** Colour/state for a dependency chip: absent deps are `optional`/`missing`, an
- *  installed dep is `ok` when enabled and `disabled` otherwise. */
-function depState(target: AdminModule | undefined, optional: boolean): DepState {
-  if (!target) return optional ? 'optional' : 'missing';
-  return target.enabled ? 'ok' : 'disabled';
-}
-
-function DepChip({ label, state }: Readonly<{ label: string; state: DepState }>) {
-  const cls: Record<DepState, string> = {
-    ok: 'text-success',
-    missing: 'text-danger',
-    disabled: 'text-muted',
-    optional: 'text-dim',
-  };
-  const suffix: Record<DepState, string> = {
-    ok: '',
-    missing: ' (missing)',
-    disabled: ' (disabled)',
-    optional: ' (optional)',
-  };
-  return (
-    <span className={`rounded bg-white/5 px-2 py-0.5 text-[11px] ${cls[state]}`}>
-      {label}
-      {suffix[state]}
-    </span>
-  );
-}
-
-/** Modules that depend on `module`: a hard/optional `dependsOn` on its id, or a
- *  capability `requires` this module's `provides` satisfies. The reverse edges of
- *  the dependency graph, so a provider (e.g. Downloads) shows who needs it. */
-function dependents(module: AdminModule, all: AdminModule[]): AdminModule[] {
-  const provides = module.provides ?? [];
-  return all.filter((other) => {
-    if (other.id === module.id) return false;
-    const deps = [...depEntries(other.dependsOn), ...depEntries(other.optionalDependsOn)];
-    if (deps.some((d) => d.id === module.id)) return true;
-    return (other.requires ?? []).some((r) =>
-      provides.some((c) => c.kind === r.kind && (!r.id || c.id === r.id)),
-    );
-  });
-}
-
-/** A module's dependency status, both directions: its hard + optional deps and
- *  capability requirements (each colored by whether it is satisfied), plus the
- *  modules that in turn depend on it. */
-function ModuleDeps({ module, all }: Readonly<{ module: AdminModule; all: AdminModule[] }>) {
-  const byId = new Map(all.map((m) => [m.id, m]));
-  const deps = [
-    ...depEntries(module.dependsOn).map((d) => ({ ...d, optional: false })),
-    ...depEntries(module.optionalDependsOn).map((d) => ({ ...d, optional: true })),
-  ];
-  const reqs = module.requires ?? [];
-  const requiredBy = dependents(module, all);
-  if (deps.length === 0 && reqs.length === 0 && requiredBy.length === 0) return null;
-  return (
-    <div className="mt-2 flex flex-col gap-1.5">
-      {(deps.length > 0 || reqs.length > 0) && (
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-dim">Depends on</span>
-          <div className="flex flex-wrap gap-1.5">
-            {deps.map((d) => {
-              const state = depState(byId.get(d.id), d.optional);
-              return (
-                <DepChip
-                  key={d.id}
-                  label={d.version ? `${d.id}@${d.version}` : d.id}
-                  state={state}
-                />
-              );
-            })}
-            {reqs.map((r) => {
-              const provided = all.some(
-                (m) =>
-                  m.enabled &&
-                  (m.provides ?? []).some((c) => c.kind === r.kind && (!r.id || c.id === r.id)),
-              );
-              return (
-                <DepChip
-                  key={`cap:${r.kind}:${r.id ?? ''}`}
-                  label={r.id ? `${r.kind}:${r.id}` : r.kind}
-                  state={provided ? 'ok' : 'missing'}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {requiredBy.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-dim">
-            Required by
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {requiredBy.map((d) => (
-              <DepChip key={d.id} label={d.name} state={d.enabled ? 'ok' : 'disabled'} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }

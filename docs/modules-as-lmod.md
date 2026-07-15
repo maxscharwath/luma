@@ -34,7 +34,22 @@ it, supervises it, and reverse-proxies its HTTP.**
   installed modules at boot; `api/mod.rs` mounts the callback API and a
   `/api/module/<id>/*` reverse proxy.
 - **`bun run modules:pack`** — builds a module's native binary + stages
-  `module.json` + `module` (the binary) + `icon` + `fe/` into a gzip `.lmod`.
+  `module.json` + `module` (the binary) + `icon` + `fe/` into a zstd `.lmod`
+  (per-target via `LMOD_TARGET`; sidecar bundles are suffixed with the triple)
+  plus a `.sha256` sidecar.
+- **Registry + Store (shipped)**: `scripts/gen-registry.ts` builds a catalog
+  (schema 2: per-target `artifacts` with `sha256`, `dependsOn`, `minServer`);
+  the release workflow packs every target, attaches the `.lmod`s + the catalog
+  (`modules.json`) to the GitHub Release, and the server's default registry is
+  `releases/latest/download/modules.json` (overridable via `moduleRegistryUrl`).
+  The in-app Store (Admin -> Modules) browses the catalog enriched with this
+  server's verdict (matching artifact, installed version, update flag,
+  compatibility + reason), installs/updates by id with automatic hard-dependency
+  resolution, verifies every download's SHA-256, and refuses to uninstall a
+  module other enabled modules depend on. Manifests may declare `minServer`
+  (bare version or semver range); the supervisor enforces it at install AND at
+  spawn, so a stale `.lmod` fails with a clear message instead of runtime proxy
+  errors.
 
 ## Proven end to end
 
@@ -45,9 +60,9 @@ generic `ServerModule<S: HostCtx>` behind `RemoteHost`.
 
 ## Remaining work (staged)
 
-1. **Native install path** — repurpose `/api/admin/store/install` to unpack a
-   native `.lmod` under `<data>/modules/<id>/` and `supervisor.spawn(id)` (today
-   that endpoint still goes through the WASM host).
+1. ~~**Native install path**~~ shipped: `/api/admin/store/install` (upload) and
+   the Store's install-by-id both unpack a native `.lmod` under
+   `<data>/modules/<id>/` via the supervisor and spawn it.
 2. **The coupled cluster** — `torrents`, `acquisition`, `indexer`, `torznab`,
    `vpn`, and the two engines are wired by **9 cross-module ports**. Out-of-process
    these become HTTP: the provider exposes `/_port/<name>/<method>`, the consumer
@@ -64,12 +79,13 @@ generic `ServerModule<S: HostCtx>` behind `RemoteHost`.
    interactive search); these become proxied/port calls.
 4. **Zero-module base build** — drop every module from `roster.yaml` / the
    generated aggregator / the binary deps once each is converted.
-5. **Per-platform binaries** — a `.lmod` needs the module binary for each target
-   (musl x86_64/aarch64, macOS, …); CI cross-compiles + packs one per platform (or
-   a fat `.lmod`), and the supervisor picks the right one.
-6. **Registry** — a published catalog (like `packages/synology-repo`) listing every
-   module's `.lmod` + metadata + icon, and an in-app Store that browses + one-click
-   installs.
+5. **More per-platform binaries**: the release matrix currently packs
+   `x86_64-unknown-linux-musl` (static: covers the .spk, Docker and any x86_64
+   Linux host) and the store picks per-target artifacts from the catalog;
+   adding aarch64 musl / macOS is one matrix entry + a cross linker each.
+6. ~~**Registry**~~ shipped (see "Registry + Store" above): GitHub-Release
+   catalog + in-app Store with dependency resolution, checksums and the
+   `minServer` compatibility gate.
 
 ## Trade-offs to weigh (the goal says "optimized, fast")
 

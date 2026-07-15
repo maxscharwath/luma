@@ -2,6 +2,7 @@
   "id": "dev.luma.engine.qbittorrent",
   "name": "qBittorrent engine",
   "version": "0.1.0",
+  "minServer": "0.1.4",
   "dependsOn": { "dev.luma.torrents": "^0.1.0" },
   "provides": [
     {

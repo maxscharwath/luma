@@ -2,6 +2,7 @@
   "id": "dev.luma.torrents",
   "name": "Torrent downloads",
   "version": "0.1.0",
+  "minServer": "0.1.4",
   "dependsOn": { "dev.luma.indexer": "^0.1.0" },
   "optionalDependsOn": { "dev.luma.vpn": "^0.1.0" },
   "adminPrefixes": ["download-clients", "downloads", "organize"],

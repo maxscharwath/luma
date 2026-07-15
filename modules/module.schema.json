@@ -15,6 +15,10 @@
     "name": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
     "description": { "type": "string" },
+    "minServer": {
+      "type": "string",
+      "description": "Minimum LUMA server version the module needs: a bare version (\"0.2.0\" = at least 0.2.0) or a full semver range (\">=0.2, <0.4\"). Checked at install and spawn; absent = any server."
+    },
     "library": {
       "type": "boolean",
       "description": "A library module: its `.lmod` ships no native binary (its code is co-linked into the processes that need it), so the supervisor registers it but spawns no process. E.g. the release-name parser."

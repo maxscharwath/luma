@@ -25,6 +25,11 @@ export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> 
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
     },
   });
-  if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${path} -> ${res.status}`);
+  if (!res.ok) {
+    // Surface the server's message (compat verdicts, dependency conflicts,
+    // checksum mismatches) instead of a bare status code.
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `${init?.method ?? 'GET'} ${path} -> ${res.status}`);
+  }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

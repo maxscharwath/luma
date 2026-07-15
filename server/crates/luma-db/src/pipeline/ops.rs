@@ -14,6 +14,19 @@ use crate::*;
 /// churning.
 pub const MAX_ATTEMPTS: i64 = 3;
 
+/// Base delay of the retry backoff (5 minutes). A task failing its Nth attempt
+/// may not be auto-retried before `now + retry_backoff_ms(N)`.
+const RETRY_BASE_MS: i64 = 5 * 60 * 1000;
+
+/// Quadratic backoff between auto-retries: attempt 1 -> 5 min, attempt 2 ->
+/// 20 min (attempt 3 sticks as `failed`, so no further delay matters). Nightly
+/// drains are unaffected (the gap between drains dwarfs this); what it prevents
+/// is a manually re-kicked stage hammering a flaky dependency (a locked file, a
+/// rate-limited TMDB) with back-to-back retries seconds apart.
+pub fn retry_backoff_ms(attempts: i64) -> i64 {
+    RETRY_BASE_MS * attempts * attempts
+}
+
 /// Sentinel signature meaning "the subject's inputs were unreadable at enumerate
 /// time" (e.g. the media mount was briefly offline). `reconcile` treats it as
 /// "leave this task exactly as it is": never a changed input, never a fresh
@@ -50,14 +63,20 @@ pub fn reconcile(
     // concurrent stage drains (which happen when several stages run at once, e.g.
     // a reprocess) rather than erroring one of them out.
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let existing: HashMap<String, (Option<String>, String, i64)> = {
+    let existing: HashMap<String, (Option<String>, String, i64, Option<i64>)> = {
         let mut stmt = tx.prepare(
-            "SELECT subject_id, input_sig, status, attempts FROM pipeline_tasks WHERE stage=?1",
+            "SELECT subject_id, input_sig, status, attempts, next_retry_at \
+             FROM pipeline_tasks WHERE stage=?1",
         )?;
         let rows = stmt.query_map(params![stage], |r| {
             Ok((
                 r.get::<_, String>(0)?,
-                (r.get::<_, Option<String>>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)?),
+                (
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, Option<i64>>(4)?,
+                ),
             ))
         })?;
         rows.collect::<rusqlite::Result<HashMap<_, _>>>()?
@@ -79,7 +98,7 @@ pub fn reconcile(
                     params![stage, subject_kind, id, sig, now],
                 )?;
             }
-            Some((old_sig, status, attempts)) => {
+            Some((old_sig, status, attempts, next_retry_at)) => {
                 if status == "running" {
                     continue;
                 }
@@ -99,7 +118,7 @@ pub fn reconcile(
                 if sig_changed {
                     tx.execute(
                         "UPDATE pipeline_tasks SET status='pending', input_sig=?4, attempts=0, \
-                           error=NULL, enqueued_at=?5, updated_at=?5 \
+                           error=NULL, next_retry_at=NULL, enqueued_at=?5, updated_at=?5 \
                          WHERE stage=?1 AND subject_kind=?2 AND subject_id=?3",
                         params![stage, subject_kind, id, sig, now],
                     )?;
@@ -113,8 +132,10 @@ pub fn reconcile(
                             params![stage, subject_kind, id, sig, now],
                         )?;
                     }
-                    // Bounded auto-retry for transient failures.
-                    if status == "failed" && *attempts < MAX_ATTEMPTS {
+                    // Bounded auto-retry for transient failures, gated by the
+                    // backoff window `finish_batch` stamped on the failure.
+                    let backoff_elapsed = next_retry_at.is_none_or(|t| t <= now);
+                    if status == "failed" && *attempts < MAX_ATTEMPTS && backoff_elapsed {
                         tx.execute(
                             "UPDATE pipeline_tasks SET status='pending', updated_at=?4 \
                              WHERE stage=?1 AND subject_kind=?2 AND subject_id=?3",
@@ -155,7 +176,7 @@ pub fn enqueue(
            (stage,subject_kind,subject_id,status,attempts,priority,enqueued_at,updated_at) \
          VALUES (?1,?2,?3,'pending',0,?4,?5,?5) \
          ON CONFLICT(stage,subject_kind,subject_id) DO UPDATE SET \
-           status='pending', attempts=0, error=NULL, \
+           status='pending', attempts=0, error=NULL, next_retry_at=NULL, \
            priority=MAX(priority, excluded.priority), \
            enqueued_at=excluded.enqueued_at, updated_at=excluded.updated_at",
         params![stage, subject_kind, id, priority, now],
@@ -174,7 +195,7 @@ pub fn requeue_stage(pool: &Pool, stage: &str, now: i64) -> Result<usize> {
     let conn = pool.get()?;
     let n = conn.execute(
         "UPDATE pipeline_tasks SET status='pending', attempts=0, error=NULL, input_sig=NULL, \
-           updated_at=?2 \
+           next_retry_at=NULL, updated_at=?2 \
          WHERE stage=?1 AND status IN ('done','failed','blocked')",
         params![stage, now],
     )?;
@@ -236,14 +257,17 @@ pub fn finish_batch(pool: &Pool, stage: &str, results: &[TaskResult], now: i64) 
     for r in results {
         match &r.error {
             None => tx.execute(
-                "UPDATE pipeline_tasks SET status='done', error=NULL, finished_at=?3, \
-                   duration_ms=?4, updated_at=?3 WHERE stage=?1 AND subject_id=?2",
+                "UPDATE pipeline_tasks SET status='done', error=NULL, next_retry_at=NULL, \
+                   finished_at=?3, duration_ms=?4, updated_at=?3 WHERE stage=?1 AND subject_id=?2",
                 params![stage, r.id, now, r.duration_ms],
             )?,
+            // `attempts` on the right-hand side reads the pre-update value, so the
+            // backoff is computed from the attempt number this failure completes.
             Some(e) => tx.execute(
                 "UPDATE pipeline_tasks SET status='failed', attempts=attempts+1, error=?3, \
+                   next_retry_at=?4 + ?6*(attempts+1)*(attempts+1), \
                    finished_at=?4, duration_ms=?5, updated_at=?4 WHERE stage=?1 AND subject_id=?2",
-                params![stage, r.id, e, now, r.duration_ms],
+                params![stage, r.id, e, now, r.duration_ms, RETRY_BASE_MS],
             )?,
         };
     }
@@ -284,13 +308,13 @@ pub fn retry(pool: &Pool, stage: &str, subject_id: Option<&str>) -> Result<usize
     let n = match subject_id {
         Some(id) => conn.execute(
             "UPDATE pipeline_tasks SET status='pending', attempts=0, error=NULL, \
-               priority=MAX(priority, ?3), updated_at=?4 \
+               next_retry_at=NULL, priority=MAX(priority, ?3), updated_at=?4 \
              WHERE stage=?1 AND subject_id=?2 AND status='failed'",
             params![stage, id, RETRY_PRIORITY, now],
         )?,
         None => conn.execute(
             "UPDATE pipeline_tasks SET status='pending', attempts=0, error=NULL, \
-               priority=MAX(priority, ?2), updated_at=?3 \
+               next_retry_at=NULL, priority=MAX(priority, ?2), updated_at=?3 \
              WHERE stage=?1 AND status='failed'",
             params![stage, RETRY_PRIORITY, now],
         )?,
@@ -306,7 +330,8 @@ pub fn reprocess(pool: &Pool, stage: &str) -> Result<usize> {
     let conn = pool.get()?;
     let now = luma_primitives::now_ms();
     let n = conn.execute(
-        "UPDATE pipeline_tasks SET status='pending', attempts=0, error=NULL, updated_at=?2 \
+        "UPDATE pipeline_tasks SET status='pending', attempts=0, error=NULL, \
+           next_retry_at=NULL, updated_at=?2 \
          WHERE stage=?1 AND status!='running'",
         params![stage, now],
     )?;

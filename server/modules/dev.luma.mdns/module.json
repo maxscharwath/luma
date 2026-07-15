@@ -2,6 +2,7 @@
   "id": "dev.luma.mdns",
   "name": "mDNS discovery",
   "version": "0.1.0",
+  "minServer": "0.1.4",
   "dependsOn": [],
   "provides": [
     {

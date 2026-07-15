@@ -2,6 +2,7 @@
   "id": "dev.luma.indexer",
   "name": "Indexers",
   "version": "0.1.0",
+  "minServer": "0.1.4",
   "dependsOn": [],
   "adminPrefixes": ["indexers"],
   "provides": [
