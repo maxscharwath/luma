@@ -71,8 +71,13 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
     // Out-of-process modules with admin routes: anything not matched above is
     // reverse-proxied to the sidecar that owns the path's first segment (from its
     // manifest `adminPrefixes`), so a converted module's `/api/admin/<prefix>/*`
-    // still works. Non-module unmatched paths fall through to 404.
-    router.fallback(admin_module_proxy)
+    // still works. Non-module unmatched paths get the proxy's 404. Explicit
+    // wildcard routes rather than a `.fallback`: axum 0.8's `nest` drops the
+    // nested router's fallback, and its matchit allows a param route to overlap
+    // the static ones above (statics win), which 0.7 forbade.
+    router
+        .route("/{seg}", axum::routing::any(admin_module_proxy))
+        .route("/{seg}/{*rest}", axum::routing::any(admin_module_proxy))
 }
 
 /// Reverse-proxy an unmatched `/api/admin/<seg>/*` to the module sidecar owning

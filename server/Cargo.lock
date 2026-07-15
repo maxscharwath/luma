@@ -3145,10 +3145,6 @@ dependencies = [
  "luma-engine",
  "luma-module-host",
  "luma-module-manifest",
- "luma-remote",
- "luma-scene",
- "luma-vector",
- "luma-whisper",
 ]
 
 [[package]]
@@ -3227,7 +3223,6 @@ dependencies = [
  "luma-module-sdk",
  "luma-module-supervisor",
  "luma-port-bridge",
- "luma-remote",
  "luma-torrent",
  "luma-vector",
  "luma-whisper",

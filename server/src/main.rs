@@ -214,8 +214,9 @@ async fn main() -> anyhow::Result<()> {
         std::any::TypeId::of::<luma_module_supervisor::Supervisor>(),
         supervisor.clone() as std::sync::Arc<dyn std::any::Any + Send + Sync>,
     );
-    let remote = luma_remote::RemoteAccess::new(config.data_dir.clone());
-    module_services.insert(std::any::TypeId::of::<luma_remote::RemoteAccess>(), remote);
+    // Remote access (dev.luma.remote) is a sidecar now (de-rostered): its .lmod
+    // bin constructs its own RemoteAccess and serves the /api/admin/remote
+    // routes, reverse-proxied via the manifest's adminPrefixes.
 
     // Every out-of-process module the core CONSUMES is reached by a client proxy
     // that resolves the sidecar's live localhost port from the supervisor. One

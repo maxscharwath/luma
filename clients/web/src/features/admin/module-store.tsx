@@ -5,8 +5,11 @@
 // POST /store/install-id, which resolves missing hard dependencies from the
 // same catalog and verifies each download's sha256 before unpacking.
 
+import { IconSearch } from '@tabler/icons-react';
+import { useState } from 'react';
 import { adminApi } from '#web/features/admin/module-api';
 import { Card } from '#web/features/admin/ui';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 /** One catalog entry, enriched server-side (GET /api/admin/store/catalog). */
 export interface RegistryModule {
@@ -92,8 +95,17 @@ function StoreCard({
   );
 }
 
-/** The "Available in the registry" grid: catalog modules not installed here.
- *  Renders nothing while the catalog is loading/unreachable or fully installed. */
+/** Case-insensitive match of a catalog entry against a search query
+ *  (id, name and description all count). */
+function matches(m: RegistryModule, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [m.id, m.name, m.description ?? ''].some((s) => s.toLowerCase().includes(q));
+}
+
+/** The "Available in the registry" grid: catalog modules not installed here,
+ *  with a search box filtering by id / name / description. Renders nothing
+ *  while the catalog is loading/unreachable or fully installed. */
 export function StoreSection({
   catalog,
   installedIds,
@@ -105,18 +117,37 @@ export function StoreSection({
   busy: boolean;
   onInstall: (id: string) => void;
 }>) {
+  const [query, setQuery] = useState('');
   const available = (catalog?.modules ?? []).filter((m) => !installedIds.has(m.id));
   if (available.length === 0) return null;
+  const shown = available.filter((m) => matches(m, query));
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-dim">
-        Available in the registry ({available.length})
-      </h2>
-      <div className="grid gap-3 md:grid-cols-2">
-        {available.map((m) => (
-          <StoreCard key={m.id} m={m} busy={busy} onInstall={onInstall} />
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-dim">
+          Available in the registry ({available.length})
+        </h2>
+        <InputGroup className="h-9 w-64">
+          <InputGroupAddon>
+            <IconSearch size={15} />
+          </InputGroupAddon>
+          <InputGroupInput
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search modules..."
+            className="text-[13px]"
+          />
+        </InputGroup>
       </div>
+      {shown.length === 0 ? (
+        <p className="text-xs text-muted">No module matches "{query.trim()}".</p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {shown.map((m) => (
+            <StoreCard key={m.id} m={m} busy={busy} onInstall={onInstall} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

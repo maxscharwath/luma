@@ -9,11 +9,8 @@ use luma_module_host::ServerModule;
 use luma_module_manifest::Registry;
 
 /// Register every module's manifest (+ packaged icon) into the host registry.
-pub fn register_all(reg: &mut Registry) {
-    reg.register(Box::new(luma_scene::MODULE));
-    reg.register(Box::new(luma_whisper::MODULE));
-    reg.register(Box::new(luma_vector::MODULE));
-    reg.register(Box::new(luma_remote::MODULE));
+pub fn register_all(_reg: &mut Registry) {
+
 }
 
 /// The backend behavior of each module that ships one. Concrete over the app's
@@ -21,6 +18,6 @@ pub fn register_all(reg: &mut Registry) {
 /// specialized to it (the roster is the composition layer, so this is fine).
 pub fn server_modules() -> Vec<Box<dyn ServerModule<SharedState>>> {
     vec![
-        luma_remote::server_module(),
+
     ]
 }

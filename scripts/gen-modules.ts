@@ -277,7 +277,7 @@ use luma_module_host::ServerModule;
 use luma_module_manifest::Registry;
 
 /// Register every module's manifest (+ packaged icon) into the host registry.
-pub fn register_all(reg: &mut Registry) {
+pub fn register_all(${manifestRegs.length === 0 ? '_reg' : 'reg'}: &mut Registry) {
 ${manifestRegs.join('\n')}
 }
 

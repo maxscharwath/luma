@@ -218,23 +218,20 @@ mod tests {
     #[test]
     fn built_in_modules_resolve() {
         // Also runs build()'s ServerModule<->manifest consistency assertion. The
-        // downloads vertical + acquisition ship only as installable `.lmod` now, so
-        // the compile-time roster is the in-core set (scene / whisper / vector /
-        // remote).
+        // roster is EMPTY now (zero-module base build): every first-party module
+        // ships only as an installable `.lmod`, so the compiled graph resolves to
+        // no modules and every module is uninstallable at runtime.
         let order = registry().manifests.resolve().expect("built-in module graph resolves");
-        assert!(order.contains(&"dev.luma.scene".to_string()));
-        assert!(order.contains(&"dev.luma.remote".to_string()));
+        assert!(order.is_empty(), "roster should be empty (zero-module base build): {order:?}");
     }
 
     #[test]
     fn only_in_core_backends_are_reserved() {
-        // reserved_ids come from backend_ids() (compiled ServerModules). The
-        // sidecar modules (torrents / acquisition / whisper / vector) must NOT be
-        // reserved, or their `.lmod` could never install.
+        // reserved_ids come from backend_ids() (compiled ServerModules). With the
+        // zero-module roster NOTHING is reserved: every module's `.lmod` (incl.
+        // remote) must be installable, or it could never be managed at runtime.
         let reserved = backend_ids();
-        assert!(!reserved.contains(&"dev.luma.torrents".to_string()));
-        assert!(!reserved.contains(&"dev.luma.whisper".to_string()));
-        assert!(!reserved.contains(&"dev.luma.acquisition".to_string()));
+        assert!(reserved.is_empty(), "no module should be compiled-in: {reserved:?}");
     }
 
     #[test]

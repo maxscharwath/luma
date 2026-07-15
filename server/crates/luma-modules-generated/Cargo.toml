@@ -11,7 +11,4 @@ luma-module-manifest = { workspace = true }
 luma-module-host = { workspace = true }
 # For the concrete SharedState the modules' server_module() constructors return.
 luma-engine = { workspace = true }
-luma-scene = { path = "../../modules/dev.luma.scene/server" }
-luma-whisper = { path = "../../modules/dev.luma.whisper/server" }
-luma-vector = { path = "../../modules/dev.luma.vector/server" }
-luma-remote = { path = "../../modules/dev.luma.remote/server" }
+

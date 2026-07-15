@@ -120,6 +120,10 @@ fn defaults() -> BTreeMap<String, Value> {
     // One allow-listed key holding the whole module-state blob (module ids are
     // not known at compile time, so they can't each be an allow-listed key).
     m.insert("moduleStates".into(), json!({}));
+    // Module Store registry override. Empty = the built-in default (the
+    // modules.json attached to this repo's GitHub Releases); any URL serving a
+    // catalog (schema 1 or 2) works, so third-party stores are one setting away.
+    m.insert("moduleRegistryUrl".into(), json!(""));
     m.insert("uiLanguage".into(), json!("Français"));
     // TMDB metadata language (e.g. "fr-FR"). Empty → fall back to the
     // env-configured `LUMA_TMDB_LANGUAGE` (default "en-US"). One language for the
