@@ -19,7 +19,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
-rand = "0.8"
+rand = "0.10"
 # Unpacking installed .lmod bundles (gzip tar of module.json + module + fe/ + icon).
 tar = "0.4"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
