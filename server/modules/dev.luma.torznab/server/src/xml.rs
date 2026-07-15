@@ -49,7 +49,7 @@ pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
                     let mut code = String::new();
                     let mut description = String::new();
                     for attr in e.attributes().flatten() {
-                        let v = attr.decode_and_unescape_value(decoder)?.into_owned();
+                        let v = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                         match attr.key.local_name().as_ref() {
                             b"code" => code = v,
                             b"description" => description = v,
@@ -62,7 +62,7 @@ pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
                     if let Some(rel) = current.as_mut() {
                         for attr in e.attributes().flatten() {
                             if attr.key.local_name().as_ref() == b"url" {
-                                let url = attr.decode_and_unescape_value(decoder)?.into_owned();
+                                let url = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                                 if rel.link.is_none() {
                                     rel.link = Some(url);
                                 }
@@ -74,7 +74,7 @@ pub fn parse_items(xml: &[u8]) -> Result<Vec<Release>> {
                     if let Some(rel) = current.as_mut() {
                         let (mut name, mut value) = (String::new(), String::new());
                         for attr in e.attributes().flatten() {
-                            let v = attr.decode_and_unescape_value(decoder)?.into_owned();
+                            let v = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                             match attr.key.local_name().as_ref() {
                                 b"name" => name = v,
                                 b"value" => value = v,
@@ -190,7 +190,7 @@ pub fn parse_caps(xml: &[u8]) -> Result<Caps> {
                 let name = e.local_name().as_ref().to_vec();
                 let mut supported = String::new();
                 for attr in e.attributes().flatten() {
-                    let v = attr.decode_and_unescape_value(decoder)?.into_owned();
+                    let v = quick_xml::escape::unescape(&decoder.decode(&attr.value)?)?.into_owned();
                     match attr.key.local_name().as_ref() {
                         b"supportedParams" => supported = v,
                         b"title" if name == b"server" => caps.server_title = Some(v),

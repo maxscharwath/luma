@@ -157,7 +157,11 @@ fn read_attrs(e: &quick_xml::events::BytesStart, reader: &Reader<&[u8]>) -> Vec<
     let mut out = Vec::new();
     for a in e.attributes().flatten() {
         let key = String::from_utf8_lossy(a.key.as_ref()).into_owned();
-        let val = a.decode_and_unescape_value(decoder).map(|c| c.into_owned()).unwrap_or_default();
+        let val = decoder
+            .decode(&a.value)
+            .ok()
+            .and_then(|d| quick_xml::escape::unescape(&d).ok().map(|c| c.into_owned()))
+            .unwrap_or_default();
         out.push((key, val));
     }
     out
