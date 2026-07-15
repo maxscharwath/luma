@@ -139,7 +139,7 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
         .merge(luma_module_supervisor::host_router::<SharedState>(
             supervisor.host_token().to_string(),
         ))
-        .route("/module/:id/*rest", axum::routing::any(module_proxy))
+        .route("/module/{id}/{*rest}", axum::routing::any(module_proxy))
         .nest("/admin", admin::routes(state.clone()))
         .layer(Extension(supervisor));
 

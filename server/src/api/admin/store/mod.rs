@@ -43,7 +43,7 @@ pub fn routes() -> Router<SharedState> {
         .route("/store/install-url", post(install_url))
         .route("/store/install-id", post(install_id))
         .route("/store/catalog", get(catalog_view))
-        .route("/store/:id", delete(uninstall))
+        .route("/store/{id}", delete(uninstall))
 }
 
 #[derive(serde::Deserialize)]

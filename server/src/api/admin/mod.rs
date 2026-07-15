@@ -54,7 +54,7 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
     let mut router = Router::new()
         .route("/server", get(server_info))
         .route("/sessions", get(sessions))
-        .route("/sessions/:id/stop", post(terminate_session))
+        .route("/sessions/{id}/stop", post(terminate_session))
         .route("/metrics", get(metrics))
         .merge(users::routes())
         .merge(libraries::routes())

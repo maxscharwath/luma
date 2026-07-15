@@ -24,11 +24,11 @@ use crate::state::SharedState;
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/requests", get(list).post(create))
-        .route("/requests/:id", axum::routing::delete(remove))
-        .route("/requests/:id/approve", post(approve))
-        .route("/requests/:id/deny", post(deny))
-        .route("/requests/:id/search", get(interactive_search))
-        .route("/requests/:id/grab", post(grab))
+        .route("/requests/{id}", axum::routing::delete(remove))
+        .route("/requests/{id}/approve", post(approve))
+        .route("/requests/{id}/deny", post(deny))
+        .route("/requests/{id}/search", get(interactive_search))
+        .route("/requests/{id}/grab", post(grab))
 }
 
 fn locale(user: &User) -> &'static str {

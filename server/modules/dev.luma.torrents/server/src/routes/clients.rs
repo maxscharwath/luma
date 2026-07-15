@@ -29,8 +29,8 @@ fn dm<S: HostCtx>(state: &S) -> Arc<DownloadManager> {
 pub fn routes<S: HostCtx + Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/download-clients", get(list::<S>).post(create::<S>))
-        .route("/download-clients/:id", axum::routing::put(update::<S>).delete(remove::<S>))
-        .route("/download-clients/:id/test", post(test::<S>))
+        .route("/download-clients/{id}", axum::routing::put(update::<S>).delete(remove::<S>))
+        .route("/download-clients/{id}/test", post(test::<S>))
 }
 
 fn view_of(row: &DownloadClientRow) -> DownloadClientView {

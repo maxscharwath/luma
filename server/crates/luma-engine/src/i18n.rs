@@ -10,7 +10,6 @@
 use std::convert::Infallible;
 use std::sync::OnceLock;
 
-use axum::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use luma_i18n::I18n;
@@ -80,7 +79,6 @@ pub fn detect_locale(preferred: Option<&str>, accept_language: Option<&str>) -> 
 /// Drives every server-rendered string (admin labels, error messages).
 pub struct ReqLocale(pub &'static str);
 
-#[async_trait]
 impl FromRequestParts<SharedState> for ReqLocale {
     type Rejection = Infallible;
 

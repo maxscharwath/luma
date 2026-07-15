@@ -41,9 +41,9 @@ where
         // route; matchit prioritizes static segments, so order is not load-bearing.
         .route("/indexers/definitions", get(list_definitions::<S>))
         .route("/indexers/definitions/sync", post(sync_definitions::<S>))
-        .route("/indexers/definitions/:defId", get(definition_detail::<S>))
-        .route("/indexers/:id", axum::routing::put(update::<S>).delete(remove::<S>))
-        .route("/indexers/:id/test", post(test::<S>))
+        .route("/indexers/definitions/{defId}", get(definition_detail::<S>))
+        .route("/indexers/{id}", axum::routing::put(update::<S>).delete(remove::<S>))
+        .route("/indexers/{id}/test", post(test::<S>))
 }
 
 /// Names of settings that currently hold a (non-empty) value.

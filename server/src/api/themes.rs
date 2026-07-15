@@ -14,7 +14,7 @@ use axum::Router;
 
 /// `GET /api/themes/:name`.
 pub fn routes() -> Router<SharedState> {
-    Router::new().route("/themes/:name", get(theme))
+    Router::new().route("/themes/{name}", get(theme))
 }
 
 /// `GET /api/themes/:name` → a locally-cached theme MP3, with `Range` support so

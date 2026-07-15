@@ -21,7 +21,7 @@ use axum::Router;
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/users", get(list_users))
-        .route("/users/:id", patch(update_user).delete(delete_user))
+        .route("/users/{id}", patch(update_user).delete(delete_user))
 }
 
 /// `GET /api/admin/users` → full member list (the "Membres & partage" table).

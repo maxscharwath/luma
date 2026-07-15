@@ -37,6 +37,10 @@ license = "MIT"
 # `{ workspace = true }`.
 [workspace.dependencies]
 anyhow = "1"
+# axum 0.8 dropped its `async_trait` re-export (traits can use native async fn),
+# but our object-safe host/port traits (dyn HostCtx, dyn *Port) still need the
+# macro for dyn-compatibility, so depend on the crate directly.
+async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
@@ -74,11 +78,11 @@ hex = "0.4"
 rusqlite = { version = "0.31", features = ["bundled"] }
 # HTTP / async runtime, shared by luma-engine (i18n extractor, stream, services)
 # and the binary (router + handlers).
-axum = { version = "0.7", features = ["macros", "ws"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace", "fs", "compression-gzip", "compression-br"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["cors", "trace", "fs", "compression-gzip", "compression-br"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 walkdir = "2"

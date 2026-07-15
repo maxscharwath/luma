@@ -29,7 +29,7 @@ pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/discover/search", get(search))
         .route("/discover/trending", get(trending))
-        .route("/discover/:kind/:tmdb_id", get(detail))
+        .route("/discover/{kind}/{tmdb_id}", get(detail))
 }
 
 fn locale(user: &User) -> &'static str {

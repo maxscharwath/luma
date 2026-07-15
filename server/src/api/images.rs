@@ -18,10 +18,10 @@ use axum::Router;
 /// Poster / card rendering plus static image serving.
 pub fn routes() -> Router<SharedState> {
     Router::new()
-        .route("/shows/:id/poster", get(show_poster))
-        .route("/items/:id/poster", get(item_poster))
-        .route("/items/:id/card", get(item_card))
-        .route("/images/:name", get(image))
+        .route("/shows/{id}/poster", get(show_poster))
+        .route("/items/{id}/poster", get(item_poster))
+        .route("/items/{id}/card", get(item_card))
+        .route("/images/{name}", get(image))
 }
 
 /// `GET /api/shows/:id/poster` → inline SVG placeholder.

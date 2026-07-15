@@ -24,7 +24,7 @@ use axum::Router;
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/invites", post(create_invite).get(list_invites))
-        .route("/invites/:token", get(check_invite).delete(delete_invite))
+        .route("/invites/{token}", get(check_invite).delete(delete_invite))
 }
 
 /// Default invite lifetime, and the bounds accepted from clients.

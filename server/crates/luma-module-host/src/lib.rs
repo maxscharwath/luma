@@ -18,7 +18,7 @@ use std::any::{Any, TypeId};
 use std::path::Path;
 use std::sync::Arc;
 
-pub use axum::async_trait;
+pub use async_trait::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::http::StatusCode;
@@ -296,7 +296,6 @@ impl<T: HostCtx + ?Sized> HostCtx for std::sync::Arc<T> {
 /// `Router<S: HostCtx>`. A missing/expired/unknown token yields `401`.
 pub struct AuthUser(pub User);
 
-#[async_trait]
 impl<S: HostCtx> FromRequestParts<S> for AuthUser {
     type Rejection = Response;
 
@@ -318,7 +317,6 @@ impl<S: HostCtx> FromRequestParts<S> for AuthUser {
 /// signed in.
 pub struct OptionalAuthUser(pub Option<User>);
 
-#[async_trait]
 impl<S: HostCtx> FromRequestParts<S> for OptionalAuthUser {
     type Rejection = std::convert::Infallible;
 

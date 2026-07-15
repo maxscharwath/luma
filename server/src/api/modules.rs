@@ -21,7 +21,7 @@ pub fn routes() -> Router<SharedState> {
 
 /// Public: packaged module icons (fetched by `<img>`, which can't send a bearer).
 pub fn public_routes() -> Router<SharedState> {
-    Router::new().route("/modules/:id/icon", get(icon))
+    Router::new().route("/modules/{id}/icon", get(icon))
 }
 
 /// A manifest plus its admin enabled flag (persisted in the `moduleStates`

@@ -27,8 +27,8 @@ pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/libraries", get(list_libraries).post(create_library))
         .route("/libraries/browse", get(browse_libraries))
-        .route("/libraries/:id", patch(update_library).delete(delete_library))
-        .route("/libraries/:id/scan", post(scan_library))
+        .route("/libraries/{id}", patch(update_library).delete(delete_library))
+        .route("/libraries/{id}/scan", post(scan_library))
 }
 
 /// `GET /api/admin/libraries` → library cards (folders, size, item count).

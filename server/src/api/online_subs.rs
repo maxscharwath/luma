@@ -25,19 +25,19 @@ use axum::Router;
 /// middleware).
 pub fn routes() -> Router<SharedState> {
     Router::new()
-        .route("/items/:id/subtitles/generate", post(generate))
-        .route("/items/:id/subtitles/capabilities", get(capabilities))
-        .route("/items/:id/subtitles/generations", get(generations))
-        .route("/items/:id/subtitles/generations/:gen", delete(cancel_generation))
-        .route("/items/:id/subtitles/downloaded", get(list))
-        .route("/items/:id/subtitles/downloaded/:dl", delete(delete_downloaded))
+        .route("/items/{id}/subtitles/generate", post(generate))
+        .route("/items/{id}/subtitles/capabilities", get(capabilities))
+        .route("/items/{id}/subtitles/generations", get(generations))
+        .route("/items/{id}/subtitles/generations/{gen}", delete(cancel_generation))
+        .route("/items/{id}/subtitles/downloaded", get(list))
+        .route("/items/{id}/subtitles/downloaded/{dl}", delete(delete_downloaded))
 }
 
 /// Public: serve a generated/downloaded subtitle's WebVTT bytes. The player
 /// fetches this URL as a plain `fetch()` (and can't attach a bearer), so like
 /// the embedded-subtitle + stream byte routes it stays outside the session gate.
 pub fn public_routes() -> Router<SharedState> {
-    Router::new().route("/items/:id/subtitles/dl/:dl", get(file))
+    Router::new().route("/items/{id}/subtitles/dl/{dl}", get(file))
 }
 
 /// Talks to the Whisper module's `.lmod` sidecar (dev.luma.whisper) over the port

@@ -31,11 +31,11 @@ pub fn routes<S: HostCtx + Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/downloads/pause-all", post(pause_all::<S>))
         .route("/downloads/resume-all", post(resume_all::<S>))
         .route("/downloads/reannounce", post(reannounce_all::<S>))
-        .route("/downloads/:id/pause", post(pause::<S>))
-        .route("/downloads/:id/resume", post(resume::<S>))
-        .route("/downloads/:id/retry", post(retry::<S>))
-        .route("/downloads/:id/reannounce", post(reannounce::<S>))
-        .route("/downloads/:id", axum::routing::delete(remove::<S>))
+        .route("/downloads/{id}/pause", post(pause::<S>))
+        .route("/downloads/{id}/resume", post(resume::<S>))
+        .route("/downloads/{id}/retry", post(retry::<S>))
+        .route("/downloads/{id}/reannounce", post(reannounce::<S>))
+        .route("/downloads/{id}", axum::routing::delete(remove::<S>))
 }
 
 /// Queue access: the requests moderator or a settings admin.
