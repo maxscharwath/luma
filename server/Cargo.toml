@@ -88,7 +88,7 @@ tracing-appender = "0.2"
 walkdir = "2"
 jwalk = "0.8"
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 notify = "8"
 sysinfo = "0.39"
 # In-process JPEG "card" compositing (tiny-skia raster + fontdue glyphs), shared
