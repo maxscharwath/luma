@@ -235,7 +235,7 @@ luma-module-sdk = { workspace = true }
 luma-module-manifest = { workspace = true }
 # Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
 luma-module-supervisor = { workspace = true }
-rand = "0.9"
+rand = "0.10"
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.

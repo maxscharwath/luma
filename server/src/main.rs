@@ -176,7 +176,7 @@ async fn main() -> anyhow::Result<()> {
     // moved out of the base build can be resolved as client proxies pointing at
     // their sidecar process. A fresh random token authenticates host callbacks.
     let host_token: String = {
-        use rand::Rng;
+        use rand::RngExt;
         rand::rng()
             .sample_iter(rand::distr::Alphanumeric)
             .take(32)
