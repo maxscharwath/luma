@@ -85,6 +85,7 @@
   "requests.search": "Chercher",
   "requests.searchTitle": "Chercher ce titre maintenant et récupérer la meilleure version",
   "requests.searchAll": "Tout chercher",
+  "requests.searchSelected": "Chercher la sélection ({count})",
   "requests.searchStarted": "Recherche lancée",
   "nav.connectDevice": "Connecter un appareil",
   "nav.inviteUser": "Inviter un utilisateur",

@@ -85,6 +85,7 @@
   "requests.search": "Search",
   "requests.searchTitle": "Search this title now and grab the best release",
   "requests.searchAll": "Search all",
+  "requests.searchSelected": "Search selected ({count})",
   "requests.searchStarted": "Search started",
   "nav.connectDevice": "Connect a device",
   "nav.inviteUser": "Invite a user",
