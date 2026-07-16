@@ -15,6 +15,7 @@ mod discover;
 mod downloads_overlay;
 mod extract;
 mod home;
+mod host_jobs;
 mod images;
 mod invites;
 mod media;
@@ -139,6 +140,9 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
         .merge(luma_module_supervisor::host_router::<SharedState>(
             supervisor.host_token().to_string(),
         ))
+        // A sidecar registers its scheduled jobs with the core JobManager here, so
+        // they appear in admin Tâches like in-core jobs (same host-token guard).
+        .merge(host_jobs::routes(supervisor.host_token().to_string()))
         .route("/module/{id}/{*rest}", axum::routing::any(module_proxy))
         .nest("/admin", admin::routes(state.clone()))
         .layer(Extension(supervisor));

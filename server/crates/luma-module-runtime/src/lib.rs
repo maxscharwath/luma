@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use axum::http::StatusCode;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use luma_db::Pool;
 use luma_domain::{Permission, User};
 use luma_module_host::{json_error, Event, HostCtx, ServerModule};
@@ -313,18 +313,144 @@ pub async fn serve(
         module.on_enable(Arc::new(host.clone()) as Arc<dyn HostCtx>).await;
     }
 
-    // Serve every module's routes + any extra port routes + a health probe.
+    // Collect every module's contributed jobs: a run-fn map the /_job/run/{key}
+    // endpoint dispatches on, and the specs we register with the core scheduler.
+    let mut job_fns: HashMap<&'static str, JobFn> = HashMap::new();
+    let mut job_specs: Vec<JobSpec> = Vec::new();
+    for module in &modules {
+        for job in module.jobs() {
+            job_fns.insert(job.key, job.run);
+            job_specs.push(JobSpec {
+                key: job.key.to_string(),
+                category: job.category.to_string(),
+                schedule: job.schedule.map(str::to_string),
+            });
+        }
+    }
+
+    // Serve every module's routes + any extra port routes + a health probe, plus
+    // the job-run endpoint (mounted only when a module contributes jobs).
     let mut app = extra.route("/_health", axum::routing::get(|| async { "ok" }));
     for module in &modules {
         if let Some(routes) = module.admin_routes(&host) {
             app = app.merge(routes);
         }
     }
+    if !job_fns.is_empty() {
+        app = app.merge(job_router(job_fns, env.host_token.clone()));
+    }
     let app = app.with_state(host);
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], env.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "module listening");
+
+    // Register each contributed job with the core JobManager now that the listener
+    // is bound (so a run the core fires immediately queues on the accept backlog
+    // and is served once axum::serve below starts accepting). Best-effort: a failed
+    // registration just leaves the job absent from admin until the next respawn.
+    if !job_specs.is_empty() {
+        let register_url = format!("{}/api/_host/register-job", env.core_url.trim_end_matches('/'));
+        let module_id = env.module_id.clone();
+        let host_token = env.host_token.clone();
+        tokio::task::spawn_blocking(move || {
+            register_jobs(&register_url, &module_id, &host_token, &job_specs);
+        });
+    }
+
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+/// A contributed job's run pass, dispatched by the `/_job/run/{key}` endpoint.
+type JobFn = fn(&RemoteHost) -> anyhow::Result<()>;
+
+/// One job's registration spec, POSTed to the core's `/_host/register-job`.
+struct JobSpec {
+    key: String,
+    category: String,
+    schedule: Option<String>,
+}
+
+/// The bearer-token guard state for the job-run endpoint (the same shared host
+/// token the module authenticates its own core callbacks with).
+#[derive(Clone)]
+struct JobAuth {
+    token: String,
+}
+
+/// Build the `/_job/run/{key}` sub-router the core scheduler POSTs to in order to
+/// run a contributed job's pass in this process. Guarded by the shared host token;
+/// the run-fn map rides as a request extension.
+fn job_router(job_fns: HashMap<&'static str, JobFn>, token: String) -> axum::Router<RemoteHost> {
+    axum::Router::new()
+        .route("/_job/run/{key}", axum::routing::post(run_job))
+        .route_layer(axum::middleware::from_fn_with_state(JobAuth { token }, job_auth))
+        .layer(axum::Extension(Arc::new(job_fns)))
+}
+
+/// Reject a job-run request whose bearer does not match the shared host token.
+async fn job_auth(
+    axum::extract::State(auth): axum::extract::State<JobAuth>,
+    headers: axum::http::HeaderMap,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let ok = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .is_some_and(|t| t == auth.token);
+    if ok {
+        next.run(req).await
+    } else {
+        (StatusCode::UNAUTHORIZED, "bad host token").into_response()
+    }
+}
+
+/// Run a contributed job's pass on the blocking pool (DB + network): 200 on
+/// success, 500 + message on failure, 404 for an unknown key.
+async fn run_job(
+    axum::extract::State(host): axum::extract::State<RemoteHost>,
+    axum::Extension(job_fns): axum::Extension<Arc<HashMap<&'static str, JobFn>>>,
+    axum::extract::Path(key): axum::extract::Path<String>,
+) -> Response {
+    let Some(&run) = job_fns.get(key.as_str()) else {
+        return (StatusCode::NOT_FOUND, format!("unknown job {key}")).into_response();
+    };
+    match tokio::task::spawn_blocking(move || run(&host)).await {
+        Ok(Ok(())) => StatusCode::OK.into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("job panicked: {e}")).into_response(),
+    }
+}
+
+/// POST each contributed job's spec to the core's `/_host/register-job` (bearer
+/// host token). Blocking (curl), so the caller runs it on the blocking pool.
+fn register_jobs(url: &str, module_id: &str, host_token: &str, specs: &[JobSpec]) {
+    for spec in specs {
+        let body = serde_json::json!({
+            "moduleId": module_id,
+            "key": spec.key,
+            "category": spec.category,
+            "schedule": spec.schedule,
+        });
+        match luma_http::Fetch::new()
+            .header("authorization", format!("Bearer {host_token}"))
+            .post_json(url, &body)
+        {
+            Ok(resp) if (200..300).contains(&resp.status) => {
+                tracing::info!(job = %spec.key, "registered job with core scheduler");
+            }
+            Ok(resp) => tracing::warn!(
+                job = %spec.key,
+                status = resp.status,
+                "core rejected job registration: {}",
+                resp.text()
+            ),
+            Err(e) => {
+                tracing::warn!(job = %spec.key, error = %format!("{e:#}"), "job registration failed")
+            }
+        }
+    }
 }

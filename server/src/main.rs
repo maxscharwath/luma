@@ -286,8 +286,10 @@ async fn main() -> anyhow::Result<()> {
     // quietly no-op), same as the former NoopEmbedder fallback.
     let embedder: std::sync::Arc<dyn luma_engine::ports::Embedder> =
         std::sync::Arc::new(EmbedderClient::new(local_resolver("dev.luma.vector")));
-    // Acquisition's search / import / match jobs run in ITS sidecar now (resident
-    // timers via `start_cron`), so the core registers no module jobs.
+    // Acquisition's search / import / match jobs run in ITS sidecar now: the
+    // sidecar registers them with the core JobManager over `/_host/register-job`
+    // (so they appear in admin Tâches), which drives them by triggering the
+    // sidecar's `/_job/run/{key}`. Nothing is compiled into the core roster here.
     let state = AppState::new(
         config,
         ffprobe_available,

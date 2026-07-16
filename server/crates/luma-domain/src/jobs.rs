@@ -29,6 +29,24 @@ pub enum Category {
     Acquisition,
 }
 
+impl std::str::FromStr for Category {
+    type Err = ();
+
+    /// Parse the lowercase wire string (mirror of the serde `rename_all`), used
+    /// core-side when an out-of-process module registers a job with its category
+    /// as a plain string. Unknown values are the caller's to default.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "maintenance" => Ok(Self::Maintenance),
+            "library" => Ok(Self::Library),
+            "recommendations" => Ok(Self::Recommendations),
+            "pipeline" => Ok(Self::Pipeline),
+            "acquisition" => Ok(Self::Acquisition),
+            _ => Err(()),
+        }
+    }
+}
+
 /// One recorded execution of a job.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

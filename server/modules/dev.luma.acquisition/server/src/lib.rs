@@ -27,9 +27,6 @@ mod serve;
 pub use dtos::*;
 pub use serve::acqsearch_routes;
 
-use std::sync::Arc;
-use std::time::Duration;
-
 use luma_module_sdk::host::HostCtx;
 use luma_module_sdk::scene::{Profile, Res};
 
@@ -154,15 +151,15 @@ pub fn resolve_builtin_download<S: HostCtx>(
 
 /// The Acquisition module's backend behavior: it serves the search / analyze /
 /// add admin routes (behind its enabled-gate) and contributes the search /
-/// import / match jobs. Disabling it 404s those routes and no-ops the jobs, so
-/// the whole search / grab / auto feature is gated on this module. It reaches the
-/// Downloads / Indexer modules through their SDK ports (see the module docs).
+/// import / match jobs. Disabling it 404s those routes, so the whole search /
+/// grab / auto feature is gated on this module. It reaches the Downloads /
+/// Indexer modules through their SDK ports (see the module docs).
 ///
-/// Generic over the host state `S: HostCtx`, like every module. In-core
-/// (`S = SharedState`) the three passes run on the core JobManager via [`JOBS`];
-/// out-of-process (`S = RemoteHost`, its `.lmod`) the sidecar calls [`start_cron`]
-/// instead, since the core scheduler can't reach into the sidecar. It reaches the
-/// Downloads / Indexer modules through their SDK ports (see the module docs).
+/// Generic over the host state `S: HostCtx`, like every module. The three passes
+/// are exposed as [`ServerModule::jobs`]: out-of-process (`S = RemoteHost`, its
+/// `.lmod`) the runtime registers them with the CORE JobManager over
+/// `/_host/register-job`, so they show in admin Tâches with cron + history and the
+/// core scheduler drives them by calling this process's `/_job/run/{key}`.
 pub struct AcquisitionModule;
 
 #[luma_module_sdk::host::async_trait]
@@ -176,62 +173,56 @@ impl<S: HostCtx + Clone + Send + Sync + 'static> luma_module_sdk::host::ServerMo
     fn admin_routes(&self, _host: &S) -> Option<axum::Router<S>> {
         Some(routes::routes::<S>())
     }
+
+    /// The scheduled jobs contributed to the core JobManager. The runtime
+    /// registers each and serves the `/_job/run/{key}` endpoint that runs the pass
+    /// in this process; the core owns the cron cadence, run-now and history.
+    fn jobs(&self) -> Vec<luma_module_sdk::host::ModuleJob<S>> {
+        use luma_module_sdk::host::ModuleJob;
+        vec![
+            // Import runs often: the cross-sidecar completion trigger can't reach
+            // us, so a short cadence catches completed downloads within minutes.
+            ModuleJob {
+                key: "acquisition.import",
+                category: "acquisition",
+                schedule: Some("*/5 * * * *"),
+                run: run_import::<S>,
+            },
+            ModuleJob {
+                key: "acquisition.search",
+                category: "acquisition",
+                schedule: Some("*/30 * * * *"),
+                run: run_search::<S>,
+            },
+            ModuleJob {
+                key: "acquisition.match",
+                category: "acquisition",
+                schedule: Some("30 5 * * *"),
+                run: run_match::<S>,
+            },
+        ]
+    }
 }
 
-/// Run the search / import / match passes on resident timers. Called ONLY by the
-/// out-of-process sidecar (from its bin), where the core JobManager can't reach:
-/// in-core the same passes run via [`JOBS`], so running both would double every
-/// pass. Spawn once per process; each tick idles while the module is disabled.
-pub fn start_cron(host: Arc<dyn HostCtx>) {
-    // (initial delay, period). Import runs SOON after start and often: the
-    // cross-sidecar completion trigger can't reach us and the sidecar restarts
-    // on every update, so a long sleep-first interval meant completed downloads
-    // were never imported (stuck "Importing"). A short interval catches them
-    // within minutes regardless. Search/match stay on their heavier cadence.
-    let m = Duration::from_secs(60);
-    spawn_pass_loop(host.clone(), 30 * m, 30 * m, "search", run_search);
-    spawn_pass_loop(host.clone(), Duration::from_secs(30), 5 * m, "import", run_import);
-    spawn_pass_loop(host, 6 * 60 * m, 6 * 60 * m, "match", run_match);
-}
+// The three passes, generic over the host state `S: HostCtx` so they drop
+// straight into a [`ModuleJob::run`] (`fn(&S)`). They are the units the core
+// JobManager runs, via this sidecar's `/_job/run/{key}` endpoint. The sidecar
+// only runs while the module is enabled (the supervisor stops it on disable), so
+// no in-pass enabled-guard is needed here.
 
-/// Spawn a resident timer that runs `pass` after `initial`, then every `period`,
-/// skipping while the module is disabled. The pass is blocking (DB + network),
-/// so it runs on the blocking pool; failures are logged, never fatal to the loop.
-fn spawn_pass_loop(
-    host: Arc<dyn HostCtx>,
-    initial: Duration,
-    period: Duration,
-    name: &'static str,
-    pass: fn(&Arc<dyn HostCtx>) -> anyhow::Result<()>,
-) {
-    tokio::spawn(async move {
-        tokio::time::sleep(initial).await;
-        loop {
-            if host.module_enabled(MODULE_ID) {
-                let h = host.clone();
-                let _ = tokio::task::spawn_blocking(move || {
-                    if let Err(e) = pass(&h) {
-                        tracing::warn!(target: "acquisition", job = name, error = %format!("{e:#}"), "pass failed");
-                    }
-                })
-                .await;
-            }
-            tokio::time::sleep(period).await;
-        }
-    });
-}
-
-fn run_search(host: &Arc<dyn HostCtx>) -> anyhow::Result<()> {
+fn run_search<S: HostCtx>(host: &S) -> anyhow::Result<()> {
+    // No JobContext-driven cancellation across the process boundary (MVP): the
+    // pass runs to completion once the core fires it.
     auto::auto_search_pass(host, &|l| tracing::info!(target: "acquisition", "{l}"), &|| false)?;
     Ok(())
 }
 
-fn run_import(host: &Arc<dyn HostCtx>) -> anyhow::Result<()> {
+fn run_import<S: HostCtx>(host: &S) -> anyhow::Result<()> {
     import::import_pass(host, &|l| tracing::info!(target: "acquisition", "{l}"))?;
     Ok(())
 }
 
-fn run_match(host: &Arc<dyn HostCtx>) -> anyhow::Result<()> {
+fn run_match<S: HostCtx>(host: &S) -> anyhow::Result<()> {
     luma_module_sdk::engine::services::requests::availability_pass(host)?;
     Ok(())
 }

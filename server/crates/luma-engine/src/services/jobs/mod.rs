@@ -49,7 +49,36 @@ use tracing::{info, warn};
 
 use crate::db;
 use crate::infra::events::ServerEvent;
+use crate::model::Category;
 use crate::state::SharedState;
+
+/// The run logic of a remote (out-of-process module) job, injected from
+/// `server/src` (the layer that owns the sidecar supervisor). `luma-engine` must
+/// not depend on the supervisor, so it only ever sees this boxed closure: on a
+/// manual or scheduled trigger the manager invokes it with the run's
+/// [`JobContext`], and the closure drives the sidecar (a blocking HTTP POST to its
+/// `/_job/run/{key}` endpoint). Returning `Err` records the run as failed, exactly
+/// like a built-in.
+pub type RemoteRun = Arc<dyn Fn(&JobContext) -> anyhow::Result<()> + Send + Sync>;
+
+/// A job contributed at runtime by an out-of-process module. Same console shape as
+/// a [`Builtin`], but its `run` is the injected [`RemoteRun`] and its schedule is
+/// an owned `String` (it arrives over the wire at registration, not from a
+/// `'static` SPEC).
+struct RemoteJob {
+    key: JobKey,
+    category: Category,
+    schedule: Option<String>,
+    run: RemoteRun,
+}
+
+/// The handler to run for a triggered job: either a built-in's `'static` fn or a
+/// remote module's injected closure. Computed under the lock in [`JobManager::trigger`]
+/// then moved into the worker thread, so the run executes without holding any lock.
+enum Runner {
+    Local(fn(&JobContext) -> anyhow::Result<()>),
+    Remote(RemoteRun),
+}
 
 /// A built-in job's identity: its stable dotted key (`"cache.cleanup"`), which is
 /// also the DB key, the `/api/admin/jobs/:key` URL segment and the i18n base
@@ -132,6 +161,14 @@ pub struct JobManager {
     /// The static descriptor per job, borrowed straight from the `'static` roster
     /// (no per-field copy: the `Builtin` already holds everything we need).
     jobs: HashMap<JobKey, &'static Builtin>,
+    /// Jobs contributed at runtime by out-of-process modules, keyed by their
+    /// dotted key string (a `&'static str` leaked once per module+key in
+    /// `server/src`). Interior-mutable because a sidecar registers (and
+    /// re-registers on every respawn) long after startup, unlike the `'static`
+    /// built-in `jobs` map filled once by [`register`](Self::register).
+    remote: RwLock<HashMap<&'static str, RemoteJob>>,
+    /// Registration order of the remote jobs, listed after the built-ins.
+    remote_order: RwLock<Vec<JobKey>>,
     schedules: RwLock<HashMap<JobKey, ScheduleState>>,
     running: RwLock<HashMap<JobKey, Arc<RunHandle>>>,
     counter: AtomicU64,
@@ -149,6 +186,8 @@ impl JobManager {
         Self {
             order: Vec::new(),
             jobs: HashMap::new(),
+            remote: RwLock::new(HashMap::new()),
+            remote_order: RwLock::new(Vec::new()),
             schedules: RwLock::new(HashMap::new()),
             running: RwLock::new(HashMap::new()),
             counter: AtomicU64::new(0),
@@ -182,10 +221,47 @@ impl JobManager {
         self.jobs.insert(b.key, b);
     }
 
+    /// Register (or re-register) a job contributed by an out-of-process module, so
+    /// it shows in admin Tâches with cron scheduling + run history like a built-in.
+    /// Interior-mutable so a sidecar can register after startup and again on every
+    /// respawn. `key` is a `&'static str` the caller leaked once per module+key (so
+    /// respawns reuse it and the leak stays bounded to the fixed set of job keys).
+    ///
+    /// The schedule seeds a [`ScheduleState`] ONLY when the key is new: a persisted
+    /// DB override (overlaid afterwards via [`load_schedules`](Self::load_schedules))
+    /// or an admin customization must survive a re-registration, so an existing
+    /// schedule state is left untouched. The `run` closure IS refreshed every call
+    /// (a respawn hands us a new port-resolving closure).
+    pub fn register_remote(
+        &self,
+        key: &'static str,
+        category: Category,
+        schedule: Option<String>,
+        run: RemoteRun,
+    ) {
+        let job = JobKey(key);
+        self.schedules.write().unwrap().entry(job).or_insert_with(|| ScheduleState {
+            schedule: schedule.clone(),
+            enabled: true,
+            customized: false,
+        });
+        {
+            let mut order = self.remote_order.write().unwrap();
+            if !order.contains(&job) {
+                order.push(job);
+            }
+        }
+        self.remote.write().unwrap().insert(key, RemoteJob { key: job, category, schedule, run });
+    }
+
     /// The registered identity for a request/stored key string, or `None` if no
-    /// such job exists (stale rows / bad URLs are simply ignored).
+    /// such job exists (stale rows / bad URLs are simply ignored). Checks the
+    /// built-ins first, then the remote (module-contributed) jobs.
     pub fn resolve(&self, key: &str) -> Option<JobKey> {
-        self.jobs.get(key).map(|b| b.key)
+        if let Some(b) = self.jobs.get(key) {
+            return Some(b.key);
+        }
+        self.remote.read().unwrap().get(key).map(|r| r.key)
     }
 
     /// Overlay persisted schedule overrides from the DB onto the defaults.
@@ -216,7 +292,15 @@ impl JobManager {
         job: JobKey,
         trigger: &'static str,
     ) -> std::result::Result<String, TriggerError> {
-        let builtin = *self.jobs.get(&job).ok_or(TriggerError::Unknown)?;
+        // The handler is either a built-in's `'static` fn or a remote module's
+        // injected closure; resolve it up front (return Unknown if neither has it).
+        let runner = if let Some(b) = self.jobs.get(&job) {
+            Runner::Local(b.run)
+        } else if let Some(r) = self.remote.read().unwrap().get(job.as_str()) {
+            Runner::Remote(r.run.clone())
+        } else {
+            return Err(TriggerError::Unknown);
+        };
         let key = job.as_str();
 
         // One run per key. Reserve the slot under the lock to avoid a race.
@@ -252,7 +336,10 @@ impl JobManager {
             info!(job = key, run = %run_id, trigger, "job started");
 
             let ctx = JobContext::new(state.clone(), handle.clone());
-            let result = catch_unwind(AssertUnwindSafe(|| (builtin.run)(&ctx)));
+            let result = catch_unwind(AssertUnwindSafe(|| match &runner {
+                Runner::Local(f) => f(&ctx),
+                Runner::Remote(f) => f(&ctx),
+            }));
 
             let finished_ms = now_ms();
             let (status, error): (&str, Option<String>) = match result {

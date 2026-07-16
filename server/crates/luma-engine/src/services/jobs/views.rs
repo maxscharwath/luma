@@ -10,11 +10,18 @@ use crate::model::{JobDetail, JobInfo};
 use crate::state::SharedState;
 
 impl JobManager {
-    /// All jobs as wire-ready [`JobInfo`], in registration order.
+    /// All jobs as wire-ready [`JobInfo`], in registration order: the built-ins
+    /// first, then the remote (out-of-process module) jobs.
     pub fn list(&self, state: &SharedState) -> Vec<JobInfo> {
         let now = now_local(state);
         let pool = state.db.clone();
-        self.order.iter().filter_map(|&job| self.info_for(&pool, now, job)).collect()
+        let remote = self.remote_order.read().unwrap().clone();
+        self.order
+            .iter()
+            .copied()
+            .chain(remote)
+            .filter_map(|job| self.info_for(&pool, now, job))
+            .collect()
     }
 
     /// One job plus its recent run history.
@@ -29,8 +36,18 @@ impl JobManager {
     /// Build the wire [`JobInfo`] for one job: static metadata + effective
     /// schedule + next fire time + live run progress.
     fn info_for(&self, pool: &db::Pool, now: OffsetDateTime, job: JobKey) -> Option<JobInfo> {
-        let builtin = self.jobs.get(&job)?;
         let st = self.schedules.read().unwrap().get(&job).cloned()?;
+
+        // Category + built-in default schedule come from the `'static` SPEC, or,
+        // for a sidecar-contributed job, from its RemoteJob metadata.
+        let (category, default_schedule) = match self.jobs.get(&job) {
+            Some(b) => (b.category, b.schedule.map(str::to_string)),
+            None => {
+                let remote = self.remote.read().unwrap();
+                let r = remote.get(job.as_str())?;
+                (r.category, r.schedule.clone())
+            }
+        };
 
         // Next scheduled fire, if enabled and on a (valid) schedule.
         let next_run_at = if st.enabled {
@@ -56,9 +73,9 @@ impl JobManager {
             key: job.as_str().to_string(),
             name: format!("jobs.{}.name", job.as_str()),
             description: format!("jobs.{}.desc", job.as_str()),
-            category: builtin.category,
+            category,
             schedule: st.schedule.clone(),
-            default_schedule: builtin.schedule.map(str::to_string),
+            default_schedule,
             customized: st.customized,
             enabled: st.enabled,
             running: running.is_some(),

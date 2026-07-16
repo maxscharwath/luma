@@ -1,8 +1,11 @@
 //! The Acquisition module as a standalone process (its `.lmod` entrypoint).
 //!
 //! Serves its admin routes (`/api/admin/acquisition/*`, reverse-proxied by the
-//! core) and runs the search / import / match passes on resident timers
-//! (`start_cron`, since the core's JobManager can't reach into a sidecar).
+//! core). The search / import / match passes are contributed as
+//! [`ServerModule::jobs`](luma_module_sdk::host::ServerModule::jobs): the runtime
+//! registers them with the CORE JobManager (so they appear in admin Tâches with
+//! cron scheduling + history) and serves the `/_job/run/{key}` endpoint the core
+//! scheduler calls to run each pass in this process.
 //!
 //! It CONSUMES (as client proxies through the core reverse-proxy): `DownloadGrabPort`
 //! + `DownloadDbPort` (← the Downloads sidecar, for grab + the import ledger) and
@@ -12,7 +15,6 @@
 use std::sync::Arc;
 
 use luma_module_runtime::RemoteHost;
-use luma_module_sdk::host::HostCtx;
 use luma_module_sdk::ports::{
     DownloadDbPort, DownloadGrabPort, IndexerDbPort, IndexerSearchPort,
 };
@@ -38,9 +40,9 @@ async fn main() -> anyhow::Result<()> {
                     host.sibling_resolver("dev.luma.indexer"),
                 ));
             host.register_port(isearch);
-            // Sidecar-only: drive the passes on resident timers (the core's
-            // JobManager can't reach this process). In-core, `JOBS` does this.
-            luma_acquisition::start_cron(Arc::new(host.clone()) as Arc<dyn HostCtx>);
+            // The search / import / match passes are contributed via `jobs()`; the
+            // runtime registers them with the core JobManager and serves the
+            // `/_job/run/{key}` endpoint the core scheduler drives them through.
         },
         vec![luma_acquisition::server_module::<RemoteHost>()],
         // Provider routes for the core's /api/requests/:id/search + /grab endpoints.

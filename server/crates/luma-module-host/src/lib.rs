@@ -193,6 +193,27 @@ pub fn service<T: Any + Send + Sync>(host: &dyn HostCtx) -> Option<Arc<T>> {
     host.get_service(TypeId::of::<T>())?.downcast::<T>().ok()
 }
 
+/// One scheduled job an out-of-process module contributes to the CORE
+/// JobManager, so it appears in the admin Tâches page with cron scheduling, a
+/// run-now button and run history exactly like an in-core job. The module
+/// declares the job's identity + default cadence; its `run` pass executes
+/// in-process on the sidecar when the core scheduler fires the job (the runtime
+/// serves a `/_job/run/{key}` endpoint the core calls). `S` is the module's host
+/// state (`RemoteHost` in the sidecar).
+pub struct ModuleJob<S> {
+    /// Stable dotted key (`"acquisition.import"`) the job's identity everywhere
+    /// (DB key, URL segment, i18n base).
+    pub key: &'static str,
+    /// UI grouping bucket, as the lowercase wire string the core parses into its
+    /// `Category` (`"maintenance" | "library" | "recommendations" | "pipeline" |
+    /// "acquisition"`).
+    pub category: &'static str,
+    /// Default cron schedule (admin-overridable), or `None` for manual-only.
+    pub schedule: Option<&'static str>,
+    /// The pass to run, in-process on the sidecar, when the job fires.
+    pub run: fn(&S) -> anyhow::Result<()>,
+}
+
 /// The backend contract a module crate implements to own its full server-side
 /// vertical: the admin routes it serves (behind the host's enabled-gate) and its
 /// enable/disable lifecycle. Generic over the host state `S` so the crate depends
@@ -218,6 +239,15 @@ where
     /// host, so they 404 while it is disabled.
     fn admin_routes(&self, _host: &S) -> Option<axum::Router<S>> {
         None
+    }
+
+    /// The scheduled jobs this module contributes to the core JobManager, so they
+    /// appear in admin Tâches with cron scheduling + run history like an in-core
+    /// job. The runtime registers each with the core over the `/_host/register-job`
+    /// callback and serves a `/_job/run/{key}` endpoint the core scheduler calls to
+    /// run it. Default: none (the module keeps whatever private loops it had).
+    fn jobs(&self) -> Vec<ModuleJob<S>> {
+        Vec::new()
     }
 
     /// Bring the module's live services up: called when it is enabled at runtime
