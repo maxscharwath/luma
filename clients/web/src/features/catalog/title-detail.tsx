@@ -4,7 +4,7 @@
 // similar, and the owned-only Treatments + AI rails. Replaces the old split
 // movie/show fiche vs discover fiche.
 
-import { apiErrorText, formatRuntime } from '@luma/core';
+import { apiErrorText, type EpisodeRef, formatRuntime } from '@luma/core';
 import { useT } from '@luma/ui';
 import { IconLoader2, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
@@ -40,6 +40,9 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
   const [error, setError] = useState<string | null>(null);
   // `null` = closed; `number[]` = open (empty preselects every open season).
   const [pick, setPick] = useState<number[] | null>(null);
+  // Individual episodes optimistically marked pending (`"season-episode"` keys),
+  // since the view carries no per-episode request flag.
+  const [pendingEps, setPendingEps] = useState<Set<string>>(() => new Set());
   const { isWatched, toggleWatched } = useWatched();
   const { inList, toggle: toggleList } = useMyList();
 
@@ -66,14 +69,17 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
 
   const play = (id: string) => navigate({ to: '/watch/$id', params: { id } });
 
-  const doRequest = (seasons: number[] | null) => {
+  const doRequest = (seasons: number[] | null, episodes?: EpisodeRef[]) => {
     if (view.tmdbId == null) return;
     setBusy(true);
     setError(null);
     client
-      .createRequest({ kind: view.kind, tmdbId: view.tmdbId, seasons })
+      .createRequest({ kind: view.kind, tmdbId: view.tmdbId, seasons, episodes })
       .then((req) => {
         setView((v) => {
+          // Per-episode ask: only lift the top-level status (the picked episodes
+          // are tracked in `pendingEps`); whole-season asks flag their seasons.
+          if (episodes?.length) return { ...v, requestStatus: req.status };
           const target = new Set(
             seasons ?? v.seasons.filter((s) => !s.available && !s.requested).map((s) => s.number),
           );
@@ -83,11 +89,19 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
             seasons: v.seasons.map((s) => (target.has(s.number) ? { ...s, requested: true } : s)),
           };
         });
+        if (episodes?.length) {
+          setPendingEps((prev) => {
+            const next = new Set(prev);
+            for (const e of episodes) next.add(`${e.season}-${e.episode}`);
+            return next;
+          });
+        }
         setPick(null);
       })
       .catch((e) => setError(apiErrorText(e, t('discover.requestFailed'))))
       .finally(() => setBusy(false));
   };
+  const requestEpisode = (season: number, episode: number) => doRequest(null, [{ season, episode }]);
   // Movies request immediately; shows open the season sheet.
   const onRequestClick = () => (view.kind === 'show' ? setPick([]) : doRequest(null));
 
@@ -167,6 +181,9 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
           canRequest={view.canRequest}
           onPickSeason={(s) => setPick([s])}
           onPickAll={() => setPick([])}
+          onRequestEpisode={requestEpisode}
+          pendingEpisodes={pendingEps}
+          requestBusy={busy}
         />
       )}
 

@@ -37,6 +37,13 @@ export const RequestCounts = z.object({
 });
 export type RequestCounts = z.infer<typeof RequestCounts>;
 
+/** One (season, episode) pair, for a request that targets individual episodes. */
+export const EpisodeRef = z.object({
+  season: z.number(),
+  episode: z.number(),
+});
+export type EpisodeRef = z.infer<typeof EpisodeRef>;
+
 /** One media request, as listed to clients. `Option` fields are `.nullish()`. */
 export const MediaRequest = z.object({
   id: RequestId,
@@ -46,6 +53,7 @@ export const MediaRequest = z.object({
   year: z.number().nullable(),
   posterUrl: z.string().nullable(),
   seasons: z.array(z.number()).nullable(),
+  episodes: z.array(EpisodeRef).nullable(),
   status: RequestStatus,
   requestedBy: UserId.nullable(),
   requestedByName: z.string().nullable(),
@@ -69,6 +77,8 @@ export const CreateRequestBody = z.object({
   kind: RequestKind,
   tmdbId: z.number(),
   seasons: z.array(z.number()).nullable(),
+  /** For shows: individual episodes to request, unioned with `seasons`. */
+  episodes: z.array(EpisodeRef).nullish(),
 });
 export type CreateRequestBody = z.infer<typeof CreateRequestBody>;
 

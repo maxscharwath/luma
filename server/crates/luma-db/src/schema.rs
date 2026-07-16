@@ -347,8 +347,10 @@ pub(crate) const SCHEMA: &str = "
 
     -- Media requests (the 'ask for a title' flow). One row per user request; a
     -- show request may carry a season subset (JSON int array; NULL = whole show
-    -- or a movie). Linked to the catalog ONLY via tmdb_id: the acquisition.match
-    -- job flips status once enrichment writes metadata.tmdbId for a local title.
+    -- or a movie) and/or an individual-episode subset (`episodes`: JSON array of
+    -- {season,episode}; NULL = none). The target is the union of the two.
+    -- Linked to the catalog ONLY via tmdb_id: the acquisition.match job flips
+    -- status once enrichment writes metadata.tmdbId for a local title.
     -- Timestamps are epoch ms (the newer-table convention, like pipeline_tasks).
     CREATE TABLE IF NOT EXISTS requests (
         id           TEXT PRIMARY KEY,
@@ -362,6 +364,7 @@ pub(crate) const SCHEMA: &str = "
         requested_by TEXT REFERENCES users(id) ON DELETE SET NULL,
         reviewed_by  TEXT,
         note         TEXT,
+        episodes     TEXT,
         created_at   INTEGER NOT NULL,
         updated_at   INTEGER NOT NULL
     );
@@ -606,6 +609,11 @@ fn migrate(conn: &Connection) {
         // between attempts, so a manually re-kicked stage doesn't hammer a flaky
         // dependency). NULL for DBs created before the column / non-failed rows.
         "ALTER TABLE pipeline_tasks ADD COLUMN next_retry_at INTEGER",
+        // ----- per-episode requests -----------------------------------------------
+        // Individual-episode subset for a show request (JSON array of
+        // {season,episode}; NULL = none). Unioned with the `seasons` full-season
+        // subset. NULL for DBs / requests created before per-episode requests.
+        "ALTER TABLE requests ADD COLUMN episodes TEXT",
     ] {
         let _ = conn.execute(sql, []);
     }

@@ -82,6 +82,15 @@ impl RequestStatus {
     }
 }
 
+/// One (season, episode) pair, for a request that targets individual episodes
+/// rather than whole seasons. `1`-based, mirroring TMDB's numbering.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpisodeRef {
+    pub season: u32,
+    pub episode: u32,
+}
+
 /// One media request, as listed to clients (the requester sees their own; a
 /// `requests.manage` holder sees everyone's, with the requester hydrated).
 #[derive(Debug, Clone, Serialize)]
@@ -96,6 +105,10 @@ pub struct MediaRequest {
     pub poster_url: Option<String>,
     /// Requested season numbers; `None` = the whole show (or a movie).
     pub seasons: Option<Vec<u32>>,
+    /// Individual episodes requested alongside any full seasons. `None` = none.
+    /// A show's target is the union of `seasons` (full) and `episodes`; both
+    /// `None` = every season.
+    pub episodes: Option<Vec<EpisodeRef>>,
     pub status: RequestStatus,
     pub requested_by: Option<String>,
     /// Requester's username, hydrated for the admin queue.
@@ -139,6 +152,10 @@ pub struct CreateRequestBody {
     /// For shows: the seasons to request; `None`/empty = every season.
     #[serde(default)]
     pub seasons: Option<Vec<u32>>,
+    /// For shows: individual episodes to request, unioned with `seasons`.
+    /// `None`/empty = no per-episode ask.
+    #[serde(default)]
+    pub episodes: Option<Vec<EpisodeRef>>,
 }
 
 /// One TMDB discovery result, flagged against the local catalog + open

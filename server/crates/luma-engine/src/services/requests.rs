@@ -16,7 +16,9 @@ use luma_module_host::{Event, HostCtx};
 
 use crate::db;
 use crate::infra::metadata::discover;
-use crate::model::{CreateRequestBody, MediaRequest, Permission, RequestKind, RequestStatus, User};
+use crate::model::{
+    CreateRequestBody, EpisodeRef, MediaRequest, Permission, RequestKind, RequestStatus, User,
+};
 use crate::services::jobs::now_ms;
 
 // Request orchestration is generic over the host state `S: HostCtx` (settings /
@@ -51,7 +53,7 @@ pub fn create_request<S: HostCtx>(state: &S, user: &User, body: &CreateRequestBo
         .map_err(|()| anyhow!("TMDB lookup failed"))?
         .ok_or_else(|| anyhow!("title not found on TMDB"))?;
 
-    // Normalize the season ask: None/empty = whole show; movies carry None.
+    // Normalize the ask: None/empty = whole show; movies carry None for both.
     let asked_seasons: Option<Vec<u32>> = match body.kind {
         RequestKind::Movie => None,
         RequestKind::Show => body.seasons.clone().filter(|s| !s.is_empty()).map(|mut s| {
@@ -60,20 +62,39 @@ pub fn create_request<S: HostCtx>(state: &S, user: &User, body: &CreateRequestBo
             s
         }),
     };
+    let asked_episodes: Option<Vec<EpisodeRef>> = match body.kind {
+        RequestKind::Movie => None,
+        RequestKind::Show => normalize_episodes(body.episodes.clone()),
+    };
 
     // Duplicate-merge: a second ask for an open title folds in (a show ask can
-    // widen the season subset; re-materialized below if already approved).
+    // widen the season subset and/or the individual-episode subset;
+    // re-materialized below if already approved).
     let conn = state.db().get()?;
     if let Some(existing) = db::find_open_request(&conn, body.kind, body.tmdb_id)? {
         drop(conn);
-        let merged = merge_seasons(existing.seasons.clone(), asked_seasons);
-        if body.kind == RequestKind::Show && merged != existing.seasons {
-            db::set_request_seasons(state.db(), &existing.id, merged.as_deref(), now_ms())?;
-            if matches!(existing.status, RequestStatus::Approved | RequestStatus::PartiallyAvailable) {
-                // Already green-lit: extend the wanted ledger to the new seasons.
-                materialize_wanted(state, &existing.id)?;
+        if body.kind == RequestKind::Show {
+            let (merged_seasons, merged_episodes) = merge_target(
+                existing.seasons.clone(),
+                existing.episodes.clone(),
+                asked_seasons,
+                asked_episodes,
+            );
+            let seasons_changed = merged_seasons != existing.seasons;
+            let episodes_changed = merged_episodes != existing.episodes;
+            if seasons_changed {
+                db::set_request_seasons(state.db(), &existing.id, merged_seasons.as_deref(), now_ms())?;
             }
-            publish(state, &existing.id, existing.status);
+            if episodes_changed {
+                db::set_request_episodes(state.db(), &existing.id, merged_episodes.as_deref(), now_ms())?;
+            }
+            if seasons_changed || episodes_changed {
+                if matches!(existing.status, RequestStatus::Approved | RequestStatus::PartiallyAvailable) {
+                    // Already green-lit: extend the wanted ledger to the new target.
+                    materialize_wanted(state, &existing.id)?;
+                }
+                publish(state, &existing.id, existing.status);
+            }
         }
         let conn = state.db().get()?;
         return db::get_request(&conn, &existing.id)?
@@ -95,6 +116,7 @@ pub fn create_request<S: HostCtx>(state: &S, user: &User, body: &CreateRequestBo
         year: detail.year,
         poster_url: detail.poster_url.clone(),
         seasons: asked_seasons,
+        episodes: asked_episodes,
         status: RequestStatus::Pending,
         requested_by: Some(user.id.clone()),
     };
@@ -144,17 +166,49 @@ pub fn deny_request<S: HostCtx>(state: &S, id: &str, reviewer: &str, note: Optio
     db::get_request(&conn, id)?.ok_or_else(|| anyhow!("request vanished after deny"))
 }
 
-/// Merge two season subsets; `None` (whole show) absorbs everything.
-fn merge_seasons(a: Option<Vec<u32>>, b: Option<Vec<u32>>) -> Option<Vec<u32>> {
-    match (a, b) {
-        (Some(mut a), Some(b)) => {
-            a.extend(b);
-            a.sort_unstable();
-            a.dedup();
-            Some(a)
-        }
-        _ => None,
+/// Canonicalize an individual-episode ask: empty -> `None`, else sorted + deduped.
+fn normalize_episodes(episodes: Option<Vec<EpisodeRef>>) -> Option<Vec<EpisodeRef>> {
+    let mut list = episodes.filter(|e| !e.is_empty())?;
+    list.sort_unstable_by_key(|e| (e.season, e.episode));
+    list.dedup();
+    Some(list)
+}
+
+/// A Show request targets the WHOLE show only when it names neither full seasons
+/// nor individual episodes; that is the maximal target.
+fn is_whole_show(seasons: &Option<Vec<u32>>, episodes: &Option<Vec<EpisodeRef>>) -> bool {
+    seasons.is_none() && episodes.is_none()
+}
+
+/// Union of two Show targets (existing + a second ask), each expressed as an
+/// optional full-season set plus an optional individual-episode set. A whole-show
+/// side absorbs everything (stays whole show); otherwise a `None` set means the
+/// EMPTY set (not "all", which only whole show denotes), so the two sets union
+/// cleanly without a single-episode ask ever narrowing a broader request.
+fn merge_target(
+    ex_seasons: Option<Vec<u32>>,
+    ex_episodes: Option<Vec<EpisodeRef>>,
+    add_seasons: Option<Vec<u32>>,
+    add_episodes: Option<Vec<EpisodeRef>>,
+) -> (Option<Vec<u32>>, Option<Vec<EpisodeRef>>) {
+    if is_whole_show(&ex_seasons, &ex_episodes) || is_whole_show(&add_seasons, &add_episodes) {
+        return (None, None);
     }
+    let mut seasons: Vec<u32> =
+        ex_seasons.unwrap_or_default().into_iter().chain(add_seasons.unwrap_or_default()).collect();
+    let seasons = if seasons.is_empty() {
+        None
+    } else {
+        seasons.sort_unstable();
+        seasons.dedup();
+        Some(seasons)
+    };
+    let episodes: Vec<EpisodeRef> = ex_episodes
+        .unwrap_or_default()
+        .into_iter()
+        .chain(add_episodes.unwrap_or_default())
+        .collect();
+    (seasons, normalize_episodes(Some(episodes)))
 }
 
 /// (Re)build a request's wanted rows from TMDB. Movies: one row. Shows: one
@@ -202,13 +256,33 @@ fn build_wanted_rows<S: HostCtx>(state: &S, req: &MediaRequest) -> Result<Vec<db
             last_search_at: None,
         }),
         RequestKind::Show => {
-            let wanted_seasons: Vec<u32> = match &req.seasons {
-                Some(list) => list.clone(),
-                None => detail.seasons.iter().map(|s| s.season).collect(),
+            use std::collections::{BTreeSet, HashSet};
+            // Full seasons to pull whole: the explicit `seasons` ask, or EVERY
+            // season only when neither seasons nor episodes were specified.
+            let full_seasons: HashSet<u32> = match (&req.seasons, &req.episodes) {
+                (Some(list), _) => list.iter().copied().collect(),
+                (None, None) => detail.seasons.iter().map(|s| s.season).collect(),
+                (None, Some(_)) => HashSet::new(),
             };
-            for season in wanted_seasons {
+            // Individual (season, episode) asks unioned on top of the full seasons.
+            let individual: HashSet<(u32, u32)> = req
+                .episodes
+                .as_ref()
+                .map(|eps| eps.iter().map(|e| (e.season, e.episode)).collect())
+                .unwrap_or_default();
+            // One TMDB call per distinct season across either source (sorted for a
+            // stable order).
+            let needed: BTreeSet<u32> =
+                full_seasons.iter().copied().chain(individual.iter().map(|(s, _)| *s)).collect();
+            for season in needed {
+                let want_whole = full_seasons.contains(&season);
                 let data = crate::infra::metadata::season_episodes(&key, &lang, req.tmdb_id, season);
                 for ep in data.episodes {
+                    // Include if the whole season is wanted OR this exact episode is;
+                    // iterating distinct seasons once yields one row per episode.
+                    if !want_whole && !individual.contains(&(season, ep.episode)) {
+                        continue;
+                    }
                     rows.push(db::WantedRow {
                         id: mint(&format!("s{season:02}e{:03}", ep.episode)),
                         request_id: req.id.clone(),
@@ -377,4 +451,57 @@ pub fn match_one<S: HostCtx>(state: &S, id: &str) -> Result<Option<RequestStatus
 pub fn today_ymd() -> String {
     let now = time::OffsetDateTime::now_utc();
     format!("{:04}-{:02}-{:02}", now.year(), u8::from(now.month()), now.day())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ep(season: u32, episode: u32) -> EpisodeRef {
+        EpisodeRef { season, episode }
+    }
+
+    #[test]
+    fn merge_target_whole_show_absorbs_any_ask() {
+        // Whole show (both None) + an episode ask stays whole show, never narrows.
+        assert_eq!(merge_target(None, None, None, Some(vec![ep(1, 3)])), (None, None));
+        // A subset ask merged into whole show also stays whole show.
+        assert_eq!(merge_target(None, None, Some(vec![2]), None), (None, None));
+        // Whole-show ask widens an existing subset back to whole show.
+        assert_eq!(merge_target(Some(vec![1]), None, None, None), (None, None));
+    }
+
+    #[test]
+    fn merge_target_unions_seasons_and_episodes() {
+        // Seasons union (a None side here is the EMPTY set, not "all").
+        assert_eq!(
+            merge_target(Some(vec![1]), None, Some(vec![2, 1]), None),
+            (Some(vec![1, 2]), None)
+        );
+        // Episode-only ask unions onto an existing episode-only request.
+        assert_eq!(
+            merge_target(None, Some(vec![ep(1, 3)]), None, Some(vec![ep(1, 4)])),
+            (None, Some(vec![ep(1, 3), ep(1, 4)]))
+        );
+        // A season subset plus a stray episode coexist as a mixed target.
+        assert_eq!(
+            merge_target(Some(vec![2]), None, None, Some(vec![ep(1, 5)])),
+            (Some(vec![2]), Some(vec![ep(1, 5)]))
+        );
+        // Duplicate episode across asks collapses to one.
+        assert_eq!(
+            merge_target(None, Some(vec![ep(1, 3)]), None, Some(vec![ep(1, 3)])),
+            (None, Some(vec![ep(1, 3)]))
+        );
+    }
+
+    #[test]
+    fn normalize_episodes_empty_is_none() {
+        assert_eq!(normalize_episodes(Some(vec![])), None);
+        assert_eq!(normalize_episodes(None), None);
+        assert_eq!(
+            normalize_episodes(Some(vec![ep(2, 1), ep(1, 2), ep(1, 2)])),
+            Some(vec![ep(1, 2), ep(2, 1)])
+        );
+    }
 }

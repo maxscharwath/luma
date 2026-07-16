@@ -5,16 +5,19 @@
 use rusqlite::OptionalExtension;
 
 use super::*;
-use luma_domain::{MediaRequest, RequestKind, RequestStatus};
+use luma_domain::{EpisodeRef, MediaRequest, RequestKind, RequestStatus};
 
-/// Columns of the request list SELECT (requester username joined in).
+/// Columns of the request list SELECT (requester username joined in). `r.episodes`
+/// trails the original set so existing positional indices never shift.
 const REQUEST_COLS: &str = "r.id, r.kind, r.tmdb_id, r.title, r.year, r.poster_url, r.seasons, \
-    r.status, r.requested_by, u.username, r.reviewed_by, r.note, r.created_at, r.updated_at";
+    r.status, r.requested_by, u.username, r.reviewed_by, r.note, r.created_at, r.updated_at, \
+    r.episodes";
 
 fn row_to_request(r: &Row) -> rusqlite::Result<MediaRequest> {
     let kind: String = r.get(1)?;
     let seasons_json: Option<String> = r.get(6)?;
     let status: String = r.get(7)?;
+    let episodes_json: Option<String> = r.get(14)?;
     Ok(MediaRequest {
         id: r.get(0)?,
         kind: RequestKind::parse(&kind).unwrap_or(RequestKind::Movie),
@@ -23,6 +26,7 @@ fn row_to_request(r: &Row) -> rusqlite::Result<MediaRequest> {
         year: r.get(4)?,
         poster_url: r.get(5)?,
         seasons: seasons_json.and_then(|j| serde_json::from_str(&j).ok()),
+        episodes: episodes_json.and_then(|j| serde_json::from_str(&j).ok()),
         status: RequestStatus::parse(&status).unwrap_or(RequestStatus::Pending),
         requested_by: r.get(8)?,
         requested_by_name: r.get(9)?,
@@ -43,6 +47,7 @@ pub struct NewRequest {
     pub year: Option<u32>,
     pub poster_url: Option<String>,
     pub seasons: Option<Vec<u32>>,
+    pub episodes: Option<Vec<EpisodeRef>>,
     pub status: RequestStatus,
     pub requested_by: Option<String>,
 }
@@ -50,9 +55,10 @@ pub struct NewRequest {
 pub fn insert_request(pool: &Pool, req: &NewRequest, now_ms: i64) -> Result<()> {
     let conn = pool.get()?;
     let seasons = req.seasons.as_ref().map(|s| serde_json::to_string(s).unwrap_or_default());
+    let episodes = req.episodes.as_ref().map(|e| serde_json::to_string(e).unwrap_or_default());
     conn.execute(
-        "INSERT INTO requests (id, kind, tmdb_id, title, year, poster_url, seasons, status, requested_by, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
+        "INSERT INTO requests (id, kind, tmdb_id, title, year, poster_url, seasons, status, requested_by, episodes, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
         params![
             req.id,
             req.kind.as_str(),
@@ -63,6 +69,7 @@ pub fn insert_request(pool: &Pool, req: &NewRequest, now_ms: i64) -> Result<()> 
             seasons,
             req.status.as_str(),
             req.requested_by,
+            episodes,
             now_ms
         ],
     )?;
@@ -158,6 +165,23 @@ pub fn set_request_seasons(pool: &Pool, id: &str, seasons: Option<&[u32]>, now_m
     let json = seasons.map(|s| serde_json::to_string(s).unwrap_or_default());
     conn.execute(
         "UPDATE requests SET seasons = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, json, now_ms],
+    )?;
+    Ok(())
+}
+
+/// Replace a request's individual-episode subset (merge of a second ask;
+/// `None` = no per-episode ask).
+pub fn set_request_episodes(
+    pool: &Pool,
+    id: &str,
+    episodes: Option<&[EpisodeRef]>,
+    now_ms: i64,
+) -> Result<()> {
+    let conn = pool.get()?;
+    let json = episodes.map(|e| serde_json::to_string(e).unwrap_or_default());
+    conn.execute(
+        "UPDATE requests SET episodes = ?2, updated_at = ?3 WHERE id = ?1",
         params![id, json, now_ms],
     )?;
     Ok(())
@@ -384,6 +408,7 @@ mod tests {
             year: Some(2020),
             poster_url: None,
             seasons,
+            episodes: None,
             status: RequestStatus::Pending,
             requested_by: None,
         }
@@ -425,6 +450,15 @@ mod tests {
         assert_eq!(
             get_request(&conn, "r1").unwrap().unwrap().seasons.as_deref(),
             Some(&[1u32, 2][..])
+        );
+        drop(conn);
+
+        // Individual episodes persist and read back alongside the seasons.
+        set_request_episodes(&p, "r1", Some(&[EpisodeRef { season: 3, episode: 5 }]), 2100).unwrap();
+        let conn = p.get().unwrap();
+        assert_eq!(
+            get_request(&conn, "r1").unwrap().unwrap().episodes.as_deref(),
+            Some(&[EpisodeRef { season: 3, episode: 5 }][..])
         );
         drop(conn);
 

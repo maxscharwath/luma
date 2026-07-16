@@ -1,6 +1,6 @@
 // The unified season section: one switcher over ALL seasons; the selected
 // season renders its owned, playable episodes (with watched/progress) and/or a
-// request card for a missing or partial season — so a partially-owned show
+// request card for a missing or partial season, so a partially-owned show
 // plays what it has and requests the gaps on one screen. Extracted from the old
 // show fiche + the discover season cards.
 
@@ -106,6 +106,49 @@ function EpisodeRow({
       >
         <IconCheck size={17} stroke={2.4} />
       </button>
+    </div>
+  );
+}
+
+/** A season episode not on disk: a compact row with a per-episode request button
+ * (or a pending chip once asked). Rendered only when the viewer can request. */
+function MissingEpisodeRow({
+  episode,
+  pending,
+  busy,
+  onRequest,
+}: Readonly<{
+  season: number;
+  episode: number;
+  pending: boolean;
+  busy: boolean;
+  onRequest: () => void;
+}>) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-3 rounded-[14px] border border-white/5 bg-white/[.015] p-3.5 sm:gap-5">
+      <div className="flex aspect-video w-32 shrink-0 items-center justify-center rounded-md bg-white/[.04] text-white/35 sm:w-50">
+        <span className="text-[15px] font-bold">{episode}</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <span className="min-w-0 truncate text-[17px] font-bold text-white/70">
+          {t('content.episodeN', { n: episode })}
+        </span>
+      </div>
+      {pending ? (
+        <RequestStatusChip status="pending" size="card" />
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onRequest}
+          aria-label={t('requests.requestEpisode')}
+          title={t('requests.requestEpisode')}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/12 text-accent transition-colors hover:bg-accent hover:text-accent-ink disabled:opacity-50"
+        >
+          <IconPlus size={17} stroke={2.6} />
+        </button>
+      )}
     </div>
   );
 }
@@ -216,6 +259,9 @@ export function SeasonSection({
   canRequest,
   onPickSeason,
   onPickAll,
+  onRequestEpisode,
+  pendingEpisodes,
+  requestBusy,
 }: Readonly<{
   seasons: TitleSeason[];
   fallbackCast: CastMember[];
@@ -226,6 +272,10 @@ export function SeasonSection({
   canRequest: boolean;
   onPickSeason: (season: number) => void;
   onPickAll: () => void;
+  onRequestEpisode: (season: number, episode: number) => void;
+  /** `"season-episode"` keys optimistically marked pending after a per-episode ask. */
+  pendingEpisodes: Set<string>;
+  requestBusy: boolean;
 }>) {
   const t = useT();
   const [season, setSeason] = useState(seasons[0]?.number ?? 1);
@@ -233,6 +283,17 @@ export function SeasonSection({
   if (!current) return null;
   const hasOpen = canRequest && seasons.some((s) => !s.available && !s.requested);
   const partialCurrent = canRequest && current.episodes.length > 0 && !current.available;
+
+  // Merge owned episodes with the season's missing ones (by number) so each row
+  // plays what is on disk or offers a per-episode request. Missing rows are only
+  // enumerated when the viewer can request AND TMDB gave us the episode count;
+  // otherwise the list stays owned-only (unchanged for no-permission viewers).
+  const ownedByNum = new Map<number, MediaItem>();
+  for (const ep of current.episodes) if (ep.episode != null) ownedByNum.set(ep.episode, ep);
+  const perEpisode = canRequest && !current.available && current.episodeCount > 0;
+  const epNumbers = new Set<number>(ownedByNum.keys());
+  if (perEpisode) for (let n = 1; n <= current.episodeCount; n++) epNumbers.add(n);
+  const ordered = [...epNumbers].sort((a, b) => a - b);
 
   return (
     <section className="mt-10">
@@ -262,22 +323,39 @@ export function SeasonSection({
 
       <CastRail cast={current.cast.length ? current.cast : fallbackCast} />
 
-      {current.episodes.length > 0 ? (
+      {ordered.length > 0 ? (
         <>
           <div className="mb-5 mt-4 px-(--gutter-web) text-[14px] font-medium text-white/45">
-            {t('content.episodeCount', { count: current.episodes.length })}
+            {t('content.episodeCount', {
+              count: perEpisode ? current.episodeCount : current.episodes.length,
+            })}
           </div>
           <div className="flex flex-col gap-3.5 px-(--gutter-web)">
-            {current.episodes.map((ep) => (
-              <EpisodeRow
-                key={ep.id}
-                episode={ep}
-                watched={isWatched(ep.id)}
-                progress={progressOf(ep.id)}
-                onPlay={() => onPlay(ep.id)}
-                onToggleWatched={() => toggleWatched(ep.id)}
-              />
-            ))}
+            {ordered.map((n) => {
+              const owned = ownedByNum.get(n);
+              if (owned) {
+                return (
+                  <EpisodeRow
+                    key={owned.id}
+                    episode={owned}
+                    watched={isWatched(owned.id)}
+                    progress={progressOf(owned.id)}
+                    onPlay={() => onPlay(owned.id)}
+                    onToggleWatched={() => toggleWatched(owned.id)}
+                  />
+                );
+              }
+              return (
+                <MissingEpisodeRow
+                  key={`m-${n}`}
+                  season={current.number}
+                  episode={n}
+                  pending={current.requested || pendingEpisodes.has(`${current.number}-${n}`)}
+                  busy={requestBusy}
+                  onRequest={() => onRequestEpisode(current.number, n)}
+                />
+              );
+            })}
           </div>
           {partialCurrent ? (
             <div className="mt-3.5">
