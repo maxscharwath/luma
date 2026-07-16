@@ -266,11 +266,36 @@ fn place(src: &Path, dest: &Path) -> Result<()> {
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    match std::fs::hard_link(src, dest) {
+    // 1) Hard link: instant, but only within one filesystem AND subvolume.
+    if std::fs::hard_link(src, dest).is_ok() {
+        return Ok(());
+    }
+    // 2) Reflink (FICLONE): an instant copy-on-write clone across subvolumes of
+    //    one Btrfs/XFS filesystem - exactly the Synology case (download dir under
+    //    @appdata, library in a media shared folder = same volume, different
+    //    subvolume), where the hard link fails and DSM's old kernel won't reflink
+    //    through std::fs::copy. Falls through on a plain copy filesystem.
+    #[cfg(target_os = "linux")]
+    if try_reflink(src, dest).is_ok() {
+        return Ok(());
+    }
+    // 3) Full byte copy: different filesystems, or no CoW support.
+    std::fs::copy(src, dest)?;
+    Ok(())
+}
+
+/// Attempt a reflink (`FICLONE`) clone of `src` into a fresh `dest`. Cleans up
+/// the empty destination on failure so the caller's copy fallback starts clean.
+#[cfg(target_os = "linux")]
+fn try_reflink(src: &Path, dest: &Path) -> std::io::Result<()> {
+    let src_f = std::fs::File::open(src)?;
+    let dest_f = std::fs::File::create(dest)?;
+    match rustix::fs::ioctl_ficlone(&dest_f, &src_f) {
         Ok(()) => Ok(()),
-        Err(_) => {
-            std::fs::copy(src, dest)?;
-            Ok(())
+        Err(e) => {
+            drop(dest_f);
+            let _ = std::fs::remove_file(dest);
+            Err(e.into())
         }
     }
 }

@@ -29,3 +29,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 # The importer walks a completed download's folder for video files.
 walkdir = { workspace = true }
+# FICLONE reflink for imports: an instant copy-on-write clone across Btrfs/XFS
+# subvolumes on one filesystem (e.g. Synology @appdata -> a media shared folder),
+# where a hard link fails and the kernel is too old for std::fs::copy to reflink.
+rustix = { version = "1", features = ["fs"] }

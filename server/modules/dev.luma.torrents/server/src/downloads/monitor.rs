@@ -18,6 +18,10 @@ use super::DownloadManager;
 const ACTIVE_TICK: Duration = Duration::from_secs(5);
 const IDLE_TICK: Duration = Duration::from_secs(30);
 const VPN_CHECK_EVERY: Duration = Duration::from_secs(60);
+/// How often to retry bringing the embedded engine up while it isn't running
+/// (a boot deferral: the VPN sidecar wasn't answering yet). Short, so the engine
+/// starts within seconds of the VPN resolving instead of a VPN-check away.
+const START_RETRY: Duration = Duration::from_secs(6);
 /// How often to re-seed peer-starved embedded torrents from our own proxied
 /// tracker announce (see `DownloadManager::reseed_stalled`). Slow: each pass
 /// removes+re-adds the stalled torrents, so it must give injected peers time to
@@ -43,6 +47,8 @@ impl DownloadManager {
             // Start the reseed clock at "now" (not in the past): give the
             // add-time peer seed + librqbit a full interval before intervening.
             let mut last_reseed = std::time::Instant::now();
+            // Retry a deferred engine start immediately on the first iteration.
+            let mut last_start_try = std::time::Instant::now() - START_RETRY;
             loop {
                 // When the Downloads module is disabled its engine is torn down;
                 // idle the monitor entirely (no polling, no VPN probe) until it is
@@ -51,17 +57,20 @@ impl DownloadManager {
                     tokio::time::sleep(IDLE_TICK).await;
                     continue;
                 }
+                // Self-heal a deferred engine start on a SHORT cadence (NOT the
+                // 60s VPN check): at boot the VPN sidecar may not answer yet, so
+                // start_rqbit defers to stay sealed. Retry every few seconds so
+                // the engine comes up right after the VPN resolves instead of up
+                // to a minute later. start_rqbit re-checks every guard (disabled
+                // client, unresolved proxy) itself; no-op once the engine is up.
+                let awaiting_engine = crate::RQBIT_COMPILED && manager.rqbit().is_none();
+                if awaiting_engine && last_start_try.elapsed() >= START_RETRY {
+                    last_start_try = std::time::Instant::now();
+                    manager.start_rqbit(&*host).await;
+                }
                 let vpn_due = last_vpn_check.elapsed() >= VPN_CHECK_EVERY;
                 if vpn_due {
                     last_vpn_check = std::time::Instant::now();
-                    // Self-heal a deferred engine start: at boot the VPN
-                    // sidecar may not have been answering yet, and start_rqbit
-                    // refuses to run unsealed. Re-attempt on the VPN cadence;
-                    // start_rqbit re-checks every guard (disabled client,
-                    // unresolved proxy) itself.
-                    if manager.rqbit().is_none() {
-                        manager.start_rqbit(&*host).await;
-                    }
                 }
                 let reseed_due = last_reseed.elapsed() >= RESEED_EVERY;
                 if reseed_due {
@@ -84,7 +93,10 @@ impl DownloadManager {
                 })
                 .await
                 .unwrap_or(false);
-                tokio::time::sleep(if had_active { ACTIVE_TICK } else { IDLE_TICK }).await;
+                // Tick fast while we still need to bring the engine up, so the
+                // boot-time start retry actually fires every START_RETRY.
+                let fast = had_active || (crate::RQBIT_COMPILED && manager.rqbit().is_none());
+                tokio::time::sleep(if fast { ACTIVE_TICK } else { IDLE_TICK }).await;
             }
         });
     }

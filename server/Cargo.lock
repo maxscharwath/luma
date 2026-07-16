@@ -3072,6 +3072,7 @@ dependencies = [
  "luma-module-runtime",
  "luma-module-sdk",
  "luma-port-bridge",
+ "rustix",
  "serde",
  "serde_json",
  "tokio",

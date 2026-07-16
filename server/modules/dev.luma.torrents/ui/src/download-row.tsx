@@ -83,9 +83,10 @@ export function DownloadRowView({
   const resumable = status === 'paused';
   // "Ask more peers" only makes sense while the torrent is live in the engine.
   const canAskPeers = active || status === 'seeding';
-  // Retry a failed grab (re-download) OR a completed download whose import
-  // errored (re-import, e.g. after a library volume comes back online).
-  const retryable = status === 'failed' || (status === 'completed' && Boolean(dl.error));
+  // Retry is offered in every state: the backend does the right thing per status
+  // (completed/imported -> re-import; anything else -> reset + re-add). Useful to
+  // force-restart a stuck download or re-run an import, not just failed grabs.
+  const retryable = true;
 
   const targetLabel = targetPill(dl);
 

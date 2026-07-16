@@ -198,8 +198,12 @@ impl DownloadManager {
                 continue;
             }
             let Ok(Some(status)) = client.status(&row.client_ref) else { continue };
-            // Leave torrents that already know peers (healthy/connecting) or are done.
-            if status.peers_seen > 0 || status.progress >= 1.0 {
+            // Only reseed a genuinely DEAD grab: no data downloaded, no live peer,
+            // and none ever seen. A reseed is a remove/re-add, which RESETS the
+            // torrent to 0% - so touching one that has ANY progress or ANY peer
+            // would throw away a working download. `progress > 0` is the hard
+            // guard (a torrent that has downloaded a single byte is working).
+            if status.progress > 0.0 || status.peers > 0 || status.peers_seen > 0 {
                 continue;
             }
             // librqbit persists each torrent as `<info_hash>.torrent`, and
