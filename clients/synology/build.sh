@@ -21,7 +21,14 @@ set -euo pipefail
 # version (CARGO_PKG_VERSION) and CI all agree. Override with $1 if needed.
 _CARGO_TOML="$(cd "$(dirname "$0")/../.." && pwd)/server/Cargo.toml"
 CARGO_VERSION="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$_CARGO_TOML" | head -1)"
-VERSION="${1:-${CARGO_VERSION:-0.1.0}}"
+EXPLICIT_VERSION="${1:-}"
+VERSION="${EXPLICIT_VERSION:-${CARGO_VERSION:-0.1.0}}"
+# Canary vs stable (drives the version FORMAT below). A stable release passes an
+# explicit X.Y.Z ($1, e.g. a tag) and gets the clean `X.Y.Z-BUILD`. A nightly or
+# a local rebuild passes no version, so many builds share one X.Y.Z - they need
+# the monotonic BUILD in the FEATURE version (`X.Y.Z.BUILD-BUILD`) to stay
+# upgradable in place. Default: canary when no explicit version. Force with CANARY=1/0.
+CANARY="${CANARY:-$([ -z "$EXPLICIT_VERSION" ] && echo 1 || echo 0)}"
 # ---------------------------------------------------------------------------
 # VERSION / UPGRADE ORDERING - the thing that kept breaking in-place upgrades.
 #
@@ -153,16 +160,20 @@ cp "$WORK/package.tgz" "$SPK/package.tgz"
 # INFO extractsize is read in KB on DSM 6+; writing bytes made DSM believe the
 # package needed ~190 GB after extraction.
 EXT_SIZE="$(( $(gzip -dc "$WORK/package.tgz" | wc -c | tr -d ' ') / 1024 ))"
-# Version stamp `X.Y.Z-BUILD` (see the version note above). The feature version
-# X.Y.Z (compared by DSM's manual-install upgrade check) bumps every release, so
-# it alone orders releases; BUILD is the monotonic versionCode (minutes since
-# 2020, always climbing). Trade-off vs the old `X.Y.Z.BUILD-BUILD`: two builds of
-# the SAME X.Y.Z read as identical to DSM, so a same-version rebuild can't be
-# manual-installed over itself - bump the patch instead. Cleaner to read.
-INFO_VERSION="$VERSION-$BUILD"
+# Version stamp (see the version note above). Stable = clean `X.Y.Z-BUILD`: the
+# feature version X.Y.Z bumps every release so it alone orders them; BUILD is the
+# monotonic versionCode. Canary/nightly = `X.Y.Z.BUILD-BUILD`: many builds share
+# one X.Y.Z, so BUILD sits in the 4th FEATURE segment to keep each strictly newer
+# (DSM's manual-install check compares the dotted feature version, ignoring the
+# -build suffix). BUILD stays after the dash in both as the versionCode.
+if [ "$CANARY" = "1" ]; then
+  INFO_VERSION="$VERSION.$BUILD-$BUILD"
+else
+  INFO_VERSION="$VERSION-$BUILD"
+fi
 sed -e "s/@INFO_VERSION@/$INFO_VERSION/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
   "$SKEL/INFO.template" > "$SPK/INFO"
-say "DSM package version: $INFO_VERSION (X.Y.Z orders releases; BUILD is the monotonic versionCode)"
+say "DSM package version: $INFO_VERSION ($([ "$CANARY" = 1 ] && echo 'canary: 4th-segment build keeps every nightly upgradable' || echo 'stable: X.Y.Z orders releases, BUILD is the versionCode'))"
 # Icons: the LUMA brand mark (gold ring + dot), checked in alongside the skeleton.
 cp "$SKEL/PACKAGE_ICON.PNG" "$SKEL/PACKAGE_ICON_256.PNG" "$SPK/"
 
