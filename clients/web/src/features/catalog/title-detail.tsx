@@ -101,7 +101,8 @@ export function TitleDetail({ initial }: Readonly<{ initial: TitleView }>) {
       .catch((e) => setError(apiErrorText(e, t('discover.requestFailed'))))
       .finally(() => setBusy(false));
   };
-  const requestEpisode = (season: number, episode: number) => doRequest(null, [{ season, episode }]);
+  const requestEpisode = (season: number, episode: number) =>
+    doRequest(null, [{ season, episode }]);
   // Movies request immediately; shows open the season sheet.
   const onRequestClick = () => (view.kind === 'show' ? setPick([]) : doRequest(null));
 

@@ -76,7 +76,9 @@ function EpisodeRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center gap-2.5">
-            <span className={`min-w-0 truncate text-[17px] font-bold ${watched ? 'text-white/55' : ''}`}>
+            <span
+              className={`min-w-0 truncate text-[17px] font-bold ${watched ? 'text-white/55' : ''}`}
+            >
               {episode.episode}. {episode.episodeTitle ?? episode.title}
             </span>
             {runtime ? (
