@@ -115,7 +115,13 @@ impl Fetch {
         // status ourselves so error bodies (and 409 handshakes) stay readable.
         cmd.args(["-s", "-S", "-L", "--max-time", &self.max_time_secs.to_string()]);
         if let Some(proxy) = &self.socks5 {
-            cmd.arg("--socks5-hostname").arg(proxy);
+            // Force IPv4. Our only SOCKS proxy is the WireGuard-to-SOCKS bridge,
+            // which is IPv4-only (wireproxy can't carry IPv6 traffic). With
+            // remote DNS (`--socks5-hostname`) a dual-stack tracker hostname
+            // otherwise resolves, part of the time, to an AAAA the tunnel can't
+            // route, and the request fails "SOCKS host unreachable". `-4` pins
+            // resolution to A records so the announce reliably rides IPv4.
+            cmd.arg("-4").arg("--socks5-hostname").arg(proxy);
         }
         if let Some(jar) = &self.cookie_jar {
             cmd.arg("-c").arg(jar).arg("-b").arg(jar);
@@ -260,5 +266,26 @@ mod tests {
     fn empty_socks5_is_ignored() {
         let f = Fetch::new().socks5("  ");
         assert!(f.socks5.is_none());
+    }
+
+    #[test]
+    fn socks5_forces_ipv4() {
+        // The SOCKS bridge is IPv4-only; a proxied request must pass `-4` so a
+        // dual-stack hostname never resolves to an unroutable AAAA.
+        let args: Vec<String> = Fetch::new()
+            .socks5("socks5://127.0.0.1:25345")
+            .base_cmd()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(args.contains(&"-4".to_string()), "{args:?}");
+        assert!(args.contains(&"--socks5-hostname".to_string()), "{args:?}");
+        // Without a proxy, no forced family.
+        let plain: Vec<String> = Fetch::new()
+            .base_cmd()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(!plain.contains(&"-4".to_string()), "{plain:?}");
     }
 }
