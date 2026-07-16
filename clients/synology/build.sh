@@ -42,23 +42,26 @@ VERSION="${1:-${CARGO_VERSION:-0.1.0}}"
 # build, every new build then read as a DOWNGRADE (2383 < 3429372) and DSM
 # refused it for good. That is why upgrades "still" failed.
 #
-# Fix (two parts):
-#   a) Put the monotonic BUILD in a 4th FEATURE segment: `X.Y.Z.BUILD-BUILD`.
-#      DSM's manual-install upgrade check compares the dotted FEATURE version and
-#      IGNORES the -build suffix (confirmed on a real NAS: two `0.1.2-<build>`
-#      spks read as "same version already installed"), so the differentiator MUST
-#      live before the dash. This keeps EVERY build strictly newer than the last
-#      - including tag-less NIGHTLIES that share the same human X.Y.Z, which is
-#      exactly what nightly builds need to stay upgradable in place. BUILD =
-#      minutes since 2020-01-01 UTC (monotonic, same scheme as the Android
-#      versionCode in release.yml).
-#   b) One-time: bump `server/Cargo.toml` 0.1.3 -> 0.1.4 so the 3rd segment alone
-#      outranks every poisoned `0.1.3.*` (`0.1.4.x` > `0.1.3.<anything>`), climbing
-#      out of the numbers stuck on already-installed NASes.
-# THE RULE: the version number must only ever go UP. A real X.Y.Z bump wins at its
-# segment; within one X.Y.Z the minutes counter keeps climbing. Do NOT shrink the
-# counter's magnitude (minutes->days is what broke it last time). Override with
-# BUILD=... if you need a specific number.
+# History: an earlier scheme put the monotonic BUILD in a 4th FEATURE segment,
+# `X.Y.Z.BUILD-BUILD`, because DSM's manual-install upgrade check compares the
+# dotted FEATURE version and IGNORES the -build suffix (confirmed on a real NAS:
+# two `0.1.2-<build>` spks read as "same version already installed"). That kept
+# even tag-less NIGHTLIES sharing one human X.Y.Z strictly newer - at the cost of
+# an ugly `0.1.10.3439311-3439311` shown in Package Center.
+#
+# CURRENT scheme: `X.Y.Z-BUILD` (e.g. `0.1.11-3439372`). Every published release
+# now bumps X.Y.Z, so the feature version alone orders releases and DSM upgrades
+# in place fine (0.1.11 > 0.1.10.<anything>: the 3rd segment 11>10 decides before
+# any 4th segment matters, so this is upgrade-safe from the old scheme too). BUILD
+# stays the monotonic versionCode = minutes since 2020-01-01 UTC (same scheme as
+# the Android versionCode in release.yml). Trade-off accepted: two builds of the
+# SAME X.Y.Z are identical to DSM's manual check, so a same-version rebuild can't
+# be manual-installed over itself - bump the patch (0.1.11 -> 0.1.12) instead.
+#
+# THE RULE: the version number must only ever go UP. Bump X.Y.Z for every release
+# (never rebuild the same X.Y.Z with changes for a manual .spk). Keep BUILD as the
+# large minutes counter - do NOT shrink its magnitude (minutes->days is what broke
+# it last time). Override with BUILD=... if you need a specific number.
 # ---------------------------------------------------------------------------
 BUILD="${BUILD:-$(( ( $(date -u +%s) - 1577836800 ) / 60 ))}"
 ARCH="x86_64"
@@ -150,13 +153,16 @@ cp "$WORK/package.tgz" "$SPK/package.tgz"
 # INFO extractsize is read in KB on DSM 6+; writing bytes made DSM believe the
 # package needed ~190 GB after extraction.
 EXT_SIZE="$(( $(gzip -dc "$WORK/package.tgz" | wc -c | tr -d ' ') / 1024 ))"
-# Feature-segment build stamp `X.Y.Z.BUILD-BUILD` (see the version note above):
-# BUILD sits in the 4th FEATURE segment so every build - including same-X.Y.Z
-# nightlies - is strictly newer; repeated after the dash as belt-and-suspenders.
-INFO_VERSION="$VERSION.$BUILD-$BUILD"
+# Version stamp `X.Y.Z-BUILD` (see the version note above). The feature version
+# X.Y.Z (compared by DSM's manual-install upgrade check) bumps every release, so
+# it alone orders releases; BUILD is the monotonic versionCode (minutes since
+# 2020, always climbing). Trade-off vs the old `X.Y.Z.BUILD-BUILD`: two builds of
+# the SAME X.Y.Z read as identical to DSM, so a same-version rebuild can't be
+# manual-installed over itself - bump the patch instead. Cleaner to read.
+INFO_VERSION="$VERSION-$BUILD"
 sed -e "s/@INFO_VERSION@/$INFO_VERSION/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
   "$SKEL/INFO.template" > "$SPK/INFO"
-say "DSM package version: $INFO_VERSION (monotonic 4th-segment build keeps every build - incl. nightlies - upgradable)"
+say "DSM package version: $INFO_VERSION (X.Y.Z orders releases; BUILD is the monotonic versionCode)"
 # Icons: the LUMA brand mark (gold ring + dot), checked in alongside the skeleton.
 cp "$SKEL/PACKAGE_ICON.PNG" "$SKEL/PACKAGE_ICON_256.PNG" "$SPK/"
 
