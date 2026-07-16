@@ -546,6 +546,15 @@ export class LumaClient {
   getCalendar(opts?: { mine?: boolean }): Promise<CalendarEntry[]> {
     return requests.getCalendar(this.ctx, opts);
   }
+  getMissing(opts?: { mine?: boolean }): Promise<CalendarEntry[]> {
+    return requests.getMissing(this.ctx, opts);
+  }
+  searchAllMissing(): Promise<{ runId: string }> {
+    return requests.searchAllMissing(this.ctx);
+  }
+  autoSearchRequest(id: string): Promise<{ grabbed: boolean; title?: string }> {
+    return requests.autoSearchRequest(this.ctx, id);
+  }
   createRequest(body: CreateRequestBody): Promise<MediaRequest> {
     return requests.createRequest(this.ctx, body);
   }

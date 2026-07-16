@@ -35,6 +35,35 @@ export function getCalendar(
   return ctx.json<CalendarEntry[]>(`/requests/calendar${qs}`);
 }
 
+/** The "missing / wanted" list: aired/released items still not on disk (the
+ * inverse of the calendar), for the Wanted view. `mine: true` forces own-only. */
+export function getMissing(
+  ctx: RequestContext,
+  opts?: { mine?: boolean },
+): Promise<CalendarEntry[]> {
+  const qs = opts?.mine ? '?mine=true' : '';
+  return ctx.json<CalendarEntry[]>(`/requests/missing${qs}`);
+}
+
+/** "Search all missing" (requests.manage): kick the acquisition search pass now,
+ * which auto-grabs the best release for every aired-but-open item. Returns the
+ * job run id. */
+export function searchAllMissing(ctx: RequestContext): Promise<{ runId: string }> {
+  return ctx.json<{ runId: string }>('/requests/search-missing', { method: 'POST' });
+}
+
+/** Per-title "ask to watch" (requests.manage): search this one request and grab
+ * the best accepted release. Slow (a live indexer sweep). */
+export function autoSearchRequest(
+  ctx: RequestContext,
+  id: string,
+): Promise<{ grabbed: boolean; title?: string }> {
+  return ctx.json<{ grabbed: boolean; title?: string }>(
+    `/requests/${encodeURIComponent(id)}/auto-search`,
+    { method: 'POST' },
+  );
+}
+
 /** Submit a request. A second ask for the same title merges into the open one
  * (a show ask can widen its season subset). */
 export function createRequest(ctx: RequestContext, body: CreateRequestBody): Promise<MediaRequest> {

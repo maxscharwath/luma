@@ -154,10 +154,12 @@ pub struct RequestsView {
     pub counts: RequestCounts,
 }
 
-/// One upcoming release on the "coming soon" calendar: a future-dated wanted row
-/// (a movie's availability date, or a show episode's air date) not yet on disk,
-/// joined with its request's display fields. Emitted ascending by `air_date`.
-/// `GET /api/requests/calendar` returns `Vec<CalendarEntry>`.
+/// One wanted item joined with its request's display fields, shared by two
+/// feeds: the "coming soon" calendar (`GET /api/requests/calendar`, future-dated,
+/// `air_date` always `Some`) and the "missing / wanted" list
+/// (`GET /api/requests/missing`, already aired/released but not on disk, where
+/// `air_date` may be `None` for an undated row). Emitted sorted (calendar: by
+/// date; missing: by title then season/episode).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CalendarEntry {
@@ -171,8 +173,9 @@ pub struct CalendarEntry {
     /// Present for a show episode; `None` for a movie.
     pub season: Option<u32>,
     pub episode: Option<u32>,
-    /// `YYYY-MM-DD`, always in the future relative to the query day.
-    pub air_date: String,
+    /// `YYYY-MM-DD`. Always set on the calendar feed; may be `None` on the missing
+    /// feed (an undated aired row).
+    pub air_date: Option<String>,
     /// The wanted row's status (`wanted` / `grabbed`): a grabbed-but-unaired
     /// episode is already secured, shown differently on the calendar.
     pub status: String,

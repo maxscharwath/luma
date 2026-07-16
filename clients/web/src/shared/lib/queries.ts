@@ -157,6 +157,13 @@ export const userQueries = {
       queryFn: () => lumaClient().getCalendar({ mine: true }),
     }),
 
+  /** The "missing / wanted" list: own aired/released items not yet on disk. */
+  missing: () =>
+    queryOptions({
+      queryKey: ['requests', 'missing'] as const,
+      queryFn: () => lumaClient().getMissing({ mine: true }),
+    }),
+
   /** The account's signed-in devices (for the /account security section). */
   sessions: () =>
     queryOptions({ queryKey: ['sessions'] as const, queryFn: () => lumaClient().listSessions() }),

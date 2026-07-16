@@ -19,16 +19,20 @@ use crate::i18n;
 use crate::model::{
     CreateRequestBody, MediaRequest, Permission, RequestCounts, RequestStatus, RequestsView, User,
 };
+use crate::services::jobs::TriggerError;
 use crate::state::SharedState;
 
 pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/requests", get(list).post(create))
         .route("/requests/calendar", get(calendar))
+        .route("/requests/missing", get(missing))
+        .route("/requests/search-missing", post(search_all_missing))
         .route("/requests/{id}", axum::routing::delete(remove))
         .route("/requests/{id}/approve", post(approve))
         .route("/requests/{id}/deny", post(deny))
         .route("/requests/{id}/search", get(interactive_search))
+        .route("/requests/{id}/auto-search", post(auto_search_one))
         .route("/requests/{id}/grab", post(grab))
 }
 
@@ -155,6 +159,103 @@ pub async fn calendar(
     })
     .await?;
     Ok(Json(entries).into_response())
+}
+
+/// `GET /api/requests/missing` the "missing / wanted" list: aired/released wanted
+/// rows still not on disk (the inverse of the calendar), grouped client-side by
+/// title. Own requests, or everyone's for a `requests.manage` holder.
+pub async fn missing(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+    Query(params): Query<ListParams>,
+) -> Result<Response, Response> {
+    require(&user, Permission::RequestsCreate)?;
+    let all = user.can(Permission::RequestsManage) && !params.mine.unwrap_or(false);
+    let uid = user.id.clone();
+    let today = crate::services::requests::today_ymd();
+    let entries = query(&state.db, move |pool| {
+        let conn = pool.get()?;
+        let scope = if all { None } else { Some(uid.as_str()) };
+        Ok(db::missing_items(&conn, &today, scope, 500)?)
+    })
+    .await?;
+    Ok(Json(entries).into_response())
+}
+
+/// `POST /api/requests/search-missing` (requests.manage) "Search all missing":
+/// kick the acquisition search pass now, which auto-grabs the best release for
+/// every aired-but-open wanted row. Requires the Acquisition module (its sidecar
+/// registered the `acquisition.search` job); returns the job run id, or 409 when
+/// a pass is already running.
+pub async fn search_all_missing(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+) -> Result<Response, Response> {
+    require(&user, Permission::RequestsManage)?;
+    require_acquisition(&state, &user)?;
+    let job = state
+        .jobs
+        .resolve("acquisition.search")
+        .ok_or_else(|| lerr(locale(&user), StatusCode::NOT_FOUND, "error.moduleDisabled"))?;
+    match state.jobs.trigger(state.clone(), job, "manual") {
+        Ok(run_id) => Ok(Json(json!({ "runId": run_id })).into_response()),
+        Err(TriggerError::AlreadyRunning) => {
+            Err(json_error(StatusCode::CONFLICT, "a search pass is already running"))
+        }
+        Err(TriggerError::Unknown) => {
+            Err(lerr(locale(&user), StatusCode::NOT_FOUND, "error.moduleDisabled"))
+        }
+    }
+}
+
+/// `POST /api/requests/:id/auto-search` (requests.manage) "search this title and
+/// grab the best": run the interactive sweep for one request, pick the top
+/// accepted, grabbable release, and grab it. This is the per-title "ask to watch"
+/// button on the missing list. Slow (a live indexer sweep); the UI shows a
+/// spinner. Returns `{ grabbed, title? }`.
+pub async fn auto_search_one(
+    State(state): State<SharedState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Response, Response> {
+    require(&user, Permission::RequestsManage)?;
+    require_acquisition(&state, &user)?;
+    let port = acquisition_search(&state, &user)?;
+    let rid = id.clone();
+    let grabbed = service(move || {
+        let view = port.interactive_search(&state, &rid)?;
+        let Some((guid, indexer_id, title)) = best_release(&view) else {
+            return Ok(None);
+        };
+        port.grab(&state, &rid, &guid, &indexer_id)?;
+        Ok(Some(title))
+    })
+    .await?;
+    match grabbed {
+        Some(title) => Ok(Json(json!({ "grabbed": true, "title": title })).into_response()),
+        None => Ok(Json(json!({ "grabbed": false })).into_response()),
+    }
+}
+
+/// Pick the best grabbable release from an interactive-search view (opaque JSON
+/// the acquisition sidecar returned): the highest-scoring release that carries a
+/// grabbable link and was not rejected by the decision engine. Returns
+/// `(guid, indexerId, title)`.
+fn best_release(view: &serde_json::Value) -> Option<(String, String, String)> {
+    view.get("releases")?
+        .as_array()?
+        .iter()
+        .filter(|r| r.get("grabbable").and_then(serde_json::Value::as_bool).unwrap_or(false))
+        .filter(|r| r.get("rejected").is_none_or(serde_json::Value::is_null))
+        .filter_map(|r| {
+            let score = r.get("score")?.as_i64()?;
+            let guid = r.get("guid")?.as_str()?.to_string();
+            let indexer_id = r.get("indexerId")?.as_str()?.to_string();
+            let title = r.get("title").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+            Some((score, guid, indexer_id, title))
+        })
+        .max_by_key(|(score, ..)| *score)
+        .map(|(_, guid, indexer_id, title)| (guid, indexer_id, title))
 }
 
 /// `POST /api/requests` submit (duplicate-merging; auto-approve capability

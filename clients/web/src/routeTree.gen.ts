@@ -35,6 +35,7 @@ import { Route as AppSeriesRouteImport } from './routes/_app.series'
 import { Route as AppSearchRouteImport } from './routes/_app.search'
 import { Route as AppRequestsRouteImport } from './routes/_app.requests'
 import { Route as AppMylistRouteImport } from './routes/_app.mylist'
+import { Route as AppMissingRouteImport } from './routes/_app.missing'
 import { Route as AppInviteRouteImport } from './routes/_app.invite'
 import { Route as AppFilmsRouteImport } from './routes/_app.films'
 import { Route as AppConnectRouteImport } from './routes/_app.connect'
@@ -177,6 +178,11 @@ const AppMylistRoute = AppMylistRouteImport.update({
   path: '/mylist',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMissingRoute = AppMissingRouteImport.update({
+  id: '/missing',
+  path: '/missing',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppInviteRoute = AppInviteRouteImport.update({
   id: '/invite',
   path: '/invite',
@@ -249,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/connect': typeof AppConnectRoute
   '/films': typeof AppFilmsRoute
   '/invite': typeof AppInviteRoute
+  '/missing': typeof AppMissingRoute
   '/mylist': typeof AppMylistRoute
   '/requests': typeof AppRequestsRoute
   '/search': typeof AppSearchRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/connect': typeof AppConnectRoute
   '/films': typeof AppFilmsRoute
   '/invite': typeof AppInviteRoute
+  '/missing': typeof AppMissingRoute
   '/mylist': typeof AppMylistRoute
   '/requests': typeof AppRequestsRoute
   '/search': typeof AppSearchRoute
@@ -327,6 +335,7 @@ export interface FileRoutesById {
   '/_app/connect': typeof AppConnectRoute
   '/_app/films': typeof AppFilmsRoute
   '/_app/invite': typeof AppInviteRoute
+  '/_app/missing': typeof AppMissingRoute
   '/_app/mylist': typeof AppMylistRoute
   '/_app/requests': typeof AppRequestsRoute
   '/_app/search': typeof AppSearchRoute
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/connect'
     | '/films'
     | '/invite'
+    | '/missing'
     | '/mylist'
     | '/requests'
     | '/search'
@@ -406,6 +416,7 @@ export interface FileRouteTypes {
     | '/connect'
     | '/films'
     | '/invite'
+    | '/missing'
     | '/mylist'
     | '/requests'
     | '/search'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/_app/connect'
     | '/_app/films'
     | '/_app/invite'
+    | '/_app/missing'
     | '/_app/mylist'
     | '/_app/requests'
     | '/_app/search'
@@ -667,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMylistRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/missing': {
+      id: '/_app/missing'
+      path: '/missing'
+      fullPath: '/missing'
+      preLoaderRoute: typeof AppMissingRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/invite': {
       id: '/_app/invite'
       path: '/invite'
@@ -761,6 +780,7 @@ interface AppRouteChildren {
   AppConnectRoute: typeof AppConnectRoute
   AppFilmsRoute: typeof AppFilmsRoute
   AppInviteRoute: typeof AppInviteRoute
+  AppMissingRoute: typeof AppMissingRoute
   AppMylistRoute: typeof AppMylistRoute
   AppRequestsRoute: typeof AppRequestsRoute
   AppSearchRoute: typeof AppSearchRoute
@@ -781,6 +801,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppConnectRoute: AppConnectRoute,
   AppFilmsRoute: AppFilmsRoute,
   AppInviteRoute: AppInviteRoute,
+  AppMissingRoute: AppMissingRoute,
   AppMylistRoute: AppMylistRoute,
   AppRequestsRoute: AppRequestsRoute,
   AppSearchRoute: AppSearchRoute,

@@ -78,11 +78,11 @@ export const RequestsView = z.object({
 });
 export type RequestsView = z.infer<typeof RequestsView>;
 
-/** One upcoming release on the "coming soon" calendar: a future-dated wanted row
- * (a movie's availability date, or a show episode's air date) with its request's
- * display fields. `airDate` is YYYY-MM-DD and always in the future; `season`/
- * `episode` are set for a show episode, null for a movie. `GET
- * /api/requests/calendar` returns `CalendarEntry[]`, ascending by `airDate`. */
+/** One wanted item joined with its request's display fields, shared by two feeds:
+ * the "coming soon" calendar (`GET /api/requests/calendar`, future-dated,
+ * `airDate` always set) and the "missing / wanted" list (`GET
+ * /api/requests/missing`, aired/released but not on disk, `airDate` possibly
+ * null). `season`/`episode` are set for a show episode, null for a movie. */
 export const CalendarEntry = z.object({
   requestId: RequestId,
   tmdbId: z.number(),
@@ -92,7 +92,7 @@ export const CalendarEntry = z.object({
   posterUrl: z.string().nullable(),
   season: z.number().nullable(),
   episode: z.number().nullable(),
-  airDate: z.string(),
+  airDate: z.string().nullable(),
   /** `wanted` / `grabbed` a grabbed-but-unaired episode is already secured. */
   status: z.string(),
 });

@@ -390,6 +390,45 @@ pub fn upcoming_calendar(
     rows.collect()
 }
 
+/// The "missing / wanted" list: aired-or-released wanted rows (a movie past its
+/// availability date, or a show episode past its air date, plus undated rows)
+/// that are still `wanted` (not grabbed / available), joined with their request's
+/// display fields. This is the inverse of [`upcoming_calendar`] (past-due instead
+/// of future). `requester` limits to one user's requests; `None` spans all.
+/// Sorted by title then season/episode. Bounded by `limit`.
+pub fn missing_items(
+    conn: &Connection,
+    today: &str,
+    requester: Option<&str>,
+    limit: usize,
+) -> rusqlite::Result<Vec<CalendarEntry>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.request_id, w.tmdb_id, r.kind, w.title, w.year, r.poster_url, \
+                w.season, w.episode, w.air_date, w.status \
+         FROM wanted w JOIN requests r ON r.id = w.request_id \
+         WHERE w.status = 'wanted' AND (w.air_date IS NULL OR w.air_date <= ?1) \
+           AND r.status NOT IN ('denied', 'failed') \
+           AND (?2 IS NULL OR r.requested_by = ?2) \
+         ORDER BY r.title ASC, w.season ASC, w.episode ASC LIMIT ?3",
+    )?;
+    let rows = stmt.query_map(params![today, requester, limit as i64], |r| {
+        let kind: String = r.get(2)?;
+        Ok(CalendarEntry {
+            request_id: r.get(0)?,
+            tmdb_id: r.get::<_, i64>(1)? as u64,
+            kind: RequestKind::parse(&kind).unwrap_or(RequestKind::Movie),
+            title: r.get(3)?,
+            year: r.get(4)?,
+            poster_url: r.get(5)?,
+            season: r.get(6)?,
+            episode: r.get(7)?,
+            air_date: r.get(8)?,
+            status: r.get(9)?,
+        })
+    })?;
+    rows.collect()
+}
+
 /// Wanted rows ready for an automatic search pass: still wanted, aired (or
 /// undated), least-recently-searched first, capped.
 pub fn wanted_searchable(conn: &Connection, today: &str, limit: usize) -> rusqlite::Result<Vec<WantedRow>> {
@@ -751,5 +790,49 @@ mod tests {
         ids.sort_unstable();
         // The unreleased movie is held back; the out / undated ones are searchable.
         assert_eq!(ids, vec!["m-nodate", "m-out"]);
+    }
+
+    #[test]
+    fn missing_items_lists_aired_open_rows_only() {
+        // The missing list = aired/released rows still `wanted`. Unaired (future),
+        // grabbed and available rows are excluded; undated aired rows are included.
+        let p = pool();
+        insert_request(&p, &new_req("r1", RequestKind::Show, 1396, None), 1000).unwrap();
+        let mk = |id: &str, episode: u32, air: Option<&str>, status: &str| WantedRow {
+            id: id.into(),
+            request_id: "r1".into(),
+            kind: "episode".into(),
+            tmdb_id: 1396,
+            imdb_id: None,
+            title: "T".into(),
+            year: None,
+            season: Some(1),
+            episode: Some(episode),
+            air_date: air.map(str::to_string),
+            status: status.into(),
+            last_search_at: None,
+        };
+        replace_wanted(
+            &p,
+            "r1",
+            &[
+                mk("w-aired", 1, Some("2020-01-01"), "wanted"),
+                mk("w-future", 2, Some("2999-01-01"), "wanted"),
+                mk("w-grabbed", 3, Some("2020-01-01"), "grabbed"),
+                mk("w-available", 4, Some("2020-01-01"), "available"),
+                mk("w-undated", 5, None, "wanted"),
+            ],
+            1000,
+        )
+        .unwrap();
+
+        let conn = p.get().unwrap();
+        let missing = missing_items(&conn, "2026-07-05", None, 50).unwrap();
+        let mut eps: Vec<u32> = missing.iter().filter_map(|e| e.episode).collect();
+        eps.sort_unstable();
+        // Only the aired-and-still-wanted rows (ep 1 aired, ep 5 undated).
+        assert_eq!(eps, vec![1, 5]);
+        // A different requester's scope excludes them.
+        assert!(missing_items(&conn, "2026-07-05", Some("someone-else"), 50).unwrap().is_empty());
     }
 }

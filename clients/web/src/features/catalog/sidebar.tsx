@@ -4,6 +4,7 @@ import { useT } from '@luma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
+  IconAlertTriangle,
   IconCalendarClock,
   IconDeviceDesktop,
   IconDeviceTv,
@@ -79,6 +80,7 @@ function SidebarBody() {
         ))}
         <RequestsLink />
         <ComingSoonLink />
+        <MissingLink />
         <ModuleNavLinks />
       </nav>
       {/* Footer block: invite / device / admin / account / device prefs */}
@@ -181,6 +183,19 @@ function ComingSoonLink() {
     <Link to="/coming-soon" className={itemCls}>
       <IconCalendarClock size={18} />
       {t('nav.comingSoon')}
+    </Link>
+  );
+}
+
+/** "Manquants" the wanted / missing list, same gate as requests. */
+function MissingLink() {
+  const t = useT();
+  const { user } = useAuth();
+  if (!user || !hasPermission(user, 'requests.create')) return null;
+  return (
+    <Link to="/missing" className={itemCls}>
+      <IconAlertTriangle size={18} />
+      {t('nav.missing')}
     </Link>
   );
 }

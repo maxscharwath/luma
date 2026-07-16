@@ -24,9 +24,12 @@ export function ComingSoonPage() {
     refetchInterval: 60_000,
   });
 
-  // Group the (already date-sorted) entries by month, preserving order.
+  // Group the (already date-sorted) entries by month, preserving order. Calendar
+  // entries are always dated (the server filters to future dates); the guard is
+  // for the shared, nullable-airDate type.
   const groups: Array<{ key: string; label: string; items: CalendarEntry[] }> = [];
   for (const e of entries ?? []) {
+    if (!e.airDate) continue;
     const key = monthKey(e.airDate);
     let g = groups.at(-1);
     if (!g || g.key !== key) {
@@ -103,9 +106,9 @@ function CalendarRow({
   const epTag = isEpisode
     ? `S${String(entry.season).padStart(2, '0')}E${String(entry.episode).padStart(2, '0')}`
     : t('requests.movieLabel');
-  const date = new Date(`${entry.airDate}T00:00:00`);
-  const dateLabel = date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
-  const relative = relativeDays(date, locale);
+  const date = entry.airDate ? new Date(`${entry.airDate}T00:00:00`) : null;
+  const dateLabel = date ? date.toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : '';
+  const relative = date ? relativeDays(date, locale) : '';
 
   return (
     <button
