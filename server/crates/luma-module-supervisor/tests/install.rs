@@ -32,6 +32,7 @@ fn supervisor(dir: &std::path::Path, server_version: &str) -> std::sync::Arc<Sup
         data_dir: dir.to_path_buf(),
         reserved_ids: vec!["dev.luma.reserved".into()],
         server_version: server_version.into(),
+        log_line: None,
     })
 }
 
