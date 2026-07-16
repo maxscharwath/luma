@@ -247,3 +247,24 @@ export const InviteCreated = z.object({
   expiresAt: z.number(),
 });
 export type InviteCreated = z.infer<typeof InviteCreated>;
+
+/** One line of the server's in-memory log ring (`GET /api/admin/logs`). */
+export const LogEntry = z.object({
+  /** Arrival time, unix ms. */
+  ts: z.number(),
+  /** trace | debug | info | warn | error. */
+  level: z.string(),
+  /** Rust tracing target for core lines; empty for module lines. */
+  target: z.string(),
+  /** `core` or a module id (`dev.luma.vpn`). */
+  source: z.string(),
+  message: z.string(),
+});
+export type LogEntry = z.infer<typeof LogEntry>;
+
+/** `GET /api/admin/logs` recent lines (newest last) + the sources present. */
+export const LogsView = z.object({
+  entries: z.array(LogEntry),
+  sources: z.array(z.string()),
+});
+export type LogsView = z.infer<typeof LogsView>;

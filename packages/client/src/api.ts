@@ -50,6 +50,7 @@ import type {
   JobsView,
   Library,
   LlmAdminConfig,
+  LogsView,
   ManualAddBody,
   ManualSearchView,
   MediaItem,
@@ -745,6 +746,14 @@ export class LumaClient {
   }
   adminOverview(): Promise<AdminOverview> {
     return admin.adminOverview(this.ctx);
+  }
+
+  // ----- admin: server logs ----------------------------------------------------
+
+  adminLogs(
+    opts: { level?: string; source?: string; q?: string; limit?: number } = {},
+  ): Promise<LogsView> {
+    return admin.adminLogs(this.ctx, opts);
   }
 
   // ----- admin: background jobs / scheduler -----------------------------------

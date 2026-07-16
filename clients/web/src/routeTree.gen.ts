@@ -24,6 +24,7 @@ import { Route as AdminPipelineRouteImport } from './routes/admin.pipeline';
 import { Route as AdminNetworkRouteImport } from './routes/admin.network';
 import { Route as AdminNamingRouteImport } from './routes/admin.naming';
 import { Route as AdminModulesRouteImport } from './routes/admin.modules';
+import { Route as AdminLogsRouteImport } from './routes/admin.logs';
 import { Route as AdminLibrariesRouteImport } from './routes/admin.libraries';
 import { Route as AdminJobsRouteImport } from './routes/admin.jobs';
 import { Route as AdminGeneralRouteImport } from './routes/admin.general';
@@ -118,6 +119,11 @@ const AdminNamingRoute = AdminNamingRouteImport.update({
 const AdminModulesRoute = AdminModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
+  getParentRoute: () => AdminRoute,
+} as any);
+const AdminLogsRoute = AdminLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
   getParentRoute: () => AdminRoute,
 } as any);
 const AdminLibrariesRoute = AdminLibrariesRouteImport.update({
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/admin/general': typeof AdminGeneralRoute;
   '/admin/jobs': typeof AdminJobsRoute;
   '/admin/libraries': typeof AdminLibrariesRoute;
+  '/admin/logs': typeof AdminLogsRoute;
   '/admin/modules': typeof AdminModulesRoute;
   '/admin/naming': typeof AdminNamingRoute;
   '/admin/network': typeof AdminNetworkRoute;
@@ -281,6 +288,7 @@ export interface FileRoutesByTo {
   '/admin/general': typeof AdminGeneralRoute;
   '/admin/jobs': typeof AdminJobsRoute;
   '/admin/libraries': typeof AdminLibrariesRoute;
+  '/admin/logs': typeof AdminLogsRoute;
   '/admin/modules': typeof AdminModulesRoute;
   '/admin/naming': typeof AdminNamingRoute;
   '/admin/network': typeof AdminNetworkRoute;
@@ -320,6 +328,7 @@ export interface FileRoutesById {
   '/admin/general': typeof AdminGeneralRoute;
   '/admin/jobs': typeof AdminJobsRoute;
   '/admin/libraries': typeof AdminLibrariesRoute;
+  '/admin/logs': typeof AdminLogsRoute;
   '/admin/modules': typeof AdminModulesRoute;
   '/admin/naming': typeof AdminNamingRoute;
   '/admin/network': typeof AdminNetworkRoute;
@@ -360,6 +369,7 @@ export interface FileRouteTypes {
     | '/admin/general'
     | '/admin/jobs'
     | '/admin/libraries'
+    | '/admin/logs'
     | '/admin/modules'
     | '/admin/naming'
     | '/admin/network'
@@ -395,6 +405,7 @@ export interface FileRouteTypes {
     | '/admin/general'
     | '/admin/jobs'
     | '/admin/libraries'
+    | '/admin/logs'
     | '/admin/modules'
     | '/admin/naming'
     | '/admin/network'
@@ -433,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/general'
     | '/admin/jobs'
     | '/admin/libraries'
+    | '/admin/logs'
     | '/admin/modules'
     | '/admin/naming'
     | '/admin/network'
@@ -564,6 +576,13 @@ declare module '@tanstack/react-router' {
       path: '/modules';
       fullPath: '/admin/modules';
       preLoaderRoute: typeof AdminModulesRouteImport;
+      parentRoute: typeof AdminRoute;
+    };
+    '/admin/logs': {
+      id: '/admin/logs';
+      path: '/logs';
+      fullPath: '/admin/logs';
+      preLoaderRoute: typeof AdminLogsRouteImport;
       parentRoute: typeof AdminRoute;
     };
     '/admin/libraries': {
@@ -763,6 +782,7 @@ interface AdminRouteChildren {
   AdminGeneralRoute: typeof AdminGeneralRoute;
   AdminJobsRoute: typeof AdminJobsRoute;
   AdminLibrariesRoute: typeof AdminLibrariesRoute;
+  AdminLogsRoute: typeof AdminLogsRoute;
   AdminModulesRoute: typeof AdminModulesRoute;
   AdminNamingRoute: typeof AdminNamingRoute;
   AdminNetworkRoute: typeof AdminNetworkRoute;
@@ -782,6 +802,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminGeneralRoute: AdminGeneralRoute,
   AdminJobsRoute: AdminJobsRoute,
   AdminLibrariesRoute: AdminLibrariesRoute,
+  AdminLogsRoute: AdminLogsRoute,
   AdminModulesRoute: AdminModulesRoute,
   AdminNamingRoute: AdminNamingRoute,
   AdminNetworkRoute: AdminNetworkRoute,

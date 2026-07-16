@@ -10,6 +10,7 @@ import type {
   JobLog,
   JobsView,
   LlmAdminConfig,
+  LogsView,
   MetricsSnapshot,
   Permission,
   PipelineElements,
@@ -202,6 +203,24 @@ export function playHistory(ctx: RequestContext, days = 28): Promise<HistoryStat
 /** Top-line counts for the users page. */
 export function adminOverview(ctx: RequestContext): Promise<AdminOverview> {
   return ctx.json<AdminOverview>('/admin/stats/overview');
+}
+
+// ----- server logs -------------------------------------------------------------
+
+/** Recent server log lines (core + module sidecars), newest last. Filters:
+ * `level` is a minimum severity, `source` is `core` or a module id, `q` is a
+ * case-insensitive substring. */
+export function adminLogs(
+  ctx: RequestContext,
+  opts: { level?: string; source?: string; q?: string; limit?: number } = {},
+): Promise<LogsView> {
+  const params = new URLSearchParams();
+  if (opts.level) params.set('level', opts.level);
+  if (opts.source) params.set('source', opts.source);
+  if (opts.q) params.set('q', opts.q);
+  if (opts.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return ctx.json<LogsView>(`/admin/logs${qs ? `?${qs}` : ''}`);
 }
 
 // ----- background jobs / scheduler --------------------------------------------

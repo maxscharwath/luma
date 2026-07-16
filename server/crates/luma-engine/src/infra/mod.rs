@@ -17,3 +17,4 @@ pub mod stream;
 pub mod watch;
 pub mod metrics;
 pub mod events;
+pub mod logbuf;

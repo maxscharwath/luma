@@ -50,6 +50,11 @@ pub struct SupervisorConfig {
     /// This server's own version (CARGO_PKG_VERSION), checked against a
     /// module manifest's `minServer` at install and spawn.
     pub server_version: String,
+    /// Receives every line a module process writes to stdout/stderr, as
+    /// `(module_id, line)`. `None` = children inherit the core's stdio (the
+    /// old behavior); `Some` = stdio is piped and drained by reader threads,
+    /// so the core can mirror module logs into its own sinks.
+    pub log_line: Option<Arc<dyn Fn(&str, &str) + Send + Sync>>,
 }
 
 pub struct Supervisor {
@@ -175,16 +180,40 @@ impl Supervisor {
             anyhow::bail!("module binary missing: {}", bin.display());
         }
         let port = free_port()?;
-        let child = Command::new(&bin)
+        let piped = self.cfg.log_line.is_some();
+        let stdio = || if piped { Stdio::piped() } else { Stdio::inherit() };
+        let mut child = Command::new(&bin)
             .env("LUMA_MODULE_ID", id)
             .env("LUMA_MODULE_PORT", port.to_string())
             .env("LUMA_CORE_URL", &self.cfg.core_url)
             .env("LUMA_HOST_TOKEN", &self.cfg.host_token)
             .env("LUMA_DB_PATH", &self.cfg.db_path)
             .env("LUMA_DATA_DIR", &self.cfg.data_dir)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
+            .stdout(stdio())
+            .stderr(stdio())
             .spawn()?;
+        if let Some(log_line) = &self.cfg.log_line {
+            for pipe in [
+                child.stdout.take().map(|p| Box::new(p) as Box<dyn std::io::Read + Send>),
+                child.stderr.take().map(|p| Box::new(p) as Box<dyn std::io::Read + Send>),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let log_line = log_line.clone();
+                let id = id.to_string();
+                // One drainer per pipe; exits on EOF when the child dies.
+                std::thread::spawn(move || {
+                    use std::io::BufRead;
+                    for line in std::io::BufReader::new(pipe).lines() {
+                        match line {
+                            Ok(line) => log_line(&id, &line),
+                            Err(_) => break,
+                        }
+                    }
+                });
+            }
+        }
         tracing::info!(module = %id, port, pid = child.id(), "spawned module process");
         self.procs.write().unwrap().insert(id.to_string(), Proc { port, child });
         Ok(port)

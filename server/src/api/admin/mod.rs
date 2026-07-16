@@ -12,6 +12,7 @@ mod backup;
 mod jobs;
 mod libraries;
 mod llm;
+mod logs;
 mod modules;
 mod pipeline;
 mod settings;
@@ -63,6 +64,7 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
         .merge(stats::routes())
         .merge(jobs::routes())
         .merge(llm::routes())
+        .merge(logs::routes())
         .merge(modules::routes())
         .merge(store::routes())
         .merge(pipeline::routes())

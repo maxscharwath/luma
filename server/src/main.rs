@@ -197,6 +197,13 @@ async fn main() -> anyhow::Result<()> {
             // installable.
             reserved_ids: luma_module_kernel::backend_ids(),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
+            // Pipe each sidecar's output: echo to our stdout (so the .spk's
+            // luma.log keeps carrying module lines, now prefixed) and mirror
+            // into the in-memory ring the admin "Journaux" page reads.
+            log_line: Some(std::sync::Arc::new(|id: &str, line: &str| {
+                println!("[{id}] {line}");
+                infra::logbuf::LOG_BUFFER.push_module_line(id, line);
+            })),
         });
 
     // Build the module services + peer ports the composition root owns, so the
@@ -448,7 +455,47 @@ fn init_tracing(log_dir: &std::path::Path) -> Option<tracing_appender::non_block
         .with(filter)
         .with(tracing_subscriber::fmt::layer())
         .with(file_layer)
+        .with(LogBufferLayer)
         .init();
 
     guard
+}
+
+/// Mirrors every core tracing event (post-EnvFilter) into the in-memory ring
+/// the admin "Journaux" page reads (`infra::logbuf`). Module sidecar lines
+/// enter that ring separately, via the supervisor's piped stdout.
+struct LogBufferLayer;
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for LogBufferLayer {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        struct Fields {
+            message: String,
+            extra: String,
+        }
+        impl tracing::field::Visit for Fields {
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                use std::fmt::Write;
+                if field.name() == "message" {
+                    let _ = write!(self.message, "{value:?}");
+                } else {
+                    let sep = if self.extra.is_empty() { "" } else { " " };
+                    let _ = write!(self.extra, "{sep}{}={:?}", field.name(), value);
+                }
+            }
+        }
+        let mut fields = Fields { message: String::new(), extra: String::new() };
+        event.record(&mut fields);
+        if !fields.extra.is_empty() {
+            if !fields.message.is_empty() {
+                fields.message.push(' ');
+            }
+            fields.message.push_str(&fields.extra);
+        }
+        let meta = event.metadata();
+        infra::logbuf::LOG_BUFFER.push_core(meta.level().as_str(), meta.target(), fields.message);
+    }
 }

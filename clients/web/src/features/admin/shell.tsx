@@ -27,6 +27,7 @@ import {
   IconSettings,
   IconSitemap,
   IconSparkles,
+  IconTerminal2,
   IconTransform,
   IconUsers,
   IconWorld,
@@ -210,6 +211,7 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
         icon: IconSitemap,
       },
       { to: '/admin/storage', labelKey: 'admin.navStorage', cap: null, icon: IconDatabase },
+      { to: '/admin/logs', labelKey: 'admin.navLogs', cap: null, icon: IconTerminal2 },
       {
         to: '/admin/backup',
         labelKey: 'admin.navBackup',
