@@ -235,6 +235,20 @@ fn build_wanted_rows<S: HostCtx>(state: &S, req: &MediaRequest) -> Result<Vec<db
     let detail = discover::detail(&key, &lang, req.kind, req.tmdb_id)
         .map_err(|()| anyhow!("TMDB lookup failed"))?
         .ok_or_else(|| anyhow!("title not found on TMDB"))?;
+    build_wanted_rows_from(state, req, &detail)
+}
+
+/// The wanted rows a request targets, given an already-fetched TMDB detail (the
+/// refresh pass fetches the detail once, for the air signals AND the ledger).
+/// Still does one TMDB `season_episodes` call per requested season for the
+/// per-episode air dates.
+fn build_wanted_rows_from<S: HostCtx>(
+    state: &S,
+    req: &MediaRequest,
+    detail: &discover::DiscoverRawDetail,
+) -> Result<Vec<db::WantedRow>> {
+    let key = tmdb_key(state)?;
+    let lang = language(state);
 
     let mut rows: Vec<db::WantedRow> = Vec::new();
     let mint = |salt: &str| {
@@ -337,6 +351,150 @@ pub fn availability_pass<S: HostCtx>(state: &S) -> Result<MatchSummary> {
         }
     }
     Ok(summary)
+}
+
+// ----- TMDB refresh (keep the wanted ledger + air signals current) ---------------
+
+/// Minimum spacing between TMDB refreshes of the same request (~3h), so the
+/// 6-hourly refresh cron never re-hits TMDB for a request touched recently
+/// (e.g. just approved / merged).
+const REFRESH_MIN_INTERVAL_MS: i64 = 3 * 60 * 60 * 1000;
+
+/// TMDB `status` strings for a show whose episode set is fixed forever: no new
+/// episodes will air, so once refreshed we never need to fetch it again.
+fn is_ended(air_status: Option<&str>) -> bool {
+    matches!(air_status, Some("Ended") | Some("Canceled"))
+}
+
+/// Should this request be re-fetched from TMDB this pass? Skips terminal
+/// requests, throttles by `last_refresh_at`, and skips the requests that CANNOT
+/// change: a released movie already on disk, and an ended/canceled show (its
+/// episode set is complete once we've recorded that status). Ongoing shows and
+/// unreleased / not-yet-available movies always refresh (subject to the throttle).
+fn needs_refresh(req: &MediaRequest, now: i64) -> bool {
+    if matches!(req.status, RequestStatus::Denied | RequestStatus::Failed) {
+        return false;
+    }
+    if let Some(ts) = req.last_refresh_at {
+        if now - ts < REFRESH_MIN_INTERVAL_MS {
+            return false;
+        }
+    }
+    match req.kind {
+        // A released movie already in the library will not change.
+        RequestKind::Movie => req.status != RequestStatus::Available,
+        // An ended/canceled show gets no new episodes; refresh it once (to record
+        // the ended status + backfill air dates), then never again.
+        RequestKind::Show => !is_ended(req.air_status.as_deref()),
+    }
+}
+
+/// Re-fetch every refreshable request from TMDB: ADDITIVELY extend its wanted
+/// ledger with newly-aired episodes, backfill air dates TMDB now knows, and
+/// store the airing signals (air_status / next_air_date). Bounded by
+/// [`needs_refresh`] + the throttle so TMDB is never hammered. Called by the
+/// `acquisition.refresh` job.
+pub fn refresh_pass<S: HostCtx>(state: &S) -> Result<usize> {
+    let conn = state.db().get()?;
+    let all = db::list_requests(&conn, None)?;
+    drop(conn);
+    let now = now_ms();
+    let mut refreshed = 0usize;
+    for req in all {
+        if !needs_refresh(&req, now) {
+            continue;
+        }
+        // Per-request failures (a vanished TMDB id, a transient error) must not
+        // abort the whole pass; the next cron retries.
+        if let Err(e) = refresh_one(state, &req) {
+            tracing::warn!(target: "requests", request = %req.id, "refresh failed: {e:#}");
+            continue;
+        }
+        refreshed += 1;
+    }
+    Ok(refreshed)
+}
+
+/// Refresh one request: one TMDB detail fetch, then additive ledger merge + air
+/// signals. A movie skips the ledger merge (nothing to extend).
+fn refresh_one<S: HostCtx>(state: &S, req: &MediaRequest) -> Result<()> {
+    let key = tmdb_key(state)?;
+    let lang = language(state);
+    let detail = discover::detail(&key, &lang, req.kind, req.tmdb_id)
+        .map_err(|()| anyhow!("TMDB lookup failed"))?
+        .ok_or_else(|| anyhow!("title not found on TMDB"))?;
+
+    if req.kind == RequestKind::Show {
+        refresh_wanted(state, req, &detail)?;
+    }
+
+    // Airing signals: show = its next episode's date; movie = its soonest
+    // availability, but only while still in the future (a past date is "already
+    // out", so no upcoming badge).
+    let today = today_ymd();
+    let next_air_date = match req.kind {
+        RequestKind::Show => detail.next_air.as_ref().map(|(d, _, _)| d.clone()),
+        RequestKind::Movie => detail.available_date.clone().filter(|d| d.as_str() > today.as_str()),
+    };
+    db::set_request_air(
+        state.db(),
+        &req.id,
+        detail.status.as_deref(),
+        next_air_date.as_deref(),
+        now_ms(),
+    )?;
+    Ok(())
+}
+
+/// ADDITIVELY reconcile a show's wanted ledger against TMDB: INSERT rows for
+/// (season, episode) pairs not yet present (status `wanted`, with air date), and
+/// backfill an air date onto an existing row that lacked one. NEVER deletes a
+/// row and NEVER changes a row's status, so grabbed/available episodes are
+/// untouched. This is what lets an ongoing show's newly-aired episodes finally
+/// enter the ledger (and thus get searched / matched) over time.
+fn refresh_wanted<S: HostCtx>(
+    state: &S,
+    req: &MediaRequest,
+    detail: &discover::DiscoverRawDetail,
+) -> Result<()> {
+    let conn = state.db().get()?;
+    let existing = db::wanted_for_request(&conn, &req.id)?;
+    drop(conn);
+    // Only EXTEND an existing ledger, never create one: a pending (not-yet-
+    // approved) request has no wanted rows and must stay that way, else the
+    // search pass would start grabbing before a moderator green-lit it. Approval
+    // (materialize_wanted) always seeds a non-empty ledger, so an approved show
+    // reaches here with rows.
+    if existing.is_empty() {
+        return Ok(());
+    }
+    let desired = build_wanted_rows_from(state, req, detail)?;
+
+    use std::collections::HashMap;
+    // Key on (season, episode) rather than id so a row created under an older id
+    // formula still dedups correctly. Movie rows key on (None, None).
+    let have: HashMap<(Option<u32>, Option<u32>), &db::WantedRow> =
+        existing.iter().map(|w| ((w.season, w.episode), w)).collect();
+
+    let mut to_insert: Vec<db::WantedRow> = Vec::new();
+    for d in desired {
+        match have.get(&(d.season, d.episode)) {
+            // New (season, episode): add it as a plain wanted row.
+            None => to_insert.push(d),
+            // Present already: only backfill a now-known air date (the writer
+            // guards on `air_date IS NULL`, so a set date is never overwritten
+            // and the row's status is left alone).
+            Some(existing_row) => {
+                if existing_row.air_date.is_none() {
+                    if let Some(air) = d.air_date.as_deref() {
+                        db::set_wanted_air_date(state.db(), &existing_row.id, air, now_ms())?;
+                    }
+                }
+            }
+        }
+    }
+    db::insert_wanted(state.db(), &to_insert, now_ms())?;
+    Ok(())
 }
 
 /// Directly fulfill a request from a completed import, WITHOUT waiting for the

@@ -279,6 +279,14 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
         }
     }
 
+    // Airing signals for the "coming soon" badge (show: next episode; movie:
+    // soonest availability), computed before `d` is moved into the struct.
+    let air_status = d.status.clone();
+    let next_air_date = match d.kind {
+        RequestKind::Show => d.next_air.as_ref().map(|(dt, _, _)| dt.clone()),
+        RequestKind::Movie => d.available_date.clone(),
+    };
+
     Ok(DiscoverDetail {
         kind: d.kind,
         tmdb_id: d.tmdb_id,
@@ -300,5 +308,7 @@ fn flag_detail(conn: &Connection, d: discover::DiscoverRawDetail) -> anyhow::Res
         request_id: request.as_ref().map(|(id, _)| id.clone()),
         request_status,
         request_progress,
+        air_status,
+        next_air_date,
     })
 }

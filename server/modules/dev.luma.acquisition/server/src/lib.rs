@@ -200,6 +200,16 @@ impl<S: HostCtx + Clone + Send + Sync + 'static> luma_module_sdk::host::ServerMo
                 schedule: Some("30 5 * * *"),
                 run: run_match::<S>,
             },
+            // Every 6h: re-fetch TMDB for open requests so an ongoing show's
+            // newly-aired episodes join the wanted ledger (and unreleased movies
+            // gain an availability date). Additive + throttled, so it never wipes
+            // grabbed rows nor hammers TMDB.
+            ModuleJob {
+                key: "acquisition.refresh",
+                category: "acquisition",
+                schedule: Some("15 */6 * * *"),
+                run: run_refresh::<S>,
+            },
         ]
     }
 }
@@ -224,6 +234,11 @@ fn run_import<S: HostCtx>(host: &S) -> anyhow::Result<()> {
 
 fn run_match<S: HostCtx>(host: &S) -> anyhow::Result<()> {
     luma_module_sdk::engine::services::requests::availability_pass(host)?;
+    Ok(())
+}
+
+fn run_refresh<S: HostCtx>(host: &S) -> anyhow::Result<()> {
+    luma_module_sdk::engine::services::requests::refresh_pass(host)?;
     Ok(())
 }
 
