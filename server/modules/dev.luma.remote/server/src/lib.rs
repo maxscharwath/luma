@@ -150,14 +150,47 @@ impl RemoteAccess {
         }
     }
 
-    /// Kill the running child, if any.
+    /// Kill the connector: the tracked child AND any cloudflared orphaned by a
+    /// SIGKILL of a previous sidecar generation (the supervisor SIGKILLs sidecars
+    /// on update, which leaves their cloudflared running but no longer held by
+    /// this process's in-memory handle - so killing only the tracked child left
+    /// the tunnel up after "disable"). Reaps the tracked child to avoid a zombie.
     async fn kill_child(&self) {
-        let mut g = self.inner.lock().await;
-        if let Some(child) = g.child.as_mut() {
+        let child = {
+            let mut g = self.inner.lock().await;
+            g.running = false;
+            g.child.take()
+        };
+        let had = child.is_some();
+        if let Some(mut child) = child {
             let _ = child.start_kill();
+            let _ = child.wait().await;
         }
-        g.child = None;
-        g.running = false;
+        #[cfg(unix)]
+        self.kill_all_cloudflared();
+        if had {
+            info!("remote access: cloudflared connector stopped");
+        }
+    }
+
+    /// SIGKILL every process running OUR `cloudflared` binary as a tunnel - the
+    /// tracked child plus any orphan from a prior generation. Matching the
+    /// resolved binary path is safe: nothing else on the box runs it. Best-effort.
+    #[cfg(unix)]
+    fn kill_all_cloudflared(&self) {
+        let bin = self.resolve_binary();
+        // The exact invocation is `<bin> tunnel ...`; match that adjacent
+        // substring so a shell line that merely mentions the path isn't caught.
+        let needle = format!("{bin} tunnel");
+        let Ok(out) = std::process::Command::new("ps").arg("aux").output() else { return };
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            if line.contains(&needle) {
+                // `ps aux`: USER PID ... - the pid is the second whitespace field.
+                if let Some(pid) = line.split_whitespace().nth(1) {
+                    let _ = std::process::Command::new("kill").args(["-9", pid]).status();
+                }
+            }
+        }
     }
 
     /// Spawn the background launch: download (if needed) then run `cloudflared`.
@@ -172,6 +205,11 @@ impl RemoteAccess {
                 g.starting = true;
                 g.last_error = None;
             }
+            // Clear any orphan from a prior sidecar generation before spawning a
+            // fresh tracked child, so exactly one connector ever runs (else an
+            // untracked orphan keeps serving the tunnel after a later "disable").
+            #[cfg(unix)]
+            self.kill_all_cloudflared();
             let result = self.spawn_child(token).await;
             let mut g = self.inner.lock().await;
             g.starting = false;
