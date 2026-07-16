@@ -62,6 +62,16 @@ pub struct DiscoverRawDetail {
     pub crew: Vec<CrewMember>,
     /// TMDB recommendations for the "Titres similaires" rail (unflagged).
     pub similar: Vec<DiscoverHit>,
+    /// TMDB airing status ("Returning Series"/"Ended"/"Canceled" for shows;
+    /// "Released"/"Post Production"/… for movies). Feeds the refresh skip gate.
+    pub status: Option<String>,
+    /// Show only: the next episode TMDB expects to air, as
+    /// `(air_date YYYY-MM-DD, season, episode)`. `None` for movies / shows with
+    /// nothing upcoming.
+    pub next_air: Option<(String, u32, u32)>,
+    /// Movie only: soonest home-availability date (digital > theatrical >
+    /// physical > basic release_date), `YYYY-MM-DD`. `None` for shows.
+    pub available_date: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -144,12 +154,18 @@ pub fn detail(
         RequestKind::Show => "tv",
     };
     // `recommendations` is TMDB's editorially-tuned "more like this" (better than
-    // the raw `similar` genre overlap); `credits` carries cast + crew.
+    // the raw `similar` genre overlap); `credits` carries cast + crew. Movies add
+    // `release_dates` for the typed home-availability windows (digital / physical /
+    // theatrical); shows carry `status` + `next_episode_to_air` natively (no append).
+    let append = match kind {
+        RequestKind::Movie => "external_ids,credits,recommendations,release_dates",
+        RequestKind::Show => "external_ids,credits,recommendations",
+    };
     let params = vec![
         ("language", language.to_string()),
-        ("append_to_response", "external_ids,credits,recommendations".to_string()),
+        ("append_to_response", append.to_string()),
     ];
-    let d: DetailResp = match curl_json(&format!("{API}/{path}/{tmdb_id}"), api_key, &params) {
+    let mut d: DetailResp = match curl_json(&format!("{API}/{path}/{tmdb_id}"), api_key, &params) {
         Ok(d) => d,
         // curl -f turns TMDB 404s into exit 22; treat any failure on the detail
         // endpoint as "not found" only when the id namespace mismatched is
@@ -184,6 +200,16 @@ pub fn detail(
         .filter_map(|h| hit_from(kind, h))
         .take(MAX_SIMILAR)
         .collect();
+    // Airing signals for the request refresh pass + "coming soon" badges.
+    let status = d.status.take().filter(|s| !s.is_empty());
+    let next_air = d.next_episode_to_air.take().and_then(|e| {
+        let date = e.air_date.filter(|s| !s.is_empty())?;
+        Some((date, e.season_number.unwrap_or(0), e.episode_number.unwrap_or(0)))
+    });
+    let available_date = match kind {
+        RequestKind::Movie => movie_available_date(d.release_dates.take(), d.release_date.as_deref()),
+        RequestKind::Show => None,
+    };
     Ok(Some(DiscoverRawDetail {
         kind,
         tmdb_id,
@@ -204,7 +230,48 @@ pub fn detail(
         cast,
         crew,
         similar,
+        status,
+        next_air,
+        available_date,
     }))
+}
+
+/// TMDB release types we key on for a movie's home-availability date.
+const REL_THEATRICAL: u32 = 3;
+const REL_DIGITAL: u32 = 4;
+const REL_PHYSICAL: u32 = 5;
+
+/// A movie's "available_date": when it can plausibly be acquired. Prefers the
+/// digital release, then theatrical, then physical, then the basic release_date.
+/// Reads the US window (most complete for digital) and falls back to any
+/// country. All dates normalized to `YYYY-MM-DD`.
+fn movie_available_date(rd: Option<ReleaseDatesResp>, basic: Option<&str>) -> Option<String> {
+    let results = rd.map(|r| r.results).unwrap_or_default();
+    let block = results
+        .iter()
+        .find(|c| c.iso_3166_1.as_deref() == Some("US"))
+        .or_else(|| results.first());
+    let typed = block.and_then(|b| {
+        typed_release(b, REL_DIGITAL)
+            .or_else(|| typed_release(b, REL_THEATRICAL))
+            .or_else(|| typed_release(b, REL_PHYSICAL))
+    });
+    typed.or_else(|| basic.and_then(ymd))
+}
+
+/// The `YYYY-MM-DD` of a country block's first release of type `want`.
+fn typed_release(block: &ReleaseDatesCountry, want: u32) -> Option<String> {
+    block
+        .release_dates
+        .iter()
+        .find(|d| d.kind == want)
+        .and_then(|d| d.release_date.as_deref())
+        .and_then(ymd)
+}
+
+/// Truncate a TMDB date/datetime ("2024-02-27T00:00:00.000Z") to `YYYY-MM-DD`.
+fn ymd(s: &str) -> Option<String> {
+    s.get(..10).map(str::to_string)
 }
 
 /// Top-billed cast (TMDB orders by `order` ascending; sort defensively), capped.
@@ -358,6 +425,27 @@ struct DetailResp {
     created_by: Vec<RawCreatedBy>,
     #[serde(default)]
     recommendations: Option<PageResp>,
+    // ----- airing signals (Phase 2: refresh + coming-soon) -------------------
+    /// Show: "Returning Series"/"Ended"/"Canceled"/"In Production"; movie:
+    /// "Released"/"Post Production"/…
+    #[serde(default)]
+    status: Option<String>,
+    /// Show only: the next episode TMDB expects to air.
+    #[serde(default)]
+    next_episode_to_air: Option<RawEpisodeStub>,
+    /// Show only: the most recent aired episode. Parsed for the coming-soon
+    /// calendar (later phase); not read yet.
+    #[serde(default)]
+    #[allow(dead_code)]
+    last_episode_to_air: Option<RawEpisodeStub>,
+    /// Show only: total episode count, backing the calendar's completeness
+    /// check (later phase); not read yet.
+    #[serde(default)]
+    #[allow(dead_code)]
+    number_of_episodes: Option<u32>,
+    /// Movie only: per-country typed release windows (append_to_response).
+    #[serde(default)]
+    release_dates: Option<ReleaseDatesResp>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -416,6 +504,42 @@ struct RawSeasonResp {
     episode_count: Option<u32>,
     #[serde(default)]
     air_date: Option<String>,
+}
+
+/// TMDB `next_episode_to_air` / `last_episode_to_air`: the show's upcoming (or
+/// most recent) episode's air date + numbering.
+#[derive(Debug, Deserialize)]
+struct RawEpisodeStub {
+    #[serde(default)]
+    air_date: Option<String>,
+    #[serde(default)]
+    season_number: Option<u32>,
+    #[serde(default)]
+    episode_number: Option<u32>,
+}
+
+/// TMDB movie `release_dates` append: per-country typed release windows.
+#[derive(Debug, Deserialize)]
+struct ReleaseDatesResp {
+    #[serde(default)]
+    results: Vec<ReleaseDatesCountry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseDatesCountry {
+    #[serde(default)]
+    iso_3166_1: Option<String>,
+    #[serde(default)]
+    release_dates: Vec<ReleaseDateEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseDateEntry {
+    /// TMDB release type: 3 = theatrical, 4 = digital, 5 = physical (others exist).
+    #[serde(rename = "type", default)]
+    kind: u32,
+    #[serde(default)]
+    release_date: Option<String>,
 }
 
 #[cfg(test)]
@@ -477,6 +601,48 @@ mod tests {
         assert_eq!(similar[0].tmdb_id, 693134);
         assert_eq!(similar[0].kind, RequestKind::Movie);
         assert_eq!(similar[0].year, Some(2024));
+    }
+
+    /// A movie's `available_date` prefers the US digital window, then theatrical,
+    /// then the basic release_date; all normalized to `YYYY-MM-DD`.
+    #[test]
+    fn movie_available_date_prefers_digital_then_theatrical() {
+        let raw = r#"{
+            "release_dates": { "results": [
+                { "iso_3166_1": "FR", "release_dates": [
+                    { "type": 3, "release_date": "2024-02-28T00:00:00.000Z" }
+                ]},
+                { "iso_3166_1": "US", "release_dates": [
+                    { "type": 3, "release_date": "2024-03-01T00:00:00.000Z" },
+                    { "type": 4, "release_date": "2024-04-16T00:00:00.000Z" }
+                ]}
+            ]}
+        }"#;
+        let d: DetailResp = serde_json::from_str(raw).unwrap();
+        // US digital (type 4) wins over US/FR theatrical, truncated to a date.
+        assert_eq!(
+            movie_available_date(d.release_dates, Some("2024-03-01")).as_deref(),
+            Some("2024-04-16")
+        );
+        // No typed windows: fall back to the basic release_date.
+        assert_eq!(movie_available_date(None, Some("2025-01-09")).as_deref(), Some("2025-01-09"));
+    }
+
+    /// A show's `status` + `next_episode_to_air` map into the airing signals.
+    #[test]
+    fn show_next_air_maps_from_next_episode() {
+        let raw = r#"{
+            "name": "Severance",
+            "status": "Returning Series",
+            "next_episode_to_air": { "air_date": "2026-01-17", "season_number": 2, "episode_number": 3 },
+            "number_of_episodes": 19
+        }"#;
+        let d: DetailResp = serde_json::from_str(raw).unwrap();
+        assert_eq!(d.status.as_deref(), Some("Returning Series"));
+        let n = d.next_episode_to_air.unwrap();
+        assert_eq!(n.air_date.as_deref(), Some("2026-01-17"));
+        assert_eq!(n.season_number, Some(2));
+        assert_eq!(n.episode_number, Some(3));
     }
 
     /// TV creators come from the top-level `created_by`, not the crew list.

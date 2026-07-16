@@ -8,10 +8,11 @@ use super::*;
 use luma_domain::{EpisodeRef, MediaRequest, RequestKind, RequestStatus};
 
 /// Columns of the request list SELECT (requester username joined in). `r.episodes`
-/// trails the original set so existing positional indices never shift.
+/// and the Phase 2 airing columns trail the original set so existing positional
+/// indices never shift.
 const REQUEST_COLS: &str = "r.id, r.kind, r.tmdb_id, r.title, r.year, r.poster_url, r.seasons, \
     r.status, r.requested_by, u.username, r.reviewed_by, r.note, r.created_at, r.updated_at, \
-    r.episodes";
+    r.episodes, r.air_status, r.next_air_date, r.last_refresh_at";
 
 fn row_to_request(r: &Row) -> rusqlite::Result<MediaRequest> {
     let kind: String = r.get(1)?;
@@ -35,6 +36,9 @@ fn row_to_request(r: &Row) -> rusqlite::Result<MediaRequest> {
         created_at: r.get(12)?,
         updated_at: r.get(13)?,
         progress: None,
+        air_status: r.get(15)?,
+        next_air_date: r.get(16)?,
+        last_refresh_at: r.get(17)?,
     })
 }
 
@@ -187,6 +191,26 @@ pub fn set_request_episodes(
     Ok(())
 }
 
+/// Store the TMDB airing signals from a refresh pass + stamp `last_refresh_at`
+/// (throttle key). `air_status` / `next_air_date` are set outright (not
+/// COALESCE'd): an ended show clearing its `next_air_date` back to NULL is a
+/// meaningful update. Does not touch `updated_at` (a background metadata sync,
+/// not a user-facing lifecycle change).
+pub fn set_request_air(
+    pool: &Pool,
+    id: &str,
+    air_status: Option<&str>,
+    next_air_date: Option<&str>,
+    refreshed_at: i64,
+) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE requests SET air_status = ?2, next_air_date = ?3, last_refresh_at = ?4 WHERE id = ?1",
+        params![id, air_status, next_air_date, refreshed_at],
+    )?;
+    Ok(())
+}
+
 /// Delete a request (cascades its wanted rows). Returns false when absent.
 pub fn delete_request(pool: &Pool, id: &str) -> Result<bool> {
     let conn = pool.get()?;
@@ -267,6 +291,55 @@ pub fn replace_wanted(pool: &Pool, request_id: &str, rows: &[WantedRow], now_ms:
         }
     }
     tx.commit()?;
+    Ok(())
+}
+
+/// Additively insert wanted rows WITHOUT clearing the request's existing set
+/// (the refresh pass: newly-aired episodes join the ledger without disturbing
+/// grabbed/available rows). `INSERT OR IGNORE` so a row whose deterministic id
+/// already exists is a no-op. One transaction.
+pub fn insert_wanted(pool: &Pool, rows: &[WantedRow], now_ms: i64) -> Result<()> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    {
+        let mut stmt = tx.prepare(
+            "INSERT OR IGNORE INTO wanted (id, request_id, kind, tmdb_id, imdb_id, title, year, season, episode, air_date, status, last_search_at, updated_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        )?;
+        for w in rows {
+            stmt.execute(params![
+                w.id,
+                w.request_id,
+                w.kind,
+                w.tmdb_id as i64,
+                w.imdb_id,
+                w.title,
+                w.year,
+                w.season,
+                w.episode,
+                w.air_date,
+                w.status,
+                w.last_search_at,
+                now_ms
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// Fill in an `air_date` TMDB now knows for an existing wanted row that lacked
+/// one. Only updates rows whose `air_date IS NULL` so a known date is never
+/// overwritten; never changes `status`, so a grabbed/available row is untouched.
+pub fn set_wanted_air_date(pool: &Pool, id: &str, air_date: &str, now_ms: i64) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute(
+        "UPDATE wanted SET air_date = ?2, updated_at = ?3 WHERE id = ?1 AND air_date IS NULL",
+        params![id, air_date, now_ms],
+    )?;
     Ok(())
 }
 
@@ -493,6 +566,73 @@ mod tests {
         assert!(delete_request(&p, "r1").unwrap());
         let conn = p.get().unwrap();
         assert!(wanted_for_request(&conn, "r1").unwrap().is_empty());
+    }
+
+    #[test]
+    fn set_request_air_roundtrips_and_last_refresh_is_internal() {
+        let p = pool();
+        insert_request(&p, &new_req("r1", RequestKind::Show, 1396, None), 1000).unwrap();
+        set_request_air(&p, "r1", Some("Returning Series"), Some("2026-01-17"), 5000).unwrap();
+        let conn = p.get().unwrap();
+        let req = get_request(&conn, "r1").unwrap().unwrap();
+        assert_eq!(req.air_status.as_deref(), Some("Returning Series"));
+        assert_eq!(req.next_air_date.as_deref(), Some("2026-01-17"));
+        assert_eq!(req.last_refresh_at, Some(5000));
+        // updated_at is NOT bumped by a background refresh.
+        assert_eq!(req.updated_at, 1000);
+        drop(conn);
+        // Ended shows clear next_air_date back to NULL (set outright, not COALESCE).
+        set_request_air(&p, "r1", Some("Ended"), None, 6000).unwrap();
+        let conn = p.get().unwrap();
+        let req = get_request(&conn, "r1").unwrap().unwrap();
+        assert_eq!(req.air_status.as_deref(), Some("Ended"));
+        assert_eq!(req.next_air_date, None);
+        // Wire stays clean: last_refresh_at is #[serde(skip)].
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(json.get("lastRefreshAt").is_none());
+        assert_eq!(json.get("airStatus").and_then(|v| v.as_str()), Some("Ended"));
+    }
+
+    #[test]
+    fn insert_wanted_is_additive_and_never_disturbs_grabbed() {
+        let p = pool();
+        insert_request(&p, &new_req("r1", RequestKind::Show, 1396, None), 1000).unwrap();
+        let mk = |id: &str, episode: u32, air: Option<&str>, status: &str| WantedRow {
+            id: id.into(),
+            request_id: "r1".into(),
+            kind: "episode".into(),
+            tmdb_id: 1396,
+            imdb_id: None,
+            title: "T".into(),
+            year: None,
+            season: Some(1),
+            episode: Some(episode),
+            air_date: air.map(str::to_string),
+            status: status.into(),
+            last_search_at: None,
+        };
+        // Seed one grabbed (dated) + one wanted (undated) row.
+        replace_wanted(&p, "r1", &[mk("w-e1", 1, Some("2020-01-01"), "grabbed"), mk("w-e2", 2, None, "wanted")], 1000)
+            .unwrap();
+        // Refresh: a brand-new aired episode + a would-be duplicate of e1.
+        insert_wanted(&p, &[mk("w-e3", 3, Some("2020-01-03"), "wanted"), mk("w-e1", 1, Some("2020-01-01"), "wanted")], 2000)
+            .unwrap();
+        // Fill the missing air_date on the existing wanted row e2.
+        set_wanted_air_date(&p, "w-e2", "2020-01-02", 2000).unwrap();
+        // The grabbed row must not be overwritten by set_wanted_air_date.
+        set_wanted_air_date(&p, "w-e1", "2999-01-01", 2000).unwrap();
+
+        let conn = p.get().unwrap();
+        let rows = wanted_for_request(&conn, "r1").unwrap();
+        assert_eq!(rows.len(), 3, "e3 added; the e1 duplicate was ignored");
+        let by_ep = |ep: u32| rows.iter().find(|w| w.episode == Some(ep)).unwrap();
+        // e1 stayed grabbed with its original date (INSERT OR IGNORE + air-date guard).
+        assert_eq!(by_ep(1).status, "grabbed");
+        assert_eq!(by_ep(1).air_date.as_deref(), Some("2020-01-01"));
+        // e2 gained the newly-known air date.
+        assert_eq!(by_ep(2).air_date.as_deref(), Some("2020-01-02"));
+        // e3 is the freshly-added row.
+        assert_eq!(by_ep(3).status, "wanted");
     }
 
     #[test]

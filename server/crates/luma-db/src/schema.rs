@@ -365,6 +365,13 @@ pub(crate) const SCHEMA: &str = "
         reviewed_by  TEXT,
         note         TEXT,
         episodes     TEXT,
+        -- Airing signals synced from TMDB by the acquisition.refresh job (Phase 2).
+        -- air_status: TMDB status string; next_air_date: YYYY-MM-DD of a show's
+        -- next episode / a movie's soonest availability; last_refresh_at: epoch-ms
+        -- throttle key. NULL until the first refresh.
+        air_status     TEXT,
+        next_air_date  TEXT,
+        last_refresh_at INTEGER,
         created_at   INTEGER NOT NULL,
         updated_at   INTEGER NOT NULL
     );
@@ -614,6 +621,11 @@ fn migrate(conn: &Connection) {
         // {season,episode}; NULL = none). Unioned with the `seasons` full-season
         // subset. NULL for DBs / requests created before per-episode requests.
         "ALTER TABLE requests ADD COLUMN episodes TEXT",
+        // ----- airing / release-date signals (Phase 2) ---------------------------
+        // Synced from TMDB by the acquisition.refresh job. NULL until first refresh.
+        "ALTER TABLE requests ADD COLUMN air_status TEXT",
+        "ALTER TABLE requests ADD COLUMN next_air_date TEXT",
+        "ALTER TABLE requests ADD COLUMN last_refresh_at INTEGER",
     ] {
         let _ = conn.execute(sql, []);
     }

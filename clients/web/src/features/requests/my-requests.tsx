@@ -3,8 +3,8 @@
 // stream (request.updated reloads, download.progress patches the bar).
 
 import { LumaEvents, type MediaRequest, posterColors, sizedImageUrl } from '@luma/core';
-import { useT } from '@luma/ui';
-import { IconInbox, IconLoader2, IconX } from '@tabler/icons-react';
+import { useLocale, useT } from '@luma/ui';
+import { IconCalendarClock, IconInbox, IconLoader2, IconX } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
@@ -131,9 +131,19 @@ function RequestRow({
   onOpen: () => void;
 }>) {
   const t = useT();
+  const locale = useLocale();
   const [c1, c2] = posterColors(String(req.tmdbId));
   const poster = sizedImageUrl(req.posterUrl, 92);
   const seasons = seasonsSummary(req.seasons);
+  // Coming-soon badge: a show's next episode, or an unreleased movie's release,
+  // shown only while the date is still upcoming (today or later).
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming =
+    req.nextAirDate && req.nextAirDate >= today
+      ? t(req.kind === 'show' ? 'requests.nextEpisodeDate' : 'requests.availableDate', {
+          date: new Date(`${req.nextAirDate}T00:00:00`).toLocaleDateString(locale),
+        })
+      : null;
 
   return (
     <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface-1 p-3.5">
@@ -158,6 +168,12 @@ function RequestRow({
               .filter(Boolean)
               .join(' · ')}
           </div>
+          {upcoming ? (
+            <div className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-accent">
+              <IconCalendarClock size={13} stroke={1.9} />
+              {upcoming}
+            </div>
+          ) : null}
           {req.note ? (
             <div className="mt-1 text-[12px] font-semibold text-[#EF8091]">{req.note}</div>
           ) : null}

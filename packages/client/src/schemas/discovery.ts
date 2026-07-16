@@ -62,6 +62,12 @@ export const MediaRequest = z.object({
   createdAt: z.number(),
   updatedAt: z.number(),
   progress: z.number().nullable(),
+  /** TMDB airing status, refreshed by `acquisition.refresh` (show:
+   * "Returning Series"/"Ended"/…; movie: "Released"/…). Null until first refresh. */
+  airStatus: z.string().nullable(),
+  /** Next air date (YYYY-MM-DD): a show's next episode or a movie's soonest
+   * availability. Null once nothing more is upcoming. */
+  nextAirDate: z.string().nullable(),
 });
 export type MediaRequest = z.infer<typeof MediaRequest>;
 
@@ -134,6 +140,11 @@ export const DiscoverDetail = z.object({
   requestId: RequestId.nullable(),
   requestStatus: RequestStatus.nullable(),
   requestProgress: z.number().nullable(),
+  /** TMDB airing status (show/movie), for the "coming soon" badge. */
+  airStatus: z.string().nullable(),
+  /** Next air date (YYYY-MM-DD): a show's next episode or a movie's soonest
+   * availability. Null when nothing is upcoming. */
+  nextAirDate: z.string().nullable(),
 });
 export type DiscoverDetail = z.infer<typeof DiscoverDetail>;
 

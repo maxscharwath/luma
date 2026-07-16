@@ -66,6 +66,8 @@
   "requests.myEmpty": "You have no requests.",
   "requests.myEmptyCta": "Discover titles",
   "requests.cancel": "Cancel request",
+  "requests.nextEpisodeDate": "Next episode {date}",
+  "requests.availableDate": "Available {date}",
   "nav.connectDevice": "Connect a device",
   "nav.inviteUser": "Invite a user",
   "nav.server": "Server",

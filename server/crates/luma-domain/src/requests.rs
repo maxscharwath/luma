@@ -122,6 +122,17 @@ pub struct MediaRequest {
     /// `importing`, derived from its download rows. `None` otherwise.
     #[serde(default)]
     pub progress: Option<f64>,
+    /// TMDB airing status, refreshed by the `acquisition.refresh` job (show:
+    /// "Returning Series"/"Ended"/…; movie: "Released"/"Post Production"/…).
+    /// `None` until the first refresh.
+    pub air_status: Option<String>,
+    /// Next air date (`YYYY-MM-DD`): a show's next episode, or an unreleased
+    /// movie's soonest availability. `None` once nothing more is upcoming.
+    pub next_air_date: Option<String>,
+    /// Epoch-ms of the last TMDB refresh (throttles the refresh pass). Internal:
+    /// never serialized to clients.
+    #[serde(skip)]
+    pub last_refresh_at: Option<i64>,
 }
 
 /// Status tallies for the admin queue's filter chips.
@@ -243,4 +254,10 @@ pub struct DiscoverDetail {
     /// Live download progress (0..1) while the request is downloading/importing.
     #[serde(default)]
     pub request_progress: Option<f64>,
+    /// TMDB airing status (show: "Returning Series"/"Ended"/…; movie:
+    /// "Released"/…), for the "coming soon" badge. `None` when unknown.
+    pub air_status: Option<String>,
+    /// Next air date (`YYYY-MM-DD`): a show's next episode, or a movie's soonest
+    /// availability. `None` when nothing is upcoming.
+    pub next_air_date: Option<String>,
 }
