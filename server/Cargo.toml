@@ -1,6 +1,6 @@
 [package]
 name = "luma-server"
-version = "0.1.15"
+version = "0.1.16"
 edition.workspace = true
 rust-version.workspace = true
 description = "LUMA a self-hosted, direct-play media streaming server"
