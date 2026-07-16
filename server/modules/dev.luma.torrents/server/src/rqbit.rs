@@ -277,6 +277,20 @@ impl DownloadClient for RqbitClient {
         self.engine.handle.block_on(self.engine.session.unpause(&handle))
     }
 
+    fn reannounce(&self, client_ref: &str) -> Result<()> {
+        // librqbit exposes no force-announce; a pause->unpause cycle rebuilds
+        // the live task, which re-announces to every tracker immediately (the
+        // recovery lever for a peer-starved torrent stuck at 0%).
+        let handle = self.engine.find(client_ref)?;
+        if matches!(handle.stats().state, librqbit::TorrentStatsState::Paused) {
+            return Ok(()); // deliberately paused: don't resurrect it
+        }
+        self.engine.handle.block_on(async {
+            self.engine.session.pause(&handle).await?;
+            self.engine.session.unpause(&handle).await
+        })
+    }
+
     fn remove(&self, client_ref: &str, delete_data: bool) -> Result<()> {
         let id = TorrentIdOrHash::parse(client_ref)
             .map_err(|e| anyhow!("bad torrent ref {client_ref:?}: {e:#}"))?;

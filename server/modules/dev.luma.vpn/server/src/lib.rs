@@ -96,7 +96,13 @@ impl Vpn {
         )
         .map_err(|e| format!("write wireproxy.conf: {e}"))?;
 
+        // The module supervisor stops sidecars with SIGKILL, which orphans the
+        // wireproxy child of a previous run. A stale bridge keeps the SOCKS
+        // port bound with an outdated config, so every fresh spawn here fails
+        // with "address in use" while traffic silently rides the old tunnel.
+        reap_stale(&dir);
         let child = spawn_child(&bin, &conf_path)?;
+        record_pid(&dir, &child);
         tracing::info!(port, "wireguard bridge started (wireproxy)");
         *self.child.lock().await = Some(child);
 
@@ -124,7 +130,10 @@ impl Vpn {
                         return;
                     }
                     match spawn_child(&bin, &conf_path) {
-                        Ok(child) => *me.child.lock().await = Some(child),
+                        Ok(child) => {
+                            record_pid(&me.dir(), &child);
+                            *me.child.lock().await = Some(child);
+                        }
                         Err(e) => tracing::warn!(error = %e, "wireguard bridge restart failed"),
                     }
                 }
@@ -142,6 +151,42 @@ impl Vpn {
         }
     }
 }
+
+fn pidfile(dir: &std::path::Path) -> PathBuf {
+    dir.join("wireproxy.pid")
+}
+
+/// Remember the bridge child's pid so the NEXT process generation can reap it
+/// if this one dies without cleanup (SIGKILL from the supervisor).
+fn record_pid(dir: &std::path::Path, child: &Child) {
+    if let Some(pid) = child.id() {
+        let _ = std::fs::write(pidfile(dir), pid.to_string());
+    }
+}
+
+/// Kill a wireproxy orphaned by a previous run, identified by the pidfile and
+/// verified by process name (never kill a reused pid). Best-effort.
+#[cfg(unix)]
+fn reap_stale(dir: &std::path::Path) {
+    let path = pidfile(dir);
+    let Some(pid) = std::fs::read_to_string(&path).ok().and_then(|s| s.trim().parse::<u32>().ok())
+    else {
+        return;
+    };
+    let _ = std::fs::remove_file(&path);
+    let comm = std::process::Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "comm="])
+        .output();
+    let is_wireproxy =
+        comm.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("wireproxy"));
+    if is_wireproxy {
+        tracing::warn!(pid, "killing a stale wireproxy from a previous run");
+        let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status();
+    }
+}
+
+#[cfg(not(unix))]
+fn reap_stale(_dir: &std::path::Path) {}
 
 fn spawn_child(bin: &std::path::Path, conf: &std::path::Path) -> Result<Child, String> {
     tokio::process::Command::new(bin)

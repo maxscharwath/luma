@@ -102,9 +102,8 @@ pub trait DownloadClient: Send + Sync {
     fn pause(&self, client_ref: &str) -> anyhow::Result<()>;
     fn resume(&self, client_ref: &str) -> anyhow::Result<()>;
     /// Force a tracker / DHT re-announce now ("ask more peers"). Best-effort;
-    /// the default is a no-op (the embedded engine already announces to trackers
-    /// and DHT continuously, so there's nothing to force), overridden by the
-    /// external clients that expose a manual reannounce.
+    /// the default is a no-op, overridden by every real engine (the embedded
+    /// one cycles the torrent's live task, external clients call their API).
     fn reannounce(&self, _client_ref: &str) -> anyhow::Result<()> {
         Ok(())
     }

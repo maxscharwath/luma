@@ -56,3 +56,11 @@ librqbit = { version = "8", optional = true, default-features = false, features 
 # unconditionally (independent of the embedded engine); the `rqbit` feature layers
 # on the multi-thread runtime the librqbit session drives.
 tokio = { version = "1", features = ["rt", "time"] }
+
+[dev-dependencies]
+# The engine_probe example only: session logs for swarm diagnostics.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[example]]
+name = "engine_probe"
+required-features = ["rqbit"]

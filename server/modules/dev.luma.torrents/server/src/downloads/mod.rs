@@ -131,10 +131,23 @@ impl DownloadManager {
                 }
             }
         }
+        // `None` from the proxy port can mean "no VPN" OR "the VPN sidecar is
+        // not answering yet" (it resolves over the port bridge, and sidecars
+        // boot concurrently). While a WireGuard config is stored and the VPN
+        // module enabled, peer traffic must stay sealed: defer the start (the
+        // monitor retries every VPN tick) rather than run on the raw
+        // connection with the banner still showing green.
+        let proxy = active_proxy_url(host);
+        if proxy.is_none() && vpn_sealed_expected(host) {
+            tracing::warn!(
+                "VPN is configured but its proxy is not resolvable; embedded engine start deferred (never runs unsealed)"
+            );
+            return;
+        }
         let cfg = RqbitConfig {
             session_dir: self.state_dir.join("session"),
             download_dir: self.downloads_dir.clone(),
-            socks_proxy_url: active_proxy_url(host),
+            socks_proxy_url: proxy,
             listen_port: u16::try_from(host.setting_i64("rqbitPort", 0).max(0)).ok(),
             download_bps: kbps_setting(host, "rqbitDownKbps"),
             upload_bps: kbps_setting(host, "rqbitUpKbps"),
@@ -688,6 +701,14 @@ pub fn active_proxy_url(host: &dyn HostCtx) -> Option<String> {
     // one, resolved by port so downloads never depends on the VPN crate.
     luma_module_sdk::host::resolve_port::<dyn luma_module_sdk::ports::VpnProxyPort>(host)
         .and_then(|p| p.proxy_url(host))
+}
+
+/// Whether peer traffic is REQUIRED to ride the VPN bridge: the VPN module is
+/// enabled and a WireGuard config is stored. Settings share one namespace (this
+/// module already reads `vpnKillSwitch` / `vpnCheckUrl`), so this stays a
+/// data-level check; the VPN crate is never named.
+fn vpn_sealed_expected(host: &dyn HostCtx) -> bool {
+    host.module_enabled("dev.luma.vpn") && !host.setting_str("vpnWgConfig", "").trim().is_empty()
 }
 
 fn kbps_setting(host: &dyn HostCtx, key: &str) -> Option<u32> {

@@ -7,10 +7,22 @@ use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
-const RELEASE: &str = "https://github.com/windtf/wireproxy/releases/latest/download";
+/// Pinned release. NEVER track `latest`: the bridge carries opaque BitTorrent
+/// TCP, and an upstream behavior change (e.g. v1.1.3's SNI-proxy rework) can
+/// break peer traffic while plain HTTPS keeps working, which looks like "VPN
+/// green but downloads dead". Bump only after verifying peer flows end-to-end
+/// (`cargo run -p luma-torrent --example engine_probe --features rqbit`).
+const VERSION: &str = "v1.1.2";
+const RELEASE: &str = "https://github.com/windtf/wireproxy/releases/download";
 
 fn cached_path(data_dir: &Path) -> PathBuf {
     data_dir.join("bin").join("wireproxy")
+}
+
+/// Marker recording which release the cached binary came from; a mismatch
+/// (or a pre-pinning cache with no marker) triggers a re-download of the pin.
+fn version_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("bin").join("wireproxy.version")
 }
 
 fn asset() -> Option<&'static str> {
@@ -24,11 +36,20 @@ fn asset() -> Option<&'static str> {
     })
 }
 
-/// The wireproxy binary path, downloading it on first use.
+/// The wireproxy binary path, downloading the pinned release on first use or
+/// whenever the cached binary is from a different release.
 pub async fn ensure(data_dir: &Path) -> Result<PathBuf, String> {
     let dest = cached_path(data_dir);
-    if dest.exists() {
+    let cached_version = std::fs::read_to_string(version_path(data_dir)).unwrap_or_default();
+    if dest.exists() && cached_version.trim() == VERSION {
         return Ok(dest);
+    }
+    if dest.exists() {
+        tracing::info!(
+            cached = %if cached_version.trim().is_empty() { "unpinned" } else { cached_version.trim() },
+            pinned = VERSION,
+            "re-provisioning wireproxy to the pinned release"
+        );
     }
     download(data_dir).await
 }
@@ -41,7 +62,7 @@ async fn download(data_dir: &Path) -> Result<PathBuf, String> {
     std::fs::create_dir_all(&bindir).map_err(|e| format!("create bin dir: {e}"))?;
     let dest = cached_path(data_dir);
     let tmp = bindir.join(format!("wireproxy.download.{}", std::process::id()));
-    let url = format!("{RELEASE}/{asset}");
+    let url = format!("{RELEASE}/{VERSION}/{asset}");
 
     let ok = Command::new("curl")
         .args(["-fSL", "--max-time", "180", "-o"])
@@ -88,5 +109,6 @@ async fn download(data_dir: &Path) -> Result<PathBuf, String> {
         let _ = std::fs::remove_file(&dest);
         return Err("downloaded wireproxy is not runnable".to_string());
     }
+    let _ = std::fs::write(version_path(data_dir), VERSION);
     Ok(dest)
 }

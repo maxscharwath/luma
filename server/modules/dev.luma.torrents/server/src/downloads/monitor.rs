@@ -46,6 +46,14 @@ impl DownloadManager {
                 let vpn_due = last_vpn_check.elapsed() >= VPN_CHECK_EVERY;
                 if vpn_due {
                     last_vpn_check = std::time::Instant::now();
+                    // Self-heal a deferred engine start: at boot the VPN
+                    // sidecar may not have been answering yet, and start_rqbit
+                    // refuses to run unsealed. Re-attempt on the VPN cadence;
+                    // start_rqbit re-checks every guard (disabled client,
+                    // unresolved proxy) itself.
+                    if manager.rqbit().is_none() {
+                        manager.start_rqbit(&*host).await;
+                    }
                 }
                 let had_active = tokio::task::spawn_blocking({
                     let manager = manager.clone();
