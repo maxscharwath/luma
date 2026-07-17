@@ -157,6 +157,13 @@ hand-built AppImage you distribute:
   `src-tauri/bin/` (run `scripts/fetch-mpv.sh` first). The `.deb` is unaffected
   (no linuxdeploy pass; verified pristine).
 
+The bundled mpv AppImage also ships a `get-yt-dlp.hook` (and a self-updater
+hook) that pops a **modal** kdialog before mpv starts when yt-dlp is missing -
+which blocks the IPC socket, times out every VO rung, and re-nags on each
+re-spawn ("popup every 5s" on the Deck). LUMA never plays online video, so
+`mpv.rs` neutralizes both: a no-op `yt-dlp` shim on the child's PATH (the hook
+only probes it with `command -v`), `DISABLE_AUTO_UPDATES=1`, and `--ytdl=no`.
+
 Related in-app guards (also part of this fix): `main.rs` drops the stock
 AppRun's stale `GST_PLUGIN_SYSTEM_PATH(_1_0)` export (else webview audio dies
 with "GStreamer element autoaudiosink not found" AND the user's

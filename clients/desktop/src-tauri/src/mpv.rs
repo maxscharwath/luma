@@ -58,10 +58,36 @@ const BASE_ARGS: &[&str] = &[
     "--force-seekable=yes", // seek HTTP sources even if length is unknown
     "--sub-auto=no",        // LUMA renders its own subtitle overlay
     "--sid=no",
+    "--ytdl=no",            // never invoke yt-dlp: LUMA only opens its own HTTP file URLs
 ];
 
 fn socket_path() -> PathBuf {
     std::env::temp_dir().join("luma-mpv.sock")
+}
+
+/// Ensure a directory holding a no-op `yt-dlp` executable exists, and return it.
+///
+/// The bundled `luma-mpv` is a pkgforge mpv AppImage whose launcher sources a
+/// `get-yt-dlp.hook`: when `yt-dlp` isn't on PATH it pops a **modal** kdialog
+/// ("luma-mpv needs yt-dlp ... install it now?") *before* exec'ing mpv. That
+/// dialog blocks startup, so mpv's IPC socket never appears, every VO rung
+/// times out, and each re-spawn stacks another dialog (the "popup every 5s"
+/// the Deck showed). LUMA never plays online video, so we make `yt-dlp` appear
+/// present - a stub the hook only ever probes with `command -v`, never runs
+/// (we also pass `--ytdl=no`). Robust to the AppImage's name/cache layout,
+/// unlike the hook's per-file denyfile. Best-effort: any error just means the
+/// nag may return, not a playback failure.
+fn ytdlp_shim_dir() -> Option<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = std::env::temp_dir().join("luma-mpv-shim");
+    std::fs::create_dir_all(&dir).ok()?;
+    let stub = dir.join("yt-dlp");
+    // Idempotent: write once, keep it executable.
+    if !stub.exists() {
+        std::fs::write(&stub, "#!/bin/sh\nexit 0\n").ok()?;
+    }
+    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).ok()?;
+    Some(dir)
 }
 
 /// Video-output fallback ladder, most-capable first. mpv aborts (and its IPC
@@ -217,14 +243,31 @@ pub fn spawn(app: AppHandle) {
 /// launch, `socket-timeout` if every rung failed to produce a socket).
 fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static str> {
     let ladder = vo_ladder();
+    // PATH with a no-op yt-dlp shim prepended, so the AppImage's get-yt-dlp.hook
+    // sees yt-dlp as "present" and skips its blocking install dialog. See
+    // [`ytdlp_shim_dir`]. Computed once; None only if the temp write failed.
+    let shim_path = ytdlp_shim_dir().map(|dir| {
+        let mut p = std::ffi::OsString::from(dir);
+        if let Some(existing) = std::env::var_os("PATH") {
+            p.push(":");
+            p.push(existing);
+        }
+        p
+    });
     for cfg in &ladder {
         let _ = std::fs::remove_file(sock);
-        let child = Command::new(binary)
+        let mut command = Command::new(binary);
+        command
             // The bundled luma-mpv is itself an AppImage; we spawn it from INSIDE the
             // LUMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
             // Force extract-and-run so mpv never depends on FUSE; harmless for a
             // non-AppImage system mpv (it just ignores the var).
             .env("APPIMAGE_EXTRACT_AND_RUN", "1")
+            // Silence the AppImage's self-updater.hook, which otherwise pops a modal
+            // "Allow luma-mpv to check for updates?" dialog once the yt-dlp nag is
+            // gone - same startup-blocking failure mode. LUMA updates the whole
+            // desktop bundle via the Tauri updater; the sidecar rides along.
+            .env("DISABLE_AUTO_UPDATES", "1")
             // Never let the outer AppImage's runtime env leak into mpv: AppRun's
             // LD_LIBRARY_PATH points at $APPDIR/usr/lib, whose over-bundled stale
             // libs (tauri-apps/tauri#15665) would shadow the self-contained mpv's
@@ -238,8 +281,11 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
             .env_remove("APPDIR")
             .args(BASE_ARGS)
             .args(cfg)
-            .arg(format!("--input-ipc-server={}", sock.display()))
-            .spawn();
+            .arg(format!("--input-ipc-server={}", sock.display()));
+        if let Some(ref p) = shim_path {
+            command.env("PATH", p);
+        }
+        let child = command.spawn();
 
         let mut child = match child {
             Ok(c) => c,
