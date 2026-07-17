@@ -54,3 +54,6 @@ scripts/serve-nas.sh
 
 # Local runtime data dir (single-port dev: DB, WAL/SHM, logs, image cache)
 /data/
+
+# Cloudflare Workers local state
+**/.wrangler/
