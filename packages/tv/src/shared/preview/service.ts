@@ -14,7 +14,7 @@ import { buildPreviewData } from '#tv/shared/preview/cards';
 import { type Tizen, type TizenFile, tizen } from '#tv/shared/preview/tizen';
 
 // Must match the <tizen:service id> in clients/tizen/public/config.xml.
-const SERVICE_ID = 'KromaTV0001.PreviewSvc';
+const SERVICE_ID = 'KromaTV001.PreviewSvc';
 // Package-private dir shared between the foreground app and its service.
 const PRIVATE_DIR = 'wgt-private';
 const PREVIEW_FILE = 'preview.json';

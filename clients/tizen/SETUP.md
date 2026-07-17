@@ -132,6 +132,6 @@ the TV's network (`bun run server` on the host, or the Docker image on your NAS)
 | --- | --- |
 | `sdb` can't connect | Dev Mode off, wrong Host PC IP, or firewall. Re-do step 1 and reboot the TV. Port is `26101`. |
 | Install fails: *signature / certificate* | The profile isn't a **Samsung** cert, or the cert's DUID doesn't match this TV. Recreate it (step 3) with the TV connected. |
-| App installs but won't launch | Try `make run` again, or `sdb -s <serial> shell 0 was_execute KromaTV0001.KROMA`. Check `make logs`. |
+| App installs but won't launch | Try `make run` again, or `sdb -s <serial> shell 0 was_execute KromaTV001.KROMA`. Check `make logs`. |
 | `tizen: command not found` | Set `TIZEN_HOME` in `.tizen.env`, or add `~/tizen-studio/tools/ide/bin` and `~/tizen-studio/tools` to `PATH`. |
 | Black screen / no data | The app can't reach the server. Re-enter `http://<server-ip>:4040` and confirm the TV and server share a network. |

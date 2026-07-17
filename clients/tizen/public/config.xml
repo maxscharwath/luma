@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://kroma.app/tizen" version="0.1.3" viewmodes="maximized">
-  <tizen:application id="KromaTV0001.KROMA" package="KromaTV0001" required_version="6.0"/>
+  <tizen:application id="KromaTV001.KROMA" package="KromaTV001" required_version="6.0"/>
   <content src="index.html"/>
   <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
   <icon src="icon.png"/>
@@ -28,7 +28,7 @@
   <!-- Background service that reads wgt-private/preview.json and calls
        webapis.preview.setPreviewData(). id MUST be <package>.PreviewSvc and match
        SERVICE_ID in packages/tv/src/preview.ts. -->
-  <tizen:service id="KromaTV0001.PreviewSvc">
+  <tizen:service id="KromaTV001.PreviewSvc">
     <tizen:content src="service/preview-service.js"/>
     <tizen:name>KROMA Preview</tizen:name>
     <tizen:description>Publishes the new-movies carousel to the Smart Hub.</tizen:description>

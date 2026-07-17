@@ -16,8 +16,8 @@ TIZEN      ?= $(shell command -v tizen 2>/dev/null || echo $(TIZEN_HOME)/tools/i
 SDB        ?= $(shell command -v sdb   2>/dev/null || echo $(TIZEN_HOME)/tools/sdb)
 
 # App identity must match public/config.xml.
-PKG_ID     ?= KromaTV0001
-APP_ID     ?= KromaTV0001.KROMA
+PKG_ID     ?= KromaTV001
+APP_ID     ?= KromaTV001.KROMA
 
 # Signing profile name (created via Certificate Manager see SETUP.md).
 PROFILE    ?= KROMA

@@ -105,7 +105,7 @@ Or via bun from the repo root: `bun run --filter @kroma/tizen deploy` (after a
 `.tizen.env` is configured).
 
 Notes:
-- `config.xml` targets Tizen 6.0+ (2021+ TVs), package id `KromaTV0001`.
+- `config.xml` targets Tizen 6.0+ (2021+ TVs), package id `KromaTV001`.
 - Retail Samsung TVs require a **Samsung** signing certificate tied to the TV's
   DUID see [SETUP.md](./SETUP.md) step 3. A self-signed cert only works on the
   emulator.
