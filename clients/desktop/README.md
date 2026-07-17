@@ -137,6 +137,34 @@ so it needs a real GUI session (it fails in headless/automated shells).
 Directions and seek auto-repeat while held; A/B/X are discrete. (This handles both
 D-pad and stick - JMP's client is stick-only.)
 
+## AppImage post-processing (required)
+
+CI runs `scripts/fix-appimage.sh` on every Linux AppImage after `tauri build`
+(release.yml and desktop-autoupdate.yml; the autoupdate flow also re-signs and
+patches `latest.json`). It fixes two bundler defects - do the same for any
+hand-built AppImage you distribute:
+
+- **Over-bundled infra libs** (tauri-apps/tauri#15665): the default bundler
+  sweeps the build host's `libwayland-*`, glib family, `libgst*`, `libnghttp2`
+  etc. into `usr/lib`. On hosts newer than the builder (SteamOS 3.7+, Mesa 25+)
+  the stale `libwayland-client` kills EGL ("Could not create default EGL
+  display: EGL_BAD_PARAMETER"): WebKit aborts and no window appears. The script
+  strips them; the system copies are drop-in compatible.
+- **patchelf-corrupted mpv sidecar**: linuxdeploy patchelf's every executable
+  in `usr/bin`, which corrupts the static-pie runtime of the `luma-mpv`
+  AppImage - the bundled copy segfaults instantly on EVERY machine (all VO
+  rungs "fail", `socket-timeout`). The script restores the pristine bytes from
+  `src-tauri/bin/` (run `scripts/fetch-mpv.sh` first). The `.deb` is unaffected
+  (no linuxdeploy pass; verified pristine).
+
+Related in-app guards (also part of this fix): `main.rs` drops the stock
+AppRun's stale `GST_PLUGIN_SYSTEM_PATH(_1_0)` export (else webview audio dies
+with "GStreamer element autoaudiosink not found" AND the user's
+`~/.cache/gstreamer-1.0` registry is rebuilt empty - if a broken build already
+ran, delete that cache dir once); `mpv.rs` scrubs `LD_LIBRARY_PATH`/
+`LD_PRELOAD`/`APPDIR` from the mpv child so the outer AppImage env can't
+poison it.
+
 ## Known risks (validate on real hardware)
 
 - **Two-window compositing under gamescope.** Transparent-UI-over-mpv-window layering is

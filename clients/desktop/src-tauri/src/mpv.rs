@@ -225,6 +225,17 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
             // Force extract-and-run so mpv never depends on FUSE; harmless for a
             // non-AppImage system mpv (it just ignores the var).
             .env("APPIMAGE_EXTRACT_AND_RUN", "1")
+            // Never let the outer AppImage's runtime env leak into mpv: AppRun's
+            // LD_LIBRARY_PATH points at $APPDIR/usr/lib, whose over-bundled stale
+            // libs (tauri-apps/tauri#15665) would shadow the self-contained mpv's
+            // own stack, and a user's libwayland LD_PRELOAD workaround (fixes the
+            // webview on pre-fix builds) would poison mpv the same way. mpv is
+            // not a GTK app; it needs none of this env. (The historic all-rungs
+            // socket-timeout on the Deck was the patchelf-corrupted sidecar,
+            // repaired at bundle time by scripts/fix-appimage.sh.)
+            .env_remove("LD_LIBRARY_PATH")
+            .env_remove("LD_PRELOAD")
+            .env_remove("APPDIR")
             .args(BASE_ARGS)
             .args(cfg)
             .arg(format!("--input-ipc-server={}", sock.display()))
@@ -260,9 +271,12 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
 /// Wait for mpv's IPC socket to appear (it is created asynchronously after
 /// launch), short-circuiting the instant the process exits first - a failed video
 /// output aborts in well under a second, so we fail over fast rather than block
-/// the whole ~5s window on a rung that already died.
+/// the whole window on a rung that already died. The window is generous (~15s)
+/// because the bundled luma-mpv is an AppImage running in extract-and-run mode:
+/// a cold launch unpacks ~50 MB before mpv even starts, which can exceed 5s on
+/// slow disks; only ALIVE-but-not-ready rungs pay it, dead rungs exit instantly.
 fn await_socket(child: &mut Child, sock: &Path) -> Option<UnixStream> {
-    for _ in 0..100 {
+    for _ in 0..300 {
         if matches!(child.try_wait(), Ok(Some(_))) {
             return None; // mpv aborted (e.g. EGL/GPU-context failure)
         }
@@ -271,7 +285,7 @@ fn await_socket(child: &mut Child, sock: &Path) -> Option<UnixStream> {
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    None // still no socket after ~5s and the process is alive: treat as stuck
+    None // still no socket after ~15s and the process is alive: treat as stuck
 }
 
 /// Write one newline-delimited JSON IPC message to mpv. Errs when mpv is not

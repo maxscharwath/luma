@@ -48,6 +48,23 @@ fn main() {
         if std::env::var_os("GDK_BACKEND").is_none() {
             std::env::set_var("GDK_BACKEND", "x11");
         }
+        // The stock AppRun in Tauri AppImages exports GST_PLUGIN_SYSTEM_PATH(_1_0)
+        // pointing at $APPDIR/usr/lib/gstreamer-1.0 even with bundleMediaFramework
+        // off, where that directory is never created. GStreamer treats the var as
+        // "search ONLY here", so the system plugins are masked: webview audio dies
+        // ("GStreamer element autoaudiosink not found") and the user's
+        // ~/.cache/gstreamer-1.0 registry is rebuilt EMPTY, breaking other
+        // GStreamer apps until cleared (tauri-apps/tauri#15665). Drop the vars
+        // when they point at a missing directory; WebKit's child processes
+        // inherit our env, so they fall back to the system plugin search.
+        for var in ["GST_PLUGIN_SYSTEM_PATH_1_0", "GST_PLUGIN_SYSTEM_PATH"] {
+            if let Some(path) = std::env::var_os(var) {
+                let single_path = !path.to_string_lossy().contains(':');
+                if single_path && !std::path::Path::new(&path).is_dir() {
+                    std::env::remove_var(var);
+                }
+            }
+        }
     }
 
     #[allow(unused_mut)]

@@ -140,6 +140,77 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --bundles ${{ matrix.bundles }}
 
+      # Tauri's default bundler sweeps the runner's wayland/glib/gstreamer libs
+      # into the AppImage, which breaks it on Mesa 25+ hosts (SteamOS 3.7+:
+      # "Could not create default EGL display: EGL_BAD_PARAMETER", no window) -
+      # tauri-apps/tauri#15665. tauri-action has already built AND uploaded, so:
+      # strip + repack the local file, re-sign it (the updater verifies the
+      # signature inside latest.json), then swap the release assets and rewrite
+      # that signature. Linux runs LAST in this sequential matrix, so
+      # latest.json already carries every platform when this patches it.
+      - name: Fix AppImage over-bundling + re-sign (tauri#15665)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          APPIMAGES=(clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage)
+          [ ${#APPIMAGES[@]} -eq 1 ] || { echo "expected exactly one AppImage, got: ${APPIMAGES[*]:-none}"; exit 1; }
+          APPIMAGE="${APPIMAGES[0]}"
+          bash clients/desktop/scripts/fix-appimage.sh "$APPIMAGE"
+
+          # Re-sign the modified bundle (tauri signer reads the TAURI_SIGNING_* env).
+          (cd clients/desktop && bun run tauri signer sign "$GITHUB_WORKSPACE/$APPIMAGE")
+          SIG="$(cat "$APPIMAGE.sig")"
+          NAME="$(basename "$APPIMAGE")"
+
+          API="repos/${GITHUB_REPOSITORY}/releases"
+          upload() { # <file> <asset-name>; prints the response JSON
+            curl -sf -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$1" \
+              "https://uploads.github.com/${API}/${RELEASE_ID}/assets?name=$2"
+          }
+          asset_id() { # <asset-name>; empty when absent
+            gh api "${API}/${RELEASE_ID}/assets" --paginate \
+              --jq ".[] | select(.name == \"$1\") | .id"
+          }
+
+          # Swap in the fixed AppImage + its detached .sig. On a DRAFT release
+          # tauri-action writes asset-id API urls into latest.json (drafts have
+          # no name-based download url), and the re-upload mints a NEW asset id,
+          # so remember the old id to find the entries and patch in the new url.
+          OLD_ID="$(asset_id "$NAME")"
+          [ -n "$OLD_ID" ] || { echo "asset $NAME not found on release ${RELEASE_ID}"; exit 1; }
+          gh api -X DELETE "${API}/assets/${OLD_ID}" >/dev/null
+          NEW_URL="$(upload "$APPIMAGE" "$NAME" | jq -r '.url')"
+          SIG_ID="$(asset_id "$NAME.sig")"
+          [ -z "$SIG_ID" ] || gh api -X DELETE "${API}/assets/${SIG_ID}" >/dev/null
+          upload "$APPIMAGE.sig" "$NAME.sig" >/dev/null
+
+          # Rewrite url + signature for every latest.json entry that pointed at
+          # the replaced asset (linux-x86_64 and linux-x86_64-appimage; the .deb
+          # entry keeps its untouched asset). Match the old asset-id url, plus a
+          # name-based url as a safety net should tauri-action change behavior.
+          LJ_ID="$(asset_id latest.json)"
+          [ -n "$LJ_ID" ] || { echo "latest.json not found on release ${RELEASE_ID}"; exit 1; }
+          gh api -H "Accept: application/octet-stream" "${API}/assets/${LJ_ID}" > latest.json
+          jq --arg sig "$SIG" --arg url "$NEW_URL" --arg old "/assets/${OLD_ID}" --arg name "/$NAME" \
+            '.platforms |= with_entries(
+               if (.value.url | (endswith($old) or endswith($name)))
+               then .value.signature = $sig | .value.url = $url
+               else . end)' \
+            latest.json > latest.fixed.json
+          gh api -X DELETE "${API}/assets/${LJ_ID}" >/dev/null
+          upload latest.fixed.json latest.json >/dev/null
+          echo "patched latest.json: $(jq -rc '[.platforms | to_entries[] | select(.value.url == $u) | .key]' --arg u "$NEW_URL" latest.fixed.json) -> new asset"
+
   publish:
     needs: [create-release, build]
     runs-on: ubuntu-latest
