@@ -3,8 +3,8 @@
 // Changes persist immediately (optimistic) via PUT /api/admin/settings. Shared
 // by the built-in settings pages AND the VPN / Acquisition module pages.
 
-import type { MessageKey, SettingGroup, SettingRow } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { MessageKey, SettingGroup, SettingRow } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useEffect, useState } from 'react';
 import { useAdminKit } from './context';
 import { Card, Toggle } from './primitives';

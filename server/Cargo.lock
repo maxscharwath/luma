@@ -2620,6 +2620,435 @@ dependencies = [
 ]
 
 [[package]]
+name = "kroma-acquisition"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "kroma-port-bridge",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
+name = "kroma-config"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+]
+
+[[package]]
+name = "kroma-db"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kroma-domain",
+ "kroma-primitives",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "time",
+]
+
+[[package]]
+name = "kroma-domain"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "kroma-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chacha20poly1305",
+ "hex",
+ "jwalk",
+ "kroma-config",
+ "kroma-db",
+ "kroma-domain",
+ "kroma-http",
+ "kroma-i18n",
+ "kroma-module-host",
+ "kroma-module-manifest",
+ "kroma-primitives",
+ "notify",
+ "rusty-chromaprint",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sysinfo",
+ "tantivy",
+ "time",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "walkdir",
+ "zip",
+]
+
+[[package]]
+name = "kroma-http"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-i18n"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-indexer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "indexmap 2.14.0",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "kroma-port-bridge",
+ "libxml",
+ "quick-xml 0.41.0",
+ "regex",
+ "rusqlite",
+ "scraper",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
+name = "kroma-mdns"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "mdns-sd",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-module-host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "kroma-db",
+ "kroma-domain",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-module-kernel"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "kroma-engine",
+ "kroma-module-host",
+ "kroma-module-manifest",
+ "kroma-module-supervisor",
+ "kroma-modules-generated",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-module-macros"
+version = "0.1.0"
+
+[[package]]
+name = "kroma-module-manifest"
+version = "0.1.0"
+dependencies = [
+ "kroma-module-macros",
+ "semver",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-module-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "kroma-db",
+ "kroma-domain",
+ "kroma-http",
+ "kroma-module-host",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "kroma-module-sdk"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kroma-db",
+ "kroma-domain",
+ "kroma-engine",
+ "kroma-http",
+ "kroma-module-host",
+ "kroma-module-macros",
+ "kroma-module-manifest",
+ "kroma-primitives",
+ "kroma-scene",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-module-supervisor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "flate2",
+ "hex",
+ "kroma-module-host",
+ "kroma-module-manifest",
+ "rand 0.10.2",
+ "reqwest",
+ "ruzstd",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-modules-generated"
+version = "0.0.0"
+dependencies = [
+ "kroma-engine",
+ "kroma-module-host",
+ "kroma-module-manifest",
+]
+
+[[package]]
+name = "kroma-port-bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "kroma-http",
+ "kroma-module-host",
+ "kroma-module-sdk",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "kroma-primitives"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "sha2",
+ "time",
+]
+
+[[package]]
+name = "kroma-qbittorrent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kroma-module-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-remote"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-scene"
+version = "0.1.0"
+dependencies = [
+ "kroma-module-manifest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-server"
+version = "0.1.25"
+dependencies = [
+ "anyhow",
+ "axum",
+ "fontdue",
+ "hex",
+ "jobserver",
+ "jpeg-encoder",
+ "kroma-acquisition",
+ "kroma-config",
+ "kroma-db",
+ "kroma-engine",
+ "kroma-http",
+ "kroma-module-host",
+ "kroma-module-kernel",
+ "kroma-module-manifest",
+ "kroma-module-sdk",
+ "kroma-module-supervisor",
+ "kroma-port-bridge",
+ "kroma-torrent",
+ "kroma-vector",
+ "kroma-whisper",
+ "mimalloc",
+ "openssl",
+ "rand 0.10.2",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "time",
+ "tiny-skia",
+ "tokio",
+ "tower-http 0.7.0",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "uuid",
+ "walkdir",
+ "webauthn-rs",
+ "zip",
+]
+
+[[package]]
+name = "kroma-torrent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "kroma-port-bridge",
+ "kroma-qbittorrent",
+ "kroma-transmission",
+ "librqbit",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "kroma-torznab"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "kroma-port-bridge",
+ "quick-xml 0.41.0",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "kroma-transmission"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kroma-module-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "kroma-vector"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "candle-core",
+ "candle-nn",
+ "candle-transformers",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "serde",
+ "serde_json",
+ "tokenizers 0.23.1",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-vpn"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "kroma-port-bridge",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kroma-whisper"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "candle-core",
+ "candle-nn",
+ "candle-transformers",
+ "kroma-module-runtime",
+ "kroma-module-sdk",
+ "serde",
+ "serde_json",
+ "tokenizers 0.23.1",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3062,435 +3491,6 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
-
-[[package]]
-name = "luma-acquisition"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "luma-module-runtime",
- "luma-module-sdk",
- "luma-port-bridge",
- "rustix",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "walkdir",
-]
-
-[[package]]
-name = "luma-config"
-version = "0.1.0"
-dependencies = [
- "tracing",
-]
-
-[[package]]
-name = "luma-db"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-domain",
- "luma-primitives",
- "rusqlite",
- "serde",
- "serde_json",
- "time",
-]
-
-[[package]]
-name = "luma-domain"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "luma-engine"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "chacha20poly1305",
- "hex",
- "jwalk",
- "luma-config",
- "luma-db",
- "luma-domain",
- "luma-http",
- "luma-i18n",
- "luma-module-host",
- "luma-module-manifest",
- "luma-primitives",
- "notify",
- "rusty-chromaprint",
- "serde",
- "serde_json",
- "sha2",
- "sysinfo",
- "tantivy",
- "time",
- "tokio",
- "tokio-util",
- "tracing",
- "walkdir",
- "zip",
-]
-
-[[package]]
-name = "luma-http"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "luma-i18n"
-version = "0.1.0"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
-name = "luma-indexer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "chrono",
- "indexmap 2.14.0",
- "libxml",
- "luma-module-runtime",
- "luma-module-sdk",
- "luma-port-bridge",
- "quick-xml 0.41.0",
- "regex",
- "rusqlite",
- "scraper",
- "serde",
- "serde_json",
- "serde_yaml",
- "tokio",
-]
-
-[[package]]
-name = "luma-mdns"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-module-runtime",
- "luma-module-sdk",
- "mdns-sd",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "luma-module-host"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "luma-db",
- "luma-domain",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "luma-module-kernel"
-version = "0.1.0"
-dependencies = [
- "axum",
- "luma-engine",
- "luma-module-host",
- "luma-module-manifest",
- "luma-module-supervisor",
- "luma-modules-generated",
- "serde_json",
- "tracing",
-]
-
-[[package]]
-name = "luma-module-macros"
-version = "0.1.0"
-
-[[package]]
-name = "luma-module-manifest"
-version = "0.1.0"
-dependencies = [
- "luma-module-macros",
- "semver",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "luma-module-runtime"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "luma-db",
- "luma-domain",
- "luma-http",
- "luma-module-host",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "luma-module-sdk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-db",
- "luma-domain",
- "luma-engine",
- "luma-http",
- "luma-module-host",
- "luma-module-macros",
- "luma-module-manifest",
- "luma-primitives",
- "luma-scene",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "luma-module-supervisor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "flate2",
- "hex",
- "luma-module-host",
- "luma-module-manifest",
- "rand 0.10.2",
- "reqwest",
- "ruzstd",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "luma-modules-generated"
-version = "0.0.0"
-dependencies = [
- "luma-engine",
- "luma-module-host",
- "luma-module-manifest",
-]
-
-[[package]]
-name = "luma-port-bridge"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "luma-http",
- "luma-module-host",
- "luma-module-sdk",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "luma-primitives"
-version = "0.1.0"
-dependencies = [
- "hex",
- "sha2",
- "time",
-]
-
-[[package]]
-name = "luma-qbittorrent"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-module-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "luma-remote"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "luma-module-runtime",
- "luma-module-sdk",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "luma-scene"
-version = "0.1.0"
-dependencies = [
- "luma-module-manifest",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "luma-server"
-version = "0.1.25"
-dependencies = [
- "anyhow",
- "axum",
- "fontdue",
- "hex",
- "jobserver",
- "jpeg-encoder",
- "luma-acquisition",
- "luma-config",
- "luma-db",
- "luma-engine",
- "luma-http",
- "luma-module-host",
- "luma-module-kernel",
- "luma-module-manifest",
- "luma-module-sdk",
- "luma-module-supervisor",
- "luma-port-bridge",
- "luma-torrent",
- "luma-vector",
- "luma-whisper",
- "mimalloc",
- "openssl",
- "rand 0.10.2",
- "rusqlite",
- "serde",
- "serde_json",
- "sysinfo",
- "time",
- "tiny-skia",
- "tokio",
- "tower-http 0.7.0",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "uuid",
- "walkdir",
- "webauthn-rs",
- "zip",
-]
-
-[[package]]
-name = "luma-torrent"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "librqbit",
- "luma-module-runtime",
- "luma-module-sdk",
- "luma-port-bridge",
- "luma-qbittorrent",
- "luma-transmission",
- "rusqlite",
- "serde",
- "serde_json",
- "sha1",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "luma-torznab"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-module-runtime",
- "luma-module-sdk",
- "luma-port-bridge",
- "quick-xml 0.41.0",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "luma-transmission"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "luma-module-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "luma-vector"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "candle-core",
- "candle-nn",
- "candle-transformers",
- "luma-module-runtime",
- "luma-module-sdk",
- "serde",
- "serde_json",
- "tokenizers 0.23.1",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "luma-vpn"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "luma-module-runtime",
- "luma-module-sdk",
- "luma-port-bridge",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "luma-whisper"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "candle-core",
- "candle-nn",
- "candle-transformers",
- "luma-module-runtime",
- "luma-module-sdk",
- "serde",
- "serde_json",
- "tokenizers 0.23.1",
- "tokio",
- "tracing",
-]
 
 [[package]]
 name = "lz4_flex"

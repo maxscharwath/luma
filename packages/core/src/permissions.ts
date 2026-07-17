@@ -3,7 +3,7 @@
 // adding a permission is a one-line change here (plus its two i18n keys and
 // the server-side enum) rather than editing every invite / user-edit screen.
 
-import type { Permission } from '@luma/client';
+import type { Permission } from '@kroma/client';
 import type { MessageKey } from './i18n';
 
 export interface PermissionMeta {

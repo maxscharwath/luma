@@ -147,7 +147,7 @@ pub struct CardQuery {
 }
 
 /// `GET /api/items/:id/card?label=&progress=` → a 640×360 landscape JPEG "card"
-/// (backdrop + category badge + LUMA brand logo + title-treatment logo) for
+/// (backdrop + category badge + KROMA brand logo + title-treatment logo) for
 /// Samsung TV Smart Hub preview tiles.
 pub async fn item_card(
     State(state): State<SharedState>,

@@ -14,7 +14,7 @@
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-        <!-- usesCleartextTraffic: the LUMA server lives on the LAN over plain http. -->
+        <!-- usesCleartextTraffic: the KROMA server lives on the LAN over plain http. -->
 
         <activity
             android:name=".MainActivity"

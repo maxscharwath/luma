@@ -3,21 +3,21 @@
 # folders, port, optional data folder) to the package's writable var dir; the
 # service script reads them on start.
 
-VAR="/var/packages/luma/var"
+VAR="/var/packages/kroma/var"
 mkdir -p "${VAR}/data"
 
 # Wizard field keys arrive as environment variables. Only write on a fresh install
 # never clobber an existing config on upgrade (the wizard doesn't run then, so the
 # env vars would be empty and we'd reset the user's media folders to the default).
-# LUMA_MOVIES_DIRS/LUMA_SERIES_DIRS are the primary inputs now (typed libraries);
-# LUMA_MEDIA_DIRS stays for backward compat but defaults empty.
-if [ ! -f "${VAR}/luma.conf" ]; then
-    cat > "${VAR}/luma.conf" <<EOF
-LUMA_MOVIES_DIRS="${LUMA_MOVIES_DIRS:-}"
-LUMA_SERIES_DIRS="${LUMA_SERIES_DIRS:-}"
-LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS:-}"
-LUMA_PORT="${LUMA_PORT:-4040}"
-LUMA_DATA_DIR="${LUMA_DATA_DIR:-}"
+# KROMA_MOVIES_DIRS/KROMA_SERIES_DIRS are the primary inputs now (typed libraries);
+# KROMA_MEDIA_DIRS stays for backward compat but defaults empty.
+if [ ! -f "${VAR}/kroma.conf" ]; then
+    cat > "${VAR}/kroma.conf" <<EOF
+KROMA_MOVIES_DIRS="${KROMA_MOVIES_DIRS:-}"
+KROMA_SERIES_DIRS="${KROMA_SERIES_DIRS:-}"
+KROMA_MEDIA_DIRS="${KROMA_MEDIA_DIRS:-}"
+KROMA_PORT="${KROMA_PORT:-4040}"
+KROMA_DATA_DIR="${KROMA_DATA_DIR:-}"
 EOF
 fi
 
@@ -25,11 +25,11 @@ fi
 # and hand it to the package's least-privilege runtime user so the service can
 # write there without a manual permission step. Best-effort: never fail the
 # install over this, and only touch a path the user explicitly asked for.
-if [ -n "${LUMA_DATA_DIR:-}" ]; then
-    mkdir -p "${LUMA_DATA_DIR}" 2>/dev/null || true
-    for u in sc-luma luma; do
+if [ -n "${KROMA_DATA_DIR:-}" ]; then
+    mkdir -p "${KROMA_DATA_DIR}" 2>/dev/null || true
+    for u in sc-kroma kroma; do
         if id "$u" >/dev/null 2>&1; then
-            chown -R "$u" "${LUMA_DATA_DIR}" 2>/dev/null || true
+            chown -R "$u" "${KROMA_DATA_DIR}" 2>/dev/null || true
             break
         fi
     done

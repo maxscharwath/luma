@@ -6,13 +6,13 @@
 // register remotely-loaded modules here too, behind this same registry API - so
 // nothing downstream changes.
 
-import { acquisitionModule } from '@luma/module-acquisition';
-import { indexerModule } from '@luma/module-indexer';
-import { ModuleRegistry } from '@luma/module-sdk';
-import { remoteModule } from '@luma/module-remote';
-import { torrentsModule } from '@luma/module-torrents';
-import { vpnModule } from '@luma/module-vpn';
-import { generatedModules } from '@luma/modules-generated';
+import { acquisitionModule } from '@kroma/module-acquisition';
+import { indexerModule } from '@kroma/module-indexer';
+import { ModuleRegistry } from '@kroma/module-sdk';
+import { remoteModule } from '@kroma/module-remote';
+import { torrentsModule } from '@kroma/module-torrents';
+import { vpnModule } from '@kroma/module-vpn';
+import { generatedModules } from '@kroma/modules-generated';
 
 export const moduleRegistry = new ModuleRegistry();
 moduleRegistry.register(indexerModule);

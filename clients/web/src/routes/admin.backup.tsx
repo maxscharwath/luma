@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconAlertTriangle, IconDownload, IconUpload } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
@@ -58,7 +58,7 @@ function BackupPage() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".zip,.luma,.json,application/zip,application/json"
+                accept=".zip,.kroma,.json,application/zip,application/json"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

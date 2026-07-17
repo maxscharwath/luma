@@ -16,7 +16,7 @@ export interface PosterCardProps {
 }
 
 /**
- * Poster tile used throughout LUMA rails and grids.
+ * Poster tile used throughout KROMA rails and grids.
  *
  * Performance: the artwork is a real `<img loading="lazy" decoding="async">`, so
  * off-screen posters in long rails are never fetched or decoded until they
@@ -49,7 +49,7 @@ function PosterCardImpl({
       tabIndex={focusable ? 0 : undefined}
       data-focus={focusable ? '' : undefined}
       role={onClick ? 'button' : undefined}
-      className="luma-poster"
+      className="kroma-poster"
       style={{ width, cursor: onClick ? 'pointer' : 'default', borderRadius: 'var(--radius-lg)' }}
     >
       <div
@@ -96,7 +96,7 @@ function PosterCardImpl({
               padding: '4px 7px',
               borderRadius: 5,
               background: 'rgba(10,10,12,.6)',
-              color: 'var(--luma-accent)',
+              color: 'var(--kroma-accent)',
             }}
           >
             {badge}
@@ -130,7 +130,7 @@ function PosterCardImpl({
             }}
           >
             <div
-              style={{ height: '100%', width: `${progress}%`, background: 'var(--luma-accent)' }}
+              style={{ height: '100%', width: `${progress}%`, background: 'var(--kroma-accent)' }}
             />
           </div>
         ) : null}

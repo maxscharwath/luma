@@ -11,5 +11,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "luma-androidtv"
+rootProject.name = "kroma-androidtv"
 include(":app")

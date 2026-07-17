@@ -4,11 +4,11 @@ import {
   GEN_LANGS as LANGS,
   GEN_QUALITIES as QUALITIES,
   type SubCapabilities,
-} from '@luma/core';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useMemo, useState } from 'react';
 import { IconClose, IconSparkles } from '#web/features/playback/icons';
-import { lumaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
+import { kromaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
 import { Select } from '#web/shared/ui';
 
 type Mode = 'transcribe' | 'translate';
@@ -57,7 +57,7 @@ export function SubtitleGenerate({
         return;
       }
       if (mode === 'transcribe') {
-        await lumaClient().generateSubtitle(item.id, {
+        await kromaClient().generateSubtitle(item.id, {
           mode: 'transcribe',
           lang: target.label,
           spokenLang: target.code,
@@ -70,7 +70,7 @@ export function SubtitleGenerate({
           setBusy(false);
           return;
         }
-        await lumaClient().generateSubtitle(item.id, {
+        await kromaClient().generateSubtitle(item.id, {
           mode: 'translate',
           lang: target.label,
           ...(src.subId ? { sourceSubId: src.subId } : { sourceTrack: src.index }),

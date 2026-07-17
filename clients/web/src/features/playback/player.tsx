@@ -1,4 +1,4 @@
-import type { DownloadedSub } from '@luma/core';
+import type { DownloadedSub } from '@kroma/core';
 import {
   audioSupport,
   audioTrackLabel,
@@ -6,8 +6,8 @@ import {
   langName,
   type MediaItem,
   playerSubtitle,
-} from '@luma/core';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AvDrawer } from '#web/features/playback/av-drawer';
 import { ControlBar } from '#web/features/playback/control-bar';
@@ -26,7 +26,7 @@ import { useResumeProgress } from '#web/features/playback/use-resume-progress';
 import { useStoryboard } from '#web/features/playback/use-storyboard';
 import { useUpNext } from '#web/features/playback/use-up-next';
 import { useVideoPlayback } from '#web/features/playback/use-video-playback';
-import { lumaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
+import { kromaClient, type MovieView, type SubtitleView } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
 /** Custom fullscreen player: scrub bar with hover preview, ±10s, volume, speed,
@@ -117,7 +117,7 @@ export function Player({
   const [downloaded, setDownloaded] = useState<DownloadedSub[]>([]);
   useEffect(() => {
     let cancelled = false;
-    lumaClient()
+    kromaClient()
       .downloadedSubtitles(item.id)
       .then((d) => !cancelled && setDownloaded(d))
       .catch(() => undefined);
@@ -145,7 +145,7 @@ export function Player({
           return cur;
         });
       }
-      void lumaClient()
+      void kromaClient()
         .deleteSubtitle(item.id, subId)
         .catch(() => undefined);
     },
@@ -156,7 +156,7 @@ export function Player({
       index: 1000 + i,
       language: d.language,
       codec: 'SRT',
-      url: lumaClient().resolveArt(d.url) ?? d.url,
+      url: kromaClient().resolveArt(d.url) ?? d.url,
       downloaded: true,
       label: d.label,
       subId: d.id,

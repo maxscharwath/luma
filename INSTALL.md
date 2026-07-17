@@ -1,4 +1,4 @@
-# Installing LUMA on your devices
+# Installing KROMA on your devices
 
 How to get each client running on real hardware: TVs need **developer mode**
 enabled once, macOS needs the **quarantine** cleared once. Nothing here requires
@@ -25,8 +25,8 @@ release assets:
    (.dmg + .exe/.msi + .AppImage/.deb) or `spk`; `version` is optional
    (defaults to `server/Cargo.toml`).
 2. When the run is green, open it and scroll to **Artifacts**:
-   `luma-webos-ipk`, `luma-tizen-wgt`, `luma-androidtv-apk`,
-   `luma-desktop-macos|windows|linux`, `luma-synology-spk`, `luma-web`.
+   `kroma-webos-ipk`, `kroma-tizen-wgt`, `kroma-androidtv-apk`,
+   `kroma-desktop-macos|windows|linux`, `kroma-synology-spk`, `kroma-web`.
 3. Download the one you need. GitHub wraps every artifact in a **.zip**:
    unzip it first, the installable file (`.ipk`, `.wgt`, `.apk`, `.dmg`, ...)
    is inside. Then follow the per-device steps below.
@@ -36,9 +36,9 @@ Same thing from the CLI:
 ```bash
 gh workflow run "Build & Release" -f targets=tv   # or all / desktop / spk
 gh run watch                                      # wait for it to finish
-gh run download -n luma-webos-ipk                 # unzipped automatically
-gh run download -n luma-androidtv-apk
-gh run download -n luma-tizen-wgt
+gh run download -n kroma-webos-ipk                 # unzipped automatically
+gh run download -n kroma-androidtv-apk
+gh run download -n kroma-tizen-wgt
 ```
 
 Heads-up: the **CI** workflow (every push/PR) also uploads artifacts, but those
@@ -53,7 +53,7 @@ rolling **desktop auto-update channel** (macOS/Windows/Linux installers + the
 those from a Build & Release run or a `vX.Y.Z` release.
 
 Install the **server** first (Synology `.spk`, Docker image
-`ghcr.io/<owner>/luma`, or `cargo` see [server/README.md](server/README.md));
+`ghcr.io/<owner>/kroma`, or `cargo` see [server/README.md](server/README.md));
 every client asks for the server address on first launch and remembers it.
 
 ---
@@ -79,7 +79,7 @@ certificate** (ours is already signed; certificates are only required to
 
 ```bash
 # 1. Get the .wgt
-gh run download -n luma-tizen-wgt          # or download it from a release
+gh run download -n kroma-tizen-wgt          # or download it from a release
 
 # 2. Tizen Studio CLI, one-time headless install (~400 MB; needs a JDK)
 #    Linux:  web-cli_Tizen_Studio_6.0_ubuntu-64.bin
@@ -93,7 +93,7 @@ sdb connect 192.168.1.50
 sdb devices                                # note the device id, e.g. UE50AU7172...
 
 # 4. Install
-tizen install -n LUMA.wgt -t <device-id>
+tizen install -n KROMA.wgt -t <device-id>
 ```
 
 ### Or build + deploy from the repo
@@ -104,9 +104,9 @@ make -C clients/tizen deploy TV_IP=192.168.1.50   # build + sign + install + lau
 
 Notes:
 - The release `.wgt` is signed with a **throwaway developer certificate**. A TV
-  in developer mode accepts it, but if a LUMA build signed with a *different*
+  in developer mode accepts it, but if a KROMA build signed with a *different*
   certificate is already installed, uninstall that one first (Apps > long-press
-  the LUMA tile > Delete), or the install fails with a signature error.
+  the KROMA tile > Delete), or the install fails with a signature error.
 - Developer mode survives reboots; the app stays installed like any other.
 - Community GUI installers that skip Tizen Studio exist (they speak the sdb
   protocol directly), but nothing official or maintained enough to recommend
@@ -129,7 +129,7 @@ prebuilt Actions artifact:
 
 ```bash
 # 1. Get the .ipk (from a Build & Release run, or download it from a release)
-gh run download -n luma-webos-ipk      # -> app.luma.webos_<version>_all.ipk
+gh run download -n kroma-webos-ipk      # -> tv.kroma.webos_<version>_all.ipk
 
 # 2. Get the webOS CLI (once)
 bun add -g @webos-tools/cli            # or: npm install -g @webos-tools/cli
@@ -140,8 +140,8 @@ ares-setup-device -a tv -i "host=192.168.1.50" -i "port=9922" \
 # (or run `ares-setup-device` with no flags for the interactive wizard)
 
 # 4. Install + launch
-ares-install app.luma.webos_*_all.ipk -d tv
-ares-launch app.luma.webos -d tv
+ares-install tv.kroma.webos_*_all.ipk -d tv
+ares-launch tv.kroma.webos -d tv
 ```
 
 Notes:
@@ -163,7 +163,7 @@ Then, from a computer with [adb](https://developer.android.com/tools/adb):
 
 ```bash
 adb connect 192.168.1.60:5555          # accept the prompt shown on the TV
-adb install -r LUMA-androidtv-0.1.0.apk
+adb install -r KROMA-androidtv-0.1.0.apk
 ```
 
 The app appears in the normal apps row (it registers as a Leanback TV app).
@@ -188,38 +188,38 @@ paths on the Google TV UI:
 ```bash
 adb connect 192.168.1.61:5555     # a confirmation prompt appears on the TV:
                                   # tick "always allow" and accept
-adb install -r LUMA-androidtv-0.1.0.apk
+adb install -r KROMA-androidtv-0.1.0.apk
 ```
 
 Without a computer: install **Downloader** (by AFTVnews) from the Play Store
 on the Chromecast, allow it under **Settings > Apps > Security & restrictions
 > Unknown sources**, then enter the direct URL of the `.apk` from a GitHub
 release (Actions artifacts won't work there: they need a GitHub login and are
-zipped). LUMA shows up under "Your apps" like any installed app; storage is
+zipped). KROMA shows up under "Your apps" like any installed app; storage is
 tight on these dongles (8 GB) but the app is only ~4 MB.
 
 Notes:
 - Release APKs are debug-signed unless the repo's Android keystore secrets are
   configured. Android refuses to update an app whose signature changed if an
-  install fails with a signature error: `adb uninstall app.luma.tv`, then
+  install fails with a signature error: `adb uninstall tv.kroma.androidtv`, then
   install the new one.
 
 ## macOS `.dmg` (and removing the quarantine)
 
 The app is not notarized (no paid Apple developer account), so the **first**
-launch trips Gatekeeper: "LUMA is damaged / can't be opened". This is only the
+launch trips Gatekeeper: "KROMA is damaged / can't be opened". This is only the
 quarantine flag macOS puts on downloaded files. Two ways to clear it:
 
 **Option A settings toggle:**
 
-1. Double-click `LUMA.app` once (it will be blocked, that's expected).
+1. Double-click `KROMA.app` once (it will be blocked, that's expected).
 2. Open **System Settings > Privacy & Security**, scroll down to the message
-   about LUMA, click **Open Anyway**, and confirm.
+   about KROMA, click **Open Anyway**, and confirm.
 
-**Option B terminal (fastest):** after dragging `LUMA.app` to Applications:
+**Option B terminal (fastest):** after dragging `KROMA.app` to Applications:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/LUMA.app
+xattr -dr com.apple.quarantine /Applications/KROMA.app
 ```
 
 Then it opens normally. This is needed **once per machine**: the built-in
@@ -234,24 +234,24 @@ silently.
 
 ## Linux desktop / Steam Deck `.AppImage` / `.deb`
 
-Desktop Linux: install the `.deb`, or `chmod +x LUMA_*.AppImage` and run it.
+Desktop Linux: install the `.deb`, or `chmod +x KROMA_*.AppImage` and run it.
 
 Steam Deck:
 
-1. Copy `LUMA_*.AppImage` to the Deck and `chmod +x` it (Desktop Mode).
+1. Copy `KROMA_*.AppImage` to the Deck and `chmod +x` it (Desktop Mode).
 2. **Steam > Add a Non-Steam Game > Browse** and pick the AppImage.
 3. Launch from Game Mode and set the controller layout to **Gamepad**.
    D-pad/stick = focus, A = OK, B = back, X = play/pause, L/R = seek.
 
-mpv is bundled (the `luma-mpv` sidecar drives hardware video decode); nothing to
-install. To use your own mpv instead, point the `LUMA_MPV` env var at it.
+mpv is bundled (the `kroma-mpv` sidecar drives hardware video decode); nothing to
+install. To use your own mpv instead, point the `KROMA_MPV` env var at it.
 
 ## Synology NAS `.spk`
 
 1. **Package Center > Settings > General > Trust Level**: allow
    **Any publisher** (the package is self-built, not Synology-signed).
 2. **Package Center > Manual Install**, pick the `.spk`, follow the wizard.
-3. Open LUMA from the main menu; media folders are configured in the app's
+3. Open KROMA from the main menu; media folders are configured in the app's
    admin console.
 
 ## Web browser

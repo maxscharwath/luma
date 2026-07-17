@@ -1,5 +1,5 @@
-import { type AdminUser, type Invite, PERMISSIONS, type Permission } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type AdminUser, type Invite, PERMISSIONS, type Permission } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconMail } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useAsyncAction } from '#web/features/admin/shell';
@@ -76,7 +76,7 @@ function PermPicker({
             type="checkbox"
             checked={selected.has(p.key)}
             onChange={() => toggle(p.key)}
-            className="h-4 w-4 accent-(--luma-accent)"
+            className="h-4 w-4 accent-(--kroma-accent)"
           />
           <span className="min-w-0">
             <span className="block text-[14px] font-semibold">{t(p.labelKey)}</span>

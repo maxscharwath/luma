@@ -4,14 +4,14 @@ import {
   personInvolvement,
   posterColors,
   type Translate,
-} from '@luma/core';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconUserX } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { type CatalogEntry, CatalogGrid } from '#web/features/catalog/cards';
 import { initials } from '#web/features/catalog/detail';
-import { imageUrl, isAuthed, lumaClient, toMovieView, toShowView } from '#web/shared/lib/api';
+import { imageUrl, isAuthed, kromaClient, toMovieView, toShowView } from '#web/shared/lib/api';
 import { catalogQueries } from '#web/shared/lib/queries';
 import {
   Avatar,
@@ -61,7 +61,7 @@ function PersonPage() {
   const t = useT();
   const { name: rawName } = Route.useParams();
   const { data } = useSuspenseQuery(catalogQueries.personCredits(rawName));
-  const c = lumaClient();
+  const c = kromaClient();
   const results = data.results;
   const entries: CatalogEntry[] = results.map((hit) =>
     hit.type === 'show'

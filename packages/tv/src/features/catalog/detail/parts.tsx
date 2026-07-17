@@ -1,5 +1,5 @@
-import type { CastMember } from '@luma/core';
-import { useLocale, useT } from '@luma/ui';
+import type { CastMember } from '@kroma/core';
+import { useLocale, useT } from '@kroma/ui';
 import { IconClock, IconPlus, IconVolume, IconVolumeOff } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useClient, useNav } from '#tv/app/router';

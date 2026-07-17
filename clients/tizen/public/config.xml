@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://luma.app/tizen" version="0.1.3" viewmodes="maximized">
-  <tizen:application id="LumaTV0001.LUMA" package="LumaTV0001" required_version="6.0"/>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://kroma.app/tizen" version="0.1.3" viewmodes="maximized">
+  <tizen:application id="KromaTV0001.KROMA" package="KromaTV0001" required_version="6.0"/>
   <content src="index.html"/>
   <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
   <icon src="icon.png"/>
-  <name>LUMA</name>
+  <name>KROMA</name>
   <tizen:profile name="tv"/>
-  <!-- Direct-play streams from the LUMA server on the LAN. -->
+  <!-- Direct-play streams from the KROMA server on the LAN. -->
   <access origin="*" subdomains="true"/>
   <tizen:privilege name="http://tizen.org/privilege/internet"/>
-  <!-- Read the TV's own IP to scan the LAN for the LUMA server (auto-discovery). -->
+  <!-- Read the TV's own IP to scan the LAN for the KROMA server (auto-discovery). -->
   <tizen:privilege name="http://tizen.org/privilege/systeminfo"/>
   <!-- Smart Hub preview: share the carousel JSON between app and service, and let
        the app nudge the service to republish. All public-level (dev-cert OK). -->
@@ -20,7 +20,7 @@
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto"/>
   <tizen:metadata key="http://samsung.com/tv/metadata/use.tv.profile" value="true"/>
   <!-- Smart Hub preview: a background service supplies the home-screen carousel
-       (the "new movies" tiles), shown even while LUMA isn't running. -->
+       (the "new movies" tiles), shown even while KROMA isn't running. -->
   <tizen:metadata key="http://samsung.com/tv/metadata/use.preview" value="bg_service"/>
   <!-- Samsung Product API level this app targets. Safely available on the 6.0
        floor; raise toward the device version if newer webapis are needed. -->
@@ -28,9 +28,9 @@
   <!-- Background service that reads wgt-private/preview.json and calls
        webapis.preview.setPreviewData(). id MUST be <package>.PreviewSvc and match
        SERVICE_ID in packages/tv/src/preview.ts. -->
-  <tizen:service id="LumaTV0001.PreviewSvc">
+  <tizen:service id="KromaTV0001.PreviewSvc">
     <tizen:content src="service/preview-service.js"/>
-    <tizen:name>LUMA Preview</tizen:name>
+    <tizen:name>KROMA Preview</tizen:name>
     <tizen:description>Publishes the new-movies carousel to the Smart Hub.</tizen:description>
     <tizen:category name="http://tizen.org/category/service"/>
   </tizen:service>

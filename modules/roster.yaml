@@ -1,6 +1,6 @@
 # The compile-time module roster: every hand-authored first-party module the
 # server links in. `bun run modules:gen` expands this (together with the
-# single-file `*.module.md` modules) into the `luma-modules-generated` aggregator
+# single-file `*.module.md` modules) into the `kroma-modules-generated` aggregator
 # crate, so NO Rust crate hand-names the module set. To wire a module in, add it
 # here and re-run `bun run modules:gen`.
 #
@@ -13,9 +13,9 @@
 
 # NOTE: the roster is now EMPTY -- the zero-module base build. Every first-party
 # module (downloads vertical, acquisition, indexers, torznab, vpn, mdns, scene,
-# whisper, vector, remote) ships ONLY as an installable `.lmod`: its manifest
+# whisper, vector, remote) ships ONLY as an installable `.kmod`: its manifest
 # comes from the installed bundle and its backend runs out-of-process (or, for
 # library modules like scene, is co-linked into the sidecars that use it). This
 # is what makes every module uninstallable from Admin -> Modules. Install them
-# from the Store (the GitHub-release registry) or by uploading a `.lmod`.
+# from the Store (the GitHub-release registry) or by uploading a `.kmod`.
 modules: []

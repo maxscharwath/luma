@@ -1,7 +1,7 @@
 //! Module management for the admin console: list every module with its enabled
 //! state + config schema + current config values, toggle enablement, and write
 //! per-module config. State persists in the settings store under the
-//! `moduleStates` blob (see `luma_engine::modules`).
+//! `moduleStates` blob (see `kroma_engine::modules`).
 
 use std::collections::BTreeMap;
 
@@ -29,11 +29,11 @@ pub fn routes() -> Router<SharedState> {
 #[serde(rename_all = "camelCase")]
 struct AdminModule {
     #[serde(flatten)]
-    manifest: luma_module_sdk::ModuleManifest,
+    manifest: kroma_module_sdk::ModuleManifest,
     enabled: bool,
     /// Current value per config field key (falls back to the field's default).
     config_values: BTreeMap<String, Value>,
-    /// Runtime-installed (`.lmod`) modules can be uninstalled; compile-time ones can't.
+    /// Runtime-installed (`.kmod`) modules can be uninstalled; compile-time ones can't.
     removable: bool,
 }
 
@@ -43,16 +43,16 @@ async fn list_modules(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
-    // Runtime-installed `.lmod` modules (from the supervisor) are removable;
+    // Runtime-installed `.kmod` modules (from the supervisor) are removable;
     // compile-time roster modules are not.
     let removable_ids: std::collections::HashSet<String> =
-        luma_module_kernel::installed_ids(&state).into_iter().collect();
-    let mods: Vec<AdminModule> = luma_module_kernel::manifests(&state)
+        kroma_module_kernel::installed_ids(&state).into_iter().collect();
+    let mods: Vec<AdminModule> = kroma_module_kernel::manifests(&state)
         .into_iter()
         .map(|m| {
-            let enabled = luma_engine::modules::module_enabled(&state.settings, &m.id);
+            let enabled = kroma_engine::modules::module_enabled(&state.settings, &m.id);
             let removable = removable_ids.contains(&m.id);
-            let stored = luma_engine::modules::module_config(&state.settings, &m.id);
+            let stored = kroma_engine::modules::module_config(&state.settings, &m.id);
             let config_values = m
                 .config
                 .iter()
@@ -82,11 +82,11 @@ async fn set_enabled(
     Json(body): Json<EnabledBody>,
 ) -> Result<Response, Response> {
     super::require(&user, Permission::SettingsManage)?;
-    luma_engine::modules::set_module_enabled(&state.settings, &state.db, &id, body.enabled);
+    kroma_engine::modules::set_module_enabled(&state.settings, &state.db, &id, body.enabled);
     // Drive the backend module's lifecycle so the toggle actually starts/stops
     // its live services (e.g. the torrent engine), not just its listing flag.
-    if let Some(module) = luma_module_kernel::find_server(&id) {
-        let host: std::sync::Arc<dyn luma_module_host::HostCtx> = state.clone();
+    if let Some(module) = kroma_module_kernel::find_server(&id) {
+        let host: std::sync::Arc<dyn kroma_module_host::HostCtx> = state.clone();
         if body.enabled {
             module.on_enable(host).await;
         } else {
@@ -107,13 +107,13 @@ async fn set_config(
     // Allow-list against the manifest's declared config keys, so a client can only
     // write fields the module actually defines (a typo or stale key is dropped
     // rather than polluting the stored config).
-    let allowed: std::collections::HashSet<String> = luma_module_kernel::manifests(&state)
+    let allowed: std::collections::HashSet<String> = kroma_module_kernel::manifests(&state)
         .into_iter()
         .find(|m| m.id == id)
         .map(|m| m.config.into_iter().map(|f| f.key).collect())
         .unwrap_or_default();
     let map: serde_json::Map<String, Value> =
         values.into_iter().filter(|(k, _)| allowed.contains(k)).collect();
-    luma_engine::modules::set_module_config(&state.settings, &state.db, &id, map);
+    kroma_engine::modules::set_module_config(&state.settings, &state.db, &id, map);
     Ok(Json(json!({ "id": id, "ok": true })).into_response())
 }

@@ -1,8 +1,8 @@
 {
-  "name": "@luma/module-sdk",
+  "name": "@kroma/module-sdk",
   "version": "0.1.3",
   "type": "module",
-  "description": "LUMA frontend module contract: the LumaModule manifest, host context, typed event bus, and dependency-ordered registry every @luma/module-* package targets. Mirrors the Rust luma-module-sdk.",
+  "description": "KROMA frontend module contract: the KromaModule manifest, host context, typed event bus, and dependency-ordered registry every @kroma/module-* package targets. Mirrors the Rust kroma-module-sdk.",
   "exports": {
     ".": "./src/index.ts",
     "./vite": "./vite.ts"
@@ -12,9 +12,9 @@
     "build": "tsgo --noEmit"
   },
   "dependencies": {
-    "@luma/admin-kit": "workspace:*",
-    "@luma/core": "workspace:*",
-    "@luma/ui": "workspace:*"
+    "@kroma/admin-kit": "workspace:*",
+    "@kroma/core": "workspace:*",
+    "@kroma/ui": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18"

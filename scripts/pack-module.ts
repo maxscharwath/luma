@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-// Pack modules into installable `.lmod` files. A `.lmod` is a zstd-compressed tar
+// Pack modules into installable `.kmod` files. A `.kmod` is a zstd-compressed tar
 // of a module's native binary (`module`, the out-of-process runtime entrypoint)
 // + `module.json` + `icon.<ext>` + its frontend remote (`fe/`, when it ships one).
 // Install one from Admin -> Modules, or POST it to /api/admin/store/install; the
@@ -9,7 +9,7 @@
 //   bun run modules:pack               # pack every module that has a [[bin]]
 //   bun run modules:pack <module-dir>  # pack just one
 //
-// Output: dist/modules/<id>.lmod  (host target; CI packs one per platform)
+// Output: dist/modules/<id>.kmod  (host target; CI packs one per platform)
 
 import {
   copyFileSync,
@@ -39,8 +39,8 @@ export function packableModules(): string[] {
 
 /**
  * The crate (package) name, its `[[bin]]` name, and any cargo features the
- * `.lmod` build should enable, from a module's server Cargo.toml. Features are
- * declared as `[package.metadata.lmod] features = ["rqbit"]` so the build stays
+ * `.kmod` build should enable, from a module's server Cargo.toml. Features are
+ * declared as `[package.metadata.kmod] features = ["rqbit"]` so the build stays
  * declarative (e.g. torrents bundles the embedded librqbit engine).
  */
 export function crateAndBin(moduleDir: string): {
@@ -55,7 +55,7 @@ export function crateAndBin(moduleDir: string): {
   // A `[[bin]]` means a native sidecar; its absence => a library module (no binary).
   const bin = cargo.match(/\[\[bin\]\][\s\S]*?name\s*=\s*"([^"]+)"/)?.[1] ?? null;
   const featBlock =
-    cargo.match(/\[package\.metadata\.lmod\][\s\S]*?features\s*=\s*\[([^\]]*)\]/)?.[1] ?? '';
+    cargo.match(/\[package\.metadata\.kmod\][\s\S]*?features\s*=\s*\[([^\]]*)\]/)?.[1] ?? '';
   const features = [...featBlock.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   return { pkg, bin, features };
 }
@@ -72,36 +72,36 @@ async function packOne(moduleDir: string): Promise<string> {
   console.log(`\npacking ${id} (${kind})`);
 
   // 1) Build the module's native binary, with any declared features. Uses the
-  //    `release-lmod` profile (release + panic=abort): a sidecar aborts on panic
+  //    `release-kmod` profile (release + panic=abort): a sidecar aborts on panic
   //    and the supervisor respawns it, which drops the unwinding tables for ~11%
   //    smaller binaries at no speed cost (opt-level stays 3). Library modules (no
   //    [[bin]]) skip this: their code is co-linked, not spawned.
-  // Optional cross-target (LMOD_TARGET, e.g. x86_64-unknown-linux-musl). A .lmod
+  // Optional cross-target (KMOD_TARGET, e.g. x86_64-unknown-linux-musl). A .kmod
   // carries a NATIVE binary, so the platform must match the server; when set, the
   // bundle is suffixed with the triple (see the output name below). Unset = host.
-  const target = process.env.LMOD_TARGET?.trim() || null;
-  // LMOD_SKIP_BUILD: the sidecar binaries were already cross-compiled out of
+  const target = process.env.KMOD_TARGET?.trim() || null;
+  // KMOD_SKIP_BUILD: the sidecar binaries were already cross-compiled out of
   // band (CI builds them inside the musl cross-toolchain image the Synology
   // build uses, which is proven to link candle / librqbit; this script then
   // just stages + packs them). Skips the `cargo build` and reads the prebuilt
   // artifact from the expected path.
-  const skipBuild = process.env.LMOD_SKIP_BUILD === '1';
+  const skipBuild = process.env.KMOD_SKIP_BUILD === '1';
   let binPath: string | null = null;
   if (bin) {
     // cargo nests the artifact under target/<triple>/ when --target is given.
-    const outRoot = target ? `server/target/${target}/release-lmod` : 'server/target/release-lmod';
+    const outRoot = target ? `server/target/${target}/release-kmod` : 'server/target/release-kmod';
     binPath = join(root, outRoot, bin);
     if (!skipBuild) {
       const featArgs = features.length ? ['--features', features.join(',')] : [];
       const targetArgs = target ? ['--target', target] : [];
-      await $`cargo build --profile release-lmod -p ${pkg} --bin ${bin} ${featArgs} ${targetArgs}`.cwd(
+      await $`cargo build --profile release-kmod -p ${pkg} --bin ${bin} ${featArgs} ${targetArgs}`.cwd(
         join(root, 'server'),
       );
     }
     if (!existsSync(binPath)) {
       throw new Error(
         skipBuild
-          ? `LMOD_SKIP_BUILD set but no prebuilt binary at ${binPath} (build it first)`
+          ? `KMOD_SKIP_BUILD set but no prebuilt binary at ${binPath} (build it first)`
           : `built no binary at ${binPath}`,
       );
     }
@@ -137,27 +137,27 @@ async function packOne(moduleDir: string): Promise<string> {
     entries.push('fe');
   }
 
-  // 4) tar + zstd it into a .lmod (zstd is ~20-25% smaller than gzip for these
+  // 4) tar + zstd it into a .kmod (zstd is ~20-25% smaller than gzip for these
   //    native binaries; the supervisor decompresses it with pure-Rust ruzstd).
   //    Sidecar bundles are suffixed with the build target so a consumer can tell
   //    which platform they run on; library modules (no binary) stay unsuffixed.
   mkdirSync(outDir, { recursive: true });
   const suffix = bin && target ? `-${target}` : '';
-  const lmod = join(outDir, `${id}${suffix}.lmod`);
-  const tarPath = `${lmod}.tar`;
+  const kmod = join(outDir, `${id}${suffix}.kmod`);
+  const tarPath = `${kmod}.tar`;
   await $`tar -cf ${tarPath} -C ${staging} ${entries}`;
   const bytes = Bun.zstdCompressSync(readFileSync(tarPath), { level: 19 });
-  writeFileSync(lmod, bytes);
+  writeFileSync(kmod, bytes);
   // A SHA-256 sidecar file so a release/registry consumer can verify integrity.
-  writeFileSync(`${lmod}.sha256`, `${Bun.SHA256.hash(bytes, 'hex')}  ${id}${suffix}.lmod\n`);
+  writeFileSync(`${kmod}.sha256`, `${Bun.SHA256.hash(bytes, 'hex')}  ${id}${suffix}.kmod\n`);
   rmSync(tarPath, { force: true });
   rmSync(staging, { recursive: true, force: true });
-  console.log(`  packed: ${lmod}`);
-  return lmod;
+  console.log(`  packed: ${kmod}`);
+  return kmod;
 }
 
 // Only run as a CLI when invoked directly (`bun run modules:pack`); when
-// imported (e.g. by scripts/lmod-build-plan.ts) just expose the helpers above.
+// imported (e.g. by scripts/kmod-build-plan.ts) just expose the helpers above.
 if (import.meta.main) {
   const arg = process.argv[2];
   const dirs = arg ? [join(root, arg)] : packableModules();

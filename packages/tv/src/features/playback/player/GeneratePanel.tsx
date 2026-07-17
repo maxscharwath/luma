@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { langName } from '#tv/features/playback/player/fmt';
 import {
   GEN_LANGS,

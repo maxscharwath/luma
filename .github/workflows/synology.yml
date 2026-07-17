@@ -1,13 +1,17 @@
 name: Synology
 
-# Everything for the Synology deliverable in ONE workflow:
-#   tag vX.Y.Z  -> build the stable .spk + attach it to that GitHub Release
-#   push main   -> build a nightly .spk -> rolling `nightly` prerelease
-#   either      -> rebuild both package-source catalogs (catalog.json + nightly.json)
-#                  from the latest releases and deploy them to GitHub Pages
-# Stable + nightly share one build job (only the version differs), so the Pages
-# deploy is just the final job of the same run - no cross-workflow workflow_run,
-# no two workflows clobbering the one Pages site.
+# Everything for the server deliverables in ONE workflow:
+#   tag vX.Y.Z  -> build the stable .spk + attach it (+ its .info.json sidecar)
+#                  to that GitHub Release
+#   push main   -> build a canary .spk -> rolling `nightly` prerelease
+#   either      -> push the Docker image ASSEMBLED FROM the same static musl
+#                  binary + web SPA (no second Rust compile), and rebuild the
+#                  static package-source catalogs on GitHub Pages
+#
+# The DYNAMIC package source (packages/synology-repo/worker, a Cloudflare
+# Worker) reads releases + the .info.json sidecars straight from the GitHub
+# API, so it needs NO deploy here; the Pages catalogs stay as a static
+# fallback. Stable + nightly share one build job (only the version differs).
 on:
   push:
     tags: ['v*']
@@ -16,6 +20,7 @@ on:
 
 permissions:
   contents: write # create/update releases + upload assets
+  packages: write # push the Docker image to ghcr
   pages: write
   id-token: write
 
@@ -27,8 +32,42 @@ env:
   BUN_VERSION: '1.3.14'
 
 jobs:
+  # Cheap gate: skip the whole build for main pushes that cannot change the
+  # .spk/Docker image (TV-only, desktop-only, docs commits). Tags and manual
+  # runs always build.
+  changes:
+    name: Detect relevant changes
+    # Branch pushes only: tags/dispatch always build, and dorny's diff base is
+    # undefined on tag pushes.
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      relevant: ${{ steps.f.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: f
+        with:
+          filters: |
+            relevant:
+              - 'server/**'
+              - 'clients/web/**'
+              - 'clients/synology/**'
+              - 'packages/**'
+              - 'bun.lock'
+              - '.github/workflows/synology.yml'
+
   build:
     name: Build .spk
+    needs: changes
+    # `always()` so a SKIPPED changes job (tag / dispatch) still lets the tag
+    # and dispatch legs run; a main push only builds when relevant files changed.
+    if: >-
+      always() && !cancelled()
+      && (startsWith(github.ref, 'refs/tags/v')
+          || github.event_name == 'workflow_dispatch'
+          || needs.changes.outputs.relevant == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,40 +90,119 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Caches the static ffmpeg download + the musl cargo registry across runs.
-      - name: Cache build inputs
+      # Static ffmpeg + musl cargo registry + THE MUSL TARGET DIR. Without the
+      # target dir every push cold-compiled the whole workspace (candle,
+      # librqbit, ...) for ~10 min; warm, only changed crates rebuild. The
+      # version-bump commit changes Cargo.lock, so restore-keys fall back to
+      # the newest previous cache.
+      - name: Cache build inputs + musl target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: clients/synology/.cache
-          key: synology-${{ hashFiles('server/Cargo.lock') }}
-          restore-keys: synology-
+          path: |
+            clients/synology/.cache
+            server/target/x86_64-unknown-linux-musl
+            server/target/release
+          key: synology-v2-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: |
+            synology-v2-
+            synology-
 
-      # build.sh: web SPA -> static musl luma-server -> static ffmpeg -> .spk.
+      # build.sh: web SPA -> static musl kroma-server -> static ffmpeg -> .spk.
       - name: Build .spk
         run: clients/synology/build.sh ${{ steps.ver.outputs.version }}
 
-      # The Docker musl build writes root-owned files into the cache; hand them
-      # back so actions/cache can save (else it fails and never persists).
+      # The Docker musl build writes root-owned files into the cache + target;
+      # hand them back so actions/cache can save (else it fails silently and
+      # never persists - which is exactly why the old cache stayed cold).
       - name: Fix cache permissions
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" clients/synology/.cache || true
+        run: sudo chown -R "$(id -u):$(id -g)" clients/synology/.cache server/target || true
+
+      # Sidecar consumed by the dynamic package-source worker: version, md5,
+      # size, description read out of the .spk itself.
+      - name: Generate .info.json sidecar
+        run: |
+          SPK="$(ls clients/synology/dist/*.spk | head -1)"
+          bun packages/synology-repo/src/gen-spk-info.ts "$SPK"
 
       - name: Upload .spk artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-synology-spk
-          path: clients/synology/dist/*.spk
+          name: kroma-synology-spk
+          path: |
+            clients/synology/dist/*.spk
+            clients/synology/dist/*.spk.info.json
           if-no-files-found: error
 
       # The web SPA is a side effect of build.sh publish it for any static host.
       - name: Upload web SPA artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-web
+          name: kroma-web
           path: clients/web/dist/client
           if-no-files-found: error
 
-  # tag -> attach the .spk to that version's GitHub Release.
+  # The Docker image is ASSEMBLED from the .spk payload (static musl binary +
+  # web SPA + static ffmpeg), not compiled again: this replaced a ~13-minute
+  # from-source docker.yml build with a copy + push. Runs for main pushes and
+  # tags alike, same tag scheme as before (latest + <version> on main, semver
+  # on tags).
+  docker:
+    name: Docker image (from the .spk payload)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: kroma-synology-spk
+          path: dist
+
+      - name: Extract the .spk payload
+        id: payload
+        run: |
+          set -euo pipefail
+          SPK="$(ls dist/*.spk | head -1)"
+          mkdir -p docker-ctx
+          tar -xOf "$SPK" package.tgz | tar -xz -C docker-ctx
+          ls docker-ctx
+          # INFO version from the filename: kroma-<version>-x86_64.spk
+          NAME="$(basename "$SPK")"; V="${NAME#kroma-}"; V="${V%-x86_64.spk}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags/labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.payload.outputs.version }},enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: docker-ctx
+          file: server/Dockerfile.runtime
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # tag -> attach the .spk + sidecar to that version's GitHub Release.
   publish-stable:
     name: Attach .spk to the release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -94,15 +212,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: luma-synology-spk
+          name: kroma-synology-spk
           path: dist
       - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
-          files: dist/*.spk
+          files: |
+            dist/*.spk
+            dist/*.spk.info.json
           generate_release_notes: true
 
   # main -> rolling `nightly` prerelease with a FIXED asset name, so the catalog
   # link stays stable while the .spk bytes (and INFO version) change each build.
+  # The .info.json sidecar rides along so the dynamic source knows the real
+  # canary version + md5 without downloading the .spk.
   publish-nightly:
     name: Publish nightly prerelease
     if: github.ref == 'refs/heads/main'
@@ -113,20 +235,26 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: luma-synology-spk
+          name: kroma-synology-spk
           path: dist
       - name: Upload to the nightly prerelease
         run: |
-          cp dist/*.spk luma-nightly-x86_64.spk
+          cp dist/*.spk kroma-nightly-x86_64.spk
+          bun packages/synology-repo/src/gen-spk-info.ts kroma-nightly-x86_64.spk --beta
           gh release view nightly >/dev/null 2>&1 \
-            || gh release create nightly --prerelease --title "LUMA nightly" \
-                 --notes "Rolling nightly build from main. Unstable; auto-updates via the nightly package source (nightly.json)."
-          gh release upload nightly luma-nightly-x86_64.spk --clobber
+            || gh release create nightly --prerelease --title "KROMA nightly" \
+                 --notes "Rolling nightly build from main. Unstable; auto-updates via the nightly package source."
+          gh release upload nightly kroma-nightly-x86_64.spk kroma-nightly-x86_64.spk.info.json --clobber
 
-  # Rebuild BOTH package-source catalogs from the latest releases and deploy to
-  # Pages. Runs after whichever publish job fired (the other is skipped).
+  # Rebuild BOTH static package-source catalogs from the latest releases and
+  # deploy to Pages. Static fallback for the dynamic worker source; runs after
+  # whichever publish job fired (the other is skipped).
   pages:
     name: Deploy package source to Pages
     # Either publish job succeeding already implies build succeeded (they need it).
@@ -181,7 +309,7 @@ jobs:
           fi
 
           # Never deploy an empty site on the very first run (before any release).
-          [ -f _site/index.html ] || printf '<!doctype html><meta charset=utf-8><title>LUMA</title><p>No LUMA package published yet.\n' > _site/index.html
+          [ -f _site/index.html ] || printf '<!doctype html><meta charset=utf-8><title>KROMA</title><p>No KROMA package published yet.\n' > _site/index.html
           echo "Site contents:"; ls -la _site
 
       - name: Upload Pages artifact

@@ -1,4 +1,4 @@
-// The shared @luma/tv UI is authored on a fixed 1920x1080 canvas (px-sized 10-foot
+// The shared @kroma/tv UI is authored on a fixed 1920x1080 canvas (px-sized 10-foot
 // layout). On a FIXED-SCREEN shell - the Steam Deck or a fullscreen Chromium kiosk -
 // we render #root at 1920x1080 and scale it to fit the screen, letterboxed with the
 // app background. This is the "TV" behaviour. Desktop windows (macOS / Windows) skip
@@ -19,7 +19,7 @@ export function installStage(): void {
   const inTauri = '__TAURI_INTERNALS__' in globalThis || '__TAURI__' in globalThis;
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const mpvBehind = inTauri && /Linux/i.test(ua) && !/Android/i.test(ua);
-  const bg = mpvBehind ? 'transparent' : 'var(--luma-bg, #0a0a0c)';
+  const bg = mpvBehind ? 'transparent' : 'var(--kroma-bg, #0a0a0c)';
 
   const style = document.createElement('style');
   style.textContent = `
@@ -27,7 +27,7 @@ export function installStage(): void {
     #root {
       position: fixed; top: 50%; left: 50%;
       width: ${STAGE_W}px; height: ${STAGE_H}px;
-      transform: translate(-50%, -50%) scale(var(--luma-stage-scale, 1));
+      transform: translate(-50%, -50%) scale(var(--kroma-stage-scale, 1));
       transform-origin: center center;
       overflow: hidden;
     }
@@ -36,7 +36,7 @@ export function installStage(): void {
 
   const apply = () => {
     const scale = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H);
-    document.documentElement.style.setProperty('--luma-stage-scale', String(scale));
+    document.documentElement.style.setProperty('--kroma-stage-scale', String(scale));
   };
   apply();
   window.addEventListener('resize', apply);

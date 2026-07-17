@@ -1,4 +1,4 @@
-import type { Section } from '@luma/core';
+import type { Section } from '@kroma/core';
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';

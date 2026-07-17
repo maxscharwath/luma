@@ -2,8 +2,8 @@
 // this is per-user so it loads client-side once a session is hydrated, then
 // renders resumable items with a progress bar straight to the player.
 
-import { episodeTag, posterColors } from '@luma/core';
-import { useT } from '@luma/ui';
+import { episodeTag, posterColors } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Suspense } from 'react';

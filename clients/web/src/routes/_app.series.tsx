@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconDeviceTv } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';

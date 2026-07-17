@@ -1,21 +1,21 @@
 {
-  "name": "@luma/androidtv",
+  "name": "@kroma/androidtv",
   "version": "0.1.3",
   "private": true,
   "type": "module",
-  "description": "LUMA Android TV client WebView shell over @luma/tv + native media3/ExoPlayer engine.",
+  "description": "KROMA Android TV client WebView shell over @kroma/tv + native media3/ExoPlayer engine.",
   "scripts": {
     "dev": "vite",
     "build": "tsgo --noEmit && vite build && bun run sync:android",
-    "sync:android": "rm -rf android/app/src/main/assets/luma && mkdir -p android/app/src/main/assets/luma && cp -R dist/. android/app/src/main/assets/luma/",
+    "sync:android": "rm -rf android/app/src/main/assets/kroma && mkdir -p android/app/src/main/assets/kroma && cp -R dist/. android/app/src/main/assets/kroma/",
     "preview": "vite preview",
     "typecheck": "tsgo --noEmit",
     "package": "echo 'Run: bun run build:androidtv, then: cd clients/androidtv/android && ./gradlew assembleRelease'"
   },
   "dependencies": {
-    "@luma/core": "workspace:*",
-    "@luma/tv": "workspace:*",
-    "@luma/ui": "workspace:*",
+    "@kroma/core": "workspace:*",
+    "@kroma/tv": "workspace:*",
+    "@kroma/ui": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

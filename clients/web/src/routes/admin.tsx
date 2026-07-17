@@ -1,5 +1,5 @@
-import { hasPermission } from '@luma/core';
-import { useT } from '@luma/ui';
+import { hasPermission } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { GateLoading } from '#web/features/accounts/auth-gate';
 import { AdminLayout } from '#web/features/admin/shell';

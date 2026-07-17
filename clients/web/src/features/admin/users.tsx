@@ -1,5 +1,5 @@
-import type { AdminUser } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AdminUser } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconDots, IconUsers } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';

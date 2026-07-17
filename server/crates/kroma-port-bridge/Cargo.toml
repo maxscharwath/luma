@@ -1,0 +1,19 @@
+[package]
+name = "kroma-port-bridge"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "HTTP bridges for the cross-module SDK ports: a provider module serves `/_port/<port>/<method>` and a consumer resolves a client proxy that forwards over localhost, so ported modules can run in separate processes."
+license.workspace = true
+
+[dependencies]
+# The port traits + their (now serde-able) boundary types.
+kroma-module-sdk = { workspace = true }
+kroma-module-host = { workspace = true }
+# Sync curl client for the consumer-side proxies (the port trait methods are sync).
+kroma-http = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

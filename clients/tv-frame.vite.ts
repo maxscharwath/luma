@@ -46,7 +46,7 @@ export function tvFrame(options: TvFrameOptions = {}): DevOnlyHtmlPlugin {
   const height = options.height ?? 1080;
   const enabled = options.enabled ?? true;
   return {
-    name: 'luma:tv-frame',
+    name: 'kroma:tv-frame',
     apply: 'serve', // dev server only no effect on `vite build`
     transformIndexHtml() {
       if (!enabled) return [];
@@ -60,7 +60,7 @@ export function tvFrame(options: TvFrameOptions = {}): DevOnlyHtmlPlugin {
 
 function stageCss(w: number, h: number): string {
   return `
-/* LUMA dev TV frame injected by vite dev only (see clients/tv-frame.vite.ts) */
+/* KROMA dev TV frame injected by vite dev only (see clients/tv-frame.vite.ts) */
 html[data-tv-frame="on"], html[data-tv-frame="on"] body {
   height: 100%; margin: 0; overflow: hidden;
   background: #0b0b0d; /* letterbox bars */
@@ -73,7 +73,7 @@ html[data-tv-frame="on"] #root {
   overflow: hidden; background: #000;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10), 0 30px 90px rgba(0, 0, 0, 0.7);
 }
-#luma-tv-frame-hint {
+#kroma-tv-frame-hint {
   position: fixed; right: 12px; bottom: 10px; z-index: 2147483647;
   font: 500 12px/1.4 ui-monospace, "SF Mono", monospace;
   color: rgba(255, 255, 255, 0.6); background: rgba(0, 0, 0, 0.5);
@@ -86,7 +86,7 @@ function stageJs(w: number, h: number): string {
   // Classic (non-module) inline script in <head>: runs during head parse, before
   // the deferred app module mounts, so the stage is in place with no layout flash.
   return `(function () {
-  var W = ${w}, H = ${h}, KEY = 'luma.tvFrame', root = document.documentElement;
+  var W = ${w}, H = ${h}, KEY = 'kroma.tvFrame', root = document.documentElement;
   function fit() {
     root.style.setProperty('--tv-frame-scale', String(Math.min(innerWidth / W, innerHeight / H)));
   }
@@ -95,7 +95,7 @@ function stageJs(w: number, h: number): string {
   var hint, hintTimer;
   function showHint() {
     if (!document.body) { document.addEventListener('DOMContentLoaded', showHint, { once: true }); return; }
-    if (!hint) { hint = document.createElement('div'); hint.id = 'luma-tv-frame-hint'; document.body.appendChild(hint); }
+    if (!hint) { hint = document.createElement('div'); hint.id = 'kroma-tv-frame-hint'; document.body.appendChild(hint); }
     hint.textContent = on ? (W + '\\u00d7' + H + '  \\u00b7  \\u0060 to unframe') : ('full window  \\u00b7  \\u0060 to frame');
     hint.style.opacity = '1';
     clearTimeout(hintTimer);

@@ -1,22 +1,22 @@
-// Request/URL/error plumbing shared by every LumaClient domain module. The
+// Request/URL/error plumbing shared by every KromaClient domain module. The
 // per-domain request implementations live in sibling files (media, accounts,
 // playback, library, admin) as thin functions over a {@link RequestContext};
-// `LumaClient` (in ../api) is the public facade that wires them together.
+// `KromaClient` (in ../api) is the public facade that wires them together.
 
-export interface LumaClientOptions {
+export interface KromaClientOptions {
   /** Base server origin, e.g. "http://nas.local:4040". No trailing slash. */
   baseUrl: string;
   fetch?: typeof globalThis.fetch;
   /** Bearer token for per-user endpoints (progress, profile). Optional the
-   * catalogue is public. Can be set later with {@link LumaClient.setAuthToken}. */
+   * catalogue is public. Can be set later with {@link KromaClient.setAuthToken}. */
   authToken?: string;
   /** Active UI locale (`"fr"` | `"en"`), sent as `Accept-Language` so the server
    * localises its responses (admin settings labels, error messages). Change it
-   * later with {@link LumaClient.setLocale}. */
+   * later with {@link KromaClient.setLocale}. */
   locale?: string;
 }
 
-export class LumaApiError extends Error {
+export class KromaApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
@@ -25,7 +25,7 @@ export class LumaApiError extends Error {
     readonly body?: unknown,
   ) {
     super(message);
-    this.name = 'LumaApiError';
+    this.name = 'KromaApiError';
   }
 }
 
@@ -33,7 +33,7 @@ export class LumaApiError extends Error {
  * text when present (far more useful than the generic "GET … failed (400)"),
  * otherwise the provided localized `fallback`. */
 export function apiErrorText(e: unknown, fallback: string): string {
-  if (e instanceof LumaApiError && e.body && typeof e.body === 'object') {
+  if (e instanceof KromaApiError && e.body && typeof e.body === 'object') {
     const msg = (e.body as { error?: unknown }).error;
     if (typeof msg === 'string' && msg.trim()) return msg;
   }
@@ -51,7 +51,7 @@ export interface RequestContext {
 }
 
 /** Authed `GET/POST/…` against `${baseUrl}/api${path}`, parsing the JSON body
- * (or `undefined` on 204). Throws {@link LumaApiError} with the parsed error
+ * (or `undefined` on 204). Throws {@link KromaApiError} with the parsed error
  * body on a non-2xx response. */
 export async function requestJson<T>(
   fetchFn: typeof globalThis.fetch,
@@ -69,7 +69,7 @@ export async function requestJson<T>(
     // Attach the error body (e.g. PIN verify's `{ error, retryAfter }`) so
     // callers can react without a second read.
     const body = await res.json().catch(() => undefined);
-    throw new LumaApiError(
+    throw new KromaApiError(
       res.status,
       `${init?.method ?? 'GET'} ${path} failed (${res.status})`,
       body,
@@ -81,7 +81,7 @@ export async function requestJson<T>(
 }
 
 /** Like {@link requestJson} but returns the raw body as a `Blob` for file
- * downloads (e.g. the admin backup export). Throws {@link LumaApiError} on a
+ * downloads (e.g. the admin backup export). Throws {@link KromaApiError} on a
  * non-2xx response, attaching the parsed JSON error body when present. */
 export async function requestBlob(
   fetchFn: typeof globalThis.fetch,
@@ -97,7 +97,7 @@ export async function requestBlob(
   const res = await fetchFn(`${baseUrl}/api${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => undefined);
-    throw new LumaApiError(
+    throw new KromaApiError(
       res.status,
       `${init?.method ?? 'GET'} ${path} failed (${res.status})`,
       body,

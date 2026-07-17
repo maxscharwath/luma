@@ -1,4 +1,4 @@
-// The LUMA module Vite plugin. It wires a module's manifest + locales into its
+// The KROMA module Vite plugin. It wires a module's manifest + locales into its
 // `defineModule({ ... })` call by convention, so a module entry file imports
 // NEITHER `module.json` NOR its locales -- the fixed folder layout is the
 // contract:
@@ -28,18 +28,18 @@ const OPTIONS_ONLY_CALL = /\bdefineModule\s*\(\s*\{/;
  *  convention. Add it to the Vite config of anything that bundles module UIs (the
  *  web app, each MF remote). Relative paths are resolved from the entry file, so
  *  every module resolves its own `../../module.json` + `../../locales/`. */
-export function lumaModule(): Plugin {
+export function kromaModule(): Plugin {
   return {
-    name: 'luma-module',
+    name: 'kroma-module',
     // Run before Vite's own `import.meta.glob` transform so the injected glob is
     // expanded by core.
     enforce: 'pre',
     transform(code, id) {
       const file = id.split('?', 1)[0] ?? id;
       if (!MODULE_ENTRY.test(file) || !OPTIONS_ONLY_CALL.test(code)) return null;
-      const injected = `import __lumaManifest from '../../module.json';\n${code}`.replace(
+      const injected = `import __kromaManifest from '../../module.json';\n${code}`.replace(
         OPTIONS_ONLY_CALL,
-        "defineModule({ manifest: __lumaManifest, locales: import.meta.glob('../../locales/*.json', { eager: true, import: 'default' }),",
+        "defineModule({ manifest: __kromaManifest, locales: import.meta.glob('../../locales/*.json', { eager: true, import: 'default' }),",
       );
       // Sourcemap dropped for the one shifted line; these entry files are tiny.
       return { code: injected, map: null };

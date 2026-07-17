@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{anyhow, bail, Result};
-use luma_module_supervisor::Supervisor;
+use kroma_module_supervisor::Supervisor;
 use serde_json::{json, Value};
 
 use super::catalog::{self, CatalogModule};
@@ -43,10 +43,10 @@ pub async fn auto_update(state: &SharedState, sup: &Supervisor) -> Vec<(String, 
             continue;
         };
         let Some(entry) = by_id.get(id) else { continue };
-        if !luma_module_manifest::is_newer(&entry.version, cur) {
+        if !kroma_module_manifest::is_newer(&entry.version, cur) {
             continue;
         }
-        if !luma_module_manifest::server_satisfies(entry.min_server.as_deref(), SERVER_VERSION) {
+        if !kroma_module_manifest::server_satisfies(entry.min_server.as_deref(), SERVER_VERSION) {
             tracing::info!(
                 module = id,
                 requires = entry.min_server.as_deref().unwrap_or("?"),
@@ -79,10 +79,10 @@ pub async fn install_with_deps(
     let modules = catalog::fetch(sup, &catalog::registry_url(state)).await?;
     let by_id: HashMap<&str, &CatalogModule> =
         modules.iter().map(|m| (m.id.as_str(), m)).collect();
-    // Everything already on this server (compiled-in roster + installed .lmod),
+    // Everything already on this server (compiled-in roster + installed .kmod),
     // with its version: a satisfied dependency is not reinstalled.
     let present: HashMap<String, String> =
-        luma_module_kernel::manifests(state).into_iter().map(|m| (m.id, m.version)).collect();
+        kroma_module_kernel::manifests(state).into_iter().map(|m| (m.id, m.version)).collect();
 
     let mut plan: Vec<&CatalogModule> = Vec::new();
     let mut planned: HashSet<String> = HashSet::new();
@@ -134,9 +134,9 @@ fn plan_install<'a>(
         }
     })?;
     // Fail fast with the precise blocker instead of a partial install.
-    if !luma_module_manifest::server_satisfies(entry.min_server.as_deref(), SERVER_VERSION) {
+    if !kroma_module_manifest::server_satisfies(entry.min_server.as_deref(), SERVER_VERSION) {
         bail!(
-            "'{id}' requires LUMA server {} (this server is {SERVER_VERSION}); update the server first",
+            "'{id}' requires KROMA server {} (this server is {SERVER_VERSION}); update the server first",
             entry.min_server.as_deref().unwrap_or("?"),
         );
     }
@@ -146,7 +146,7 @@ fn plan_install<'a>(
     stack.push(id.to_string());
     for (dep_id, range) in &entry.depends_on {
         let satisfied = present.get(dep_id).is_some_and(|installed| {
-            range.as_deref().is_none_or(|r| luma_module_manifest::range_matches(r, installed))
+            range.as_deref().is_none_or(|r| kroma_module_manifest::range_matches(r, installed))
         });
         if satisfied {
             continue;
@@ -154,7 +154,7 @@ fn plan_install<'a>(
         // The catalog's copy must itself satisfy the declared range, or the
         // auto-install would produce a combination the dependent rejects.
         if let (Some(range), Some(dep_entry)) = (range.as_deref(), by_id.get(dep_id.as_str())) {
-            if !luma_module_manifest::range_matches(range, &dep_entry.version) {
+            if !kroma_module_manifest::range_matches(range, &dep_entry.version) {
                 bail!(
                     "'{id}' needs {dep_id}@{range} but the registry has {}",
                     dep_entry.version,

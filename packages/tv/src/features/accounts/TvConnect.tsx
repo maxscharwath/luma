@@ -1,10 +1,10 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconWorldSearch } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
-import { AuthScreen, LumaMark, OnScreenKeyboard, TvTextEntry } from '#tv/shared/ui';
+import { AuthScreen, KromaMark, OnScreenKeyboard, TvTextEntry } from '#tv/shared/ui';
 
 /**
  * Add a (distant) server by address, via an on-screen URL keyboard. Reached on
@@ -45,7 +45,7 @@ export function TvConnect() {
   return (
     <AuthScreen>
       <div className="mb-6">
-        <LumaMark size={32} />
+        <KromaMark size={32} />
       </div>
       <div className="w-full max-w-[720px]">
         <h1 className="m-0 mb-1.5 text-center font-display text-[38px] font-semibold">

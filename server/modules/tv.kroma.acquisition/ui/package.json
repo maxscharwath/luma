@@ -1,0 +1,23 @@
+{
+  "name": "@kroma/module-acquisition",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "KROMA Acquisition module (frontend half): the acquisition settings page. A settings-view module (no dedicated backend routes).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@kroma/module-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^7.0.2"
+  }
+}

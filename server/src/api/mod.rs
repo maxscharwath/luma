@@ -41,7 +41,7 @@ use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Router};
-use luma_module_supervisor::Supervisor;
+use kroma_module_supervisor::Supervisor;
 use tower_http::compression::predicate::{NotForContentType, Predicate};
 use tower_http::compression::{CompressionLayer, DefaultPredicate};
 use tower_http::cors::CorsLayer;
@@ -85,7 +85,7 @@ async fn module_proxy(
     match sup.port_of(&id) {
         Some(port) => {
             let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
-            luma_module_supervisor::proxy_to(port, &format!("/{rest}{query}"), req).await
+            kroma_module_supervisor::proxy_to(port, &format!("/{rest}{query}"), req).await
         }
         None => (StatusCode::NOT_FOUND, "module not running").into_response(),
     }
@@ -132,12 +132,12 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
     // Each feature module owns its routes via a `routes()` function. The admin
     // subtree gets its own `/admin` prefix and self-gates per-handler (permission
     // checks), so it lives outside the blanket content layer.
-    // Out-of-process (.lmod) modules: the /api/_host/* callback API they call back
+    // Out-of-process (.kmod) modules: the /api/_host/* callback API they call back
     // into (token-authed, resolved against the core's HostCtx), and a reverse
     // proxy `/api/module/<id>/*` forwarding to the installed module's process.
     let api = public
         .merge(content)
-        .merge(luma_module_supervisor::host_router::<SharedState>(
+        .merge(kroma_module_supervisor::host_router::<SharedState>(
             supervisor.host_token().to_string(),
         ))
         // A sidecar registers its scheduled jobs with the core JobManager here, so
@@ -157,7 +157,7 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
     // Single-binary deploy: serve the built web SPA on the same origin as the API.
     // Static assets are served from disk; any unmatched route falls back to the
     // SPA shell so client-side routing (e.g. /films, /movie/:id) works on refresh.
-    // Skipped in dev (no LUMA_WEB_DIR) where the web runs on its own Vite server.
+    // Skipped in dev (no KROMA_WEB_DIR) where the web runs on its own Vite server.
     // `precompressed_*` serves the `.br`/`.gz` siblings the web build emits
     // (scripts/precompress.mjs), so static bytes cost the NAS zero compression
     // CPU; assets without a sibling fall through to the live CompressionLayer.

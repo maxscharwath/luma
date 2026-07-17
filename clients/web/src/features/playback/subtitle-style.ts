@@ -21,7 +21,7 @@ export const DEFAULT_SUB_STYLE: SubtitleStyle = {
 export const SUB_COLORS = ['#FFFFFF', '#F5E050', '#6FE0E0', '#7CE08A', '#F4B642'];
 
 const SIZE_PX: Record<SubSize, number> = { sm: 26, md: 36, lg: 48, xl: 62 };
-const KEY = 'luma.subtitleStyle';
+const KEY = 'kroma.subtitleStyle';
 
 /** Persisted subtitle appearance. SSR-safe: starts from defaults (matching the
  * server render), then hydrates from localStorage on the client. */

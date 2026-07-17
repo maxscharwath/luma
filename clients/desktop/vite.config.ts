@@ -7,14 +7,14 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 // Unlike the Tizen / webOS shells, the Steam Deck runs a current desktop Chromium
 // (SteamOS 3, Arch-based), so there is no old-webview floor: no Lightning CSS
-// down-levelling and a modern build target. The shared @luma/tv CSS (Tailwind v4
+// down-levelling and a modern build target. The shared @kroma/tv CSS (Tailwind v4
 // cascade layers, color-mix, oklch) is emitted as-is and the browser handles it.
 export default defineConfig(({ command }) => ({
   plugins: [tailwindcss(), react()],
-  // `#tv/*` -> the @luma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
+  // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
   resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) } },
   // Loadable both from a served origin and directly via file:// in a kiosk, so keep
-  // assets relative. The app talks to the LUMA server cross-origin either way (same
+  // assets relative. The app talks to the KROMA server cross-origin either way (same
   // as the TV clients), via the in-app connect flow.
   base: './',
   server: {
@@ -26,7 +26,7 @@ export default defineConfig(({ command }) => ({
     port: 5178,
     fs: { allow: [repoRoot] },
   },
-  optimizeDeps: { exclude: ['@luma/ui', '@luma/core', '@luma/tv'] },
+  optimizeDeps: { exclude: ['@kroma/ui', '@kroma/core', '@kroma/tv'] },
   build: {
     target: 'es2022',
     outDir: 'dist',

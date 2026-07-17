@@ -2,10 +2,10 @@
 // on requests.create). Backed by TanStack Query (dedup + cache); latest-wins is
 // handled by the query key changing per (query, type).
 
-import { type DiscoverEntry, type DiscoverType, hasPermission, type SearchHit } from '@luma/core';
+import { type DiscoverEntry, type DiscoverType, hasPermission, type SearchHit } from '@kroma/core';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { discoverQueries } from '#web/shared/lib/queries';
 
@@ -36,7 +36,7 @@ export function useDiscoverSearch(query: string, type: DiscoverType): DiscoverSe
   const { data, isFetching } = useQuery({
     queryKey: ['discoverSearch', q, type, canDiscover],
     queryFn: async () => {
-      const c = lumaClient();
+      const c = kromaClient();
       const [local, discover] = await Promise.all([
         c
           .search(q, { limit: 24 })
@@ -80,7 +80,7 @@ export interface TrendingState {
 export function useTrending(enabled: boolean): TrendingState {
   const { data, isFetching } = useQuery({
     queryKey: ['discover', 'trending', 'all'],
-    queryFn: () => lumaClient().discoverTrending(),
+    queryFn: () => kromaClient().discoverTrending(),
     enabled,
     select: (r) => r.results,
   });

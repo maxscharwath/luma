@@ -1,15 +1,15 @@
-# @luma/androidtv Android TV / Google TV
+# @kroma/androidtv Android TV / Google TV
 
-> Part of the [LUMA](../../README.md) monorepo the Android TV shell.
+> Part of the [KROMA](../../README.md) monorepo the Android TV shell.
 
-A native Kotlin app hosting the shared **`@luma/tv`** experience in a
+A native Kotlin app hosting the shared **`@kroma/tv`** experience in a
 transparent WebView over a **media3/ExoPlayer** video plane - the same
 "video plane behind the page" model as Tizen AVPlay and the Steam Deck's mpv.
 Covers Android TV, Google TV, Chromecast with Google TV, and the Nvidia Shield.
 
 ## How playback works
 
-The Kotlin shell injects `__LUMA_ANDROID__` (see `android/.../ExoBridge.kt`)
+The Kotlin shell injects `__KROMA_ANDROID__` (see `android/.../ExoBridge.kt`)
 into the page; the web app detects it and routes playback through its
 `ExoEngine` (`packages/tv/.../player/exoEngine.ts`):
 
@@ -20,7 +20,7 @@ into the page; the web app detects it and routes playback through its
   ExoPlayer cannot open.
 
 D-pad/OK arrive as normal DOM key events; BACK + media keys are re-injected by
-`MainActivity` with the key names `@luma/core`'s remote mapping understands.
+`MainActivity` with the key names `@kroma/core`'s remote mapping understands.
 
 ## Develop (in a desktop browser)
 
@@ -37,7 +37,7 @@ Gradle wrapper if you don't have `gradle` locally, open `android/` in Android
 Studio instead.
 
 ```bash
-bun run build:androidtv     # web bundle -> dist/ -> android/app/src/main/assets/luma/
+bun run build:androidtv     # web bundle -> dist/ -> android/app/src/main/assets/kroma/
 cd clients/androidtv/android
 gradle wrapper              # once, if ./gradlew does not exist yet
 ./gradlew assembleDebug     # -> app/build/outputs/apk/debug/app-debug.apk
@@ -45,7 +45,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Notes:
-- `usesCleartextTraffic` is enabled: the LUMA server lives on the LAN over
+- `usesCleartextTraffic` is enabled: the KROMA server lives on the LAN over
   plain http.
 - `res/drawable/tv_banner.xml` is a placeholder launcher banner; replace with
   real 320x180 art before distribution.

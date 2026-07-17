@@ -3,8 +3,8 @@
 // (`hero`). While downloading it shows a circular progress ring instead of the
 // status dot, so the percentage reads at a glance on a poster.
 
-import type { RequestStatus } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { RequestStatus } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { requestStatusMeta } from '#web/features/requests/status';
 
 /** A thin circular progress ring (0..1). Starts at 12 o'clock, fills clockwise. */

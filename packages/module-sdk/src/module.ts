@@ -1,10 +1,10 @@
-// The frontend module contract. A `@luma/module-<id>` package exports one
-// `LumaModule` describing the routes, nav entries and settings panels it
+// The frontend module contract. A `@kroma/module-<id>` package exports one
+// `KromaModule` describing the routes, nav entries and settings panels it
 // contributes, the API it exports for other modules, and any setup wiring. The
 // `id` must match its backend crate's module id.
 
 import type { ComponentType } from 'react';
-import type { LumaHost } from './host';
+import type { KromaHost } from './host';
 import type { Dependencies } from './types';
 
 /** A nav entry a module contributes to the host's navigation. */
@@ -22,7 +22,7 @@ export interface NavItem {
 
 /** Props every module-provided screen receives. */
 export interface ModuleComponentProps {
-  host: LumaHost;
+  host: KromaHost;
 }
 
 /** A route a module registers under the host's module mount point. */
@@ -39,7 +39,7 @@ export interface SettingsPanel {
   component: ComponentType<ModuleComponentProps>;
 }
 
-export interface LumaModule<Exports = unknown> {
+export interface KromaModule<Exports = unknown> {
   /** Stable id, shared with the backend crate's module manifest. */
   id: string;
   version: string;
@@ -60,7 +60,7 @@ export interface LumaModule<Exports = unknown> {
   locales?: Record<string, Record<string, string>>;
   /** A typed API other modules reach via `host.getModuleApi(id)`. Computed once
    *  at start, in dependency order. */
-  exports?: (host: LumaHost) => Exports;
+  exports?: (host: KromaHost) => Exports;
   /** Imperative wiring: subscribe to events, warm caches. Runs once at start. */
-  setup?: (host: LumaHost) => void | Promise<void>;
+  setup?: (host: KromaHost) => void | Promise<void>;
 }

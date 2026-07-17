@@ -8,7 +8,7 @@
 //
 // mpv renders to its OWN native window (VA-API hardware decode on the Deck's APU).
 // The Tauri UI window is transparent + always-on-top, so the web chrome floats
-// over the video. The Linux packages bundle their own mpv (the `luma-mpv` sidecar,
+// over the video. The Linux packages bundle their own mpv (the `kroma-mpv` sidecar,
 // a self-contained mpv AppImage - see scripts/fetch-mpv.sh); a system mpv
 // (Flatpak / pacman / PATH) is only a fallback for dev environments.
 
@@ -47,7 +47,7 @@ const BASE_ARGS: &[&str] = &[
     "--force-window=yes", // create the video window up front
     "--fullscreen",       // fill the Deck screen behind the UI
     "--ontop=no",         // stay BELOW the always-on-top Tauri window
-    "--no-osc",           // no mpv on-screen controls (LUMA draws its own)
+    "--no-osc",           // no mpv on-screen controls (KROMA draws its own)
     "--no-input-default-bindings",
     "--no-terminal",
     "--no-config",          // deterministic: ignore any user mpv.conf
@@ -56,30 +56,30 @@ const BASE_ARGS: &[&str] = &[
     "--cache=yes",
     "--hr-seek=yes",        // frame-accurate seeks for the scrub bar
     "--force-seekable=yes", // seek HTTP sources even if length is unknown
-    "--sub-auto=no",        // LUMA renders its own subtitle overlay
+    "--sub-auto=no",        // KROMA renders its own subtitle overlay
     "--sid=no",
-    "--ytdl=no",            // never invoke yt-dlp: LUMA only opens its own HTTP file URLs
+    "--ytdl=no",            // never invoke yt-dlp: KROMA only opens its own HTTP file URLs
 ];
 
 fn socket_path() -> PathBuf {
-    std::env::temp_dir().join("luma-mpv.sock")
+    std::env::temp_dir().join("kroma-mpv.sock")
 }
 
 /// Ensure a directory holding a no-op `yt-dlp` executable exists, and return it.
 ///
-/// The bundled `luma-mpv` is a pkgforge mpv AppImage whose launcher sources a
+/// The bundled `kroma-mpv` is a pkgforge mpv AppImage whose launcher sources a
 /// `get-yt-dlp.hook`: when `yt-dlp` isn't on PATH it pops a **modal** kdialog
-/// ("luma-mpv needs yt-dlp ... install it now?") *before* exec'ing mpv. That
+/// ("kroma-mpv needs yt-dlp ... install it now?") *before* exec'ing mpv. That
 /// dialog blocks startup, so mpv's IPC socket never appears, every VO rung
 /// times out, and each re-spawn stacks another dialog (the "popup every 5s"
-/// the Deck showed). LUMA never plays online video, so we make `yt-dlp` appear
+/// the Deck showed). KROMA never plays online video, so we make `yt-dlp` appear
 /// present - a stub the hook only ever probes with `command -v`, never runs
 /// (we also pass `--ytdl=no`). Robust to the AppImage's name/cache layout,
 /// unlike the hook's per-file denyfile. Best-effort: any error just means the
 /// nag may return, not a playback failure.
 fn ytdlp_shim_dir() -> Option<PathBuf> {
     use std::os::unix::fs::PermissionsExt;
-    let dir = std::env::temp_dir().join("luma-mpv-shim");
+    let dir = std::env::temp_dir().join("kroma-mpv-shim");
     std::fs::create_dir_all(&dir).ok()?;
     let stub = dir.join("yt-dlp");
     // Idempotent: write once, keep it executable.
@@ -101,17 +101,17 @@ fn ytdlp_shim_dir() -> Option<PathBuf> {
 /// later rungs sidestep that EGL path: Vulkan (the Deck's native API, no EGL),
 /// then GLX on X11/XWayland (no EGL), then plain software output (always works).
 ///
-/// `LUMA_MPV_VO` pins exactly one output and skips the ladder (with optional
-/// `LUMA_MPV_GPU_API` / `LUMA_MPV_GPU_CONTEXT`) handy to lock in a known-good
+/// `KROMA_MPV_VO` pins exactly one output and skips the ladder (with optional
+/// `KROMA_MPV_GPU_API` / `KROMA_MPV_GPU_CONTEXT`) handy to lock in a known-good
 /// combo, or to probe one on a specific box without a rebuild.
 fn vo_ladder() -> Vec<Vec<String>> {
-    if let Ok(vo) = std::env::var("LUMA_MPV_VO") {
+    if let Ok(vo) = std::env::var("KROMA_MPV_VO") {
         let vo = vo.trim();
         if !vo.is_empty() {
             let mut cfg = vec![format!("--vo={vo}")];
             for (var, flag) in [
-                ("LUMA_MPV_GPU_API", "--gpu-api"),
-                ("LUMA_MPV_GPU_CONTEXT", "--gpu-context"),
+                ("KROMA_MPV_GPU_API", "--gpu-api"),
+                ("KROMA_MPV_GPU_CONTEXT", "--gpu-context"),
             ] {
                 if let Ok(val) = std::env::var(var) {
                     let val = val.trim();
@@ -131,21 +131,21 @@ fn vo_ladder() -> Vec<Vec<String>> {
     ]
 }
 
-/// Resolve the mpv binary. The bundled `luma-mpv` sidecar (Tauri externalBin: a
-/// self-contained mpv AppImage installed next to the LUMA binary) is probed first.
+/// Resolve the mpv binary. The bundled `kroma-mpv` sidecar (Tauri externalBin: a
+/// self-contained mpv AppImage installed next to the KROMA binary) is probed first.
 /// A GUI-launched app (Finder / Steam Game Mode) inherits a minimal PATH that
 /// usually omits Homebrew / Flatpak dirs, so probe the common install locations
-/// before falling back to a bare PATH lookup. `LUMA_MPV` overrides everything.
+/// before falling back to a bare PATH lookup. `KROMA_MPV` overrides everything.
 fn mpv_binary() -> String {
-    if let Ok(p) = std::env::var("LUMA_MPV") {
+    if let Ok(p) = std::env::var("KROMA_MPV") {
         if !p.trim().is_empty() {
             return p;
         }
     }
-    // Bundled sidecar: $APPDIR/usr/bin/luma-mpv inside the AppImage,
-    // /usr/bin/luma-mpv from the .deb.
+    // Bundled sidecar: $APPDIR/usr/bin/kroma-mpv inside the AppImage,
+    // /usr/bin/kroma-mpv from the .deb.
     if let Ok(exe) = std::env::current_exe() {
-        if let Some(cand) = exe.parent().map(|d| d.join("luma-mpv")) {
+        if let Some(cand) = exe.parent().map(|d| d.join("kroma-mpv")) {
             if cand.exists() {
                 return cand.to_string_lossy().into_owned();
             }
@@ -168,7 +168,7 @@ fn mpv_binary() -> String {
 /// player can fail fast instead of spinning forever. Startup failures land before
 /// any engine listens; those are caught by the `mpv_status` probe instead.
 fn emit_error(app: &AppHandle, reason: &str) {
-    eprintln!("LUMA: mpv unavailable ({reason})");
+    eprintln!("KROMA: mpv unavailable ({reason})");
     let _ = app.emit("mpv://error", json!({ "reason": reason }));
 }
 
@@ -189,7 +189,7 @@ pub fn spawn(app: AppHandle) {
             Ok(v) => v,
             Err(reason) => {
                 if reason == "socket-timeout" {
-                    eprintln!("LUMA: mpv IPC socket never appeared at {}", sock.display());
+                    eprintln!("KROMA: mpv IPC socket never appeared at {}", sock.display());
                 }
                 emit_error(&app, reason);
                 return;
@@ -202,7 +202,7 @@ pub fn spawn(app: AppHandle) {
         let read_half = match stream.try_clone() {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("LUMA: could not clone mpv IPC socket: {e}");
+                eprintln!("KROMA: could not clone mpv IPC socket: {e}");
                 emit_error(&app, "socket-error");
                 return;
             }
@@ -258,14 +258,14 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
         let _ = std::fs::remove_file(sock);
         let mut command = Command::new(binary);
         command
-            // The bundled luma-mpv is itself an AppImage; we spawn it from INSIDE the
-            // LUMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
+            // The bundled kroma-mpv is itself an AppImage; we spawn it from INSIDE the
+            // KROMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
             // Force extract-and-run so mpv never depends on FUSE; harmless for a
             // non-AppImage system mpv (it just ignores the var).
             .env("APPIMAGE_EXTRACT_AND_RUN", "1")
             // Silence the AppImage's self-updater.hook, which otherwise pops a modal
-            // "Allow luma-mpv to check for updates?" dialog once the yt-dlp nag is
-            // gone - same startup-blocking failure mode. LUMA updates the whole
+            // "Allow kroma-mpv to check for updates?" dialog once the yt-dlp nag is
+            // gone - same startup-blocking failure mode. KROMA updates the whole
             // desktop bundle via the Tauri updater; the sidecar rides along.
             .env("DISABLE_AUTO_UPDATES", "1")
             // Never let the outer AppImage's runtime env leak into mpv: AppRun's
@@ -291,21 +291,21 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
             Ok(c) => c,
             Err(e) => {
                 // A missing / unspawnable binary won't be fixed by a different VO.
-                eprintln!("LUMA: failed to launch mpv (is it installed / on PATH?): {e}");
+                eprintln!("KROMA: failed to launch mpv (is it installed / on PATH?): {e}");
                 return Err("spawn-failed");
             }
         };
 
         match await_socket(&mut child, sock) {
             Some(stream) => {
-                eprintln!("LUMA: mpv up [{}]", cfg.join(" "));
+                eprintln!("KROMA: mpv up [{}]", cfg.join(" "));
                 return Ok((child, stream));
             }
             None => {
                 let _ = child.kill();
                 let _ = child.wait();
                 eprintln!(
-                    "LUMA: mpv could not start [{}]; trying a more compatible video output",
+                    "KROMA: mpv could not start [{}]; trying a more compatible video output",
                     cfg.join(" ")
                 );
             }
@@ -318,7 +318,7 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
 /// launch), short-circuiting the instant the process exits first - a failed video
 /// output aborts in well under a second, so we fail over fast rather than block
 /// the whole window on a rung that already died. The window is generous (~15s)
-/// because the bundled luma-mpv is an AppImage running in extract-and-run mode:
+/// because the bundled kroma-mpv is an AppImage running in extract-and-run mode:
 /// a cold launch unpacks ~50 MB before mpv even starts, which can exceed 5s on
 /// slow disks; only ALIVE-but-not-ready rungs pay it, dead rungs exit instantly.
 fn await_socket(child: &mut Child, sock: &Path) -> Option<UnixStream> {

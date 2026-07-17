@@ -3,7 +3,7 @@
 // typed JSON values to /api/admin/modules/:id/config (bool and number, not the
 // stringified values the old text-only form sent).
 
-import type { ConfigField } from '@luma/module-sdk';
+import type { ConfigField } from '@kroma/module-sdk';
 import { type ReactNode, useId, useState } from 'react';
 import { adminApi } from '#web/features/admin/module-api';
 import { Toggle } from '#web/features/admin/ui';

@@ -3,8 +3,8 @@
 // an expandable run-history + log panel. Mirrors the server's job registry
 // (`services::jobs`) over `/api/admin/jobs`.
 
-import { type JobInfo, LumaEvents, type MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type JobInfo, KromaEvents, type MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconBolt,
   IconCalendarClock,
@@ -36,7 +36,7 @@ export function JobsPage() {
   // A page-scoped event stream for smooth progress + immediate reloads on
   // start/finish (the shell's stream only bumps the refetch `tick`).
   useEffect(() => {
-    const ev = new LumaEvents(apiBase(), {
+    const ev = new KromaEvents(apiBase(), {
       onEvent: (e) => {
         if (e.type === 'job.progress') {
           setLive((s) => ({ ...s, [e.key]: { done: e.done, total: e.total } }));

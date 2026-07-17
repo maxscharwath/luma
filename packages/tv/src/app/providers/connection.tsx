@@ -1,4 +1,4 @@
-import type { Activity, LumaClient, MediaItem, SavedServer, Show } from '@luma/core';
+import type { Activity, KromaClient, MediaItem, SavedServer, Show } from '@kroma/core';
 import { createContext, type ReactNode, useContext } from 'react';
 import type { DeepLink } from '#tv/shared/preview';
 
@@ -23,7 +23,7 @@ export interface Connection {
    * gates the auto-refetch on reconnect. Always `true` before a server is active. */
   online: boolean;
   /** Client for the active server (null before any server is reached). */
-  client: LumaClient | null;
+  client: KromaClient | null;
   movies: MediaItem[];
   shows: Show[];
   activity: Activity | null;

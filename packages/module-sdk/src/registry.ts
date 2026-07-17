@@ -1,11 +1,11 @@
 // The frontend module registry: the host-side mirror of the Rust `Registry`.
-// It gathers `LumaModule`s, resolves their dependency graph (same Kahn topo
+// It gathers `KromaModule`s, resolves their dependency graph (same Kahn topo
 // sort, same missing-dep / cycle / duplicate errors), runs setup in order,
 // collects the routes/nav/panels, and reconciles the registered set against the
 // backend's `/api/modules` manifest.
 
-import type { HostBase, LumaHost } from './host';
-import type { LumaModule, NavItem, RouteDef, SettingsPanel } from './module';
+import type { HostBase, KromaHost } from './host';
+import type { KromaModule, NavItem, RouteDef, SettingsPanel } from './module';
 import type { Dependencies, ModuleManifest } from './types';
 
 /** Normalize either dependency form (a package.json-style `{ id: range }` map,
@@ -48,12 +48,12 @@ export interface ModuleStatus {
 }
 
 export class ModuleRegistry {
-  private readonly modules = new Map<string, LumaModule>();
+  private readonly modules = new Map<string, KromaModule>();
   // Module ids whose setup() has run, so re-entering start() (e.g. re-visiting
   // the page) does not re-run a module's setup side effects.
   private readonly setupDone = new Set<string>();
 
-  register(module: LumaModule): this {
+  register(module: KromaModule): this {
     if (this.modules.has(module.id)) {
       throw new Error(`module "${module.id}" registered twice`);
     }
@@ -87,9 +87,9 @@ export class ModuleRegistry {
    *  hard dependency or a cycle. Edges = hard deps (must be registered) + any
    *  optional deps that happen to be present. (Version ranges + capability deps
    *  are enforced on the backend; the frontend only needs setup ordering.) */
-  order(): LumaModule[] {
+  order(): KromaModule[] {
     const mods = [...this.modules.values()];
-    const edgesOf = (m: LumaModule): string[] => {
+    const edgesOf = (m: KromaModule): string[] => {
       const ids: string[] = [];
       for (const { id } of depEntries(m.dependsOn)) {
         if (!this.modules.has(id)) {
@@ -132,16 +132,16 @@ export class ModuleRegistry {
       const stuck = mods.map((m) => m.id).filter((id) => !orderedIds.includes(id));
       throw new Error(`module dependency cycle among [${stuck.join(', ')}]`);
     }
-    return orderedIds.map((id) => this.modules.get(id)).filter((m): m is LumaModule => m != null);
+    return orderedIds.map((id) => this.modules.get(id)).filter((m): m is KromaModule => m != null);
   }
 
   /** Resolve the graph, compute each module's exports, and run its setup - all
    *  in dependency order - then return the fully-wired host. Modules in
    *  `skipSetup` (e.g. admin-disabled ones) have their setup skipped, and every
    *  module's setup runs at most once across calls. */
-  async start(base: HostBase, skipSetup?: ReadonlySet<string>): Promise<LumaHost> {
+  async start(base: HostBase, skipSetup?: ReadonlySet<string>): Promise<KromaHost> {
     const exports = new Map<string, unknown>();
-    const host: LumaHost = {
+    const host: KromaHost = {
       ...base,
       getModuleApi: (id) => exports.get(id as string) as never,
     };

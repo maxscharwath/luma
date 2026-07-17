@@ -2,20 +2,20 @@
 // to encrypt (+ password); import detects an encrypted file from its magic bytes
 // and only then asks for a password, always confirming before it overwrites.
 
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { useState } from 'react';
 import { Field, Modal, ModalActions, TextInput, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
 
-/** "LUMABK1\n" the encrypted-backup envelope magic (see services/backup/crypto). */
-const LUMA_MAGIC = [0x4c, 0x55, 0x4d, 0x41, 0x42, 0x4b, 0x31, 0x0a];
+/** "KROMABK1\n" the encrypted-backup envelope magic (see services/backup/crypto). */
+const KROMA_MAGIC = [0x4b, 0x52, 0x4f, 0x4d, 0x41, 0x42, 0x4b, 0x31, 0x0a];
 
-/** Read a file's first bytes to tell an encrypted `.luma` from a plain archive,
+/** Read a file's first bytes to tell an encrypted `.kroma` from a plain archive,
  *  so we only prompt for a password when one is actually needed. */
 export async function isEncryptedFile(file: File): Promise<boolean> {
   try {
-    const head = new Uint8Array(await file.slice(0, LUMA_MAGIC.length).arrayBuffer());
-    return LUMA_MAGIC.every((b, i) => head[i] === b);
+    const head = new Uint8Array(await file.slice(0, KROMA_MAGIC.length).arrayBuffer());
+    return KROMA_MAGIC.every((b, i) => head[i] === b);
   } catch {
     return false;
   }
@@ -70,7 +70,7 @@ export function ExportModal({ onClose }: Readonly<{ onClose: () => void }>) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `luma-backup-${new Date().toISOString().slice(0, 10)}.luma`;
+      a.download = `kroma-backup-${new Date().toISOString().slice(0, 10)}.kroma`;
       document.body.appendChild(a);
       a.click();
       a.remove();

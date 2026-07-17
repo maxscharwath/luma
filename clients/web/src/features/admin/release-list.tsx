@@ -3,8 +3,8 @@
 // breakdown, and a per-row grab button (wired to the download engine
 // milestone; hidden until the release is grabbable AND grabbing exists).
 
-import type { ScoredReleaseView } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { ScoredReleaseView } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconChevronDown, IconDownload, IconExternalLink } from '@tabler/icons-react';
 import { useState } from 'react';
 import { formatBytes } from '#web/shared/lib/adminFormat';

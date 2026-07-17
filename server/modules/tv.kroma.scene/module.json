@@ -1,0 +1,15 @@
+{
+  "id": "tv.kroma.scene",
+  "name": "Release parser",
+  "version": "0.1.0",
+  "minServer": "0.1.4",
+  "library": true,
+  "dependsOn": [],
+  "provides": [
+    {
+      "kind": "release-parser",
+      "id": "scene"
+    }
+  ],
+  "description": "Scene / P2P release-name parsing and scoring for the acquisition stack."
+}

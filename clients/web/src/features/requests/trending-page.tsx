@@ -2,8 +2,8 @@
 // week's trending movies OR shows, reached via "Voir tout" on the discover
 // rails. Same DiscoverCard tiles as search; TMDB-gated on requests.create.
 
-import { hasPermission } from '@luma/core';
-import { useT } from '@luma/ui';
+import { hasPermission } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconArrowLeft,
   IconChevronLeft,

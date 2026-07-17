@@ -3,7 +3,7 @@
 // it's not the login credential. Uses the existing `setPin`/`clearPin` endpoints,
 // which verify the current PIN when one is already set.
 
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Panel, StatusText, useSave } from '#web/features/accounts/account/ui';

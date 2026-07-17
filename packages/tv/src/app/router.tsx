@@ -1,4 +1,4 @@
-import type { LumaClient, MediaItem, Show, StoredSession } from '@luma/core';
+import type { KromaClient, MediaItem, Show, StoredSession } from '@kroma/core';
 import {
   type ComponentType,
   createContext,
@@ -98,7 +98,7 @@ const NavCtx = createContext<TvNav | null>(null);
 // the guard doesn't bounce a restored deep route. Compiled out of production builds
 // via IS_DEV; cast to read import.meta.env without vite/client types (as server.ts).
 const IS_DEV = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV === true;
-const DEV_NAV_KEY = 'luma:dev-nav';
+const DEV_NAV_KEY = 'kroma:dev-nav';
 
 function loadDevStack(): TvRoute[] | null {
   if (!IS_DEV) return null;
@@ -197,8 +197,8 @@ export function useParams<K extends RouteName>(name: K): TvRoutes[K] {
   return route.params as TvRoutes[K];
 }
 
-// --- Client context: the LumaClient every screen needs, provided once at the top. ---
-const ClientCtx = createContext<LumaClient | null>(null);
+// --- Client context: the KromaClient every screen needs, provided once at the top. ---
+const ClientCtx = createContext<KromaClient | null>(null);
 
 // Tolerates a null client (during connect, before a server is reached) so the
 // providers can wrap the whole app the `connect` screen never calls useClient().
@@ -206,15 +206,15 @@ export function TvClientProvider({
   client,
   children,
 }: Readonly<{
-  client: LumaClient | null;
+  client: KromaClient | null;
   children: ReactNode;
 }>) {
   return <ClientCtx.Provider value={client}>{children}</ClientCtx.Provider>;
 }
 
-/** The LumaClient. Throws if read before a server is reached only the routed
+/** The KromaClient. Throws if read before a server is reached only the routed
  * screens (rendered once status is `ready`) call it, never the connect screen. */
-export function useClient(): LumaClient {
+export function useClient(): KromaClient {
   const c = useContext(ClientCtx);
   if (!c) throw new Error('useClient() called before the server was reached');
   return c;

@@ -1,5 +1,5 @@
-import { capabilities, type PlaybackCapabilities } from '@luma/core';
-import { useT } from '@luma/ui';
+import { capabilities, type PlaybackCapabilities } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useEffect, useState } from 'react';
 import { Badge } from '#web/shared/ui';

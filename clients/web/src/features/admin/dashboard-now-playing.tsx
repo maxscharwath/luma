@@ -1,11 +1,11 @@
-import type { PlaybackSession } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { PlaybackSession } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconPlayerStopFilled } from '@tabler/icons-react';
 import { useId, useState } from 'react';
 import { Avatar, C, Card, Modal, ProgressBar } from '#web/features/admin/ui';
 import { useStoryboard } from '#web/features/playback/use-storyboard';
 import { formatMbps, posterGradient, timecode } from '#web/shared/lib/adminFormat';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
 /** Width (px) of the Now Playing thumbnail. Height follows the 16:9 frame so a
@@ -23,7 +23,7 @@ function NowPlayingThumb({ s }: Readonly<{ s: PlaybackSession }>) {
   const story = useStoryboard(s.itemId, { generate: false });
   const [posterFailed, setPosterFailed] = useState(false);
   const frame = story.tile(s.positionMs / 1000, THUMB_W);
-  const poster = lumaClient().posterUrl(s.itemId);
+  const poster = kromaClient().posterUrl(s.itemId);
 
   return (
     <div
@@ -108,7 +108,7 @@ export function NowPlayingCard({
                 style={{ color: stateColor }}
               >
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${playing || buffering ? 'animate-[luma-breathe_2s_ease-in-out_infinite]' : ''}`}
+                  className={`h-1.5 w-1.5 rounded-full ${playing || buffering ? 'animate-[kroma-breathe_2s_ease-in-out_infinite]' : ''}`}
                   style={{ background: stateColor }}
                 />
                 {stateLabel}

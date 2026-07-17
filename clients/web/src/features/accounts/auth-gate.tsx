@@ -1,18 +1,18 @@
 // The login gate. Rendered as a full-screen overlay by the root layout whenever
 // no session is active, so the catalogue underneath is never usable until a real
-// account is chosen. Visual design follows LUMA.dc.html's "Qui regarde ?" screen
+// account is chosen. Visual design follows KROMA.dc.html's "Qui regarde ?" screen
 // (rounded-square gradient avatars, Bricolage headings) while keeping real
 // account semantics: selecting a profile asks for its password, and new accounts
 // are created with email + username + password + an optional uploaded avatar.
 
 import {
   apiErrorText,
-  LumaApiError,
+  KromaApiError,
   type PublicUser,
   type StoredSession,
   UserId,
-} from '@luma/core';
-import { type ActivateResult, Logo, useT } from '@luma/ui';
+} from '@kroma/core';
+import { type ActivateResult, Logo, useT } from '@kroma/ui';
 import { IconLock, IconPlus } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { LoginForm, RegisterForm } from '#web/features/accounts/auth-forms';
@@ -53,7 +53,7 @@ export function Brand() {
   return (
     <div className="mb-12 flex items-center gap-2.5">
       <Logo markOnly size={30} />
-      <span className="font-display text-[24px] font-extrabold tracking-[.16em]">LUMA</span>
+      <span className="font-display text-[24px] font-extrabold tracking-[.16em]">KROMA</span>
     </div>
   );
 }
@@ -138,7 +138,7 @@ export function GateBody() {
       await login(identifier, password);
     } catch (e) {
       // 429 → brute-force lockout: surface the server's localized cooldown text.
-      if (e instanceof LumaApiError && e.status === 429) {
+      if (e instanceof KromaApiError && e.status === 429) {
         setError(apiErrorText(e, t('auth.loginLocked')));
       } else {
         fail(e, t('auth.loginFailed'));
@@ -328,7 +328,7 @@ export function GateBody() {
                   seed={p.id}
                   size={146}
                   radius={24}
-                  className="shadow-[0_10px_25px_-8px_rgba(0,0,0,0.6)] transition-shadow duration-200 group-hover:shadow-[0_0_0_4px_var(--luma-accent),0_10px_25px_-8px_rgba(0,0,0,0.6)] group-focus-visible:shadow-[0_0_0_4px_var(--luma-accent),0_10px_25px_-8px_rgba(0,0,0,0.6)]"
+                  className="shadow-[0_10px_25px_-8px_rgba(0,0,0,0.6)] transition-shadow duration-200 group-hover:shadow-[0_0_0_4px_var(--kroma-accent),0_10px_25px_-8px_rgba(0,0,0,0.6)] group-focus-visible:shadow-[0_0_0_4px_var(--kroma-accent),0_10px_25px_-8px_rgba(0,0,0,0.6)]"
                 />
                 {p.locked ? (
                   <span

@@ -9,12 +9,19 @@ name: Build & Release
 #     developer mode accept it)
 #   - Android TV .apk (release-signed when the keystore secrets are set, else
 #     debug-signed for sideloading)
-#   - Module bundles (.lmod, zstd, one per build target) + modules.json: the
+#   - Module bundles (.kmod, zstd, one per build target) + modules.json: the
 #     machine-readable store catalog the in-app Admin -> Modules Store browses
 #     via releases/latest/download/modules.json
 #
 # All bundles are PRODUCTION builds: `vite build`, console/debugger stripped by
-# the shared TV shell factory, no LUMA_TV_DEVICE dev mode.
+# the shared TV shell factory, no KROMA_TV_DEVICE dev mode.
+#
+# NIGHTLY channel: the nightly schedule (or a manual run with publish=nightly)
+# builds the SAME artifact set versioned `X.Y.Z-nightly.YYYYMMDD` and publishes
+# it to the rolling `nightly` prerelease (which also carries the per-push canary
+# .spk from synology.yml) - so a normal release and a nightly ship the same way,
+# and tagging is only needed for actual stable releases. Nights with no new
+# commits on main skip everything (~30s guard run).
 #
 # Manual runs build artifacts without publishing a Release; `targets` scopes the
 # run (all | spk | desktop | tv | modules).
@@ -22,6 +29,8 @@ name: Build & Release
 on:
   push:
     tags: ['v*']
+  schedule:
+    - cron: '0 3 * * *' # nightly, 03:00 UTC
   workflow_dispatch:
     inputs:
       version:
@@ -32,6 +41,12 @@ on:
         type: choice
         options: [all, spk, desktop, tv, modules]
         default: all
+        required: false
+      publish:
+        description: 'Publish the artifacts (none = build only)'
+        type: choice
+        options: [none, nightly]
+        default: none
         required: false
 
 permissions:
@@ -49,21 +64,43 @@ env:
 jobs:
   # One version for every artifact: the tag, the manual input, or the
   # server/Cargo.toml base. `triplet` is the sanitized x.y.z the TV stores
-  # require (appinfo.json / config.xml reject suffixes).
+  # require (appinfo.json / config.xml reject suffixes). Also decides the
+  # channel (stable tag / nightly / build-only) and, for nightlies, whether
+  # there is anything new to build (proceed=false when main hasn't moved since
+  # the last published nightly-manifest.json).
   version:
     name: Resolve version
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     outputs:
       version: ${{ steps.v.outputs.version }}
       triplet: ${{ steps.v.outputs.triplet }}
+      channel: ${{ steps.v.outputs.channel }}
+      proceed: ${{ steps.v.outputs.proceed }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - id: v
         shell: bash
         run: |
+          CHANNEL=none
+          PROCEED=true
           if [ "${{ github.event_name }}" = "push" ]; then
             V="${GITHUB_REF_NAME#v}"            # tag v0.1.0 -> 0.1.0
+            CHANNEL=stable
+          elif [ "${{ github.event_name }}" = "schedule" ] \
+            || [ "${{ github.event.inputs.publish }}" = "nightly" ]; then
+            BASE="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' server/Cargo.toml | head -1)"
+            V="$BASE-nightly.$(date -u +%Y%m%d)"
+            CHANNEL=nightly
+            # Skip the whole fleet when main hasn't moved since the last nightly.
+            LAST="$(gh release download nightly -p nightly-manifest.json -O - 2>/dev/null | jq -r '.sha // empty' || true)"
+            if [ "$LAST" = "$GITHUB_SHA" ]; then
+              PROCEED=false
+              echo "No new commits since the last nightly ($LAST); skipping."
+            fi
           elif [ -n "${{ github.event.inputs.version }}" ]; then
             V="${{ github.event.inputs.version }}"
           else
@@ -72,14 +109,16 @@ jobs:
           T="${V%%-*}"                          # 0.1.0-rc1 -> 0.1.0 (TV manifests)
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "triplet=$T" >> "$GITHUB_OUTPUT"
-          echo "Version: $V (TV manifests: $T)"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "proceed=$PROCEED" >> "$GITHUB_OUTPUT"
+          echo "Version: $V (TV manifests: $T, channel: $CHANNEL, proceed: $PROCEED)"
 
   # NB: the Synology .spk + its GitHub Pages "package source" (stable + nightly)
   # live in their own workflow, .github/workflows/synology.yml.
 
-  # Runtime-installable module bundles: every module packed to a zstd .lmod the
+  # Runtime-installable module bundles: every module packed to a zstd .kmod the
   # in-app Store installs (or an admin uploads) with no server rebuild. Built
-  # PER TARGET (a sidecar .lmod carries a native binary, so its platform must
+  # PER TARGET (a sidecar .kmod carries a native binary, so its platform must
   # match the server): each matrix entry cross-compiles the sidecar binaries and
   # suffixes the bundle with the triple; the catalog job below merges every
   # target into one published index. x86_64 musl is fully static, so the one
@@ -91,13 +130,13 @@ jobs:
   #    heavy sidecars (candle in whisper/vector, librqbit in torrents) for musl
   #    a plain host `musl-gcc` lacks the C/C++ sysroot they need. The build plan
   #    is derived from each module's Cargo.toml, then run in the container; the
-  #    .lmod staging + zstd packing (and each vite frontend) run on the host.
+  #    .kmod staging + zstd packing (and each vite frontend) run on the host.
   #  - macOS arm64 (dev servers): built natively on a macos runner, no container
   #    (modules:pack compiles + packs in one step).
   modules:
-    name: Modules (.lmod ${{ matrix.target }})
+    name: Modules (.kmod ${{ matrix.target }})
     needs: version
-    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets) }}
+    if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets)) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -105,14 +144,16 @@ jobs:
         # Add an entry to publish more platforms (image = cross container, blank
         # = native build); the catalog picks up whatever targets appear.
         include:
+          # Digest-pinned: a moving tag swaps rustc underneath and invalidates
+          # the whole cached target dir (same pin as clients/synology/build.sh).
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-            image: messense/rust-musl-cross:x86_64-musl
+            image: messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a
           - target: aarch64-apple-darwin
             runner: macos-14
             image: ''
     env:
-      LMOD_TARGET: ${{ matrix.target }}
+      KMOD_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -133,41 +174,50 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: server
-          key: lmod-${{ matrix.target }}
+          key: kmod-${{ matrix.target }}
 
       # Cross legs: compile every sidecar binary in the proven musl toolchain
       # image. Mirrors clients/synology/build.sh: server/ -> /home/rust/src
-      # (WORKDIR), packages/ -> /home/rust/packages (luma-i18n `include_str!`s
+      # (WORKDIR), packages/ -> /home/rust/packages (kroma-i18n `include_str!`s
       # the shared locale catalogs from outside server/), cargo registry cached.
       - name: Cross-compile sidecar binaries (container)
         if: matrix.image != ''
         run: |
           set -euo pipefail
-          bun run scripts/lmod-build-plan.ts > /tmp/lmod-build.sh
-          echo "=== build plan ==="; cat /tmp/lmod-build.sh
+          bun run scripts/kmod-build-plan.ts > /tmp/kmod-build.sh
+          echo "=== build plan ==="; cat /tmp/kmod-build.sh
           mkdir -p "$HOME/.cargo/registry"
           docker run --rm \
             -v "$PWD/server":/home/rust/src \
             -v "$PWD/packages":/home/rust/packages \
             -v "$HOME/.cargo/registry":/root/.cargo/registry \
-            -v /tmp/lmod-build.sh:/tmp/lmod-build.sh:ro \
+            -v /tmp/kmod-build.sh:/tmp/kmod-build.sh:ro \
             "${{ matrix.image }}" \
-            bash -euo pipefail /tmp/lmod-build.sh
+            bash -euo pipefail /tmp/kmod-build.sh
+
+      # The container runs as root and leaves root-owned files in server/target;
+      # rust-cache's post-save step then failed silently, so the cache NEVER
+      # persisted and every release recompiled the full dep tree (candle,
+      # librqbit, ... ~11 min). Hand ownership back before anything tries to
+      # read or save the tree.
+      - name: Fix target ownership (container leg)
+        if: always() && matrix.image != ''
+        run: sudo chown -R "$(id -u):$(id -g)" server/target || true
 
       # Stage + zstd-pack each binary (and build its vite frontend) into
-      # dist/modules/<id>-<target>.lmod (+ a .sha256 sidecar each). On cross
-      # legs LMOD_SKIP_BUILD reuses the binaries the container just produced;
+      # dist/modules/<id>-<target>.kmod (+ a .sha256 sidecar each). On cross
+      # legs KMOD_SKIP_BUILD reuses the binaries the container just produced;
       # native legs compile with the host toolchain inside modules:pack.
       - name: Pack all modules
         env:
-          LMOD_SKIP_BUILD: ${{ matrix.image != '' && '1' || '0' }}
+          KMOD_SKIP_BUILD: ${{ matrix.image != '' && '1' || '0' }}
         run: bun run modules:pack
 
-      - name: Upload .lmod artifacts (+ checksums)
+      - name: Upload .kmod artifacts (+ checksums)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-modules-${{ matrix.target }}
-          path: dist/modules/*.lmod*
+          name: kroma-modules-${{ matrix.target }}
+          path: dist/modules/*.kmod*
           if-no-files-found: error
 
   # The module registry index: merge every target's bundles, generate the
@@ -192,20 +242,27 @@ jobs:
       - name: Collect every target's bundles
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: luma-modules-*
+          pattern: kroma-modules-*
           path: dist/modules
           merge-multiple: true
 
       - name: Generate the catalog
         run: |
+          # Nightly bundles live under the rolling `nightly` release, stable
+          # ones under the version tag.
+          if [ "${{ needs.version.outputs.channel }}" = "nightly" ]; then
+            REF="nightly"
+          else
+            REF="v${{ needs.version.outputs.version }}"
+          fi
           bun run scripts/gen-registry.ts \
-            --base "https://github.com/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}"
+            --base "https://github.com/${{ github.repository }}/releases/download/$REF"
           cp dist/registry/catalog.json dist/registry/modules.json
 
       - name: Upload registry artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-modules-registry
+          name: kroma-modules-registry
           path: dist/registry/modules.json
           if-no-files-found: error
 
@@ -218,7 +275,7 @@ jobs:
           # publish job below flips this one live with every asset present.
           draft: true
           files: |
-            dist/modules/*.lmod*
+            dist/modules/*.kmod*
             dist/registry/modules.json
 
   # -------------------------------------------------------------------- TV ---
@@ -226,7 +283,7 @@ jobs:
   webos:
     name: webOS .ipk (modern + legacy tiers)
     needs: version
-    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
+    if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -260,7 +317,7 @@ jobs:
       - name: Upload .ipk artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-webos-ipk
+          name: kroma-webos-ipk
           path: clients/webos/out/*.ipk
           if-no-files-found: error
 
@@ -277,7 +334,7 @@ jobs:
   tizen:
     name: Tizen .wgt (dev-certificate signed)
     needs: version
-    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
+    if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -285,7 +342,7 @@ jobs:
       # Throwaway author certificate generated per run: Samsung TVs in developer
       # mode accept any author cert (re-installing over an app signed with a
       # DIFFERENT cert requires uninstalling it first).
-      TIZEN_CERT_PASS: lumaci-2026
+      TIZEN_CERT_PASS: kromaci-2026
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -327,22 +384,22 @@ jobs:
 
       - name: Create signing profile (throwaway author certificate)
         run: |
-          tizen certificate -a LUMA -p "$TIZEN_CERT_PASS" -f luma-ci
-          tizen security-profiles add -n luma-ci \
-            -a "$HOME/tizen-studio-data/keystore/author/luma-ci.p12" -p "$TIZEN_CERT_PASS"
+          tizen certificate -a KROMA -p "$TIZEN_CERT_PASS" -f kroma-ci
+          tizen security-profiles add -n kroma-ci \
+            -a "$HOME/tizen-studio-data/keystore/author/kroma-ci.p12" -p "$TIZEN_CERT_PASS"
           # The CLI records password FILE references it cannot read back in a
           # headless run; inline the plaintext passwords (no-ops if not present).
           P="$HOME/tizen-studio-data/profile/profiles.xml"
-          sed -i "s|password=\"[^\"]*luma-ci\.pwd\"|password=\"$TIZEN_CERT_PASS\"|g" "$P"
+          sed -i "s|password=\"[^\"]*kroma-ci\.pwd\"|password=\"$TIZEN_CERT_PASS\"|g" "$P"
           sed -i "s|password=\"[^\"]*tizen-distributor-signer\.pwd\"|password=\"tizenpkcs12passfordsigner\"|g" "$P"
 
       - name: Package .wgt
-        run: tizen package -t wgt -s luma-ci -- clients/tizen/dist
+        run: tizen package -t wgt -s kroma-ci -- clients/tizen/dist
 
       - name: Upload .wgt artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-tizen-wgt
+          name: kroma-tizen-wgt
           path: clients/tizen/dist/*.wgt
           if-no-files-found: error
 
@@ -359,7 +416,7 @@ jobs:
   androidtv:
     name: Android TV .apk
     needs: version
-    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets) }}
+    if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -381,7 +438,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Web bundle (production) -> synced into android/app/src/main/assets/luma.
+      # Web bundle (production) -> synced into android/app/src/main/assets/kroma.
       - name: Build web bundle
         run: bun run build:androidtv
 
@@ -401,12 +458,12 @@ jobs:
             echo "apk=debug/app-debug.apk" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/luma.keystore"
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/kroma.keystore"
           {
-            echo "LUMA_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/luma.keystore"
-            echo "LUMA_ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
-            echo "LUMA_ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
-            echo "LUMA_ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+            echo "KROMA_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/kroma.keystore"
+            echo "KROMA_ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "KROMA_ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "KROMA_ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
           echo "task=assembleRelease" >> "$GITHUB_OUTPUT"
           echo "apk=release/app-release.apk" >> "$GITHUB_OUTPUT"
@@ -416,15 +473,15 @@ jobs:
           # versionCode: minutes since 2020, monotonic across releases.
           VC=$(( ( $(date -u +%s) - 1577836800 ) / 60 ))
           gradle -p clients/androidtv/android ${{ steps.ks.outputs.task }} \
-            -PlumaVersion="${{ needs.version.outputs.triplet }}" -PlumaVersionCode="$VC"
+            -PkromaVersion="${{ needs.version.outputs.triplet }}" -PkromaVersionCode="$VC"
           mkdir -p out
           cp "clients/androidtv/android/app/build/outputs/apk/${{ steps.ks.outputs.apk }}" \
-            "out/LUMA-androidtv-${{ needs.version.outputs.version }}.apk"
+            "out/KROMA-androidtv-${{ needs.version.outputs.version }}.apk"
 
       - name: Upload .apk artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-androidtv-apk
+          name: kroma-androidtv-apk
           path: out/*.apk
           if-no-files-found: error
 
@@ -442,7 +499,8 @@ jobs:
 
   desktop:
     name: Desktop ${{ matrix.label }}
-    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","desktop"]'), github.event.inputs.targets) }}
+    needs: version
+    if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","desktop"]'), github.event.inputs.targets)) }}
     strategy:
       fail-fast: false
       matrix:
@@ -452,14 +510,16 @@ jobs:
           - os: macos-14
             label: 'macOS (.dmg)'
             bundles: app,dmg
-            artifact: luma-desktop-macos
+            artifact: kroma-desktop-macos
             files: |
               clients/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-          # NSIS .exe installer + .msi.
+          # NSIS .exe installer + .msi. Nightly builds drop the .msi: WiX wants
+          # a numeric a.b.c[.d] and rejects the -nightly.YYYYMMDD prerelease.
           - os: windows-latest
             label: 'Windows (.exe + .msi)'
             bundles: nsis,msi
-            artifact: luma-desktop-windows
+            nightly_bundles: nsis
+            artifact: kroma-desktop-windows
             files: |
               clients/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
               clients/desktop/src-tauri/target/release/bundle/msi/*.msi
@@ -468,7 +528,7 @@ jobs:
           - os: ubuntu-22.04
             label: 'Linux (.AppImage + .deb)'
             bundles: appimage,deb
-            artifact: luma-desktop-linux
+            artifact: kroma-desktop-linux
             files: |
               clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
               clients/desktop/src-tauri/target/release/bundle/deb/*.deb
@@ -507,8 +567,18 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Nightly: stamp the -nightly.YYYYMMDD version so the installers carry it
+      # (stable tags rely on the committed tauri.conf.json version).
+      - name: Stamp nightly version
+        if: needs.version.outputs.channel == 'nightly'
+        shell: bash
+        env:
+          VER: ${{ needs.version.outputs.version }}
+        run: |
+          node -e "const f='clients/desktop/src-tauri/tauri.conf.json';const fs=require('fs');const j=JSON.parse(fs.readFileSync(f,'utf8'));j.version=process.env.VER;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+
       # Bundle a self-contained mpv (pinned pkgforge AppImage, sha256-verified) as
-      # the `luma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
+      # the `kroma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
       - name: Fetch bundled mpv (Linux sidecar)
         if: runner.os == 'Linux'
         run: bash clients/desktop/scripts/fetch-mpv.sh
@@ -534,7 +604,7 @@ jobs:
           $json | ConvertTo-Json -Depth 30 | Set-Content $conf
           Write-Host "Signing with thumbprint $($cert.Thumbprint)"
 
-      # beforeBuildCommand builds the @luma/tv frontend to dist, then Tauri bundles the
+      # beforeBuildCommand builds the @kroma/tv frontend to dist, then Tauri bundles the
       # shell + frontend into the platform installer(s). Signing is driven by repo
       # secrets: on macOS Tauri imports APPLE_CERTIFICATE + notarizes with APPLE_ID/etc;
       # on Windows the step above injects the cert. With NO secrets set the bundles are
@@ -552,7 +622,7 @@ jobs:
             echo "No APPLE_CERTIFICATE secret; building unsigned."
             echo "sign=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          kc="$RUNNER_TEMP/luma-check.keychain-db"
+          kc="$RUNNER_TEMP/kroma-check.keychain-db"
           security create-keychain -p '' "$kc"
           security unlock-keychain -p '' "$kc"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12" 2>/dev/null || true
@@ -580,7 +650,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
-        run: bun run tauri build --bundles ${{ matrix.bundles }}
+        run: bun run tauri build --bundles ${{ needs.version.outputs.channel == 'nightly' && matrix.nightly_bundles || matrix.bundles }}
 
       # macOS with a verified Developer ID cert: sign + notarize via the Apple secrets.
       - name: Build installer(s) (macOS signed)
@@ -595,7 +665,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: bun run tauri build --bundles ${{ matrix.bundles }}
+        run: bun run tauri build --bundles ${{ needs.version.outputs.channel == 'nightly' && matrix.nightly_bundles || matrix.bundles }}
 
       # Tauri's default bundler sweeps the runner's wayland/glib/gstreamer libs
       # into the AppImage, which breaks it on Mesa 25+ hosts (SteamOS 3.7+,
@@ -683,3 +753,67 @@ jobs:
               echo "warn: could not delete duplicate draft ${DUP}"
             fi
           done
+
+  # Nightly channel: gather EVERY artifact this run built and publish them onto
+  # the rolling `nightly` prerelease - the same release the per-push canary .spk
+  # (synology.yml) lives on, so one URL carries the whole nightly fleet. Old
+  # installers are cleared first (the canary .spk pair is preserved), then the
+  # new set + nightly-manifest.json (sha/version/date - also the no-new-commits
+  # guard for the next scheduled run) go up. Plain `needs` = publish only when
+  # every build succeeded, mirroring the stable draft-flip atomicity.
+  publish-nightly:
+    name: Publish the nightly prerelease
+    needs: [version, modules-catalog, webos, tizen, androidtv, desktop]
+    if: needs.version.outputs.channel == 'nightly'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # full history for the commit log in the release notes
+
+      - name: Collect every artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Publish onto the rolling nightly release
+        run: |
+          set -euo pipefail
+          gh release view nightly >/dev/null 2>&1 \
+            || gh release create nightly --prerelease --title "KROMA nightly" --notes "Rolling nightly build from main."
+
+          # Previous nightly sha (for the commit log) before we overwrite it.
+          LAST="$(gh release download nightly -p nightly-manifest.json -O - 2>/dev/null | jq -r '.sha // empty' || true)"
+
+          # Clear last night's assets; keep the per-push canary .spk pair.
+          for A in $(gh api "repos/${GH_REPO}/releases/tags/nightly" \
+              --jq '.assets[] | select(.name | startswith("kroma-nightly-x86_64.spk") | not) | .id'); do
+            gh api -X DELETE "repos/${GH_REPO}/releases/assets/${A}" >/dev/null
+          done
+
+          jq -n --arg sha "$GITHUB_SHA" --arg version "$VERSION" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{sha: $sha, version: $version, date: $date}' > assets/nightly-manifest.json
+
+          find assets -type f | sort
+          find assets -type f -print0 | xargs -0 gh release upload nightly --clobber
+
+          {
+            echo "Rolling nightly build \`$VERSION\` from \`${GITHUB_SHA::10}\`."
+            echo
+            echo "Every artifact of a stable release, rebuilt nightly from main:"
+            echo "desktop installers, TV packages, module bundles + modules.json,"
+            echo "and the per-push canary Synology .spk. Unstable by definition."
+            if [ -n "$LAST" ]; then
+              echo
+              echo "Changes since the previous nightly:"
+              git log --oneline --no-decorate "$LAST"..HEAD 2>/dev/null | head -40 | sed 's/^/- /' || true
+            fi
+          } > notes.md
+          gh release edit nightly --title "KROMA nightly ($VERSION)" --notes-file notes.md

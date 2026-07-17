@@ -11,7 +11,7 @@ import {
   type DiscoverEntry,
   formatRuntime,
   hasPermission,
-  type LumaClient,
+  type KromaClient,
   type MediaItem,
   type RequestStatus,
   type Season,
@@ -21,7 +21,7 @@ import {
   type UpNext,
   type User,
   type VideoTrack,
-} from '@luma/core';
+} from '@kroma/core';
 import { imageUrl } from '#web/shared/lib/api';
 
 /** A season in the unified model: owned playable episodes merged with TMDB
@@ -102,7 +102,7 @@ export type TitleInput =
   | { source: 'discover'; detail: DiscoverDetail };
 
 export function buildTitleView(
-  c: LumaClient,
+  c: KromaClient,
   t: Translate,
   user: User | null,
   input: TitleInput,

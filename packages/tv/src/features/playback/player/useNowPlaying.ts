@@ -1,4 +1,4 @@
-import type { LumaClient, MediaItem } from '@luma/core';
+import type { KromaClient, MediaItem } from '@kroma/core';
 import { useCallback, useEffect, useRef } from 'react';
 import { getTauri } from '#tv/features/playback/player/engine';
 
@@ -45,7 +45,7 @@ function rasterize(blob: Blob, w = 342, h = 513): Promise<Uint8Array | null> {
 
 /** Best-effort poster bytes for the OS widget: prefer the real cached art, falling back
  * to a full-item fetch if the passed item is a lightweight one missing its metadata. */
-async function resolveArtwork(client: LumaClient, item: MediaItem): Promise<number[]> {
+async function resolveArtwork(client: KromaClient, item: MediaItem): Promise<number[]> {
   try {
     const full = item.metadata?.posterUrl ? item : await client.item(item.id).catch(() => item);
     const blob = await client.posterBlob(full);
@@ -64,7 +64,7 @@ async function resolveArtwork(client: LumaClient, item: MediaItem): Promise<numb
  * rasterized on item change; play/pause just updates the rate + elapsed time.
  */
 export function useNowPlaying(
-  client: LumaClient,
+  client: KromaClient,
   item: MediaItem,
   title: string,
   subtitle: string,
@@ -74,7 +74,7 @@ export function useNowPlaying(
   seekTo: (sec: number) => void,
 ): void {
   const bridge = getTauri();
-  const active = !!bridge && '__LUMA_MPV__' in globalThis;
+  const active = !!bridge && '__KROMA_MPV__' in globalThis;
 
   // Current values in refs so the poster/seek effects don't re-run on every position tick
   // (they only care about item changes / play-pause), yet always send fresh data.

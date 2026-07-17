@@ -11,11 +11,11 @@
 #include <mpv/render_gl.h>
 
 // Rust callbacks (libmpv_mac.rs): a MacBook media key was pressed / the OS scrubber moved.
-extern void luma_media_key_pressed(const char* action);
-extern void luma_media_seek(double position);
+extern void kroma_media_key_pressed(const char* action);
+extern void kroma_media_seek(double position);
 
 // Resolve a GL function pointer from the system OpenGL framework (for mpv's renderer).
-static void* luma_gl_get_proc(void* ctx, const char* name) {
+static void* kroma_gl_get_proc(void* ctx, const char* name) {
     (void)ctx;
     static CFBundleRef bundle = NULL;
     if (bundle == NULL) {
@@ -28,7 +28,7 @@ static void* luma_gl_get_proc(void* ctx, const char* name) {
     return p;
 }
 
-@interface LumaMpvView : NSOpenGLView {
+@interface KromaMpvView : NSOpenGLView {
 @public
     mpv_render_context* render_ctx;
     CVDisplayLinkRef link;
@@ -40,9 +40,9 @@ static void* luma_gl_get_proc(void* ctx, const char* name) {
 @end
 
 // The single GL view, so a file switch (mpv_load) can request a one-shot clear.
-static LumaMpvView* g_mpv_view = nil;
+static KromaMpvView* g_mpv_view = nil;
 
-@implementation LumaMpvView
+@implementation KromaMpvView
 
 // Render mpv's current frame into the view's default framebuffer (fbo 0). Locked so the
 // CVDisplayLink thread and the main thread (drawRect/resize) never touch GL at once.
@@ -110,24 +110,24 @@ static LumaMpvView* g_mpv_view = nil;
 @end
 
 // CVDisplayLink tick -> render the next frame (runs on a background thread).
-static CVReturn luma_display_cb(CVDisplayLinkRef dl, const CVTimeStamp* now,
+static CVReturn kroma_display_cb(CVDisplayLinkRef dl, const CVTimeStamp* now,
                                 const CVTimeStamp* outT, CVOptionFlags flags,
                                 CVOptionFlags* flagsOut, void* ctx) {
     (void)dl; (void)now; (void)outT; (void)flags; (void)flagsOut;
     @autoreleasepool {
-        [(LumaMpvView*)ctx renderFrame:NO];
+        [(KromaMpvView*)ctx renderFrame:NO];
     }
     return kCVReturnSuccess;
 }
 
 // mpv signals a new frame is ready; the CVDisplayLink renders continuously, so no-op.
-static void luma_mpv_update_cb(void* ctx) {
+static void kroma_mpv_update_cb(void* ctx) {
     (void)ctx;
 }
 
 // Request a one-shot clear of the GL view (called from mpv_load on a file switch, so the
 // previous video's last frame doesn't linger while the next buffers).
-void luma_mpv_request_clear(void) {
+void kroma_mpv_request_clear(void) {
     if (g_mpv_view != nil) g_mpv_view->needsClear = YES;
 }
 
@@ -137,40 +137,40 @@ void luma_mpv_request_clear(void) {
 // which re-emits it to the frontend player. MUST run on the main thread.
 // Enable a remote command and forward each press to Rust as the given action string (a
 // static literal, safe to capture in the handler block).
-static void luma_bind_command(MPRemoteCommand* cmd, const char* action) {
+static void kroma_bind_command(MPRemoteCommand* cmd, const char* action) {
     cmd.enabled = YES;
     [cmd addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent* e) {
         (void)e;
-        luma_media_key_pressed(action);
+        kroma_media_key_pressed(action);
         return MPRemoteCommandHandlerStatusSuccess;
     }];
 }
 
-void luma_setup_media_keys(void) {
+void kroma_setup_media_keys(void) {
     MPRemoteCommandCenter* cc = [MPRemoteCommandCenter sharedCommandCenter];
-    luma_bind_command(cc.togglePlayPauseCommand, "playpause");
-    luma_bind_command(cc.playCommand, "play");
-    luma_bind_command(cc.pauseCommand, "pause");
-    luma_bind_command(cc.nextTrackCommand, "next");
-    luma_bind_command(cc.previousTrackCommand, "prev");
+    kroma_bind_command(cc.togglePlayPauseCommand, "playpause");
+    kroma_bind_command(cc.playCommand, "play");
+    kroma_bind_command(cc.pauseCommand, "pause");
+    kroma_bind_command(cc.nextTrackCommand, "next");
+    kroma_bind_command(cc.previousTrackCommand, "prev");
     // Dragging the scrubber in Control Center → seek to an absolute position.
     cc.changePlaybackPositionCommand.enabled = YES;
     [cc.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent* e) {
         MPChangePlaybackPositionCommandEvent* pe = (MPChangePlaybackPositionCommandEvent*)e;
-        luma_media_seek(pe.positionTime);
+        kroma_media_seek(pe.positionTime);
         return MPRemoteCommandHandlerStatusSuccess;
     }];
 
     // No placeholder nowPlayingInfo here on purpose: the real title / poster / playback
-    // state is established by luma_set_now_playing on the first play, so Control Center
-    // never advertises a fake "LUMA playing" while nothing is playing. The command targets
+    // state is established by kroma_set_now_playing on the first play, so Control Center
+    // never advertises a fake "KROMA playing" while nothing is playing. The command targets
     // above stay registered and become live once nowPlayingInfo is set.
 }
 
 // Update the OS Now Playing widget (Control Center / lock screen) with the current
 // item's title, subtitle, poster + progress. `artwork`/`artwork_len` may be empty to
 // keep the current poster (so play/pause updates don't re-send the image). Main thread.
-void luma_set_now_playing(const char* title, const char* artist, double duration,
+void kroma_set_now_playing(const char* title, const char* artist, double duration,
                           double position, double rate, const unsigned char* artwork,
                           size_t artwork_len) {
     MPNowPlayingInfoCenter* np = [MPNowPlayingInfoCenter defaultCenter];
@@ -207,7 +207,7 @@ void luma_set_now_playing(const char* title, const char* artist, double duration
 // Create the GL view behind the app's webview + the mpv render context bound to it, and
 // make the app window + webview see-through. Returns 0 on success. MUST run on the main
 // thread. `mpv_handle_ptr` is the raw mpv_handle*.
-int luma_mpv_render_setup(void* parent_nswindow, void* mpv_handle_ptr) {
+int kroma_mpv_render_setup(void* parent_nswindow, void* mpv_handle_ptr) {
     NSWindow* parent = (NSWindow*)parent_nswindow;
     mpv_handle* mpv = (mpv_handle*)mpv_handle_ptr;
     if (parent == nil || mpv == NULL) return -1;
@@ -224,7 +224,7 @@ int luma_mpv_render_setup(void* parent_nswindow, void* mpv_handle_ptr) {
     if (pf == nil) return -2;
 
     NSView* content = [parent contentView];
-    LumaMpvView* view = [[LumaMpvView alloc] initWithFrame:[content bounds] pixelFormat:pf];
+    KromaMpvView* view = [[KromaMpvView alloc] initWithFrame:[content bounds] pixelFormat:pf];
     if (view == nil) return -3;
     view->render_ctx = NULL;
     view->link = NULL;
@@ -256,7 +256,7 @@ int luma_mpv_render_setup(void* parent_nswindow, void* mpv_handle_ptr) {
     // Create the mpv render context (the GL context must be current).
     [[view openGLContext] makeCurrentContext];
     mpv_opengl_init_params gl_init;
-    gl_init.get_proc_address = luma_gl_get_proc;
+    gl_init.get_proc_address = kroma_gl_get_proc;
     gl_init.get_proc_address_ctx = NULL;
     mpv_render_param params[] = {
         {MPV_RENDER_PARAM_API_TYPE, (void*)MPV_RENDER_API_TYPE_OPENGL},
@@ -265,10 +265,10 @@ int luma_mpv_render_setup(void* parent_nswindow, void* mpv_handle_ptr) {
     };
     int rc = mpv_render_context_create(&view->render_ctx, mpv, params);
     if (rc < 0) {
-        NSLog(@"LUMA: mpv_render_context_create failed: %d", rc);
+        NSLog(@"KROMA: mpv_render_context_create failed: %d", rc);
         return -4;
     }
-    mpv_render_context_set_update_callback(view->render_ctx, luma_mpv_update_cb, (void*)view);
+    mpv_render_context_set_update_callback(view->render_ctx, kroma_mpv_update_cb, (void*)view);
 
     // Seed the backing size on the main thread before the display link starts (reshape
     // keeps it current thereafter), so the first render already has a valid framebuffer.
@@ -278,7 +278,7 @@ int luma_mpv_render_setup(void* parent_nswindow, void* mpv_handle_ptr) {
 
     // Drive rendering off a display link.
     CVDisplayLinkCreateWithActiveCGDisplays(&view->link);
-    CVDisplayLinkSetOutputCallback(view->link, luma_display_cb, (void*)view);
+    CVDisplayLinkSetOutputCallback(view->link, kroma_display_cb, (void*)view);
     CVDisplayLinkStart(view->link);
     return 0;
 }

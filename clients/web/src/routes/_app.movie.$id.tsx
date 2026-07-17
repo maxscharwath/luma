@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { TitleDetail } from '#web/features/catalog/title-detail';

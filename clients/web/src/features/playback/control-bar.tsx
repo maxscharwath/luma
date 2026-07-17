@@ -1,5 +1,5 @@
-import { formatTimecode as fmtTime, type Marker } from '@luma/core';
-import { useT } from '@luma/ui';
+import { formatTimecode as fmtTime, type Marker } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Slider from '@radix-ui/react-slider';
 import {

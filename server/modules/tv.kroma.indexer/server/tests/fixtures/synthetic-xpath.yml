@@ -1,0 +1,37 @@
+# Clean-room Cardigann definition using XPath selectors (authored for KROMA's
+# tests; NOT derived from any GPL definition set).
+---
+id: synthetic-xpath
+name: Synthetic XPath Tracker
+type: public
+encoding: UTF-8
+links:
+  - https://xp.example/
+
+caps:
+  categorymappings:
+    - {id: 1, cat: Movies/HD, desc: "Movies HD"}
+  modes:
+    search: [q]
+  allowrawsearch: true
+
+search:
+  paths:
+    - path: "search?q={{ .Keywords }}"
+  rows:
+    selector: "//table[@class='results']//tr[@class='torrent']"
+  fields:
+    title:
+      selector: "td[@class='name']/a"
+    details:
+      selector: "td[@class='name']/a"
+      attribute: href
+    download:
+      selector: "td[@class='dl']/a"
+      attribute: href
+    size:
+      selector: "td[@class='size']"
+    seeders:
+      selector: "td[@class='seeds']"
+    leechers:
+      selector: "td[@class='leech']"

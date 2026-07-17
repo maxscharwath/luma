@@ -1,4 +1,4 @@
-import { LumaIntro } from '@luma/ui';
+import { KromaIntro } from '@kroma/ui';
 import { useEffect, useState } from 'react';
 import { type RedirectRule, resolveRedirect } from '#tv/app/guard';
 import { AuthProvider, useAuth } from '#tv/app/providers/auth';
@@ -42,7 +42,7 @@ export interface TvAppProps {
 
 // The brand intro plays once per launch. sessionStorage survives Vite HMR (so dev
 // reloads don't replay it) but is fresh on a real TV cold-start.
-const INTRO_SEEN_KEY = 'luma:intro-seen';
+const INTRO_SEEN_KEY = 'kroma:intro-seen';
 const introAlreadySeen = (() => {
   try {
     return sessionStorage.getItem(INTRO_SEEN_KEY) === '1';
@@ -83,7 +83,7 @@ export function TvApp({ platform = 'TV', capabilities }: Readonly<TvAppProps>) {
         </ConnectionProvider>
       </TvNavProvider>
       {introDone ? null : (
-        <LumaIntro
+        <KromaIntro
           lite
           onDone={() => {
             try {

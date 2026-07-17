@@ -1,8 +1,8 @@
-# LUMA Server
+# KROMA Server
 
-> Part of the [LUMA](../README.md) monorepo self-hosted, direct-play, HEVC-first media streaming.
+> Part of the [KROMA](../README.md) monorepo self-hosted, direct-play, HEVC-first media streaming.
 
-A self-hosted, **direct-play** media streaming server for the LUMA project
+A self-hosted, **direct-play** media streaming server for the KROMA project
 think a minimal, Plex-like backend.
 
 It does three things:
@@ -17,7 +17,7 @@ decodes HEVC/H.265, AV1, H.264, etc. itself. `ffprobe` is used *only* to read
 metadata there is no ffmpeg encode pipeline. If `ffprobe` is missing, the
 server still runs and infers the codec from the file extension.
 
-The library is persisted in **SQLite** (`<data>/luma.db`, WAL mode). A scan
+The library is persisted in **SQLite** (`<data>/kroma.db`, WAL mode). A scan
 computes the full set of libraries/shows/items and atomically swaps it in; reads
 run on a small connection pool. The storage layer is a hand-rolled WAL pool over
 `rusqlite` (bundled SQLite) no system libsqlite3 required.
@@ -51,7 +51,7 @@ A library's `kind` (`movies` / `shows` / `mixed`) is derived from what it holds.
 cargo run
 
 # Point it at real libraries (OS path-separator OR comma separated):
-LUMA_MEDIA_DIRS="/mnt/movies:/mnt/tv" cargo run
+KROMA_MEDIA_DIRS="/mnt/movies:/mnt/tv" cargo run
 
 # Then, in another shell:
 curl -s http://localhost:4040/api/health | jq
@@ -67,13 +67,13 @@ All configuration is via environment variables:
 
 | Variable           | Default     | Description                                                            |
 | ------------------ | ----------- | --------------------------------------------------------------------- |
-| `LUMA_HOST`        | `0.0.0.0`   | Interface to bind.                                                     |
-| `LUMA_PORT`        | `4040`      | TCP port to listen on.                                                 |
-| `LUMA_MEDIA_DIRS`  | *(empty)*   | Library roots to scan. OS-path-separator (`:` / `;`) or comma list.    |
-| `LUMA_DATA_DIR`    | `./data`    | Where the SQLite database (`luma.db`) lives.                          |
-| `LUMA_TMDB_API_KEY`| *(empty)*   | TMDB API key → enables movie/show metadata. Unset = feature off.       |
-| `LUMA_TMDB_LANGUAGE`| `en-US`    | TMDB language for titles/overviews, e.g. `fr-FR`.                      |
-| `RUST_LOG`         | `info`      | Standard `tracing` filter, e.g. `luma_server=debug`.                  |
+| `KROMA_HOST`        | `0.0.0.0`   | Interface to bind.                                                     |
+| `KROMA_PORT`        | `4040`      | TCP port to listen on.                                                 |
+| `KROMA_MEDIA_DIRS`  | *(empty)*   | Library roots to scan. OS-path-separator (`:` / `;`) or comma list.    |
+| `KROMA_DATA_DIR`    | `./data`    | Where the SQLite database (`kroma.db`) lives.                          |
+| `KROMA_TMDB_API_KEY`| *(empty)*   | TMDB API key → enables movie/show metadata. Unset = feature off.       |
+| `KROMA_TMDB_LANGUAGE`| `en-US`    | TMDB language for titles/overviews, e.g. `fr-FR`.                      |
+| `RUST_LOG`         | `info`      | Standard `tracing` filter, e.g. `kroma_server=debug`.                  |
 
 ## Data model
 
@@ -140,10 +140,10 @@ All routes are prefixed with `/api`. CORS is permissive (self-hosted LAN use).
 
 ## Metadata (TMDB)
 
-Items are enriched from [TMDB](https://www.themoviedb.org). LUMA ships a built-in
+Items are enriched from [TMDB](https://www.themoviedb.org). KROMA ships a built-in
 application key (`BUILTIN_TMDB_API_KEY` in `src/config.rs`) so this works out of
 the box with no per-install token the same approach Overseerr/Jellyseerr/Seerr
-take. Override it for your own install with `LUMA_TMDB_API_KEY`.
+take. Override it for your own install with `KROMA_TMDB_API_KEY`.
 
 The server resolves a movie/show by its parsed title + year, then returns the
 overview, poster/backdrop URLs, genres, rating, and both the **TMDB** and
@@ -198,7 +198,7 @@ curl -s http://localhost:4040/api/items/<id>
 # Poster (SVG)
 curl -s http://localhost:4040/api/items/<id>/poster -o poster.svg
 
-# Metadata (needs LUMA_TMDB_API_KEY)
+# Metadata (needs KROMA_TMDB_API_KEY)
 curl -s http://localhost:4040/api/items/<id>/metadata | jq
 
 # Stream full file
@@ -217,15 +217,15 @@ curl -s -X POST http://localhost:4040/api/scan
 
 ```bash
 # Build
-docker build -t luma-server .
+docker build -t kroma-server .
 
 # Run, mounting a media folder read-only and publishing the port.
 docker run --rm \
   -p 4040:4040 \
-  -e LUMA_MEDIA_DIRS=/media/movies \
+  -e KROMA_MEDIA_DIRS=/media/movies \
   -v /path/on/host/movies:/media/movies:ro \
-  -v luma-data:/data \
-  luma-server
+  -v kroma-data:/data \
+  kroma-server
 ```
 
 The runtime image installs `ffmpeg` (which provides `ffprobe`).
@@ -236,8 +236,8 @@ Build or pull the image for your NAS CPU architecture `linux/amd64` for
 Intel/AMD models, `linux/arm64` for ARM models:
 
 ```bash
-docker buildx build --platform linux/arm64 -t luma-server:arm64 .
+docker buildx build --platform linux/arm64 -t kroma-server:arm64 .
 ```
 
-Bind-mount your shared folders and point `LUMA_MEDIA_DIRS` at the in-container
+Bind-mount your shared folders and point `KROMA_MEDIA_DIRS` at the in-container
 paths, exactly as in the `docker run` example above.

@@ -1,7 +1,7 @@
-// @luma/core shared domain logic (media/HEVC direct-play, player, i18n, remote,
-// formatting, permissions). It re-exports @luma/client so app code can keep
-// importing the API client, wire types and schemas from `@luma/core` unchanged.
-export * from '@luma/client';
+// @kroma/core shared domain logic (media/HEVC direct-play, player, i18n, remote,
+// formatting, permissions). It re-exports @kroma/client so app code can keep
+// importing the API client, wire types and schemas from `@kroma/core` unchanged.
+export * from '@kroma/client';
 export * from './discover';
 export * from './format';
 export * from './hevc';

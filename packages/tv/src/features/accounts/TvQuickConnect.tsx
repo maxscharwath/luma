@@ -1,10 +1,10 @@
-import type { AuthResult, LumaClient, MessageKey, QuickConnectInit } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AuthResult, KromaClient, MessageKey, QuickConnectInit } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useEffect, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
-import { AuthScreen, LumaMark } from '#tv/shared/ui';
+import { AuthScreen, KromaMark } from '#tv/shared/ui';
 import { useFocusNav } from '#tv/app/useFocusNav';
 
 /**
@@ -84,7 +84,7 @@ export function TvQuickConnect() {
   return (
     <AuthScreen>
       <div className="mb-9">
-        <LumaMark size={40} />
+        <KromaMark size={40} />
       </div>
       <h1 className="m-0 mb-4 font-display text-[44px] font-semibold leading-none">
         {t('connect.quickConnect')}
@@ -92,7 +92,7 @@ export function TvQuickConnect() {
       <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-border bg-[rgba(255,255,255,0.05)] px-4 py-2.25">
         <span className="h-2 w-2 rounded-full bg-accent" />
         <span className="font-sans text-[15px] font-semibold text-[rgba(244,243,240,0.88)]">
-          {activeServerName ?? 'LUMA'}
+          {activeServerName ?? 'KROMA'}
         </span>
       </div>
 
@@ -138,7 +138,7 @@ export function TvQuickConnect() {
 }
 
 /** Resolve the web `/connect?code=` URL for the QR. */
-function connectUrl(client: LumaClient, code: string, serverUrl?: string | null): string {
+function connectUrl(client: KromaClient, code: string, serverUrl?: string | null): string {
   if (serverUrl) return serverUrl;
   try {
     const u = new URL(client.baseUrl);

@@ -1,0 +1,17 @@
+[package]
+name = "kroma-db"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "SQLite persistence layer: connection pool + all SQL, one table per domain noun"
+license.workspace = true
+
+[dependencies]
+kroma-domain = { workspace = true }
+kroma-primitives = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+# Embedded SQLite compiled from source (bundled) — no system libsqlite3 needed.
+rusqlite = { workspace = true }

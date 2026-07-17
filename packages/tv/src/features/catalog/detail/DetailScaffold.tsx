@@ -1,4 +1,4 @@
-import { posterColors } from '@luma/core';
+import { posterColors } from '@kroma/core';
 import type { ReactNode } from 'react';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { badgeClasses, TvArt } from '#tv/shared/TvMedia';

@@ -1,4 +1,4 @@
-import { dispatchRemoteKey, type RemoteKeyMap, resolveRemoteKey } from '@luma/core';
+import { dispatchRemoteKey, type RemoteKeyMap, resolveRemoteKey } from '@kroma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTauri } from '#tv/features/playback/player/engine';
 import { useOverlayFocus } from '#tv/features/playback/player/useOverlayFocus';

@@ -72,27 +72,27 @@ else
 fi
 
 # Tauri's linuxdeploy pass patchelf's every executable in usr/bin, which
-# CORRUPTS the static-pie runtime of the luma-mpv sidecar AppImage: the bundled
+# CORRUPTS the static-pie runtime of the kroma-mpv sidecar AppImage: the bundled
 # copy SIGSEGVs instantly on every machine (so each video-output rung "fails"
 # and the IPC socket never appears), while the pristine pkgforge artifact runs
 # fine. Restore the pristine bytes fetched by fetch-mpv.sh.
-SIDECAR="$APPDIR/usr/bin/luma-mpv"
-PRISTINE="$SCRIPT_DIR/../src-tauri/bin/luma-mpv-x86_64-unknown-linux-gnu"
+SIDECAR="$APPDIR/usr/bin/kroma-mpv"
+PRISTINE="$SCRIPT_DIR/../src-tauri/bin/kroma-mpv-x86_64-unknown-linux-gnu"
 if [ -f "$SIDECAR" ]; then
   if [ -f "$PRISTINE" ]; then
     if [ "$(sum_of "$SIDECAR")" != "$(sum_of "$PRISTINE")" ]; then
       install -m 0755 "$PRISTINE" "$SIDECAR"
-      echo "fix-appimage: restored pristine luma-mpv sidecar (bundler patchelf corrupted it)"
+      echo "fix-appimage: restored pristine kroma-mpv sidecar (bundler patchelf corrupted it)"
     else
-      echo "fix-appimage: luma-mpv sidecar already pristine"
+      echo "fix-appimage: kroma-mpv sidecar already pristine"
     fi
   elif [ "${CI:-}" = "true" ]; then
     # In CI the pristine file must exist (fetch-mpv.sh runs before the build);
     # shipping the corrupted sidecar would brick native playback.
-    echo "fix-appimage: pristine luma-mpv missing (run scripts/fetch-mpv.sh first)" >&2
+    echo "fix-appimage: pristine kroma-mpv missing (run scripts/fetch-mpv.sh first)" >&2
     exit 1
   else
-    echo "fix-appimage: WARNING: pristine luma-mpv not found; sidecar left as bundled (likely corrupt)" >&2
+    echo "fix-appimage: WARNING: pristine kroma-mpv not found; sidecar left as bundled (likely corrupt)" >&2
   fi
 fi
 

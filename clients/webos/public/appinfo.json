@@ -1,10 +1,10 @@
 {
-  "id": "app.luma.webos",
+  "id": "tv.kroma.webos",
   "version": "0.1.0",
-  "vendor": "LUMA",
+  "vendor": "KROMA",
   "type": "web",
   "main": "index.html",
-  "title": "LUMA",
+  "title": "KROMA",
   "icon": "icon.png",
   "largeIcon": "icon-large.png",
   "bgColor": "#0A0A0C",

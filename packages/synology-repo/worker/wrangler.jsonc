@@ -1,0 +1,19 @@
+{
+  // KROMA dynamic Synology package source. Deploy from this directory:
+  //   bunx wrangler deploy
+  // Optional (lifts anonymous GitHub API rate limits):
+  //   bunx wrangler secret put GITHUB_TOKEN
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kroma-packages",
+  "main": "index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "GITHUB_REPO": "maxscharwath/kroma"
+  },
+  // Custom domain: once kroma.tv is added as a zone on this Cloudflare account,
+  // uncomment to serve the package source at https://packages.kroma.tv/ (the URL
+  // pasted into DSM Package Center). Until the zone exists, `wrangler deploy`
+  // would fail on this route, so it ships on <name>.workers.dev by default.
+  // "routes": [{ "pattern": "packages.kroma.tv", "custom_domain": true }]
+}

@@ -2,8 +2,8 @@ import * as accounts from './client/accounts';
 import * as acquisition from './client/acquisition';
 import * as admin from './client/admin';
 import {
-  LumaApiError,
-  type LumaClientOptions,
+  KromaApiError,
+  type KromaClientOptions,
   preconnect,
   type RequestContext,
   requestBlob,
@@ -105,8 +105,8 @@ export type {
   RemoteAccessView,
   RemoteConnectorStatus,
 } from './client/admin';
-export type { LumaClientOptions } from './client/base';
-export { apiErrorText, LumaApiError } from './client/base';
+export type { KromaClientOptions } from './client/base';
+export { apiErrorText, KromaApiError } from './client/base';
 export type { DiscoverType } from './client/discovery';
 export type { StoryboardManifest } from './client/media';
 export type {
@@ -132,13 +132,13 @@ const NO_REFRESH = new Set([
   '/auth/quickconnect/poll',
 ]);
 
-/** Thin typed client over the LUMA server REST API. Shared by every client shell.
+/** Thin typed client over the KROMA server REST API. Shared by every client shell.
  *
  * The flat method surface is intentional call sites use `client.listMovies()`.
  * Each method is a thin delegate to a per-domain implementation in `./client/*`
  * (media, accounts, playback, library, admin), wired through a shared
  * {@link RequestContext}. */
-export class LumaClient {
+export class KromaClient {
   readonly baseUrl: string;
   private readonly fetchFn: typeof globalThis.fetch;
   private authToken?: string;
@@ -151,7 +151,7 @@ export class LumaClient {
    * always reads the current auth token / locale set on this instance. */
   private readonly ctx: RequestContext;
 
-  constructor(options: LumaClientOptions) {
+  constructor(options: KromaClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.authToken = options.authToken;
@@ -206,7 +206,7 @@ export class LumaClient {
       // routes like /auth/me, /auth/me/pin and quickconnect/authorize DO refresh.
       if (
         !retried &&
-        e instanceof LumaApiError &&
+        e instanceof KromaApiError &&
         e.status === 401 &&
         this.refreshHandler &&
         !NO_REFRESH.has(path.split('?')[0] as string)
@@ -301,7 +301,7 @@ export class LumaClient {
    * path fetched WITH the bearer token; TMDB fallbacks are absolute + fetched directly. */
   posterBlob(item: Pick<MediaItem, 'id' | 'metadata'>): Promise<Blob> {
     const raw = item.metadata?.posterUrl;
-    // Absolute (TMDB) fallback: fetch directly, no LUMA auth needed.
+    // Absolute (TMDB) fallback: fetch directly, no KROMA auth needed.
     if (raw && /^https?:\/\//.test(raw)) {
       return this.fetchFn(raw).then((r) => {
         if (!r.ok) throw new Error(`poster ${r.status}`);
@@ -743,7 +743,7 @@ export class LumaClient {
   updateSettings(patch: Record<string, unknown>): Promise<{ updated: string[] }> {
     return admin.updateSettings(this.ctx, patch);
   }
-  /** Download a portable backup as a Blob; `password` encrypts it (`.luma`). */
+  /** Download a portable backup as a Blob; `password` encrypts it (`.kroma`). */
   exportBackup(password?: string): Promise<Blob> {
     return admin.exportBackup(this.ctx, password);
   }

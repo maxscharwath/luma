@@ -1,0 +1,40 @@
+[package]
+name = "kroma-vector"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Content embeddings (lexical default + optional MiniLM/candle semantic backend)"
+license.workspace = true
+
+[[bin]]
+# The module's `.kmod` entrypoint: a port-provider-only sidecar serving the
+# embedder over HTTP (see src/bin/module.rs).
+name = "kroma-module-vector"
+path = "src/bin/module.rs"
+
+[features]
+# Off by default: the dependency-free lexical embedder is the default backend.
+# `semantic` pulls in the MiniLM sentence-transformer via candle.
+semantic = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
+
+[dependencies]
+kroma-module-sdk = { workspace = true }
+# The `.kmod` binary: the out-of-process runtime + axum for the embedder routes.
+kroma-module-runtime = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+
+# Auto-enable Metal on Apple-Silicon dev builds (see kroma-whisper for the
+# rationale); inert until `semantic` pulls candle in.
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { workspace = true, optional = true, features = ["metal"] }
+candle-nn = { workspace = true, optional = true, features = ["metal"] }
+candle-transformers = { workspace = true, optional = true, features = ["metal"] }

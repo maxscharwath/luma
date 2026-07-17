@@ -1,19 +1,19 @@
-# Contributing to LUMA
+# Contributing to KROMA
 
-Thanks for your interest in LUMA! This is a self-hosted media-streaming project
+Thanks for your interest in KROMA! This is a self-hosted media-streaming project
 a Rust server plus web and TV clients sharing one core and one design language.
 Contributions of all sizes are welcome: bug reports, fixes, docs, new platform
 shells, and design polish.
 
 ## Project layout
 
-LUMA is a [Bun](https://bun.sh) workspace monorepo with a Rust server alongside it.
+KROMA is a [Bun](https://bun.sh) workspace monorepo with a Rust server alongside it.
 
 ```
-luma/
+kroma/
 ├─ server/      Rust media server (axum) scan, SQLite, range streaming
-├─ packages/    @luma/core · @luma/ui · @luma/tv  (shared logic, UI, 10-foot experience)
-├─ clients/     @luma/web · @luma/tizen · @luma/webos  (thin platform shells)
+├─ packages/    @kroma/core · @kroma/ui · @kroma/tv  (shared logic, UI, 10-foot experience)
+├─ clients/     @kroma/web · @kroma/tizen · @kroma/webos  (thin platform shells)
 └─ design/      imported design source (tokens, components, guidelines)
 ```
 
@@ -29,14 +29,14 @@ own README for details.
 ## Getting started
 
 ```bash
-git clone https://github.com/maxscharwath/luma.git
-cd luma
+git clone https://github.com/maxscharwath/kroma.git
+cd kroma
 bun install
 bun run dev      # media server (:4040) + web client (:5173) together
 ```
 
 With no media configured, the server seeds demo titles so the UI is populated
-immediately. Point it at real files with `LUMA_MEDIA_DIRS=/path/to/media`.
+immediately. Point it at real files with `KROMA_MEDIA_DIRS=/path/to/media`.
 
 ## Before you open a PR
 
@@ -48,8 +48,8 @@ bun run build              # all frontends
 cd server && cargo build   # server (use `cargo clippy` if you have it)
 ```
 
-- Keep clients **thin** UI belongs in `@luma/ui`, logic in `@luma/core`, and the
-  shared TV experience in `@luma/tv`. Write platform code once.
+- Keep clients **thin** UI belongs in `@kroma/ui`, logic in `@kroma/core`, and the
+  shared TV experience in `@kroma/tv`. Write platform code once.
 - Match the existing style: the design language (deep-charcoal + amber, French
   copy, no emoji) is documented in [`design/readme.md`](design/readme.md).
 - Keep the server's dependency graph **lean and Rust 1.81-friendly** (see the

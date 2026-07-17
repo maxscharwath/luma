@@ -4,13 +4,13 @@
 // plays what it has and requests the gaps on one screen. Extracted from the old
 // show fiche + the discover season cards.
 
-import { type CastMember, formatRuntime, type MediaItem, posterColors } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type CastMember, formatRuntime, type MediaItem, posterColors } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconCheck, IconChevronRight, IconPlayerPlayFilled, IconPlus } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { CastRail } from '#web/features/catalog/detail';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 import type { TitleSeason } from '#web/shared/lib/titleView';
 
 function EpisodeRow({
@@ -30,7 +30,7 @@ function EpisodeRow({
   const [g1, g2] = posterColors(episode.id);
   const runtime = formatRuntime(episode.durationMs);
   const synopsis = episode.metadata?.overview;
-  const still = lumaClient().backdropFor(episode);
+  const still = kromaClient().backdropFor(episode);
   const [imgOk, setImgOk] = useState(true);
   const showImg = Boolean(still) && imgOk;
   return (

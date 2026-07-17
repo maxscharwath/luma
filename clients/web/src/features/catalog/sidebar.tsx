@@ -1,6 +1,6 @@
 import buildInfo from 'virtual:build-info';
-import { hasPermission, type MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import { hasPermission, type MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -119,7 +119,7 @@ export function MobileTopbar() {
   useEffect(() => setOpen(false), [pathname]);
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-[#0C0C0E]/95 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
-      <Link to="/" aria-label="LUMA">
+      <Link to="/" aria-label="KROMA">
         <Logo size={22} />
       </Link>
       <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -138,7 +138,7 @@ export function MobileTopbar() {
             className="fixed inset-y-0 left-0 z-50 flex w-full flex-col border-border bg-[#0C0C0E] outline-none sm:w-[min(19rem,85vw)] sm:border-r lg:hidden"
             aria-describedby={undefined}
           >
-            <Dialog.Title className="sr-only">LUMA</Dialog.Title>
+            <Dialog.Title className="sr-only">KROMA</Dialog.Title>
             <div className="flex shrink-0 items-center justify-between px-4.5 pb-2 pt-[max(1.75rem,env(safe-area-inset-top))]">
               <div className="px-2 pb-2">
                 <Logo size={26} />

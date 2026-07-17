@@ -1,5 +1,5 @@
-import type { AdminLibrary } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AdminLibrary } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconDeviceTv,
   IconFolder,

@@ -1,8 +1,8 @@
-# Authoring a LUMA module
+# Authoring a KROMA module
 
-LUMA is a modular player: the core is playback + catalog, and everything else
+KROMA is a modular player: the core is playback + catalog, and everything else
 (downloads, indexers, requests, dashboards, ...) is a **module**. A module has a
-stable **reverse-DNS id** (e.g. `dev.luma.notes`) that joins its backend and
+stable **reverse-DNS id** (e.g. `tv.kroma.notes`) that joins its backend and
 frontend halves, a `module.json` manifest, and it registers itself with zero
 hand-wiring. Pick the shape that fits, then use the commands below.
 
@@ -19,7 +19,7 @@ Start with **single-file** unless you specifically need the other two.
 ## 1. Single-file module (the default)
 
 ```
-bun run modules:new dev.luma.notes     # scaffold modules/notes.module.md
+bun run modules:new tv.kroma.notes     # scaffold modules/notes.module.md
 # edit the file: YAML frontmatter (manifest) + a ```tsx page (+ optional ```svg / ```rust / ```sql)
 bun run modules:gen                     # expand it into server/modules/<id>/ + register it
 bun run modules:validate                # schema-check every manifest
@@ -39,34 +39,34 @@ of its `.module.md` source). `id`s and derived crate names must be unique, and
 
 ## 2. Hand-written crate module
 
-Look at `server/modules/dev.luma.torrents/` (backend + frontend) as the template. Each
+Look at `server/modules/tv.kroma.torrents/` (backend + frontend) as the template. Each
 crate exports one `pub const MODULE`; `embedded_module!()` finds the module's
 `module.json` + `icon.<ext>` (or none) at compile time, so it is one line:
 
 ```rust
-use luma_module_sdk::EmbeddedModule;
-pub const MODULE: EmbeddedModule = luma_module_sdk::embedded_module!();
+use kroma_module_sdk::EmbeddedModule;
+pub const MODULE: EmbeddedModule = kroma_module_sdk::embedded_module!();
 ```
 
 Register the backend by adding the module to `modules/roster.yaml` (its `id` +
 `crate`, plus `serverModule: true` when it ships one) and running
-`bun run modules:gen`, which regenerates the `luma-modules-generated` aggregator.
+`bun run modules:gen`, which regenerates the `kroma-modules-generated` aggregator.
 For a compiled-in frontend, add it to `clients/web/src/modules/registry.ts`. A
 module that also owns admin routes + start/stop lifecycle implements
-`ServerModule` in its OWN `server/` crate (see `dev.luma.torrents`).
+`ServerModule` in its OWN `server/` crate (see `tv.kroma.torrents`).
 
 ## 3. WASM runtime module (install with no rebuild)
 
-Look at `wasm-modules/dev.luma.hellowasm/`: a `server/` extism guest (exports
+Look at `wasm-modules/tv.kroma.hellowasm/`: a `server/` extism guest (exports
 `handle_http`, proxied at `/api/plugin/<id>/*`), a `ui/` Module Federation remote
 (the page), `module.json` (with `feRemote`), and `icon.svg`.
 
 ```
-bun run modules:pack                    # -> dist/modules/<id>.lmod
-# then upload the .lmod in Admin -> Modules (Install a module)
+bun run modules:pack                    # -> dist/modules/<id>.kmod
+# then upload the .kmod in Admin -> Modules (Install a module)
 ```
 
-`.lmod` is a gzip-compressed tar of `module.json` + `module.wasm` + `icon` +
+`.kmod` is a gzip-compressed tar of `module.json` + `module.wasm` + `icon` +
 `fe/`. (`bun run modules:wasm` still emits a raw `.tar`; the install endpoint
 auto-detects gzip, so both install the same way.)
 
@@ -83,7 +83,7 @@ A module folder is:
 <id>/
   module.json      # manifest: id, deps, capabilities, config, feRemote
   server/          # Rust backend (an EmbeddedModule `MODULE` const, + extras)
-  ui/              # React frontend (a LumaModule: pages, nav, settings)
+  ui/              # React frontend (a KromaModule: pages, nav, settings)
   locales/         # en.json, fr.json (this module's translations)
   icon.svg
   README.md
@@ -106,7 +106,7 @@ pages" group), or `library` for the main sidebar. `icon` is a name (e.g.
 gates it by capability.
 
 ```ts
-import { defineModule } from '@luma/module-sdk';
+import { defineModule } from '@kroma/module-sdk';
 import { lazy } from 'react';
 import manifest from '../../module.json';
 
@@ -142,7 +142,7 @@ Admin > Modules.
 
 ## Conventions
 
-- **id**: reverse-DNS, `^[a-z0-9]+(\.[a-z0-9-]+)+$` (e.g. `dev.luma.notes`). It is
+- **id**: reverse-DNS, `^[a-z0-9]+(\.[a-z0-9-]+)+$` (e.g. `tv.kroma.notes`). It is
   the join key across backend/frontend and the schema enforces it.
 - **`MODULE`**: every compiled-in module crate exports one `pub const MODULE`.
 - **`provides`**: a manifest's `provides` (capabilities) is a *declaration* for

@@ -12,12 +12,12 @@
 //  - mpv      : force the native mpv engine (VA-API on the Linux/Deck shell).
 //  - exo      : force the native media3/ExoPlayer engine (Android TV shell).
 
-import type { MessageKey } from '@luma/core';
+import type { MessageKey } from '@kroma/core';
 import { exoAvailable, mpvAvailable } from '#tv/features/playback/player/engine';
 
 export type EnginePref = 'auto' | 'avplay' | 'webview' | 'remux' | 'mpv' | 'exo';
 
-const KEY = 'luma:engine';
+const KEY = 'kroma:engine';
 
 const ALL: readonly EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo'];
 

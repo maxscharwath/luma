@@ -1,6 +1,6 @@
 //! Smart Hub preview "cards": a 640×360 (16:9) landscape tile composited from a
 //! backdrop + dark scrims + a category **badge** (NOUVEAUTÉ / REPRENDRE), the
-//! **LUMA** brand lockup (top-right), and the title's **logo** artwork
+//! **KROMA** brand lockup (top-right), and the title's **logo** artwork
 //! (transparent PNG, drawn only when one exists no text fallback), plus an
 //! optional resume progress bar. Encoded as JPEG.
 //!
@@ -23,7 +23,7 @@ use tiny_skia::{
 const W: u32 = 640;
 const H: u32 = 360;
 const MARGIN: f32 = 28.0;
-const ACCENT: (u8, u8, u8) = (242, 180, 66); // LUMA amber
+const ACCENT: (u8, u8, u8) = (242, 180, 66); // KROMA amber
 const WHITE: (u8, u8, u8) = (245, 245, 247);
 
 // Top-left category pill geometry (shared so the brand lockup can align to it).
@@ -77,7 +77,7 @@ pub fn render(card: &Card) -> Option<Vec<u8>> {
         paint_badge(&mut pm, &card.label.to_uppercase());
     }
 
-    // LUMA brand lockup, top-right, vertically centred on the badge row.
+    // KROMA brand lockup, top-right, vertically centred on the badge row.
     paint_brand(&mut pm, MARGIN + BADGE_H / 2.0);
 
     if let Some(p) = card.progress {
@@ -145,12 +145,12 @@ fn paint_badge(pm: &mut Pixmap, text: &str) {
     );
 }
 
-/// Top-right LUMA brand lockup: an amber aperture mark (ring + centre dot)
-/// followed by the "LUMA" wordmark, right-aligned to the margin and vertically
+/// Top-right KROMA brand lockup: an amber aperture mark (ring + centre dot)
+/// followed by the "KROMA" wordmark, right-aligned to the margin and vertically
 /// centred on `cy`. Mirrors the on-screen `<Logo>` lockup, drawn natively (no
 /// SVG/asset) from tiny-skia primitives + the embedded brand font.
 fn paint_brand(pm: &mut Pixmap, cy: f32) {
-    const WORD: &str = "LUMA";
+    const WORD: &str = "KROMA";
     let f = font();
     let size = 20.0;
     let tracking = size * 0.16; // matches the brand's .16em letter-spacing

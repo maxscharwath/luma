@@ -64,7 +64,7 @@ export function StatCard({
   label,
   value,
   unit,
-  color = 'var(--luma-text)',
+  color = 'var(--kroma-text)',
 }: Readonly<{
   label: string;
   value: ReactNode;
@@ -126,7 +126,7 @@ export function ProgressBar({
 
 export function Pill({
   children,
-  color = 'var(--luma-text)',
+  color = 'var(--kroma-text)',
   bg = 'transparent',
 }: Readonly<{
   children: ReactNode;

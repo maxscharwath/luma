@@ -2,10 +2,10 @@
 // tracks. Media tracks carry free-form ISO codes (2- or 3-letter, e.g. "en" /
 // "eng" / "fra"), so we normalise both sides to a 2-letter base before matching.
 
-import type { AudioTrack } from '@luma/core';
+import type { AudioTrack } from '@kroma/core';
 import type { SubtitleView } from '#web/shared/lib/api';
 
-/** Common ISO-639-2 → 639-1 aliases for the languages LUMA labels. */
+/** Common ISO-639-2 → 639-1 aliases for the languages KROMA labels. */
 const ALIAS: Record<string, string> = {
   fra: 'fr',
   fre: 'fr',

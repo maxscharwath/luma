@@ -116,7 +116,7 @@ fn relying_party(headers: &HeaderMap, loc: &str) -> Result<Webauthn, Response> {
         .ok_or_else(|| lerr(loc, StatusCode::BAD_REQUEST, "passkey.originInvalid"))?
         .to_string();
     WebauthnBuilder::new(&rp_id, &url)
-        .and_then(|b| b.allow_any_port(true).rp_name("LUMA").build())
+        .and_then(|b| b.allow_any_port(true).rp_name("KROMA").build())
         .map_err(|_| lerr(loc, StatusCode::BAD_REQUEST, "passkey.originInvalid"))
 }
 

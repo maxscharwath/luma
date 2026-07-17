@@ -1,8 +1,8 @@
 /**
- * LUMA Smart Hub preview background service.
+ * KROMA Smart Hub preview background service.
  *
- * The Samsung TV runs this (separately from the UI, even while LUMA is closed)
- * to publish the "new movies" carousel shown on the home screen when the LUMA
+ * The Samsung TV runs this (separately from the UI, even while KROMA is closed)
+ * to publish the "new movies" carousel shown on the home screen when the KROMA
  * tile is focused. The foreground app writes the tile JSON to the package's
  * private `wgt-private/preview.json`; this service reads it and hands it to
  * webapis.preview.setPreviewData().
@@ -21,7 +21,7 @@ function log(msg) {
   // `console` may be absent in the Tizen service runtime, so guard it.
   try {
     if (typeof console !== 'undefined' && console.log) {
-      console.log(`[luma preview] ${msg}`);
+      console.log(`[kroma preview] ${msg}`);
     }
   } catch (_e) {
     /* logging must never break the service */

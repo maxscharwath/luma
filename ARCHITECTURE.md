@@ -1,4 +1,4 @@
-# LUMA architecture
+# KROMA architecture
 
 > North-star for the in-progress structural migration. Decided by a senior-architect
 > review (onion vs modular vs hybrid vs DDD). Verdict: a **domain-columnar polyglot hybrid**.
@@ -29,8 +29,8 @@ apps/        deployables have an entry point, ship
   web/         Web SPA
   tv/          10-foot TV app
 packages/    shared libraries imported by ≥2 apps
-  core/        @luma/core: pure rules + outbound adapters (re-exports @luma/client)
-  ui/          @luma/ui: presentational primitives + shared hooks/providers
+  core/        @kroma/core: pure rules + outbound adapters (re-exports @kroma/client)
+  ui/          @kroma/ui: presentational primitives + shared hooks/providers
 clients/     platform shells / packaging that wrap an app for a host
   tizen/  webos/  synology/
 ```
@@ -46,29 +46,29 @@ not by convention or a CI grep. The binary is a thin HTTP shell over the engine:
 
 ```
 server/
-  src/                 luma-server BINARY — main.rs + api/ (router + handlers), 8k LOC
+  src/                 kroma-server BINARY — main.rs + api/ (router + handlers), 8k LOC
   crates/
-    luma-engine/       infra + services + state + i18n + model  (the business logic, 20k LOC)
-    luma-db/           all SQL, one shared Pool                 (persistence, 7k LOC)
-    luma-domain/       entities + PURE rules (serde only, no I/O)
-    luma-config/       env-parsed Config
-    luma-i18n/         translate + CLDR plurals (Rust port of @luma/core i18n)
-    luma-primitives/         timestamps · short hashes · random tokens (below db)
-    luma-whisper/   Whisper transcription (candle)   ── heavy/optional dep graphs,
-    luma-vector/        content embeddings (candle)      ── isolated behind features so
-    luma-mdns/    mDNS advertising                 ── editing the server doesn't
-    luma-http/ luma-scene/ luma-torznab/ luma-torrent/   the acquisition stack
+    kroma-engine/       infra + services + state + i18n + model  (the business logic, 20k LOC)
+    kroma-db/           all SQL, one shared Pool                 (persistence, 7k LOC)
+    kroma-domain/       entities + PURE rules (serde only, no I/O)
+    kroma-config/       env-parsed Config
+    kroma-i18n/         translate + CLDR plurals (Rust port of @kroma/core i18n)
+    kroma-primitives/         timestamps · short hashes · random tokens (below db)
+    kroma-whisper/   Whisper transcription (candle)   ── heavy/optional dep graphs,
+    kroma-vector/        content embeddings (candle)      ── isolated behind features so
+    kroma-mdns/    mDNS advertising                 ── editing the server doesn't
+    kroma-http/ kroma-scene/ kroma-torznab/ kroma-torrent/   the acquisition stack
 ```
 
 **Dependency graph (acyclic, compiler-enforced):**
 
 ```
-luma-server(bin) → luma-engine → { luma-db, luma-whisper, luma-vector, luma-mdns,
-                                    luma-http, luma-scene, luma-torznab, luma-torrent }
-       luma-db → luma-domain, luma-primitives        everything → luma-domain / luma-config
+kroma-server(bin) → kroma-engine → { kroma-db, kroma-whisper, kroma-vector, kroma-mdns,
+                                    kroma-http, kroma-scene, kroma-torznab, kroma-torrent }
+       kroma-db → kroma-domain, kroma-primitives        everything → kroma-domain / kroma-config
 ```
 
-- **`luma-domain`** depends only on serde **never** axum/rusqlite/reqwest/process.
+- **`kroma-domain`** depends only on serde **never** axum/rusqlite/reqwest/process.
   Purity is compiler-enforced, so no CI grep is needed.
 - The layer modules keep their historical paths (`crate::db`, `crate::services`,
   `crate::model`, …) via crate aliases, so call sites were untouched by the split.
@@ -86,10 +86,10 @@ apps/tv/src/   app/(shell + providers + router)  features/{catalog,playback,acco
 apps/web/src/  features/{catalog,playback,admin}/  routes/ = thin re-exports
 ```
 
-**Dependency rule:** `features/* → shared/* → @luma/ui → @luma/core`.
+**Dependency rule:** `features/* → shared/* → @kroma/ui → @kroma/core`.
 
-- A feature **must not import a sibling feature** shared code moves to `shared/` or up into `@luma/ui`. (Biome-guarded.)
-- Wire types come only from `@luma/core` (the generated barrel); never hand-redefined.
+- A feature **must not import a sibling feature** shared code moves to `shared/` or up into `@kroma/ui`. (Biome-guarded.)
+- Wire types come only from `@kroma/core` (the generated barrel); never hand-redefined.
 
 ## File-size policy
 
@@ -108,7 +108,7 @@ lockfiles, `*.gen.ts`, irreducible adapters (ffmpeg flag-builders).
 | 3 | Monorepo move (`packages/tv→apps/tv`, `clients/web→apps/web`, `server→apps/server`) | pending |
 | 4 | Frontend feature slices (TV then web) | pending |
 | 5 | Hardening (`api.ts` per-domain sub-clients) | pending |
-| 6 | Server workspace split — 14 crates (1 bin + 13 libs), binary is a thin `api` shell over `luma-engine`; layers compiler-enforced | ✓ done |
+| 6 | Server workspace split — 14 crates (1 bin + 13 libs), binary is a thin `api` shell over `kroma-engine`; layers compiler-enforced | ✓ done |
 
 Each phase is independently shippable and verified (`cargo test` · `bun run typecheck`/`build` ·
 for Phase 3, a full `.spk` build that serves the SPA).

@@ -1,9 +1,0 @@
-{
-  "id": "dev.luma.remote",
-  "name": "Remote access",
-  "version": "0.1.1",
-  "minServer": "0.1.4",
-  "adminPrefixes": ["remote"],
-  "provides": [{ "kind": "remote-access", "id": "cloudflared" }],
-  "description": "Public HTTPS access: the share / Quick Connect URL plus an optional managed Cloudflare Tunnel connector. Disable it to hide the page + routes."
-}

@@ -1,4 +1,4 @@
-// @luma/admin-kit: the admin UI contract. The presentational primitives, hooks,
+// @kroma/admin-kit: the admin UI contract. The presentational primitives, hooks,
 // and host-context provider that admin pages render with, whether built into the
 // web app or contributed by a module. A module ui/ package imports everything it
 // needs for a full admin page from here, so it never reaches into app internals.

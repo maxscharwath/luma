@@ -3,7 +3,7 @@
 // mail service so this is how an account rotates its own password. On success
 // the fields clear.
 
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import { useState } from 'react';
 import {

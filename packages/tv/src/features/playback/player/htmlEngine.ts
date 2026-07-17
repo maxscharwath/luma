@@ -10,7 +10,7 @@
 // stream carries only the ONE audio track named in its URL, so switching language
 // re-anchors too (reload at the current position with the new `audio` segment).
 
-import { attachDirectPlay, type LumaClient, type MediaItem } from '@luma/core';
+import { attachDirectPlay, type KromaClient, type MediaItem } from '@kroma/core';
 import {
   type EngineListeners,
   resolveMasterStart,
@@ -21,7 +21,7 @@ type HlsInstance = import('hls.js').default;
 
 export interface HtmlOptions {
   video: HTMLVideoElement;
-  client: LumaClient;
+  client: KromaClient;
   item: MediaItem;
   /** Plain direct-play (`<video src>`) vs the HLS master. */
   direct: boolean;

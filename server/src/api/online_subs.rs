@@ -40,20 +40,20 @@ pub fn public_routes() -> Router<SharedState> {
     Router::new().route("/items/{id}/subtitles/dl/{dl}", get(file))
 }
 
-/// Talks to the Whisper module's `.lmod` sidecar (dev.luma.whisper) over the port
+/// Talks to the Whisper module's `.kmod` sidecar (tv.kroma.whisper) over the port
 /// bridge instead of transcribing in-process, so the heavy candle model + its
 /// Metal/CUDA deps run out of the core. Transcription is long and drives live
-/// progress + mid-run cancel, which don't fit `luma-http`'s buffered request/
+/// progress + mid-run cancel, which don't fit `kroma-http`'s buffered request/
 /// response, so a shared `whisper_jobs` DB row is the side-channel: the HTTP call
 /// blocks on a helper thread while THIS thread polls the row to drive the
 /// (thread-bound) `on_stage`/`on_progress` callbacks and writes the cancel flag.
 pub struct WhisperClient {
-    resolve: luma_port_bridge::Resolver,
-    pool: luma_db::Pool,
+    resolve: kroma_port_bridge::Resolver,
+    pool: kroma_db::Pool,
 }
 
 impl WhisperClient {
-    pub fn new(resolve: luma_port_bridge::Resolver, pool: luma_db::Pool) -> Self {
+    pub fn new(resolve: kroma_port_bridge::Resolver, pool: kroma_db::Pool) -> Self {
         Self { resolve, pool }
     }
 
@@ -63,7 +63,7 @@ impl WhisperClient {
     }
 }
 
-impl luma_engine::ports::Whisper for WhisperClient {
+impl kroma_engine::ports::Whisper for WhisperClient {
     fn transcribe(
         &self,
         data_dir: &std::path::Path,
@@ -80,7 +80,7 @@ impl luma_engine::ports::Whisper for WhisperClient {
         use std::time::Duration;
 
         let (base, token) = (self.resolve)()?;
-        luma_whisper::ensure_jobs_table(&self.pool);
+        kroma_whisper::ensure_jobs_table(&self.pool);
         // A per-run coordination row; nanosecond clock + track avoids collisions
         // across concurrent generations.
         let job_id = format!(
@@ -110,7 +110,7 @@ impl luma_engine::ports::Whisper for WhisperClient {
                 "lang": lang,
             });
             std::thread::spawn(move || {
-                let text: Option<String> = luma_http::Fetch::new()
+                let text: Option<String> = kroma_http::Fetch::new()
                     .header("authorization", format!("Bearer {token}"))
                     .max_time(3 * 60 * 60)
                     .post_json(&format!("{base}/_port/whisper/transcribe"), &body)
@@ -192,9 +192,9 @@ pub struct SubCapabilities {
 /// `GET /api/items/:id/subtitles/capabilities`. Server config, not item-specific,
 /// but kept under the item path for client convenience.
 pub async fn capabilities(State(state): State<SharedState>, Path(_id): Path<String>) -> Response {
-    // Transcription is available when the whisper sidecar (dev.luma.whisper .lmod)
+    // Transcription is available when the whisper sidecar (tv.kroma.whisper .kmod)
     // is installed + running, not on a compile-time core feature.
-    let transcribe = luma_module_host::service::<WhisperClient>(&state)
+    let transcribe = kroma_module_host::service::<WhisperClient>(&state)
         .is_some_and(|w| w.available());
     let translate = settings::default_provider(&state.settings).is_some();
     Json(SubCapabilities { transcribe, translate }).into_response()
@@ -301,7 +301,7 @@ pub async fn generate(State(state): State<SharedState>, Path(id): Path<String>, 
         // The whisper transcriber is the out-of-process sidecar proxy (registered
         // as a service in the composition root); translate-only generations don't
         // need it, so a missing one only fails a transcribe.
-        let whisper = luma_module_host::service::<WhisperClient>(&state);
+        let whisper = kroma_module_host::service::<WhisperClient>(&state);
         // The model (ffmpeg + Whisper / LLM) is blocking: run it on the blocking pool
         // and finalize the registry entry with its result.
         let _ = tokio::task::spawn_blocking(move || {

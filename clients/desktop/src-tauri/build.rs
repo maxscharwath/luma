@@ -15,7 +15,7 @@ fn main() {
             .include("/opt/homebrew/include")
             .include("/usr/local/include")
             .flag("-Wno-deprecated-declarations") // NSOpenGLView is deprecated but works
-            .compile("luma_window_shim");
+            .compile("kroma_window_shim");
         println!("cargo:rustc-link-lib=framework=Cocoa");
         println!("cargo:rustc-link-lib=framework=OpenGL");
         println!("cargo:rustc-link-lib=framework=CoreVideo");

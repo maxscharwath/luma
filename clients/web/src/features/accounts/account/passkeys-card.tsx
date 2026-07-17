@@ -3,15 +3,15 @@
 // secure context (HTTPS or localhost), so on plain-HTTP LAN access the card
 // shows a notice instead of the add button.
 
-import { apiErrorText, type PasskeyInfo } from '@luma/core';
-import { useT } from '@luma/ui';
+import { apiErrorText, type PasskeyInfo } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconKey, IconPlus, IconShieldLock } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { deviceInfo } from '#web/features/accounts/account/sessions-card';
 import { Panel } from '#web/features/accounts/account/ui';
 import { relativeSeen } from '#web/shared/lib/adminFormat';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 import { userQueries } from '#web/shared/lib/queries';
 import { createPasskey, passkeysSupported } from '#web/shared/lib/webauthn';
 import { Button } from '#web/shared/ui';
@@ -40,7 +40,7 @@ function PasskeyRow({
   const remove = async () => {
     setRemoving(true);
     try {
-      await lumaClient().deletePasskey(passkey.id);
+      await kromaClient().deletePasskey(passkey.id);
       onRemoved();
     } finally {
       setRemoving(false);
@@ -87,7 +87,7 @@ export function PasskeysCard() {
     setBusy(true);
     setError(null);
     try {
-      const client = lumaClient();
+      const client = kromaClient();
       const { ceremonyId, options } = await client.passkeyRegisterStart();
       const credential = await createPasskey(options);
       const name = deviceInfo(navigator.userAgent, t('account.unknownDevice')).label;

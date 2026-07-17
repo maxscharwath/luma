@@ -67,7 +67,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: 'desktop-latest',
-              name: 'LUMA desktop (auto-update)',
+              name: 'KROMA desktop (auto-update)',
               body: `Rolling self-update build \`${{ needs.version.outputs.version }}\`.`,
               draft: true,
               prerelease: true,
@@ -116,7 +116,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       # Bundle a self-contained mpv (pinned pkgforge AppImage, sha256-verified) as
-      # the `luma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
+      # the `kroma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
       - name: Fetch bundled mpv (Linux sidecar)
         if: runner.os == 'Linux'
         run: bash clients/desktop/scripts/fetch-mpv.sh

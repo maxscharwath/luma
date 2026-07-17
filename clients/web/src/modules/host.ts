@@ -1,17 +1,17 @@
 // Adapts the web app's providers (auth, i18n, router, session) into the neutral
-// LumaHost the module SDK defines, then resolves + starts the registry. A module
+// KromaHost the module SDK defines, then resolves + starts the registry. A module
 // only ever sees this host surface, never the app internals - which is exactly
 // what lets a module be compiled in today or runtime-loaded later without
 // touching the module's own code.
 
-import { hasPermission, type MessageKey, sessionToken, type TVars } from '@luma/core';
+import { hasPermission, type MessageKey, sessionToken, type TVars } from '@kroma/core';
 import {
   createEventBus,
   type HostBase,
-  type LumaHost,
+  type KromaHost,
   type ModuleManifest,
-} from '@luma/module-sdk';
-import { useLocale, useT } from '@luma/ui';
+} from '@kroma/module-sdk';
+import { useLocale, useT } from '@kroma/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { apiBase } from '#web/shared/lib/api';
@@ -38,7 +38,7 @@ const appBus = createEventBus();
  *  reads the latest auth / i18n / router values through a ref, so its identity
  *  never changes: re-creating it each render would re-run the effect, call
  *  setHost, and loop (React error #185). */
-export function useModuleHost(revision = 0): LumaHost | null {
+export function useModuleHost(revision = 0): KromaHost | null {
   const navigate = useNavigate();
   const t = useT();
   const locale = useLocale();
@@ -52,7 +52,7 @@ export function useModuleHost(revision = 0): LumaHost | null {
     latest.current = { navigate, t, locale, auth };
   });
 
-  const [host, setHost] = useState<LumaHost | null>(null);
+  const [host, setHost] = useState<KromaHost | null>(null);
   // Only wire modules once there is a session: a module's setup() must not run on
   // the pre-auth login screen, and `/api/modules` would 401 anyway. Re-running on
   // sign-in (and on a `revision` bump from refresh(): install / uninstall / a live

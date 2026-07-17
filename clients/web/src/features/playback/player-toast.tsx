@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 
 /** Centered top toast for transient player notices (audio re-encode, resume, errors). */
 export function Toast({

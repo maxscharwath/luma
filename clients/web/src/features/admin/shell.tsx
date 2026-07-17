@@ -2,16 +2,16 @@
 // the data/event context (server info + a tick that bumps on server events so
 // pages can refresh live).
 
-import { AdminKitProvider } from '@luma/admin-kit';
+import { AdminKitProvider } from '@kroma/admin-kit';
 import {
   hasPermission,
-  LumaEvents,
+  KromaEvents,
   type MessageKey,
   type Permission,
   type ServerInfo,
-} from '@luma/core';
-import type { ModuleNav } from '@luma/module-sdk';
-import { Logo, useT } from '@luma/ui';
+} from '@kroma/core';
+import type { ModuleNav } from '@kroma/module-sdk';
+import { Logo, useT } from '@kroma/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   IconApps,
@@ -44,7 +44,7 @@ import { formatUptime } from '#web/shared/lib/adminFormat';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
-export { HeaderAction, PageHeader } from '@luma/admin-kit';
+export { HeaderAction, PageHeader } from '@kroma/admin-kit';
 // Data hooks + capability helpers and the page header live in sibling modules;
 // re-exported here so call sites keep importing them from this shell module.
 export { Denied, isAnyAdmin, useAsyncAction, useCap, usePoll } from '#web/features/admin/hooks';
@@ -60,7 +60,7 @@ const AdminContext = createContext<AdminCtx | null>(null);
 export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { client, user } = useAuth();
   const queryClient = useQueryClient();
-  // The admin UI kit (@luma/admin-kit) reads the authed client / user / API
+  // The admin UI kit (@kroma/admin-kit) reads the authed client / user / API
   // origin from this context, so both built-in and module admin pages share one
   // data + capability surface without importing app internals.
   const kit = useMemo(() => ({ client, user, apiBase: apiBase() }), [client, user]);
@@ -77,7 +77,7 @@ export function AdminProvider({ children }: Readonly<{ children: ReactNode }>) {
   // of times in a row.
   useEffect(() => {
     let pending: ReturnType<typeof setTimeout> | null = null;
-    const ev = new LumaEvents(apiBase(), {
+    const ev = new KromaEvents(apiBase(), {
       onEvent: (e) => {
         if (e.type === 'job.log' || e.type === 'job.progress' || e.type === 'download.progress')
           return;
@@ -225,7 +225,7 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
 const linkCls =
   'flex items-center gap-3 rounded-md px-3.5 py-2.5 text-[14px] font-semibold text-muted no-underline transition-colors hover:bg-white/4 hover:text-text aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent';
 
-/** LUMA wordmark + "Admin" badge, shared by the desktop rail, the mobile topbar
+/** KROMA wordmark + "Admin" badge, shared by the desktop rail, the mobile topbar
  * and the drawer header. */
 function AdminBrand() {
   const t = useT();
@@ -233,7 +233,7 @@ function AdminBrand() {
     <div className="flex items-center gap-2.5">
       <Logo markOnly size={25} />
       <span className="font-display text-[20px] font-extrabold leading-none tracking-[.16em]">
-        LUMA
+        KROMA
       </span>
       <span className="rounded-[5px] bg-accent px-1.5 py-0.75 text-[8.5px] font-bold tracking-[.13em] text-accent-ink">
         {t('admin.badge')}
@@ -273,7 +273,7 @@ function AdminSidebarBody() {
         >
           <span className="inline-flex items-center gap-2.5 text-[14px] font-bold text-accent">
             <Logo markOnly size={17} />
-            {serverInfo?.name ?? 'LUMA'}
+            {serverInfo?.name ?? 'KROMA'}
           </span>
           <IconChevronRight size={17} stroke={1.8} color="#46D08D" />
         </Link>
@@ -358,7 +358,7 @@ function AdminMobileTopbar() {
             className="fixed inset-y-0 left-0 z-50 flex w-full flex-col border-border bg-[#0C0C0E] outline-none sm:w-[min(19rem,85vw)] sm:border-r lg:hidden"
             aria-describedby={undefined}
           >
-            <Dialog.Title className="sr-only">LUMA</Dialog.Title>
+            <Dialog.Title className="sr-only">KROMA</Dialog.Title>
             <div className="mb-4 flex shrink-0 items-center justify-between px-6 pr-4 pt-[max(1.5rem,env(safe-area-inset-top))]">
               <AdminBrand />
               <Dialog.Close asChild>
@@ -407,7 +407,7 @@ function ServerStatusCard() {
   return (
     <div className="rounded-xl border border-border bg-[#121216] p-3.5">
       <div className="mb-2 flex items-center gap-2.5">
-        <span className="h-2 w-2 animate-[luma-breathe_2s_ease-in-out_infinite] rounded-full bg-success" />
+        <span className="h-2 w-2 animate-[kroma-breathe_2s_ease-in-out_infinite] rounded-full bg-success" />
         <span className="text-[13px] font-bold text-success">{t('admin.online')}</span>
       </div>
       <div className="text-[12.5px] font-semibold text-text">

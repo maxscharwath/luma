@@ -3,5 +3,5 @@
 **/*.rs.bk
 # MiniLM model files for the optional `semantic-embeddings` feature (~90 MB).
 # A runtime asset fetched on demand / bundled into the deploy package, never
-# committed. Lives wherever LUMA_EMBED_MODEL_DIR points (default ./models/minilm).
+# committed. Lives wherever KROMA_EMBED_MODEL_DIR points (default ./models/minilm).
 /models

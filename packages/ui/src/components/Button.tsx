@@ -17,16 +17,16 @@ const SIZES: Record<ButtonSize, CSSProperties> = {
 };
 
 const VARIANTS: Record<ButtonVariant, CSSProperties> = {
-  primary: { background: 'var(--luma-accent)', color: 'var(--luma-accent-ink)', border: 'none' },
+  primary: { background: 'var(--kroma-accent)', color: 'var(--kroma-accent-ink)', border: 'none' },
   glass: {
     background: 'rgba(255,255,255,.1)',
-    color: 'var(--luma-text)',
-    border: '1px solid var(--luma-border-strong)',
+    color: 'var(--kroma-text)',
+    border: '1px solid var(--kroma-border-strong)',
   },
-  ghost: { background: 'transparent', color: 'var(--luma-text)', border: 'none' },
+  ghost: { background: 'transparent', color: 'var(--kroma-text)', border: 'none' },
 };
 
-/** LUMA action button amber primary / translucent glass / borderless ghost. */
+/** KROMA action button amber primary / translucent glass / borderless ghost. */
 export function Button({
   variant = 'primary',
   size = 'md',

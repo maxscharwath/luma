@@ -14,17 +14,17 @@ import {
   detectLocale,
   isLocale,
   type Locale,
-  type LumaClient,
+  type KromaClient,
   loadLocalePref,
   normalizeLocale,
   saveLocalePref,
-} from '@luma/core';
+} from '@kroma/core';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { I18nProvider } from './i18n';
 
 export interface LocaleProviderProps {
   /** API client whose Accept-Language is kept in sync. Null before a server is reached. */
-  client: LumaClient | null;
+  client: KromaClient | null;
   /** The signed-in account's language preference, or null/undefined when signed out. */
   accountLanguage?: string | null;
   /** Persist a manual change to the signed-in account. Omit when signed out. */

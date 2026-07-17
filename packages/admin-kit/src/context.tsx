@@ -8,15 +8,15 @@
 // the admin shell, so the provider is always above it. The kit stays a leaf
 // package (no dependency on the web app).
 
-import type { LumaClient, User } from '@luma/core';
+import type { KromaClient, User } from '@kroma/core';
 import { createContext, type ReactNode, useContext } from 'react';
 
 export interface AdminKitValue {
   /** The authed API client (token attached while logged in). */
-  client: LumaClient;
+  client: KromaClient;
   /** The logged-in user, or null when signed out. */
   user: User | null;
-  /** The LUMA server origin, no trailing slash (for building image / event URLs). */
+  /** The KROMA server origin, no trailing slash (for building image / event URLs). */
   apiBase: string;
 }
 
@@ -40,7 +40,7 @@ export function useAdminKit(): AdminKitValue {
 }
 
 /** Resolve a metadata image path (relative `/api/...` cached art, or an absolute
- *  URL) against a LUMA origin. The kit's own copy of the app helper so it needs
+ *  URL) against a KROMA origin. The kit's own copy of the app helper so it needs
  *  no app import. */
 export function resolveImageUrl(apiBase: string, url: string | null | undefined): string | null {
   if (!url) return null;

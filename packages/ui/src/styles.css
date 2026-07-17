@@ -1,4 +1,4 @@
-/* LUMA global stylesheet import once per app: `import '@luma/ui/styles.css'`. */
+/* KROMA global stylesheet import once per app: `import '@kroma/ui/styles.css'`. */
 @import "./styles/fonts.css";
 @import "./styles/tokens/colors.css";
 @import "./styles/tokens/typography.css";
@@ -19,8 +19,8 @@ body,
 
 body {
   margin: 0;
-  background: var(--luma-bg);
-  color: var(--luma-text);
+  background: var(--kroma-bg);
+  color: var(--kroma-text);
   font: var(--type-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -28,8 +28,8 @@ body {
 }
 
 ::selection {
-  background: var(--luma-accent-soft);
-  color: var(--luma-text);
+  background: var(--kroma-accent-soft);
+  color: var(--kroma-text);
 }
 
 a {
@@ -48,11 +48,11 @@ button {
   border-radius: var(--radius-sm);
 }
 
-.luma-overline {
+.kroma-overline {
   font: var(--type-overline);
   letter-spacing: var(--tracking-overline);
   text-transform: uppercase;
-  color: var(--luma-text-muted);
+  color: var(--kroma-text-muted);
 }
 
 /*
@@ -61,13 +61,13 @@ button {
  * so TV remote focus navigation can still reach and scroll to them. Progressive
  * enhancement older TV browsers without content-visibility simply render all.
  */
-.luma-poster {
+.kroma-poster {
   content-visibility: auto;
   contain-intrinsic-size: 200px 320px;
 }
 
 /* Slow ambient amber breathing used behind heroes. */
-@keyframes luma-breathe {
+@keyframes kroma-breathe {
   0%,
   100% {
     opacity: 0.35;

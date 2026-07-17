@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <!--
-    App Transport Security exceptions. LUMA connects to a self-hosted media server
+    App Transport Security exceptions. KROMA connects to a self-hosted media server
     over plain HTTP on the LAN (e.g. http://192.168.x.x:4040), and the <video>
     element's media loader (AVFoundation) enforces ATS strictly - without these the
     stream request is silently blocked and playback just spins forever in the built

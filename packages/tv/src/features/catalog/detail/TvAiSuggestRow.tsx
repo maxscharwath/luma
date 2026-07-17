@@ -1,5 +1,5 @@
-import { posterColors, type SectionItem } from '@luma/core';
-import { ProgressRing, useAiSuggest, useT } from '@luma/ui';
+import { posterColors, type SectionItem } from '@kroma/core';
+import { ProgressRing, useAiSuggest, useT } from '@kroma/ui';
 import { useClient, useNav } from '#tv/app/router';
 import { TvCard } from '#tv/shared/TvMedia';
 

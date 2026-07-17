@@ -2,8 +2,8 @@
 // decouvrir" (TMDB, gated), each a counted grid. Skeletons while loading, a
 // friendly empty state when nothing matches.
 
-import { posterColors, type SearchHit } from '@luma/core';
-import { useT } from '@luma/ui';
+import { posterColors, type SearchHit } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconMoodEmpty } from '@tabler/icons-react';
 import { useNavigate } from '@tanstack/react-router';
 import type { ReactNode } from 'react';

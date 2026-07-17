@@ -4,10 +4,10 @@
     "items": [
       {
         "type": "textfield",
-        "desc": "Pick the folders LUMA scans for your <b>Movies</b> and your <b>TV Shows</b>. Use absolute NAS paths; separate several with a colon or semicolon.<br>Example: <b>/volume1/video/Films:/volume1/media/Movies</b><br>Leave a field empty if you don't have that type. You don't need to get this perfect now: after install you can <b>browse</b> your NAS and fine-tune libraries (add folders, change a library's type) in LUMA's web admin under <b>Bibliothèques</b>.<br><br>Reminder: grant the package user <b>luma</b> (or <b>sc-luma</b>) <b>Read</b> access to these shares (Control Panel &gt; Shared Folder &gt; Edit &gt; Permissions), then restart LUMA.",
+        "desc": "Pick the folders KROMA scans for your <b>Movies</b> and your <b>TV Shows</b>. Use absolute NAS paths; separate several with a colon or semicolon.<br>Example: <b>/volume1/video/Films:/volume1/media/Movies</b><br>Leave a field empty if you don't have that type. You don't need to get this perfect now: after install you can <b>browse</b> your NAS and fine-tune libraries (add folders, change a library's type) in KROMA's web admin under <b>Bibliothèques</b>.<br><br>Reminder: grant the package user <b>kroma</b> (or <b>sc-kroma</b>) <b>Read</b> access to these shares (Control Panel &gt; Shared Folder &gt; Edit &gt; Permissions), then restart KROMA.",
         "subitems": [
           {
-            "key": "LUMA_MOVIES_DIRS",
+            "key": "KROMA_MOVIES_DIRS",
             "desc": "Movies folder(s)",
             "defaultValue": "/volume1/video/Films",
             "validator": {
@@ -19,7 +19,7 @@
             }
           },
           {
-            "key": "LUMA_SERIES_DIRS",
+            "key": "KROMA_SERIES_DIRS",
             "desc": "TV Shows folder(s)",
             "defaultValue": "/volume1/video/Series",
             "validator": {
@@ -39,10 +39,10 @@
     "items": [
       {
         "type": "textfield",
-        "desc": "TCP port for the LUMA web UI + API. Open http://&lt;nas-ip&gt;:&lt;port&gt;/ after install. Pick a free port (1024-65535) allowed by your firewall.",
+        "desc": "TCP port for the KROMA web UI + API. Open http://&lt;nas-ip&gt;:&lt;port&gt;/ after install. Pick a free port (1024-65535) allowed by your firewall.",
         "subitems": [
           {
-            "key": "LUMA_PORT",
+            "key": "KROMA_PORT",
             "desc": "Port",
             "defaultValue": "4040",
             "validator": {
@@ -57,17 +57,17 @@
       },
       {
         "type": "textfield",
-        "desc": "Optional. Where LUMA keeps its database, image/subtitle/storyboard cache and the downloaded Whisper model. Leave empty to store it under the package (system) volume. Point it at a larger volume if you have one, e.g. /volume1/luma.",
+        "desc": "Optional. Where KROMA keeps its database, image/subtitle/storyboard cache and the downloaded Whisper model. Leave empty to store it under the package (system) volume. Point it at a larger volume if you have one, e.g. /volume1/kroma.",
         "subitems": [
           {
-            "key": "LUMA_DATA_DIR",
+            "key": "KROMA_DATA_DIR",
             "desc": "Data folder (optional)",
             "defaultValue": "",
             "validator": {
               "allowBlank": true,
               "regex": {
                 "expr": "/^(\\s*|\\/.+)$/",
-                "errorText": "Leave empty, or enter an absolute path starting with / (e.g. /volume1/luma)."
+                "errorText": "Leave empty, or enter an absolute path starting with / (e.g. /volume1/kroma)."
               }
             }
           }

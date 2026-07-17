@@ -4,9 +4,9 @@ import type {
   SubCapabilities,
   SubtitleGeneration,
   Translate,
-} from '@luma/core';
-import { channelLabel, subtitleEtaTime, subtitleStageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { channelLabel, subtitleEtaTime, subtitleStageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { langName } from '#web/features/catalog/detail';
 import { IconCheck, IconClose, IconSparkles, IconTrash } from '#web/features/playback/icons';
@@ -21,7 +21,7 @@ import {
 import type { BoostLevel } from '#web/features/playback/use-audio-boost';
 import { useSubtitleGenerations } from '#web/features/playback/use-subtitle-generations';
 import type { MovieView, SubtitleView } from '#web/shared/lib/api';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 
 /** Track language name, or the localized "Unknown" when no code is present. */
 function trackLang(t: Translate, code: string | null): string {
@@ -231,7 +231,7 @@ export function AvDrawer({
   const [caps, setCaps] = useState<SubCapabilities | null>(null);
   useEffect(() => {
     let cancelled = false;
-    lumaClient()
+    kromaClient()
       .subtitleCapabilities(item.id)
       .then((c) => !cancelled && setCaps(c))
       .catch(() => undefined);
@@ -253,7 +253,7 @@ export function AvDrawer({
   // subtitles on to some other/last track.
   const onGenerationComplete = useCallback(
     (subId: string) => {
-      lumaClient()
+      kromaClient()
         .downloadedSubtitles(item.id)
         .then((list) => {
           if (!mountedRef.current) return;
@@ -268,7 +268,7 @@ export function AvDrawer({
   const { gens, cancel, refresh } = useSubtitleGenerations(item.id, true, onGenerationComplete);
   // Kicking off a generation: merge the cached list and re-arm progress polling.
   const onGenerationStarted = useCallback(() => {
-    lumaClient()
+    kromaClient()
       .downloadedSubtitles(item.id)
       .then((list) => list.forEach(onDownloaded))
       .catch(() => undefined);
@@ -440,7 +440,7 @@ export function AvDrawer({
                     background: c,
                     boxShadow:
                       subStyle.color === c
-                        ? '0 0 0 2px var(--luma-accent)'
+                        ? '0 0 0 2px var(--kroma-accent)'
                         : '0 0 0 1px rgba(255,255,255,.2)',
                   }}
                 />

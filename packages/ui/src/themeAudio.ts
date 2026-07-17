@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Persisted across detail pages + reloads (per device). */
-const MUTE_KEY = 'luma.theme.muted';
+const MUTE_KEY = 'kroma.theme.muted';
 /** Quiet background level present but never competing with the user. */
 const TARGET_VOLUME = 0.35;
 const FADE_IN_MS = 900;

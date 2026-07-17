@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 /**
  * Routed detail modal built on Radix Dialog accessible (focus trap, Esc,
  * scroll-lock, click-outside) out of the box. Always open; closing navigates
- * back via `onClose`. Styled as the LUMA sheet.
+ * back via `onClose`. Styled as the KROMA sheet.
  */
 export function Sheet({
   title,

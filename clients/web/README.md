@@ -1,9 +1,9 @@
-# @luma/web
+# @kroma/web
 
-> Part of the [LUMA](../../README.md) monorepo the desktop browser client.
+> Part of the [KROMA](../../README.md) monorepo the desktop browser client.
 
-LUMA desktop/browser client. Vite + React + TypeScript, composed from `@luma/ui`
-(design system) and `@luma/core` (API client, HEVC capability detection, direct-play).
+KROMA desktop/browser client. Vite + React + TypeScript, composed from `@kroma/ui`
+(design system) and `@kroma/core` (API client, HEVC capability detection, direct-play).
 
 ## Develop
 
@@ -15,7 +15,7 @@ bun run dev:web         # Vite dev server on http://localhost:5173
 ```
 
 The client auto-targets `http://<host>:4040`. Point it elsewhere with
-`VITE_LUMA_SERVER` (see `.env.example`) or the in-app connection screen.
+`VITE_KROMA_SERVER` (see `.env.example`) or the in-app connection screen.
 
 ## Build
 

@@ -19,7 +19,7 @@
 // shows an `<object type="application/avplayer">` surface (transparent body)
 // and the HTML chrome + subtitle overlay sit on top.
 
-import type { LumaClient, MediaItem } from '@luma/core';
+import type { KromaClient, MediaItem } from '@kroma/core';
 import {
   type AvplayApi,
   type EngineListeners,
@@ -29,7 +29,7 @@ import {
 } from '#tv/features/playback/player/engine';
 
 export interface AvplayOptions {
-  client: LumaClient;
+  client: KromaClient;
   item: MediaItem;
   durationSec: number;
   /** Audio-relative rendition to select once prepared (0 = the master default). */
@@ -49,7 +49,7 @@ const NATIVE_SEEK_AHEAD = 60;
 export class AvplayEngine implements TvEngine {
   readonly kind = 'avplay';
   private readonly api: AvplayApi;
-  private readonly client: LumaClient;
+  private readonly client: KromaClient;
   private readonly item: MediaItem;
   private readonly listeners: EngineListeners;
   private mode: 'direct' | 'master';

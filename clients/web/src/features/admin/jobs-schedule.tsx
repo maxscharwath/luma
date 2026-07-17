@@ -3,8 +3,8 @@
 // `PATCH /api/admin/jobs/:key`; the server validates the cron and 400s on a bad
 // expression, surfaced inline here.
 
-import { type JobInfo, LumaApiError } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type JobInfo, KromaApiError } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useState } from 'react';
 import { useAsyncAction } from '#web/features/admin/shell';
 import { Field, Modal, ModalActions, TextInput } from '#web/features/admin/ui';
@@ -35,7 +35,7 @@ export function ScheduleModal({
         onSaved();
       },
       (e) =>
-        e instanceof LumaApiError && e.status === 400
+        e instanceof KromaApiError && e.status === 400
           ? t('jobs.cronInvalid')
           : t('jobs.saveFailed'),
     );

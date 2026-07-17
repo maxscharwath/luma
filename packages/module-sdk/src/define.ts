@@ -1,11 +1,11 @@
 // `defineModule` — the compact way to declare a frontend module. It builds a
-// `LumaModule` from the module's `module.json` plus a list of pages, so a module
+// `KromaModule` from the module's `module.json` plus a list of pages, so a module
 // author never re-derives id/version/dependsOn, never hand-writes the nav `to`
 // (it is derived from the page's section + path), and never lists locales twice.
 
 import type { ComponentType } from 'react';
-import type { LumaHost } from './host';
-import type { LumaModule, ModuleComponentProps, NavItem, SettingsPanel } from './module';
+import type { KromaHost } from './host';
+import type { KromaModule, ModuleComponentProps, NavItem, SettingsPanel } from './module';
 import type { Dependencies } from './types';
 
 /** Admin nav-group ids (see the admin shell's NAV_GROUPS) plus the generic
@@ -51,11 +51,11 @@ export interface ModuleManifestInput {
 
 export interface DefineModuleOptions<Exports = unknown> {
   /** The module's `module.json`. Injected automatically by the
-   *  `@luma/module-sdk/vite` plugin (which fills it + `locales` from the module's
+   *  `@kroma/module-sdk/vite` plugin (which fills it + `locales` from the module's
    *  folder), so the options-only `defineModule({ pages })` form works. Pass it
    *  explicitly via the two-arg form when the plugin is not in play. */
   manifest?: ModuleManifestInput;
-  /** Message catalogs. Injected by the `@luma/module-sdk/vite` plugin from the
+  /** Message catalogs. Injected by the `@kroma/module-sdk/vite` plugin from the
    *  module's `locales/` folder. Accepts a plain `{ en, fr }` map OR the result of
    *  `import.meta.glob('../../locales/*.json', { eager: true, import: 'default' })`
    *  — path keys like `../../locales/en.json` are normalized to the locale code. */
@@ -63,25 +63,25 @@ export interface DefineModuleOptions<Exports = unknown> {
   /** The module's pages (routes + optional nav), one entry per screen. */
   pages?: ModulePage[];
   settingsPanels?: SettingsPanel[];
-  exports?: (host: LumaHost) => Exports;
-  setup?: (host: LumaHost) => void | Promise<void>;
+  exports?: (host: KromaHost) => Exports;
+  setup?: (host: KromaHost) => void | Promise<void>;
   /** Override the manifest-derived dependencies (rarely needed). */
   dependsOn?: Dependencies;
   optionalDependsOn?: Dependencies;
 }
 
-/** Build a `LumaModule` from its manifest + pages: id/version/dependsOn come from
+/** Build a `KromaModule` from its manifest + pages: id/version/dependsOn come from
  *  the manifest, locales are normalized (so a glob import works), and each nav
  *  `to` is derived from its page's section + path.
  *
  *  Two call forms:
  *  - `defineModule({ pages })` — the manifest + locales are injected from the
- *    module's folder by the `@luma/module-sdk/vite` plugin (the default).
+ *    module's folder by the `@kroma/module-sdk/vite` plugin (the default).
  *  - `defineModule(manifest, { pages })` — explicit, for when the plugin is off. */
 export function defineModule<Exports = unknown>(
   manifestOrOptions: ModuleManifestInput | DefineModuleOptions<Exports>,
   maybeOptions?: DefineModuleOptions<Exports>,
-): LumaModule<Exports> {
+): KromaModule<Exports> {
   const explicit = maybeOptions !== undefined;
   const options = (explicit ? maybeOptions : manifestOrOptions) as DefineModuleOptions<Exports>;
   const manifest = (explicit ? manifestOrOptions : options.manifest) as
@@ -90,7 +90,7 @@ export function defineModule<Exports = unknown>(
   if (!manifest) {
     throw new Error(
       'defineModule: no manifest. Pass it as the first argument, or enable the ' +
-        '@luma/module-sdk/vite plugin, which injects the manifest + locales by convention.',
+        '@kroma/module-sdk/vite plugin, which injects the manifest + locales by convention.',
     );
   }
   const pages = options.pages ?? [];

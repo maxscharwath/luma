@@ -1,7 +1,7 @@
 // Finalizes a dual-bundle TV package after the LEGACY vite build (which runs
 // after the modern one - see the shell's package.json):
 //
-//  1. Post-processes <dist>/legacy/style.css: the luma-legacy-css shims, then
+//  1. Post-processes <dist>/legacy/style.css: the kroma-legacy-css shims, then
 //     @csstools/postcss-cascade-layers (compiles @layer away - old engines drop
 //     unknown at-rules wholesale), then Lightning CSS down-level + minify for
 //     the target Chrome floor. Done here, on the emitted file, so the
@@ -19,12 +19,12 @@ import cascadeLayers from '@csstools/postcss-cascade-layers';
 import { transform } from 'lightningcss';
 import postcss from 'postcss';
 import type { Plugin } from 'vite';
-import { lumaLegacyCss } from './legacy-css';
+import { kromaLegacyCss } from './legacy-css';
 
 async function downlevelCss(distDir: string, chrome: number): Promise<void> {
   const path = join(distDir, 'legacy', 'style.css');
   const raw = readFileSync(path, 'utf8');
-  const shimmed = await postcss([lumaLegacyCss(), cascadeLayers()]).process(raw, {
+  const shimmed = await postcss([kromaLegacyCss(), cascadeLayers()]).process(raw, {
     from: path,
     map: false,
   });
@@ -76,7 +76,7 @@ function rewriteIndexHtml(distDir: string): void {
 /** `distDir` = the shell's absolute dist dir; `chrome` = the legacy tier's floor. */
 export function legacyFinalize({ distDir, chrome }: { distDir: string; chrome: number }): Plugin {
   return {
-    name: 'luma-legacy-finalize',
+    name: 'kroma-legacy-finalize',
     apply: 'build',
     enforce: 'post',
     async closeBundle() {

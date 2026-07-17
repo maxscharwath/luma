@@ -1,5 +1,5 @@
-import { activeCueText, type Cue, parseVtt } from '@luma/core';
-import { useT } from '@luma/ui';
+import { activeCueText, type Cue, parseVtt } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { type CSSProperties, memo, useEffect, useRef, useState } from 'react';
 
 // 10-foot subtitle styling: large, white, heavy drop-shadow for legibility over

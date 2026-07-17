@@ -1,18 +1,18 @@
 [package]
-name = "luma-server"
+name = "kroma-server"
 version = "0.1.25"
 edition.workspace = true
 rust-version.workspace = true
-description = "LUMA a self-hosted, direct-play media streaming server"
+description = "KROMA a self-hosted, direct-play media streaming server"
 license.workspace = true
 
 [[bin]]
-name = "luma-server"
+name = "kroma-server"
 path = "src/main.rs"
 
 # The server is the root package of a Cargo workspace (the Rust mirror of the
 # bun workspaces on the TS side). Self-contained domains live as crates under
-# crates/ so they build + test in isolation (`cargo test -p luma-scene`),
+# crates/ so they build + test in isolation (`cargo test -p kroma-scene`),
 # while everything still links into this one binary. All existing entry points
 # (`cargo build` from server/, CI, the Synology docker build) are unchanged.
 [workspace]
@@ -45,7 +45,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 quick-xml = "0.41"
-# Cardigann indexer engine (luma-indexer): YAML definitions, HTML scraping with
+# Cardigann indexer engine (kroma-indexer): YAML definitions, HTML scraping with
 # CSS selectors, regex-driven field filters, and flexible date parsing. XPath
 # support (libxml, C) is feature-gated on the crate so the default musl build
 # stays pure-Rust.
@@ -57,7 +57,7 @@ libxml = "0.3"
 # Insertion-order-preserving map: Cardigann `fields` reference earlier fields
 # (`.Result.x`), so field order is load-bearing.
 indexmap = { version = "2", features = ["serde"] }
-# Candle ML stack + tokenizer, shared by luma-whisper (whisper) and luma-vector
+# Candle ML stack + tokenizer, shared by kroma-whisper (whisper) and kroma-vector
 # (semantic). CPU-only pure-Rust by default (default-features off) so the musl
 # single binary keeps linking; the macos target block in each crate adds `metal`.
 candle-core = { version = "0.11", default-features = false }
@@ -67,16 +67,16 @@ candle-transformers = { version = "0.11", default-features = false }
 # references it unconditionally. C-on-musl is fine. default-features off drops the
 # heavier progressbar/http extras.
 tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
-# mDNS / DNS-SD advertising (luma-mdns). Pure Rust.
+# mDNS / DNS-SD advertising (kroma-mdns). Pure Rust.
 mdns-sd = "0.20"
-# Shared by luma-primitives (and the binary). Unpinned now that the toolchain is
+# Shared by kroma-primitives (and the binary). Unpinned now that the toolchain is
 # 1.96 (edition2024 is stable since 1.85, which >= 0.3.37 needs).
 time = { version = "0.3", features = ["formatting", "macros"] }
 sha2 = "0.10"
 hex = "0.4"
-# Embedded SQLite compiled from source. Shared by luma-db + the binary.
+# Embedded SQLite compiled from source. Shared by kroma-db + the binary.
 rusqlite = { version = "0.40", features = ["bundled"] }
-# HTTP / async runtime, shared by luma-engine (i18n extractor, stream, services)
+# HTTP / async runtime, shared by kroma-engine (i18n extractor, stream, services)
 # and the binary (router + handlers).
 axum = { version = "0.8", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
@@ -92,7 +92,7 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 notify = "8"
 sysinfo = "0.39"
 # In-process JPEG "card" compositing (tiny-skia raster + fontdue glyphs), shared
-# by luma-engine (storyboard/image) and the binary (api/card.rs).
+# by kroma-engine (storyboard/image) and the binary (api/card.rs).
 tiny-skia = "0.12"
 fontdue = "0.9"
 jpeg-encoder = "0.7"
@@ -111,84 +111,84 @@ mimalloc = { version = "0.1", default-features = false }
 # doesn't force a churn here.
 # Low manifest layer (below engine): manifest/registry/embedded types that
 # engine, kernel and wasm build on. Modules never depend on this directly.
-luma-module-manifest = { path = "crates/luma-module-manifest" }
-luma-module-macros = { path = "crates/luma-module-macros" }
+kroma-module-manifest = { path = "crates/kroma-module-manifest" }
+kroma-module-macros = { path = "crates/kroma-module-macros" }
 # The out-of-process module runtime (each module binary's serve() entrypoint).
-luma-module-runtime = { path = "crates/luma-module-runtime" }
+kroma-module-runtime = { path = "crates/kroma-module-runtime" }
 # The core side: spawn/supervise module processes + reverse-proxy + callback API.
-luma-module-supervisor = { path = "crates/luma-module-supervisor" }
-luma-port-bridge = { path = "crates/luma-port-bridge" }
+kroma-module-supervisor = { path = "crates/kroma-module-supervisor" }
+kroma-port-bridge = { path = "crates/kroma-port-bridge" }
 # The module SDK facade (ABOVE engine): the single crate every module depends on.
 # Re-exports the manifest layer + the engine/host/domain/http surface modules use.
-luma-module-sdk = { path = "crates/luma-module-sdk" }
+kroma-module-sdk = { path = "crates/kroma-module-sdk" }
 # Generated aggregator: registers every single-file (codegen) module. Owned by
 # scripts/gen-modules.ts; run `bun run modules:gen` after adding a *.module.md.
-luma-modules-generated = { path = "crates/luma-modules-generated" }
-luma-config = { path = "crates/luma-config" }
-luma-primitives = { path = "crates/luma-primitives" }
-luma-domain = { path = "crates/luma-domain" }
-luma-i18n = { path = "crates/luma-i18n" }
-luma-db = { path = "crates/luma-db" }
-luma-http = { path = "crates/luma-http" }
-luma-module-host = { path = "crates/luma-module-host" }
+kroma-modules-generated = { path = "crates/kroma-modules-generated" }
+kroma-config = { path = "crates/kroma-config" }
+kroma-primitives = { path = "crates/kroma-primitives" }
+kroma-domain = { path = "crates/kroma-domain" }
+kroma-i18n = { path = "crates/kroma-i18n" }
+kroma-db = { path = "crates/kroma-db" }
+kroma-http = { path = "crates/kroma-http" }
+kroma-module-host = { path = "crates/kroma-module-host" }
 # The server-side module kernel: the compile-time composition root (registers
 # every module's manifest + collects their ServerModule behaviors).
-luma-module-kernel = { path = "crates/luma-module-kernel" }
-luma-scene = { path = "modules/dev.luma.scene/server" }
-luma-torznab = { path = "modules/dev.luma.torznab/server" }
-luma-indexer = { path = "modules/dev.luma.indexer/server" }
-luma-remote = { path = "modules/dev.luma.remote/server" }
-luma-vpn = { path = "modules/dev.luma.vpn/server" }
-luma-transmission = { path = "modules/dev.luma.engine.transmission/server" }
-luma-qbittorrent = { path = "modules/dev.luma.engine.qbittorrent/server" }
-luma-torrent = { path = "modules/dev.luma.torrents/server" }
-luma-acquisition = { path = "modules/dev.luma.acquisition/server" }
-luma-whisper = { path = "modules/dev.luma.whisper/server" }
-luma-vector = { path = "modules/dev.luma.vector/server" }
-luma-mdns = { path = "modules/dev.luma.mdns/server" }
-luma-engine = { path = "crates/luma-engine" }
+kroma-module-kernel = { path = "crates/kroma-module-kernel" }
+kroma-scene = { path = "modules/tv.kroma.scene/server" }
+kroma-torznab = { path = "modules/tv.kroma.torznab/server" }
+kroma-indexer = { path = "modules/tv.kroma.indexer/server" }
+kroma-remote = { path = "modules/tv.kroma.remote/server" }
+kroma-vpn = { path = "modules/tv.kroma.vpn/server" }
+kroma-transmission = { path = "modules/tv.kroma.engine.transmission/server" }
+kroma-qbittorrent = { path = "modules/tv.kroma.engine.qbittorrent/server" }
+kroma-torrent = { path = "modules/tv.kroma.torrents/server" }
+kroma-acquisition = { path = "modules/tv.kroma.acquisition/server" }
+kroma-whisper = { path = "modules/tv.kroma.whisper/server" }
+kroma-vector = { path = "modules/tv.kroma.vector/server" }
+kroma-mdns = { path = "modules/tv.kroma.mdns/server" }
+kroma-engine = { path = "crates/kroma-engine" }
 
 [features]
 # Feature knobs are unchanged for callers (`cargo build`, CI, the Synology .spk),
-# but the code they toggle now lives in luma-engine and its leaf crates, so each
-# just forwards to `luma-engine/<feature>`. Cargo unifies features globally, so
+# but the code they toggle now lives in kroma-engine and its leaf crates, so each
+# just forwards to `kroma-engine/<feature>`. Cargo unifies features globally, so
 # flipping these enables the right candle/librqbit graph wherever it's used.
 default = ["whisper-local", "torrent-rqbit"]
 
 # Embedded BitTorrent engine (librqbit). ON by default. Off drops the librqbit
 # graph; the "rqbit" client kind reports "not compiled" and Transmission /
 # qBittorrent (plain curl) remain.
-torrent-rqbit = ["luma-torrent/rqbit"]
+torrent-rqbit = ["kroma-torrent/rqbit"]
 
 # Multilingual semantic embeddings (MiniLM via candle). OFF by default (the
 # dependency-free lexical embedder is the default). Forwarded straight to the
 # vector module crate now that the engine names it only through a port.
-semantic-embeddings = ["luma-vector/semantic"]
+semantic-embeddings = ["kroma-vector/semantic"]
 
 # In-process Whisper transcription (candle, no external whisper.cpp). ON by
 # default. Off compiles a stub and the "transcribe" capability reports false.
 # Forwarded straight to the whisper module crate (the engine drives it via a port).
-whisper-local = ["luma-whisper/local"]
+whisper-local = ["kroma-whisper/local"]
 
 # GPU-accelerated Whisper for local dev builds (never the musl single binary).
 # metal = Apple-Silicon, cuda = NVIDIA, accelerate = Apple vecLib BLAS. The engine
-# picks the device at runtime and falls back to CPU. See luma-whisper.
-whisper-metal = ["luma-whisper/metal"]
-whisper-cuda = ["luma-whisper/cuda"]
-whisper-accelerate = ["luma-whisper/accelerate"]
+# picks the device at runtime and falls back to CPU. See kroma-whisper.
+whisper-metal = ["kroma-whisper/metal"]
+whisper-cuda = ["kroma-whisper/cuda"]
+whisper-accelerate = ["kroma-whisper/accelerate"]
 
 [dependencies]
 # The binary is now a thin HTTP shell: the router + handlers (src/api) over the
-# business logic in luma-engine. It pulls only what api/main touch directly.
-luma-engine = { workspace = true }
+# business logic in kroma-engine. It pulls only what api/main touch directly.
+kroma-engine = { workspace = true }
 # The host seam: shared HTTP extractors (AuthUser) + the HostCtx contract. The
 # binary re-exports the extractors from their historical `crate::api::extract`
 # path; module crates depend on this leaf instead of the whole engine.
-luma-module-host = { workspace = true }
+kroma-module-host = { workspace = true }
 # Aliased in main.rs so api's `crate::config` / `crate::db` keep resolving; the
-# `crate::model` wire types come through `luma-engine`.
-luma-config = { workspace = true }
-luma-db = { workspace = true }
+# `crate::model` wire types come through `kroma-engine`.
+kroma-config = { workspace = true }
+kroma-db = { workspace = true }
 
 axum = { workspace = true }
 tokio = { workspace = true }
@@ -203,34 +203,34 @@ anyhow = { workspace = true }
 rusqlite = { workspace = true }
 # Used directly by api handlers: time (timestamp formatting), hex, zip (backup
 # download), walkdir + sysinfo (storage/stats endpoints), and the acquisition
-# view types from luma-torrent.
+# view types from kroma-torrent.
 time = { workspace = true }
 hex = { workspace = true }
 zip = { workspace = true }
 walkdir = { workspace = true }
 sysinfo = { workspace = true }
-luma-torrent = { workspace = true }
+kroma-torrent = { workspace = true }
 # The acquisition vertical (search / grab / analyze routes + the search/import/
 # match jobs). The binary repoints the request-tied search/grab handlers here and
-# passes its JOBS to AppState. It deps luma-torrent, never the reverse (no cycle).
-luma-acquisition = { workspace = true }
+# passes its JOBS to AppState. It deps kroma-torrent, never the reverse (no cycle).
+kroma-acquisition = { workspace = true }
 # The module kernel (composition root): registers every compile-time module's
 # `MODULE` const, collects their ServerModules, and drives the enable/disable +
 # admin-mount lifecycle. Formerly server/src/modules; now its own crate.
-luma-module-kernel = { workspace = true }
+kroma-module-kernel = { workspace = true }
 # Named only to register its stateless TorznabPort engine at the composition root.
-luma-port-bridge = { workspace = true }
-# The core reaches the out-of-process embedder (dev.luma.vector .lmod) over HTTP.
-luma-http = { workspace = true }
-luma-whisper = { workspace = true }
-luma-vector = { workspace = true }
+kroma-port-bridge = { workspace = true }
+# The core reaches the out-of-process embedder (tv.kroma.vector .kmod) over HTTP.
+kroma-http = { workspace = true }
+kroma-whisper = { workspace = true }
+kroma-vector = { workspace = true }
 # The admin modules endpoint names ModuleManifest for its flattened response.
-luma-module-sdk = { workspace = true }
+kroma-module-sdk = { workspace = true }
 # The store endpoints normalize registry catalogs and run the compat/version
 # helpers (server_satisfies / range_matches / is_newer) against manifests.
-luma-module-manifest = { workspace = true }
-# Out-of-process module supervisor: spawn/proxy installed .lmod module processes.
-luma-module-supervisor = { workspace = true }
+kroma-module-manifest = { workspace = true }
+# Out-of-process module supervisor: spawn/proxy installed .kmod module processes.
+kroma-module-supervisor = { workspace = true }
 rand = "0.10"
 
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
@@ -240,7 +240,7 @@ fontdue = { workspace = true }
 jpeg-encoder = { workspace = true }
 
 # jobserver held at its last 2021-edition release for the tantivy graph (pulled
-# in by luma-engine). Declared here (unused directly) so the lockfile pins it.
+# in by kroma-engine). Declared here (unused directly) so the lockfile pins it.
 jobserver = { workspace = true }
 # WebAuthn / passkeys relying-party (api/passkeys). `conditional-ui` unlocks the
 # discoverable (usernameless) authentication API.
@@ -271,11 +271,11 @@ lto = true
 codegen-units = 1
 strip = true
 
-# The profile `bun run modules:pack` builds each `.lmod` sidecar with: release +
+# The profile `bun run modules:pack` builds each `.kmod` sidecar with: release +
 # `panic = "abort"`. Dropping the unwinding tables makes the binaries ~11% smaller
 # at NO speed cost (opt-level stays 3). Safe for sidecars specifically: a panic
 # aborts the module process and the supervisor respawns it (the core binary keeps
-# the default unwinding `release` profile). Builds into target/release-lmod/.
-[profile.release-lmod]
+# the default unwinding `release` profile). Builds into target/release-kmod/.
+[profile.release-kmod]
 inherits = "release"
 panic = "abort"

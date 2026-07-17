@@ -1,0 +1,32 @@
+[package]
+name = "kroma-module-supervisor"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "The core side of the out-of-process module system: spawn + supervise each installed module binary, reverse-proxy its HTTP, and serve the /api/_host/* callback API modules use for settings / events / jobs."
+license.workspace = true
+
+[dependencies]
+# The host contract the callback endpoints resolve against (any HostCtx state).
+kroma-module-host = { workspace = true }
+kroma-module-manifest = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+# Async client: reverse-proxy to module processes on localhost + fetch .kmod /
+# catalog.json from a registry over https (rustls keeps the musl build C-free).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+rand = "0.10"
+# Unpacking installed .kmod bundles (gzip tar of module.json + module + fe/ + icon).
+tar = "0.4"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# Pure-Rust zstd decoder for the (smaller) zstd `.kmod` bundles. Decompress-only +
+# no C, so the musl single binary keeps linking; install is one-shot so its
+# throughput doesn't matter.
+ruzstd = "0.7"
+# Verify a downloaded .kmod against its catalog sha256 before installing.
+sha2 = { workspace = true }
+hex = { workspace = true }

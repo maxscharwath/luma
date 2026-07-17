@@ -1,13 +1,13 @@
-import type { RemoteKey } from '@luma/core';
+import type { RemoteKey } from '@kroma/core';
 
-// Gamepad -> TV navigation bridge (@luma/desktop; Steam Deck the primary target).
+// Gamepad -> TV navigation bridge (@kroma/desktop; Steam Deck the primary target).
 //
-// The shared @luma/tv nav (useFocusNav) and player (usePlayerControls,
+// The shared @kroma/tv nav (useFocusNav) and player (usePlayerControls,
 // useDirectPlayback) all listen for `keydown` / `keyup` on `window` and normalize
 // them with `resolveRemoteKey` (packages/core/src/remote.ts), which resolves by
 // `KeyboardEvent.key` first. So the entire 10-foot input model is already
 // keyboard-shaped: we just poll the Gamepad API and dispatch the matching synthetic
-// key events on `window`. Nothing in @luma/tv has to change.
+// key events on `window`. Nothing in @kroma/tv has to change.
 
 // Only the logical keys we emit. Each value is the `KeyboardEvent.key` string that
 // `resolveRemoteKey`'s KEY_NAMES table recognizes; that lookup wins, so we don't

@@ -1,9 +1,9 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconSearch, IconWifiOff } from '@tabler/icons-react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
-import { LumaMark, ProfileAvatar, TvBackButton, useClock } from '#tv/shared/ui';
+import { KromaMark, ProfileAvatar, TvBackButton, useClock } from '#tv/shared/ui';
 
 export type NavKey = 'home' | 'films' | 'series' | 'mylist' | 'search';
 
@@ -38,7 +38,7 @@ export function TvTopNav({ active }: Readonly<{ active?: NavKey }>) {
         {/* Back (mouse users): shown on any pushed screen, hidden on Home (root). */}
         <div className="flex items-center gap-4">
           <TvBackButton />
-          <LumaMark size={28} />
+          <KromaMark size={28} />
         </div>
         {/* Solid translucent bg, no backdrop-blur: Tizen composites blur on the
             CPU and it costs visible frames on every scroll/focus move. */}

@@ -11,9 +11,9 @@ export function Chip({ active = false, children, style, ...rest }: Readonly<Chip
     <span
       style={{
         font: '600 13px var(--font-ui)',
-        color: active ? 'var(--luma-accent-ink)' : 'var(--luma-text)',
-        background: active ? 'var(--luma-accent)' : 'rgba(255,255,255,.07)',
-        border: '1px solid var(--luma-border)',
+        color: active ? 'var(--kroma-accent-ink)' : 'var(--kroma-text)',
+        background: active ? 'var(--kroma-accent)' : 'rgba(255,255,255,.07)',
+        border: '1px solid var(--kroma-border)',
         padding: '6px 14px',
         borderRadius: 'var(--radius-pill)',
         cursor: 'pointer',

@@ -1,10 +1,10 @@
 // Shared building blocks for the account settings page (`/account`), styled to
-// the LUMA "Mon profil" design: overline sections separated by hairlines, flat
+// the KROMA "Mon profil" design: overline sections separated by hairlines, flat
 // dark panels, uppercase field labels with amber focus, and icon-led preference
 // rows. Also exports the small async-save state machine every section reuses.
 
-import { apiErrorText, type MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import { apiErrorText, type MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import type { InputHTMLAttributes, ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -96,10 +96,10 @@ export function passwordStrength(pw: string): Strength {
   if (/[^A-Za-z0-9]/.test(pw)) s += 1;
   const score = Math.max(1, s) as 1 | 2 | 3 | 4;
   const map = {
-    1: { width: '25%', color: 'var(--luma-danger)', labelKey: 'account.passwordStrengthWeak' },
+    1: { width: '25%', color: 'var(--kroma-danger)', labelKey: 'account.passwordStrengthWeak' },
     2: { width: '50%', color: '#E8A23B', labelKey: 'account.passwordStrengthFair' },
-    3: { width: '75%', color: 'var(--luma-info)', labelKey: 'account.passwordStrengthGood' },
-    4: { width: '100%', color: 'var(--luma-success)', labelKey: 'account.passwordStrengthStrong' },
+    3: { width: '75%', color: 'var(--kroma-info)', labelKey: 'account.passwordStrengthGood' },
+    4: { width: '100%', color: 'var(--kroma-success)', labelKey: 'account.passwordStrengthStrong' },
   } as const;
   return { score, ...map[score] };
 }

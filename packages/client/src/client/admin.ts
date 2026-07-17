@@ -150,7 +150,7 @@ export interface BackupImportResult {
 
 /** Options for restoring a backup. */
 export interface BackupImportOptions {
-  /** Password for an encrypted (`.luma`) backup. */
+  /** Password for an encrypted (`.kroma`) backup. */
   password?: string;
   /** Wipe this server's portable tables before importing (clean A→B clone). */
   reset?: boolean;
@@ -165,7 +165,7 @@ function hexUtf8(s: string): string {
 
 /** Download a portable backup (accounts, settings, history, resume positions,
  *  invites, cron overrides, custom avatars) as a `Blob`. A `password` encrypts it
- *  (`.luma`), else a plain `.zip`. Requires `settings.manage`. */
+ *  (`.kroma`), else a plain `.zip`. Requires `settings.manage`. */
 export function exportBackup(ctx: RequestContext, password?: string): Promise<Blob> {
   return ctx.blob(
     '/admin/backup/export',
@@ -173,7 +173,7 @@ export function exportBackup(ctx: RequestContext, password?: string): Promise<Bl
   );
 }
 
-/** Restore a backup file (`.zip`/`.luma`/legacy `.json`), then trigger a re-scan
+/** Restore a backup file (`.zip`/`.kroma`/legacy `.json`), then trigger a re-scan
  *  so the catalogue regenerates with matching item IDs. */
 export function importBackup(
   ctx: RequestContext,

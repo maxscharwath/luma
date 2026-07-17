@@ -1,6 +1,6 @@
 // Input-environment capabilities for the shared TV app.
 //
-// The same @luma/tv bundle runs on d-pad TVs (Tizen / webOS / Android TV) AND on
+// The same @kroma/tv bundle runs on d-pad TVs (Tizen / webOS / Android TV) AND on
 // the desktop shell (mouse + physical keyboard, or a Steam Deck gamepad). Design
 // stays identical everywhere; only the *input affordances* differ:
 //

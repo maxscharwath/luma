@@ -1,5 +1,5 @@
-import { posterColors, qualityBadge, qualityBadgeForVideo } from '@luma/core';
-import { useT } from '@luma/ui';
+import { posterColors, qualityBadge, qualityBadgeForVideo } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';

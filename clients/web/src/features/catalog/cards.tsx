@@ -1,5 +1,5 @@
-import { metaLine, posterColors, type Section } from '@luma/core';
-import { useT } from '@luma/ui';
+import { metaLine, posterColors, type Section } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { memo } from 'react';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
@@ -38,8 +38,8 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
       className="relative -mx-(--gutter-web) -mt-9 mb-8 flex min-h-[52vw] flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-10 sm:min-h-115 sm:pt-16"
       style={{ backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center 18%' }}
     >
-      <div className="pointer-events-none absolute inset-0 animate-[luma-breathe_7s_var(--ease-out)_infinite] bg-[radial-gradient(58%_68%_at_72%_32%,rgba(242,180,66,.16),transparent_62%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,var(--luma-bg)_6%,rgba(10,10,12,.35)_42%,transparent_64%),linear-gradient(0deg,var(--luma-bg)_2%,transparent_46%)]" />
+      <div className="pointer-events-none absolute inset-0 animate-[kroma-breathe_7s_var(--ease-out)_infinite] bg-[radial-gradient(58%_68%_at_72%_32%,rgba(242,180,66,.16),transparent_62%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,var(--kroma-bg)_6%,rgba(10,10,12,.35)_42%,transparent_64%),linear-gradient(0deg,var(--kroma-bg)_2%,transparent_46%)]" />
 
       <div className="relative max-w-170">
         <div className="mb-3.5 inline-flex items-center gap-1.75 text-[12px] font-bold uppercase tracking-[.22em] text-accent">

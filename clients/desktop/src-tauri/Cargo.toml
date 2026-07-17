@@ -3,9 +3,9 @@
 [workspace]
 
 [package]
-name = "luma-desktop"
+name = "kroma-desktop"
 version = "0.1.3"
-description = "LUMA Steam Deck client (Tauri shell over @luma/tv, native mpv playback)"
+description = "KROMA Steam Deck client (Tauri shell over @kroma/tv, native mpv playback)"
 edition = "2021"
 # Tauri v2's dependency graph (darling / time / serde_with) needs >= 1.88.
 rust-version = "1.88"

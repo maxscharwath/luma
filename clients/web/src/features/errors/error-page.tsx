@@ -1,10 +1,10 @@
 // Full-page error / not-found screens, wired into the router as
 // `defaultErrorComponent` (thrown errors → 401 / 403 / 500) and
-// `defaultNotFoundComponent` (unmatched routes → 404). Styled to the LUMA
+// `defaultNotFoundComponent` (unmatched routes → 404). Styled to the KROMA
 // design: deep charcoal, a single amber accent, a big cinematic status number.
 
-import { apiErrorText, LumaApiError, type MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import { apiErrorText, KromaApiError, type MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconHome, IconLogin, IconRefresh } from '@tabler/icons-react';
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { Button, Logo } from '#web/shared/ui';
@@ -20,7 +20,7 @@ const COPY: Record<Kind, { code: string; title: MessageKey; body: MessageKey }> 
 
 /** Map a thrown value to a screen variant via its HTTP status (if any). */
 function kindOf(error: unknown): Kind {
-  const status = error instanceof LumaApiError ? error.status : undefined;
+  const status = error instanceof KromaApiError ? error.status : undefined;
   if (status === 404) return 'notFound';
   if (status === 401) return 'unauthorized';
   if (status === 403) return 'forbidden';
@@ -52,7 +52,7 @@ function ErrorScreen({
       <div className="flex w-full max-w-[440px] flex-col items-center">
         <div className="mb-8 flex items-center gap-2.5 opacity-90">
           <Logo markOnly size={26} />
-          <span className="font-display text-[20px] font-extrabold tracking-[.16em]">LUMA</span>
+          <span className="font-display text-[20px] font-extrabold tracking-[.16em]">KROMA</span>
         </div>
 
         {/* Big cinematic status number with an amber-tinted glow. */}

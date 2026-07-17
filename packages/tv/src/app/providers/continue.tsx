@@ -1,4 +1,4 @@
-import type { ContinueItem } from '@luma/core';
+import type { ContinueItem } from '@kroma/core';
 import {
   createContext,
   type ReactNode,

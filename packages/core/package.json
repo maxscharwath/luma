@@ -1,8 +1,8 @@
 {
-  "name": "@luma/core",
+  "name": "@kroma/core",
   "version": "0.1.3",
   "type": "module",
-  "description": "LUMA shared core API client, media types, HEVC capability detection, remote-control mapping, direct-play helpers.",
+  "description": "KROMA shared core API client, media types, HEVC capability detection, remote-control mapping, direct-play helpers.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -11,7 +11,7 @@
     "build": "tsgo --noEmit"
   },
   "dependencies": {
-    "@luma/client": "workspace:*"
+    "@kroma/client": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

@@ -1,9 +1,9 @@
-import { usePlaybackHeartbeat } from '@luma/ui';
+import { usePlaybackHeartbeat } from '@kroma/ui';
 import type { MovieView } from '#web/shared/lib/api';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
-// Web adapter over the shared playback heartbeat (@luma/ui): supplies the signed-in
+// Web adapter over the shared playback heartbeat (@kroma/ui): supplies the signed-in
 // client, browser-UA labels, the offset-aware position, and drives the prompt ping
 // off the player's React `playing` state. See `usePlaybackHeartbeat` for the loop.
 
@@ -26,7 +26,7 @@ interface Params {
 }
 
 function uaInfo(): { player: string; device: string } {
-  if (typeof navigator === 'undefined') return { player: 'LUMA Web', device: 'Navigateur' };
+  if (typeof navigator === 'undefined') return { player: 'KROMA Web', device: 'Navigateur' };
   const ua = navigator.userAgent;
   let player = 'Navigateur';
   if (/Edg\//.test(ua)) player = 'Edge';

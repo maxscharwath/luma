@@ -1,11 +1,11 @@
 // The two augmentation points that give the module system end-to-end types.
 //
 // A module publishes its cross-module API and its events by *merging* into
-// these interfaces from its own package, e.g. in `@luma/module-torrents`:
+// these interfaces from its own package, e.g. in `@kroma/module-torrents`:
 //
-//   declare module '@luma/module-sdk' {
+//   declare module '@kroma/module-sdk' {
 //     interface ModuleApiRegistry { torrents: TorrentsApi }
-//     interface LumaEvents { 'torrents:done': { infoHash: string } }
+//     interface KromaEvents { 'torrents:done': { infoHash: string } }
 //   }
 //
 // After that, `host.getModuleApi('torrents')` is typed as `TorrentsApi` and
@@ -17,4 +17,4 @@ export interface ModuleApiRegistry {}
 
 /** Maps an event name to its payload type. */
 // biome-ignore lint/suspicious/noEmptyInterface: augmentation target.
-export interface LumaEvents {}
+export interface KromaEvents {}

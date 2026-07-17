@@ -33,7 +33,7 @@ pub fn routes() -> Router<SharedState> {
         )
 }
 
-/// Max accepted import body. The whole `.luma` is buffered in memory; backups are
+/// Max accepted import body. The whole `.kroma` is buffered in memory; backups are
 /// normally KB–MB, but lift the small axum default (2 MiB) so a large library
 /// (many accounts/avatars) isn't rejected with an opaque 413.
 pub const MAX_BACKUP_BYTES: usize = 256 * 1024 * 1024;
@@ -55,7 +55,7 @@ fn header_flag(headers: &HeaderMap, name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// `GET /api/admin/backup/export` → download a `.luma` backup (encrypted when a
+/// `GET /api/admin/backup/export` → download a `.kroma` backup (encrypted when a
 /// `X-Backup-Password` header is sent, otherwise a compressed archive both
 /// share the extension and the import auto-detects). Contains credentials
 /// (password hashes, API keys) → gated by `SettingsManage`.
@@ -75,13 +75,13 @@ pub async fn export_backup(
     let ts = crate::services::scan::now_iso8601().replace(':', "-");
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "application/octet-stream")
-        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"luma-backup-{ts}.luma\""))
+        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"kroma-backup-{ts}.kroma\""))
         .header(header::CACHE_CONTROL, "no-store")
         .body(Body::from(bytes))
         .unwrap())
 }
 
-/// `POST /api/admin/backup/import` body = a backup file (`.luma`/`.zip`/legacy
+/// `POST /api/admin/backup/import` body = a backup file (`.kroma`/`.zip`/legacy
 /// `.json`) → restore it, then re-scan. `X-Backup-Password` decrypts an encrypted
 /// file; `X-Backup-Reset: 1` wipes the portable tables first (clean A→B clone).
 /// `SettingsManage`.

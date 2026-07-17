@@ -2,8 +2,8 @@
 // capability/access helpers. `useCap` reads the current user from the kit's
 // host context (the admin shell provides it) instead of an app import.
 
-import { hasPermission, type Permission, type User } from '@luma/core';
-import { useT } from '@luma/ui';
+import { hasPermission, type Permission, type User } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { type QueryKey, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef, useState } from 'react';
 import { useAdminKit } from './context';

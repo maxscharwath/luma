@@ -1,7 +1,7 @@
-import { episodeTag, type MediaItem } from '@luma/core';
-import { useT } from '@luma/ui';
+import { episodeTag, type MediaItem } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useState } from 'react';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 
 /** Depleting circular progress ring with the remaining seconds in the centre,
  * shown on the autoplay button (Netflix/Disney+ countdown). */
@@ -56,7 +56,7 @@ export function UpNextOverlay({
   onCancel: () => void;
 }>) {
   const t = useT();
-  const c = lumaClient();
+  const c = kromaClient();
   const [imgOk, setImgOk] = useState(true);
   const thumb = c.backdropFor(next) ?? c.posterFor(next);
   const tag = episodeTag(next);

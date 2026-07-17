@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useAuth } from '#web/shared/lib/auth';

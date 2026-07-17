@@ -2,11 +2,11 @@
 // their subdirectories, then commit the current directory as the picked folder.
 // Controlled: `value` is the committed path, `onChange` fires when the operator
 // presses "use this folder". Browsing state is internal (seeded from `value`).
-import type { AdminFsList } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AdminFsList } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconCheck, IconChevronRight, IconCornerLeftUp, IconFolder } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useState } from 'react';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 
 export function FolderPicker({
   value,
@@ -20,7 +20,7 @@ export function FolderPicker({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    lumaClient()
+    kromaClient()
       .adminBrowseFolders(path)
       .then((res) => {
         if (active) setList(res);

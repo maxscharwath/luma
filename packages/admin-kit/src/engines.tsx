@@ -13,9 +13,9 @@ import {
   type EngineField,
   type MessageKey,
   type ModuleInfo,
-} from '@luma/core';
+} from '@kroma/core';
 import { useQuery } from '@tanstack/react-query';
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { useMemo, useState } from 'react';
 import { useAdminKit } from './context';
 import { SegmentedControl } from './controls';

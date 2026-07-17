@@ -1,24 +1,24 @@
 <div align="center">
-  <img src="../../.github/assets/logo.svg" alt="LUMA" height="56">
-  <h1>@luma/tv</h1>
+  <img src="../../.github/assets/logo.svg" alt="KROMA" height="56">
+  <h1>@kroma/tv</h1>
   <p><i>The shared 10-foot TV experience mounted by the Samsung & LG shells.</i></p>
 </div>
 
-> Part of the [LUMA](../../README.md) monorepo. The **entire** living-room app
+> Part of the [KROMA](../../README.md) monorepo. The **entire** living-room app
 > connect, profiles, home, detail, player, subtitles lives here once. The
-> [`@luma/tizen`](../../clients/tizen/README.md) and
-> [`@luma/webos`](../../clients/webos/README.md) clients are thin shells that just
+> [`@kroma/tizen`](../../clients/tizen/README.md) and
+> [`@kroma/webos`](../../clients/webos/README.md) clients are thin shells that just
 > mount it; nothing TV-specific is duplicated per platform.
 
 <div align="center">
-  <img src="../../design/screenshots/tv-detail.jpg" alt="LUMA TV 10-foot detail page" width="80%">
+  <img src="../../design/screenshots/tv-detail.jpg" alt="KROMA TV 10-foot detail page" width="80%">
 </div>
 
 ## Mount it
 
 ```ts
-import { mountTv } from '@luma/tv';
-import '@luma/tv/tv.css';
+import { mountTv } from '@kroma/tv';
+import '@kroma/tv/tv.css';
 
 mountTv();          // renders the whole TV app into #root
 ```
@@ -26,14 +26,14 @@ mountTv();          // renders the whole TV app into #root
 Or embed the component directly:
 
 ```tsx
-import { TvApp } from '@luma/tv';
+import { TvApp } from '@kroma/tv';
 
 <TvApp />
 ```
 
 `react` / `react-dom` are **peer dependencies** (≥ 18). Built on
-[`@luma/core`](../core/README.md) (API, capabilities, remote map) and
-[`@luma/ui`](../ui/README.md) (components, tokens).
+[`@kroma/core`](../core/README.md) (API, capabilities, remote map) and
+[`@kroma/ui`](../ui/README.md) (components, tokens).
 
 ## What it provides
 
@@ -44,7 +44,7 @@ import { TvApp } from '@luma/tv';
   (QR pairing), home (hero + rails), movie & show detail (cast, seasons), player
   with audio/subtitle selection and resume.
 - **Direct-play player** streams the original file and decodes HEVC/HDR in TV
-  hardware; falls back to the audio-only HLS path when needed (all via `@luma/core`).
+  hardware; falls back to the audio-only HLS path when needed (all via `@kroma/core`).
 - **Smart Hub preview** (`preview.ts`) builds the "new movies" carousel data
   Samsung shows on the home screen even while the app is closed (see the
   [Tizen README](../../clients/tizen/README.md#smart-hub-preview-new-movies-carousel)).
@@ -58,7 +58,7 @@ import { TvApp } from '@luma/tv';
 | `mountTv(props?)` | Render the TV app into `#root`. |
 | `TvApp` / `TvAppProps` | The root React component. |
 | `useFocusNav` | Spatial remote-navigation hook. |
-| `@luma/tv/tv.css` | TV stylesheet (focus rings, rails, 10-foot scale). |
+| `@kroma/tv/tv.css` | TV stylesheet (focus rings, rails, 10-foot scale). |
 
 ## Develop
 
@@ -71,5 +71,5 @@ bun run dev:webos     # :5175   LG
 
 ## See also
 
-- [`@luma/core`](../core/README.md) · [`@luma/ui`](../ui/README.md)
+- [`@kroma/core`](../core/README.md) · [`@kroma/ui`](../ui/README.md)
 - [Samsung Tizen client](../../clients/tizen/README.md) · [LG webOS client](../../clients/webos/README.md)

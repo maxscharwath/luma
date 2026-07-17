@@ -1,4 +1,4 @@
-import { sizedImageUrl } from '@luma/core';
+import { sizedImageUrl } from '@kroma/core';
 import { IconPlayerPlayFilled } from '@tabler/icons-react';
 import { memo, useEffect, useState } from 'react';
 
@@ -52,7 +52,7 @@ export function badgeClasses(badge: string | null): string {
 /**
  * Key-art fill: a real `<img>` over a deterministic genre gradient. The gradient
  * shows instantly (and stays as the fallback) while the image loads or if it
- * fails so a tile/hero is never blank, matching the cinematic LUMA look.
+ * fails so a tile/hero is never blank, matching the cinematic KROMA look.
  */
 export function TvArt({
   src,

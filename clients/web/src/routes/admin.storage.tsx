@@ -1,5 +1,5 @@
-import type { Volume } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { Volume } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconDatabase } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';

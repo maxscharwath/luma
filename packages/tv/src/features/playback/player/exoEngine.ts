@@ -1,4 +1,4 @@
-// Native media3/ExoPlayer backend for the @luma/androidtv shell, in one of two
+// Native media3/ExoPlayer backend for the @kroma/androidtv shell, in one of two
 // source modes (the same shape as the AVPlay and mpv backends):
 //
 //  - `direct`: ExoPlayer opens the ORIGINAL file URL (`/api/items/:id/stream`,
@@ -16,10 +16,10 @@
 // ExoPlayer renders to a SurfaceView BEHIND the transparent WebView (the same
 // "video plane behind the page" model as AVPlay/mpv), so this backend has no
 // in-page media element (surface: 'exo'); the HTML chrome + subtitle overlay
-// sit on top. Events arrive through the global `__lumaExoEvent` callback the
+// sit on top. Events arrive through the global `__kromaExoEvent` callback the
 // Kotlin side invokes with a JSON payload.
 
-import type { LumaClient, MediaItem } from '@luma/core';
+import type { KromaClient, MediaItem } from '@kroma/core';
 import {
   type EngineListeners,
   type ExoShellBridge,
@@ -29,7 +29,7 @@ import {
 } from '#tv/features/playback/player/engine';
 
 export interface ExoOptions {
-  client: LumaClient;
+  client: KromaClient;
   item: MediaItem;
   durationSec: number;
   /** Audio-relative rendition to select once loaded (0 = the first/default track). */
@@ -55,12 +55,12 @@ interface ExoEvent {
   message?: string;
 }
 
-type ExoEventGlobal = { __lumaExoEvent?: (e: ExoEvent) => void };
+type ExoEventGlobal = { __kromaExoEvent?: (e: ExoEvent) => void };
 
 export class ExoEngine implements TvEngine {
   readonly kind = 'exo';
   private readonly bridge: ExoShellBridge;
-  private readonly client: LumaClient;
+  private readonly client: KromaClient;
   private readonly item: MediaItem;
   private readonly listeners: EngineListeners;
   private mode: 'direct' | 'master';
@@ -92,7 +92,7 @@ export class ExoEngine implements TvEngine {
     } else {
       this.baseSec = opts.startSec;
     }
-    (globalThis as ExoEventGlobal).__lumaExoEvent = (e) => {
+    (globalThis as ExoEventGlobal).__kromaExoEvent = (e) => {
       if (!this.destroyed) this.onEvent(e);
     };
     this.open();
@@ -270,7 +270,7 @@ export class ExoEngine implements TvEngine {
   destroy(): void {
     this.destroyed = true;
     const g = globalThis as ExoEventGlobal;
-    if (g.__lumaExoEvent) delete g.__lumaExoEvent;
+    if (g.__kromaExoEvent) delete g.__kromaExoEvent;
     this.cmd('stop');
   }
 }

@@ -1,13 +1,13 @@
-import type { SearchHit } from '@luma/core';
-import { posterColors, qualityBadge, qualityBadgeForVideo } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { SearchHit } from '@kroma/core';
+import { posterColors, qualityBadge, qualityBadgeForVideo } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconSearch } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
 import { TvPoster } from '#tv/shared/TvMedia';
-import { LumaMark, OnScreenKeyboard, TvBackButton, TvTextEntry } from '#tv/shared/ui';
+import { KromaMark, OnScreenKeyboard, TvBackButton, TvTextEntry } from '#tv/shared/ui';
 
 interface Hit {
   id: string;
@@ -103,7 +103,7 @@ export function TvSearch() {
     <div className="fixed inset-0 z-10 flex flex-col bg-bg px-16 py-11 animate-[tv-fade-in_0.3s_ease]">
       <div className="mb-7 flex items-center gap-3.5">
         <TvBackButton />
-        <LumaMark size={28} />
+        <KromaMark size={28} />
         <span className="ml-auto font-sans text-[14px] font-semibold text-dim">
           {t('search.backHint')}
         </span>

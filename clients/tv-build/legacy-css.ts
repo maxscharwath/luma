@@ -219,9 +219,9 @@ function hoistMarginUtilities(root: Root, generated: WeakSet<ChildNode>): void {
   });
 }
 
-export function lumaLegacyCss(): Plugin {
+export function kromaLegacyCss(): Plugin {
   return {
-    postcssPlugin: 'luma-legacy-css',
+    postcssPlugin: 'kroma-legacy-css',
     Once(root) {
       const generated = new WeakSet<ChildNode>();
       unwrapPropertyFallback(root);

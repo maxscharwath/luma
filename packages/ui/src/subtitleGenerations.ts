@@ -5,7 +5,7 @@
 // on `active` toggles or a `refresh()` call (after the caller kicks off a new
 // generation). The client is injected so web and TV share the exact same logic.
 
-import type { LumaClient, SubtitleGeneration } from '@luma/core';
+import type { KromaClient, SubtitleGeneration } from '@kroma/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface SubtitleGenerationsOptions {
@@ -25,7 +25,7 @@ export interface SubtitleGenerationsResult {
 }
 
 export function useSubtitleGenerations(
-  client: LumaClient,
+  client: KromaClient,
   itemId: string,
   { active = true, onComplete }: SubtitleGenerationsOptions,
 ): SubtitleGenerationsResult {

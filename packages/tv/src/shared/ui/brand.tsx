@@ -1,9 +1,9 @@
-// The LUMA brand mark and the 10-foot wall clock.
+// The KROMA brand mark and the 10-foot wall clock.
 
 import { useEffect, useState } from 'react';
 
-/** The LUMA brand mark concentric amber rings + the wordmark. */
-export function LumaMark({ size = 30 }: Readonly<{ size?: number }>) {
+/** The KROMA brand mark concentric amber rings + the wordmark. */
+export function KromaMark({ size = 30 }: Readonly<{ size?: number }>) {
   return (
     <div className="flex items-center gap-3">
       <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -14,7 +14,7 @@ export function LumaMark({ size = 30 }: Readonly<{ size?: number }>) {
         className="font-display font-extrabold leading-none tracking-[0.16em]"
         style={{ fontSize: Math.round(size * 0.82) }}
       >
-        LUMA
+        KROMA
       </span>
     </div>
   );

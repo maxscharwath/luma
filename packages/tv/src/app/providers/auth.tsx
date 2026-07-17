@@ -1,5 +1,5 @@
 // Multi-server per-user session for the TV. Unlike the web (single origin), the
-// TV remembers profiles from several LUMA servers at once, so this owns:
+// TV remembers profiles from several KROMA servers at once, so this owns:
 //   • the active session (token + user + which server),
 //   • every remembered account across all servers,
 //   • each saved server's public profile list (for the picker), with liveness,
@@ -12,14 +12,14 @@ import {
   type AuthResult,
   clearSession,
   forgetAccount as forgetAccountStore,
-  type LumaClient,
+  type KromaClient,
   loadAccounts,
   loadSession,
   normalizeServerUrl as norm,
   type StoredSession,
   saveSession,
   type User,
-} from '@luma/core';
+} from '@kroma/core';
 import {
   createContext,
   type ReactNode,
@@ -65,7 +65,7 @@ export function AuthProvider({
   onSignedInChange,
   children,
 }: Readonly<{
-  client: LumaClient | null;
+  client: KromaClient | null;
   activeServerUrl: string | null;
   setActiveServer: (url: string) => void;
   /** Reports whether a session is active, so the host can gate the catalogue +

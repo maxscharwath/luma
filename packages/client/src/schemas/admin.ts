@@ -123,9 +123,9 @@ export type StorageInfo = z.infer<typeof StorageInfo>;
 
 /** Time-series history (oldest → newest). Percentages are 0..100. */
 export const MetricsSeries = z.object({
-  cpuLuma: z.array(z.number()),
+  cpuKroma: z.array(z.number()),
   cpuSystem: z.array(z.number()),
-  ramLuma: z.array(z.number()),
+  ramKroma: z.array(z.number()),
   ramSystem: z.array(z.number()),
   bwLocal: z.array(z.number()),
   bwRemote: z.array(z.number()),
@@ -134,9 +134,9 @@ export type MetricsSeries = z.infer<typeof MetricsSeries>;
 
 /** A point-in-time metrics snapshot plus the recent history series. */
 export const MetricsSnapshot = z.object({
-  cpuLuma: z.number(),
+  cpuKroma: z.number(),
   cpuSystem: z.number(),
-  ramLumaBytes: z.number(),
+  ramKromaBytes: z.number(),
   ramUsedBytes: z.number(),
   ramTotalBytes: z.number(),
   bwLocalMbps: z.number(),
@@ -256,7 +256,7 @@ export const LogEntry = z.object({
   level: z.string(),
   /** Rust tracing target for core lines; empty for module lines. */
   target: z.string(),
-  /** `core` or a module id (`dev.luma.vpn`). */
+  /** `core` or a module id (`tv.kroma.vpn`). */
   source: z.string(),
   message: z.string(),
 });

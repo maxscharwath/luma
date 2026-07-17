@@ -1,5 +1,5 @@
 {
-  "name": "@luma/modules-generated",
+  "name": "@kroma/modules-generated",
   "version": "0.0.0",
   "type": "module",
   "exports": {
@@ -10,7 +10,7 @@
     "build": "tsgo --noEmit"
   },
   "dependencies": {
-    "@luma/module-sdk": "workspace:*"
+    "@kroma/module-sdk": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18"

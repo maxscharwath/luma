@@ -1,5 +1,5 @@
 // A styled one-time-code / PIN input built on `input-otp`: a row of individual
-// digit slots with an animated caret, matching the LUMA design. Used for the
+// digit slots with an animated caret, matching the KROMA design. Used for the
 // profile PIN (masked) and Quick Connect codes (plain).
 
 import { OTPInput, REGEXP_ONLY_DIGITS, type SlotProps } from 'input-otp';

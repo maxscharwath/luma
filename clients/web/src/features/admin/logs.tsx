@@ -3,8 +3,8 @@
 // text filters and a follow-tail toggle. Polls; the ring is the source of
 // truth so a page load shows history, not just what streams in afterwards.
 
-import type { LogEntry, MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { LogEntry, MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconSearch, IconTerminal2 } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { PageHeader, usePoll } from '#web/features/admin/shell';
@@ -134,7 +134,7 @@ function LogLine({ entry }: Readonly<{ entry: LogEntry }>) {
       </span>
       {entry.source !== 'core' ? (
         <span className="shrink-0 rounded bg-accent-soft px-1.5 text-[10px] font-semibold text-accent">
-          {entry.source.replace(/^dev\.luma\./, '')}
+          {entry.source.replace(/^dev\.kroma\./, '')}
         </span>
       ) : null}
       <span className="min-w-0 break-words text-text/85">

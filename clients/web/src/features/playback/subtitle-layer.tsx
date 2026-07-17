@@ -1,5 +1,5 @@
-import { activeCueText, type Cue, parseVtt } from '@luma/core';
-import { useT } from '@luma/ui';
+import { activeCueText, type Cue, parseVtt } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { memo, type RefObject, useEffect, useRef, useState } from 'react';
 import { type SubtitleStyle, subtitleCss } from '#web/features/playback/subtitle-style';
 import type { SubtitleView } from '#web/shared/lib/api';

@@ -1,24 +1,24 @@
 #!/bin/sh
-# DSM 7 service control for LUMA. One process: luma-server serves the API,
+# DSM 7 service control for KROMA. One process: kroma-server serves the API,
 # streaming, AND the bundled web SPA on a single port. ffmpeg/ffprobe are taken
 # from the bundled static copies via PATH. Config (movies/series folders, port,
 # optional data folder) is written by the install wizard (postinst) to
-# var/luma.conf.
+# var/kroma.conf.
 
-PKG="luma"
+PKG="kroma"
 TARGET="/var/packages/${PKG}/target"
 VAR="/var/packages/${PKG}/var"
-BIN="${TARGET}/bin/luma-server"
-PID="${VAR}/luma.pid"
-LOG="${VAR}/luma.log"
+BIN="${TARGET}/bin/kroma-server"
+PID="${VAR}/kroma.pid"
+LOG="${VAR}/kroma.log"
 
 # shellcheck disable=SC1090
-[ -f "${VAR}/luma.conf" ] && . "${VAR}/luma.conf"
+[ -f "${VAR}/kroma.conf" ] && . "${VAR}/kroma.conf"
 
 # Data lives in the user-chosen folder (wizard) or, by default, under the
 # package's own var. If the chosen path can't be created (e.g. permissions were
 # never granted), fall back to var/data so the service still starts.
-DATA_DIR="${LUMA_DATA_DIR:-}"
+DATA_DIR="${KROMA_DATA_DIR:-}"
 [ -n "${DATA_DIR}" ] || DATA_DIR="${VAR}/data"
 
 start_daemon() {
@@ -29,12 +29,12 @@ start_daemon() {
     fi
     mkdir -p "${DATA_DIR}"
     PATH="${TARGET}/ffmpeg:${PATH}" \
-    LUMA_PORT="${LUMA_PORT:-4040}" \
-    LUMA_MOVIES_DIRS="${LUMA_MOVIES_DIRS}" \
-    LUMA_SERIES_DIRS="${LUMA_SERIES_DIRS}" \
-    LUMA_MEDIA_DIRS="${LUMA_MEDIA_DIRS}" \
-    LUMA_DATA_DIR="${DATA_DIR}" \
-    LUMA_WEB_DIR="${TARGET}/web" \
+    KROMA_PORT="${KROMA_PORT:-4040}" \
+    KROMA_MOVIES_DIRS="${KROMA_MOVIES_DIRS}" \
+    KROMA_SERIES_DIRS="${KROMA_SERIES_DIRS}" \
+    KROMA_MEDIA_DIRS="${KROMA_MEDIA_DIRS}" \
+    KROMA_DATA_DIR="${DATA_DIR}" \
+    KROMA_WEB_DIR="${TARGET}/web" \
     "${BIN}" >> "${LOG}" 2>&1 &
     echo $! > "${PID}"
 }

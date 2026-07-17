@@ -2,8 +2,8 @@
 // auto-named home sections + taste profiles. Register several providers as
 // inline cards (see aiProviders.tsx), pick the default used for generation, and
 // save the lot. Backed by /api/admin/llm*.
-import type { LlmAdminConfig } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { LlmAdminConfig } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconDeviceFloppy, IconPlus, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { ProviderCard, type ProviderForm } from '#web/features/admin/ai-providers';

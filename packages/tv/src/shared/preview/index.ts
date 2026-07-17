@@ -1,6 +1,6 @@
 // Samsung Tizen "Smart Hub Preview" integration.
 //
-// When the LUMA tile is focused on the TV home screen even with the app NOT
+// When the KROMA tile is focused on the TV home screen even with the app NOT
 // running Samsung can expand it into a carousel of content tiles. We surface
 // the newest movies there and deep-link straight into playback when a tile is
 // selected.

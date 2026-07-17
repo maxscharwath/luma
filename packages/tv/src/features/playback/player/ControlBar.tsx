@@ -1,5 +1,5 @@
-import type { Marker } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { Marker } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { type PointerEvent as ReactPointerEvent, useCallback, useRef } from 'react';
 import { fmtTime } from '#tv/features/playback/player/fmt';
 import {
@@ -43,7 +43,7 @@ function CountdownRing({ progress }: { progress: number }) {
         cy="50"
         r="46"
         fill="none"
-        stroke="var(--luma-accent-bright)"
+        stroke="var(--kroma-accent-bright)"
         strokeWidth="5"
         strokeLinecap="round"
         strokeDasharray={c}
@@ -229,7 +229,7 @@ export function ControlBar({
               })
             : null}
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,var(--luma-accent),var(--luma-accent-bright))] shadow-[0_0_12px_rgba(242,180,66,0.55)]"
+            className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,var(--kroma-accent),var(--kroma-accent-bright))] shadow-[0_0_12px_rgba(242,180,66,0.55)]"
             style={{ width: `${pct}%` }}
           />
           <div

@@ -1,4 +1,4 @@
-<svg width="280" height="84" viewBox="0 0 280 84" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LUMA">
+<svg width="280" height="84" viewBox="0 0 280 84" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="KROMA">
   <rect x="0.75" y="0.75" width="278.5" height="82.5" rx="18" fill="#0A0A0C" stroke="#F4B642" stroke-opacity="0.18" stroke-width="1.5"/>
   <!-- aperture mark -->
   <g transform="translate(26,22) scale(1.6667)">
@@ -8,5 +8,5 @@
   <!-- wordmark -->
   <text x="86" y="55"
         font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="800"
-        letter-spacing="5.5" fill="#F4F3F0">LUMA</text>
+        letter-spacing="5.5" fill="#F4F3F0">KROMA</text>
 </svg>

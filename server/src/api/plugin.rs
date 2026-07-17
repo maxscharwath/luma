@@ -3,7 +3,7 @@
 //!
 //! - `/modules/:id/*path` (public, at the root): serves `<data>/modules/:id/fe/*`
 //!   -- the `remoteEntry.js` + chunks the frontend `loadRemote`s (no bearer, like
-//!   the icon route). The supervisor unpacks a `.lmod`'s `fe/` there on install.
+//!   the icon route). The supervisor unpacks a `.kmod`'s `fe/` there on install.
 //!   Mounted before the SPA fallback.
 
 use std::path::{Component, PathBuf};

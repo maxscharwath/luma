@@ -2,8 +2,8 @@
 // `AuthGate.tsx`, which owns the gate/routing + profile picker and composes
 // these two screens.
 
-import { isEmail, isPassword, isUsername, type PublicUser } from '@luma/core';
-import { useT } from '@luma/ui';
+import { isEmail, isPassword, isUsername, type PublicUser } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconInfoCircle, IconKey, IconPlus } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { avatarGradient, initials, UserAvatar } from '#web/features/accounts/user-avatar';

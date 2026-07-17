@@ -2,18 +2,18 @@ import {
   GEN_LANGS,
   GEN_QUALITIES,
   type GenQuality,
-  type LumaClient,
+  type KromaClient,
   type MediaItem,
   type SubCapabilities,
   type SubtitleGeneration,
-} from '@luma/core';
-import { useSubtitleGenerations } from '@luma/ui';
+} from '@kroma/core';
+import { useSubtitleGenerations } from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SubView } from '#tv/features/playback/player/useSubtitleSelection';
 
 export type GenMode = 'transcribe' | 'translate';
 
-// Language + quality options live in `@luma/core` (shared with the web generate
+// Language + quality options live in `@kroma/core` (shared with the web generate
 // sheet); re-export the names the TV components already import from here.
 export { GEN_LANGS, GEN_QUALITIES };
 
@@ -52,7 +52,7 @@ const mod = (n: number, m: number) => ((n % m) + m) % m;
  * per finished generation, self-gate to in-flight-only) is delegated to the shared
  * `useSubtitleGenerations` hook. */
 export function useSubtitleGen(
-  client: LumaClient,
+  client: KromaClient,
   item: MediaItem,
   sources: SubView[],
   onComplete: () => void,

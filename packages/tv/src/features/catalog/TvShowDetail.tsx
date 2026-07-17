@@ -4,8 +4,8 @@ import {
   qualityBadgeForVideo,
   type ShowDetail,
   type UpNext,
-} from '@luma/core';
-import { useLocale, useT, useThemeAudio } from '@luma/ui';
+} from '@kroma/core';
+import { useLocale, useT, useThemeAudio } from '@kroma/ui';
 import { IconClock } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useMyList } from '#tv/app/providers/mylist';

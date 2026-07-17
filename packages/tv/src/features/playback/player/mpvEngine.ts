@@ -1,4 +1,4 @@
-// Native mpv backend for the @luma/desktop shell (Steam Deck the primary target),
+// Native mpv backend for the @kroma/desktop shell (Steam Deck the primary target),
 // in one of two source modes (the same shape as the Tizen AVPlay backend):
 //
 //  - `direct`: mpv opens the ORIGINAL file URL (`/api/items/:id/stream`, plain
@@ -21,7 +21,7 @@
 // media element for this backend (surface: 'mpv'); the HTML chrome + subtitle
 // overlay sit on top.
 
-import type { LumaClient, MediaItem } from '@luma/core';
+import type { KromaClient, MediaItem } from '@kroma/core';
 import {
   type EngineListeners,
   getTauri,
@@ -31,7 +31,7 @@ import {
 } from '#tv/features/playback/player/engine';
 
 export interface MpvOptions {
-  client: LumaClient;
+  client: KromaClient;
   item: MediaItem;
   durationSec: number;
   /** Audio-relative rendition to select once loaded (0 = the first/default track). */
@@ -54,7 +54,7 @@ type MpvArg = string | number | boolean;
 export class MpvEngine implements TvEngine {
   readonly kind = 'mpv';
   private readonly bridge: TauriBridge;
-  private readonly client: LumaClient;
+  private readonly client: KromaClient;
   private readonly item: MediaItem;
   private readonly listeners: EngineListeners;
   private mode: 'direct' | 'master';

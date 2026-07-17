@@ -1,7 +1,7 @@
-// Wire types shared by every LUMA client.
+// Wire types shared by every KROMA client.
 //
 // Every wire type is defined by a zod schema in `./schemas` (the single source of
-// truth) and re-exported below so consumers keep importing from `@luma/core`.
+// truth) and re-exported below so consumers keep importing from `@kroma/core`.
 // What remains here is the handful of things the schemas don't express: two
 // open-union `codec` aliases, a request body the client *sends*, and a runtime
 // helper.

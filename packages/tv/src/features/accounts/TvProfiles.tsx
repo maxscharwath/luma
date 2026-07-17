@@ -1,5 +1,5 @@
-import { normalizeServerUrl as norm, type StoredSession } from '@luma/core';
-import { useT } from '@luma/ui';
+import { normalizeServerUrl as norm, type StoredSession } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconPlus } from '@tabler/icons-react';
 import { useMemo } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
@@ -7,7 +7,7 @@ import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
 import { useServersHealth } from '#tv/app/useServersHealth';
 import { StatusDot } from '#tv/features/accounts/ServerStatus';
-import { artUrl, AuthScreen, hostOf, LumaMark, ProfileAvatar } from '#tv/shared/ui';
+import { artUrl, AuthScreen, hostOf, KromaMark, ProfileAvatar } from '#tv/shared/ui';
 import { useFocusNav } from '#tv/app/useFocusNav';
 
 interface Tile {
@@ -32,7 +32,7 @@ export function TvProfiles() {
     const nameFor = (url: string) =>
       servers.find((s) => s.url === norm(url))?.name ||
       hostOf(norm(url)) ||
-      (activeServerName ?? 'LUMA');
+      (activeServerName ?? 'KROMA');
     return accounts.map((a) => ({
       key: `${norm(a.serverUrl)}|${a.user.id}`,
       account: a,
@@ -63,7 +63,7 @@ export function TvProfiles() {
   return (
     <AuthScreen>
       <div className="mb-7">
-        <LumaMark size={34} />
+        <KromaMark size={34} />
       </div>
       <h1 className="m-0 mb-3 font-display text-[50px] font-semibold leading-none">
         {t('auth.whoWatching')}

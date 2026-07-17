@@ -1,5 +1,5 @@
-import { sizedImageUrl } from '@luma/core';
-import { useT } from '@luma/ui';
+import { sizedImageUrl } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconCheck } from '@tabler/icons-react';
 import { useState } from 'react';
 
@@ -23,7 +23,7 @@ export interface PosterProps {
 }
 
 /**
- * Poster tile. Hover lifts the card and rings it in amber (LUMA design).
+ * Poster tile. Hover lifts the card and rings it in amber (KROMA design).
  * When real artwork is present the text overlay is hidden (the poster already
  * carries the title) and only reveals on hover; for gradient placeholders it
  * always shows.
@@ -56,8 +56,8 @@ export function Poster({
       <button type="button" onClick={onClick} className="block w-full text-left focus:outline-none">
         <div
           className="relative aspect-2/3 overflow-hidden rounded-lg shadow-card transition-shadow duration-200
-            group-hover:shadow-[0_0_0_3px_var(--luma-accent),var(--shadow-pop)]
-            group-focus-within:shadow-[0_0_0_3px_var(--luma-accent),var(--shadow-pop)]"
+            group-hover:shadow-[0_0_0_3px_var(--kroma-accent),var(--shadow-pop)]
+            group-focus-within:shadow-[0_0_0_3px_var(--kroma-accent),var(--shadow-pop)]"
           style={{ background: gradient }}
         >
           {showImg ? (

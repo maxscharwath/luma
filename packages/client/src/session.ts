@@ -3,7 +3,7 @@
 //     reload / relaunch stays signed in;
 //   • the list of accounts that have signed in on THIS device, so switching back
 //     to one is instant (no password) Netflix-style;
-//   • the list of saved servers (TV is multi-server it remembers several LUMA
+//   • the list of saved servers (TV is multi-server it remembers several KROMA
 //     servers, each with its own set of profiles).
 //
 // Multi-server is opt-in per record: a `StoredSession.serverUrl` scopes an
@@ -13,11 +13,11 @@
 
 import type { User } from './types';
 
-const KEY = 'luma.session'; // active session
-const ACCOUNTS_KEY = 'luma.accounts'; // remembered sessions on this device
-const SERVERS_KEY = 'luma.servers'; // saved LUMA servers (TV multi-server)
-const LEGACY_SERVER_KEY = 'luma.serverUrl'; // pre-multi-server single URL
-const LOCALE_KEY = 'luma.locale'; // device-level UI locale override
+const KEY = 'kroma.session'; // active session
+const ACCOUNTS_KEY = 'kroma.accounts'; // remembered sessions on this device
+const SERVERS_KEY = 'kroma.servers'; // saved KROMA servers (TV multi-server)
+const LEGACY_SERVER_KEY = 'kroma.serverUrl'; // pre-multi-server single URL
+const LOCALE_KEY = 'kroma.locale'; // device-level UI locale override
 
 export interface StoredSession {
   /** The long-lived device credential (NOT a bearer). Exchanged for a
@@ -33,7 +33,7 @@ export interface StoredSession {
 // ----- in-memory session (bearer) token ---------------------------------------
 // The short-lived bearer obtained by exchanging the access token. Kept in memory
 // only (never persisted) so a stolen localStorage dump can't be replayed as a
-// live session. `lumaClient()` and the shared client read it through here.
+// live session. `kromaClient()` and the shared client read it through here.
 
 let memorySessionToken: string | undefined;
 
@@ -56,7 +56,7 @@ export function setSessionToken(token: string | undefined): void {
 // lands). This coalesces overlapping exchanges into ONE in-flight request every
 // caller awaits, so a reload does a single token exchange.
 
-/** The shape returned by a session-token exchange (`LumaClient.exchangeToken`). */
+/** The shape returned by a session-token exchange (`KromaClient.exchangeToken`). */
 export interface TokenExchange<U = unknown> {
   token: string;
   user: U;
@@ -78,7 +78,7 @@ export function sharedTokenExchange<U>(
   return p;
 }
 
-/** A LUMA server the TV remembers, so it can hold profiles from several at once
+/** A KROMA server the TV remembers, so it can hold profiles from several at once
  * and order the picker by most-recently-used. */
 export interface SavedServer {
   /** Normalized origin, no trailing slash. */
@@ -184,7 +184,7 @@ export function forgetAccount(userId: string, serverUrl?: string): void {
 
 // ----- saved servers (TV multi-server) ----------------------------------------
 
-/** Saved LUMA servers, most-recently-used first. */
+/** Saved KROMA servers, most-recently-used first. */
 export function loadServers(): SavedServer[] {
   return readJson<SavedServer[]>(SERVERS_KEY, [])
     .filter((s) => s?.url)
@@ -237,8 +237,8 @@ export function forgetServer(url: string): void {
   if (active && scopeOf(active) === u) clearSession();
 }
 
-/** One-time upgrade from the pre-multi-server storage: seed `luma.servers` from
- * the old single `luma.serverUrl`, stamp legacy accounts/session with it, then
+/** One-time upgrade from the pre-multi-server storage: seed `kroma.servers` from
+ * the old single `kroma.serverUrl`, stamp legacy accounts/session with it, then
  * drop the legacy key. A no-op once migrated or on a fresh (web) install. */
 export function migrateStorage(): void {
   const s = storage();

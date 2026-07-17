@@ -2,8 +2,8 @@
 // cancel action for still-pending ones. Slow poll + a page-scoped event
 // stream (request.updated reloads, download.progress patches the bar).
 
-import { LumaEvents, type MediaRequest, posterColors, sizedImageUrl } from '@luma/core';
-import { useLocale, useT } from '@luma/ui';
+import { KromaEvents, type MediaRequest, posterColors, sizedImageUrl } from '@kroma/core';
+import { useLocale, useT } from '@kroma/ui';
 import { IconCalendarClock, IconInbox, IconLoader2, IconX } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -32,7 +32,7 @@ export function MyRequestsPage() {
 
   const lastReloadRef = useRef(0);
   useEffect(() => {
-    const ev = new LumaEvents(apiBase(), {
+    const ev = new KromaEvents(apiBase(), {
       onEvent: (e) => {
         if (e.type === 'request.updated') {
           const now = Date.now();

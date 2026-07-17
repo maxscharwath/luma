@@ -1,39 +1,39 @@
 :root {
   /* Surfaces deep cinematic charcoal */
-  --luma-bg: #0a0a0c;
-  --luma-surface-1: #121216;
-  --luma-surface-2: #1c1c22;
-  --luma-surface-3: #26262e;
-  --luma-overlay: rgba(18, 18, 22, 0.86);
-  --luma-border: rgba(255, 255, 255, 0.08);
-  --luma-border-strong: rgba(255, 255, 255, 0.14);
+  --kroma-bg: #0a0a0c;
+  --kroma-surface-1: #121216;
+  --kroma-surface-2: #1c1c22;
+  --kroma-surface-3: #26262e;
+  --kroma-overlay: rgba(18, 18, 22, 0.86);
+  --kroma-border: rgba(255, 255, 255, 0.08);
+  --kroma-border-strong: rgba(255, 255, 255, 0.14);
 
   /* Text on dark */
-  --luma-text: #f4f3f0;
-  --luma-text-muted: rgba(244, 243, 240, 0.62);
-  --luma-text-dim: rgba(244, 243, 240, 0.45);
+  --kroma-text: #f4f3f0;
+  --kroma-text-muted: rgba(244, 243, 240, 0.62);
+  --kroma-text-dim: rgba(244, 243, 240, 0.45);
 
   /* Brand accent warm amber */
-  --luma-accent: #f4b642;
-  --luma-accent-hover: #ffc862;
-  --luma-accent-bright: #ffd262;
-  --luma-accent-ink: #0a0a0c;
-  --luma-accent-soft: rgba(242, 180, 66, 0.16);
+  --kroma-accent: #f4b642;
+  --kroma-accent-hover: #ffc862;
+  --kroma-accent-bright: #ffd262;
+  --kroma-accent-ink: #0a0a0c;
+  --kroma-accent-soft: rgba(242, 180, 66, 0.16);
 
   /* Semantic + quality badges */
-  --luma-success: #46d08d; /* Disponible / Vu */
-  --luma-info: #86a8ff; /* Recherche / réseau */
-  --luma-hdr: #c792ea; /* badge HDR */
-  --luma-h265: #5fd3c4; /* badge H.265 */
-  --luma-danger: #e53935;
+  --kroma-success: #46d08d; /* Disponible / Vu */
+  --kroma-info: #86a8ff; /* Recherche / réseau */
+  --kroma-hdr: #c792ea; /* badge HDR */
+  --kroma-h265: #5fd3c4; /* badge H.265 */
+  --kroma-danger: #e53935;
 
   /* Semantic aliases */
-  --surface-page: var(--luma-bg);
-  --surface-card: var(--luma-surface-1);
-  --surface-raised: var(--luma-surface-2);
-  --text-body: var(--luma-text);
-  --text-secondary: var(--luma-text-muted);
-  --text-tertiary: var(--luma-text-dim);
-  --brand: var(--luma-accent);
-  --brand-ink: var(--luma-accent-ink);
+  --surface-page: var(--kroma-bg);
+  --surface-card: var(--kroma-surface-1);
+  --surface-raised: var(--kroma-surface-2);
+  --text-body: var(--kroma-text);
+  --text-secondary: var(--kroma-text-muted);
+  --text-tertiary: var(--kroma-text-dim);
+  --brand: var(--kroma-accent);
+  --brand-ink: var(--kroma-accent-ink);
 }

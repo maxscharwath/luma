@@ -53,7 +53,7 @@ fn require(user: &User, perm: Permission) -> Result<(), Response> {
 /// module. Gate them on it so disabling Acquisition removes search / grab
 /// everywhere, not only the module's own admin routes: 404 when it is off.
 fn require_acquisition(state: &SharedState, user: &User) -> Result<(), Response> {
-    if luma_engine::modules::module_enabled(&state.settings, "dev.luma.acquisition") {
+    if kroma_engine::modules::module_enabled(&state.settings, "tv.kroma.acquisition") {
         Ok(())
     } else {
         Err(lerr(locale(user), StatusCode::NOT_FOUND, "error.moduleDisabled"))
@@ -386,8 +386,8 @@ pub async fn grab(
 fn acquisition_search(
     state: &SharedState,
     user: &User,
-) -> Result<std::sync::Arc<dyn luma_module_sdk::ports::AcquisitionSearchPort>, Response> {
-    luma_module_host::resolve_port::<dyn luma_module_sdk::ports::AcquisitionSearchPort>(state)
+) -> Result<std::sync::Arc<dyn kroma_module_sdk::ports::AcquisitionSearchPort>, Response> {
+    kroma_module_host::resolve_port::<dyn kroma_module_sdk::ports::AcquisitionSearchPort>(state)
         .ok_or_else(|| lerr(locale(user), StatusCode::NOT_FOUND, "error.moduleDisabled"))
 }
 

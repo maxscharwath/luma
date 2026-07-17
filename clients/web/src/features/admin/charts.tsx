@@ -3,7 +3,7 @@
 // history bars. Chart.js owns the plot, axes, grid and tooltips; the legend and
 // footer are kept as bespoke React to match the "Admin Serveur" design.
 
-import type { HistoryBucket } from '@luma/core';
+import type { HistoryBucket } from '@kroma/core';
 import {
   BarElement,
   CategoryScale,

@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 
 /** Fast-forward chevrons glyph for the skip-intro pill. */
 function IconSkipIntro() {

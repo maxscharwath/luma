@@ -14,16 +14,13 @@
  * `.env` from the working directory; CI passes the same vars inline. Uses only
  * Node built-ins, so it also runs under Node. See `.env.example`.
  *
- * Run:  bun run --filter @luma/synology-repo gen
+ * Run:  bun run --filter @kroma/synology-repo gen
  *   or: bun packages/synology-repo/src/gen-catalog.ts
  */
-import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { channelSubs, renderLanding, type Subs } from './render-landing';
-
-const INFO_LINE = /^(\w+)=(.*)$/;
+import { extractIcon, readSpkInfo } from './spk';
 
 /** Read an env var, falling back to a default (or throwing if required). */
 function env(key: string, fallback?: string): string {
@@ -58,24 +55,6 @@ function findSpk(dirs: string[]): string {
   return newest.path;
 }
 
-/** Extract a single member of the (ustar) .spk to a Buffer. */
-function extractFromSpk(spk: string, member: string): Buffer {
-  return execFileSync('tar', ['-xOf', spk, member], { maxBuffer: 256 * 1024 * 1024 });
-}
-
-/** Parse `key="value"` / `key=value` lines from the package's INFO file. */
-function parseInfo(info: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of info.split('\n')) {
-    const m = INFO_LINE.exec(line);
-    const key = m?.[1];
-    const raw = m?.[2];
-    if (key === undefined || raw === undefined) continue;
-    out[key] = raw.replace(/^"(.*)"$/, '$1');
-  }
-  return out;
-}
-
 // --- Config (all overridable via env / .env) ---------------------------------
 const spk = process.env.CATALOG_SPK?.trim() || findSpk(['.', 'dist', 'clients/synology/dist']);
 const downloadUrl = env('CATALOG_DOWNLOAD_URL'); // where DSM downloads the .spk
@@ -84,38 +63,20 @@ const outDir = resolve(env('CATALOG_OUT_DIR', 'dist/repo'));
 const catalogName = env('CATALOG_NAME', 'catalog.json'); // e.g. nightly.json for a beta channel
 const beta = env('CATALOG_BETA', 'false') === 'true';
 const meta = {
-  maintainer: env('CATALOG_MAINTAINER', 'LUMA'),
-  maintainerUrl: env('CATALOG_MAINTAINER_URL', 'https://github.com/maxscharwath/luma'),
-  distributor: env('CATALOG_DISTRIBUTOR', env('CATALOG_MAINTAINER', 'LUMA')),
-  distributorUrl: env('CATALOG_DISTRIBUTOR_URL', 'https://github.com/maxscharwath/luma'),
-  changelogUrl: env('CATALOG_CHANGELOG_URL', 'https://github.com/maxscharwath/luma/releases'),
+  maintainer: env('CATALOG_MAINTAINER', 'KROMA'),
+  maintainerUrl: env('CATALOG_MAINTAINER_URL', 'https://github.com/maxscharwath/kroma'),
+  distributor: env('CATALOG_DISTRIBUTOR', env('CATALOG_MAINTAINER', 'KROMA')),
+  distributorUrl: env('CATALOG_DISTRIBUTOR_URL', 'https://github.com/maxscharwath/kroma'),
+  changelogUrl: env('CATALOG_CHANGELOG_URL', 'https://github.com/maxscharwath/kroma/releases'),
 };
 
 // --- Read the package's own INFO + icon so the catalog can never disagree ------
-const info = parseInfo(extractFromSpk(spk, 'INFO').toString('utf8'));
-const version = info.version; // DSM compares THIS to the installed version
-if (!version) throw new Error(`No version= in the .spk INFO (${spk})`);
-const pkg = info.package || 'luma';
-const dname = info.displayname || 'LUMA';
-const desc = info.description || '';
-const firmware = info.os_min_ver || '7.0-40000';
-const arch = info.arch || 'x86_64';
-
-const spkBytes = readFileSync(spk);
-const size = spkBytes.byteLength;
-const md5 = createHash('md5').update(spkBytes).digest('hex');
+// DSM compares `version` to the installed version.
+const { package: pkg, version, dname, desc, arch, firmware, size, md5 } = readSpkInfo(spk);
 
 // Icon: an explicit override wins, else pull the store icon out of the .spk itself.
 const iconOverride = process.env.CATALOG_ICON?.trim();
-const iconBytes = iconOverride ? readFileSync(iconOverride) : tryExtractIcon(spk);
-
-function tryExtractIcon(file: string): Buffer {
-  try {
-    return extractFromSpk(file, 'PACKAGE_ICON_256.PNG');
-  } catch {
-    return extractFromSpk(file, 'PACKAGE_ICON.PNG');
-  }
-}
+const iconBytes = iconOverride ? readFileSync(iconOverride) : extractIcon(spk);
 
 // --- Emit catalog.json + icon + landing page ---------------------------------
 const iconFile = `${pkg}.png`;

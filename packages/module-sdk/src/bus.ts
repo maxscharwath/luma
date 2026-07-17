@@ -1,16 +1,16 @@
 // A typed, in-process event bus for loose coupling between modules. This is the
 // frontend counterpart to the backend's open `ModuleEvent` envelope: modules
-// declare their events by merging into `LumaEvents` (see contracts.ts), then
+// declare their events by merging into `KromaEvents` (see contracts.ts), then
 // emit/subscribe with full type-checking.
 
-import type { LumaEvents } from './contracts';
+import type { KromaEvents } from './contracts';
 
-export type EventKey = keyof LumaEvents & string;
+export type EventKey = keyof KromaEvents & string;
 
 export interface EventBus {
-  emit<K extends EventKey>(key: K, payload: LumaEvents[K]): void;
+  emit<K extends EventKey>(key: K, payload: KromaEvents[K]): void;
   /** Subscribe; returns an unsubscribe function. */
-  on<K extends EventKey>(key: K, handler: (payload: LumaEvents[K]) => void): () => void;
+  on<K extends EventKey>(key: K, handler: (payload: KromaEvents[K]) => void): () => void;
 }
 
 type AnyHandler = (payload: never) => void;

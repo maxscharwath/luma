@@ -3,8 +3,8 @@
 // User-Agent, when it was last seen, and a revoke button; the device making the
 // current request is flagged and can't revoke itself here (sign out does that).
 
-import type { SessionInfo } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { SessionInfo } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconDeviceDesktop,
   IconDeviceMobile,
@@ -15,7 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Panel } from '#web/features/accounts/account/ui';
 import { relativeSeen } from '#web/shared/lib/adminFormat';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 import { userQueries } from '#web/shared/lib/queries';
 import { Button } from '#web/shared/ui';
 
@@ -75,7 +75,7 @@ function SessionRow({ session }: Readonly<{ session: SessionInfo }>) {
   const revoke = async () => {
     setRevoking(true);
     try {
-      await lumaClient().revokeSession(session.id);
+      await kromaClient().revokeSession(session.id);
       await qc.invalidateQueries({ queryKey: ['sessions'] });
     } finally {
       setRevoking(false);

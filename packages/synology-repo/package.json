@@ -1,11 +1,11 @@
 {
-  "name": "@luma/synology-repo",
+  "name": "@kroma/synology-repo",
   "version": "0.1.4",
   "type": "module",
   "private": true,
   "description": "Generate a Synology package-source repository (catalog.json + landing page) from a built .spk, for static hosting (GitHub Pages, Cloudflare Pages, any static host).",
   "bin": {
-    "luma-synology-repo": "./src/gen-catalog.ts"
+    "kroma-synology-repo": "./src/gen-catalog.ts"
   },
   "scripts": {
     "gen": "bun run src/gen-catalog.ts",

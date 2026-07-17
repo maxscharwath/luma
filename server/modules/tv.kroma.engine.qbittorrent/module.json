@@ -1,0 +1,20 @@
+{
+  "id": "tv.kroma.engine.qbittorrent",
+  "name": "qBittorrent engine",
+  "version": "0.1.0",
+  "minServer": "0.1.4",
+  "dependsOn": { "tv.kroma.torrents": "^0.1.0" },
+  "provides": [
+    {
+      "kind": "download-client",
+      "id": "qbittorrent",
+      "label": "qBittorrent",
+      "fields": [
+        { "key": "url", "label": "field.url", "type": "string", "placeholder": "http://nas:8080", "required": true },
+        { "key": "username", "label": "field.username", "type": "string" },
+        { "key": "password", "label": "field.password", "type": "string", "secret": true }
+      ]
+    }
+  ],
+  "description": "qBittorrent WebUI as a download sub-engine for the Downloads module. Toggle it to add/remove qBittorrent from the download-client picker."
+}

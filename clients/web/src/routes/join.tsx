@@ -1,4 +1,4 @@
-import { Logo, useT } from '@luma/ui';
+import { Logo, useT } from '@kroma/ui';
 import { IconPlus } from '@tabler/icons-react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
@@ -99,7 +99,7 @@ function JoinPage() {
       <div className="m-auto flex w-full flex-col items-center">
         <div className="mb-10 flex items-center gap-2.5">
           <Logo markOnly size={30} />
-          <span className="font-display text-[24px] font-extrabold tracking-[.16em]">LUMA</span>
+          <span className="font-display text-[24px] font-extrabold tracking-[.16em]">KROMA</span>
         </div>
 
         {status === 'checking' ? (
@@ -121,7 +121,7 @@ function JoinPage() {
             }}
             className="flex w-full max-w-95 flex-col items-center gap-5"
           >
-            <h1 className="font-display text-[28px] font-semibold">{t('auth.joinLuma')}</h1>
+            <h1 className="font-display text-[28px] font-semibold">{t('auth.joinKroma')}</h1>
 
             <button
               type="button"

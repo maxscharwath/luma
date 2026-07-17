@@ -1,12 +1,12 @@
 // Client-side authentication context. The catalogue is rendered publicly via
 // SSR loaders; this layers a per-user session on top (login gate, profile,
 // playback progress). The session state machine lives in the shared
-// `useAuthSession` hook (@luma/ui); this adds the web-specific bits: a single
-// authed `LumaClient`, email/password login, and invite-gated registration with
+// `useAuthSession` hook (@kroma/ui); this adds the web-specific bits: a single
+// authed `KromaClient`, email/password login, and invite-gated registration with
 // an optional avatar upload.
 
-import { LumaClient, type StoredSession, type User } from '@luma/core';
-import { type ActivateResult, useAuthSession } from '@luma/ui';
+import { KromaClient, type StoredSession, type User } from '@kroma/core';
+import { type ActivateResult, useAuthSession } from '@kroma/ui';
 import { useRouter } from '@tanstack/react-router';
 import { createContext, type ReactNode, useCallback, useContext, useMemo } from 'react';
 import { apiBase } from '#web/shared/lib/api';
@@ -19,7 +19,7 @@ interface AuthValue {
   /** True once the session has been hydrated from storage (client-side). */
   ready: boolean;
   /** Authed API client (token attached while logged in). */
-  client: LumaClient;
+  client: KromaClient;
   /** Accounts already signed-in on this device switchable without a password. */
   accounts: StoredSession[];
   login: (email: string, password: string) => Promise<void>;
@@ -51,7 +51,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   // One authed client for the app's lifetime; the token is swapped in/out.
-  const client = useMemo(() => new LumaClient({ baseUrl: apiBase() }), []);
+  const client = useMemo(() => new KromaClient({ baseUrl: apiBase() }), []);
   // Web is SSR-rendered, so hydrate the session in an effect (not synchronously).
   const auth = useAuthSession(client);
   const router = useRouter();

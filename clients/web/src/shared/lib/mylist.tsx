@@ -1,7 +1,7 @@
 // "Ma liste" the user's bookmarked titles, hydrated once and shared across the
 // detail toggle and the "Ma liste" page. Server-backed (synced with the TV), with
 // optimistic toggles that revert if the server call fails. Mirrors the watched
-// provider ([[luma-accounts-permissions]]).
+// provider ([[kroma-accounts-permissions]]).
 
 import {
   createContext,

@@ -2,8 +2,8 @@
 // used by both the Modules page and the Store page so the bearer + base-URL
 // plumbing lives in one place instead of being copied into each.
 
-import { sessionToken } from '@luma/core';
-import type { ModuleManifest } from '@luma/module-sdk';
+import { sessionToken } from '@kroma/core';
+import type { ModuleManifest } from '@kroma/module-sdk';
 import { apiBase } from '#web/shared/lib/api';
 
 /** A module as `GET /api/admin/modules` returns it: the manifest plus its

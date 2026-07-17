@@ -1,5 +1,5 @@
-import { formatRuntime, qualityBadge } from '@luma/core';
-import { useT } from '@luma/ui';
+import { formatRuntime, qualityBadge } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { TvDetailScaffold } from '#tv/features/catalog/detail/DetailScaffold';
 import { CastRow, EndsAtHint, ListButton, WatchedButton } from '#tv/features/catalog/detail/parts';
 import { TvAiSuggestRow } from '#tv/features/catalog/detail/TvAiSuggestRow';

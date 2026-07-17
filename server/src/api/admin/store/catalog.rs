@@ -5,9 +5,9 @@
 //! Catalog schema 2 (what `scripts/gen-registry.ts` emits):
 //! ```json
 //! { "schema": 2, "modules": [{
-//!     "id": "dev.luma.mdns", "name": "…", "version": "0.1.0",
+//!     "id": "tv.kroma.mdns", "name": "…", "version": "0.1.0",
 //!     "description": "…", "library": false, "minServer": "0.1.4",
-//!     "dependsOn": { "dev.luma.torrents": "^0.1.0" },
+//!     "dependsOn": { "tv.kroma.torrents": "^0.1.0" },
 //!     "artifacts": [{ "target": "x86_64-unknown-linux-musl",
 //!                     "url": "…", "size": 123, "sha256": "…" }]
 //! }] }
@@ -15,19 +15,19 @@
 //! Schema 1 (legacy flat `url`/`size`/`sha256` per module) still parses, with
 //! the single artifact treated as platform-independent.
 
-use luma_module_host::HostCtx;
-use luma_module_supervisor::Supervisor;
+use kroma_module_host::HostCtx;
+use kroma_module_supervisor::Supervisor;
 use serde_json::{json, Value};
 
 use crate::state::SharedState;
 
 /// The target triple this server binary was built for (set by `build.rs`).
-const BUILD_TARGET: &str = env!("LUMA_BUILD_TARGET");
+const BUILD_TARGET: &str = env!("KROMA_BUILD_TARGET");
 
 /// This server's version, checked against a module's `minServer`.
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// One downloadable `.lmod` build of a module. `target = None` means the
+/// One downloadable `.kmod` build of a module. `target = None` means the
 /// bundle is platform-independent (a library module: manifest + FE only).
 pub struct Artifact {
     pub target: Option<String>,
@@ -174,9 +174,9 @@ fn pick_for<'a>(artifacts: &'a [Artifact], host: &str) -> Option<&'a Artifact> {
 
 /// Server compatibility verdict for one catalog entry: `(compatible, reason)`.
 pub fn compat_verdict(m: &CatalogModule) -> (bool, Option<String>) {
-    if !luma_module_manifest::server_satisfies(m.min_server.as_deref(), SERVER_VERSION) {
+    if !kroma_module_manifest::server_satisfies(m.min_server.as_deref(), SERVER_VERSION) {
         let needs = m.min_server.as_deref().unwrap_or("?");
-        return (false, Some(format!("requires LUMA server {needs} (this server is {SERVER_VERSION})")));
+        return (false, Some(format!("requires KROMA server {needs} (this server is {SERVER_VERSION})")));
     }
     if pick_artifact(m).is_none() {
         return (false, Some(format!("no build for this server's platform ({BUILD_TARGET})")));
@@ -189,7 +189,7 @@ pub fn compat_verdict(m: &CatalogModule) -> (bool, Option<String>) {
 /// passthrough (`url`/`size` per module), so an older client keeps working.
 pub fn enriched(state: &SharedState, modules: &[CatalogModule], registry_url: &str) -> Value {
     let installed: std::collections::HashMap<String, String> =
-        luma_module_kernel::manifests(state).into_iter().map(|m| (m.id, m.version)).collect();
+        kroma_module_kernel::manifests(state).into_iter().map(|m| (m.id, m.version)).collect();
     let entries: Vec<Value> = modules
         .iter()
         .map(|m| {
@@ -197,7 +197,7 @@ pub fn enriched(state: &SharedState, modules: &[CatalogModule], registry_url: &s
             let installed_version = installed.get(&m.id);
             let (compatible, reason) = compat_verdict(m);
             let update_available = installed_version
-                .is_some_and(|current| luma_module_manifest::is_newer(&m.version, current));
+                .is_some_and(|current| kroma_module_manifest::is_newer(&m.version, current));
             json!({
                 "id": m.id,
                 "name": m.name,
@@ -236,7 +236,7 @@ mod tests {
     fn artifact(target: Option<&str>) -> Artifact {
         Artifact {
             target: target.map(str::to_string),
-            url: format!("https://x/{}.lmod", target.unwrap_or("universal")),
+            url: format!("https://x/{}.kmod", target.unwrap_or("universal")),
             size: Some(1),
             sha256: Some("00".into()),
         }
@@ -269,7 +269,7 @@ mod tests {
                  "library": false,
                  "dependsOn": { "c.d": "^0.1.0", "e.f": "*" },
                  "artifacts": [{ "target": "x86_64-unknown-linux-musl",
-                                 "url": "https://x/a.b-x86_64-unknown-linux-musl.lmod",
+                                 "url": "https://x/a.b-x86_64-unknown-linux-musl.kmod",
                                  "size": 5, "sha256": "ab" }] }"#,
         )
         .unwrap();
@@ -286,7 +286,7 @@ mod tests {
 
         let v1: Value = serde_json::from_str(
             r#"{ "id": "a.b", "name": "AB", "version": "0.1.0",
-                 "url": "https://x/a.b.lmod", "size": 5, "sha256": "ab" }"#,
+                 "url": "https://x/a.b.kmod", "size": 5, "sha256": "ab" }"#,
         )
         .unwrap();
         let m = parse_module(&v1).unwrap();

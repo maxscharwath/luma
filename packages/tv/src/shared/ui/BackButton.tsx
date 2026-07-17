@@ -1,4 +1,4 @@
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconChevronLeft } from '@tabler/icons-react';
 import { useNav } from '#tv/app/router';
 

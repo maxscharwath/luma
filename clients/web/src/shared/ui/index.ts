@@ -1,5 +1,5 @@
 // The brand mark stays from the shared design system (pure SVG, no styling deps).
-export { Logo } from '@luma/ui';
+export { Logo } from '@kroma/ui';
 export { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui/avatar';
 export type { BadgeProps, BadgeTone } from '#web/shared/ui/badge';
 export { Badge } from '#web/shared/ui/badge';

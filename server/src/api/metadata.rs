@@ -1,5 +1,5 @@
 //! TMDB metadata endpoints: details + IDs for one item or show. Results are
-//! cached; returns 503 when `LUMA_TMDB_API_KEY` is unset, 404 on no match.
+//! cached; returns 503 when `KROMA_TMDB_API_KEY` is unset, 404 on no match.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -25,7 +25,7 @@ pub fn routes() -> Router<SharedState> {
 /// `GET /api/items/:id/metadata` → TMDB details + IDs for one item.
 ///
 /// Movies resolve against TMDB movies; episodes resolve against the parent show
-/// (TV). Results are cached. Returns 503 if `LUMA_TMDB_API_KEY` is unset, 404 if
+/// (TV). Results are cached. Returns 503 if `KROMA_TMDB_API_KEY` is unset, 404 if
 /// the item is unknown or TMDB has no match.
 pub async fn item_metadata(
     State(state): State<SharedState>,
@@ -70,7 +70,7 @@ fn require_tmdb_key(state: &SharedState) -> Result<String, Response> {
     state.config.tmdb_api_key.clone().ok_or_else(|| {
         json_error(
             StatusCode::SERVICE_UNAVAILABLE,
-            "metadata disabled: set LUMA_TMDB_API_KEY",
+            "metadata disabled: set KROMA_TMDB_API_KEY",
         )
     })
 }

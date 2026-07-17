@@ -1,8 +1,8 @@
 {
-  "name": "@luma/ui",
+  "name": "@kroma/ui",
   "version": "0.1.3",
   "type": "module",
-  "description": "LUMA design-system React components + tokens (ported from the Claude Design source).",
+  "description": "KROMA design-system React components + tokens (ported from the Claude Design source).",
   "exports": {
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css",
@@ -13,7 +13,7 @@
     "build": "tsgo --noEmit"
   },
   "dependencies": {
-    "@luma/core": "workspace:*"
+    "@kroma/core": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",

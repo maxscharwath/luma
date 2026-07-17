@@ -4,8 +4,8 @@ import {
   type SubtitleGeneration,
   subtitleEtaTime,
   subtitleStageKey,
-} from '@luma/core';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { langCode, langName } from '#tv/features/playback/player/fmt';
 import { GeneratePanel } from '#tv/features/playback/player/GeneratePanel';
 import { CheckGlyph, SparkleGlyph, TrashGlyph } from '#tv/features/playback/player/icons';

@@ -2,8 +2,8 @@
 // rating + availability/request chip, and a hover "request" affordance.
 // Clicks route to the local fiche when owned, else the discover detail.
 
-import { type DiscoverEntry, posterColors, sizedImageUrl } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type DiscoverEntry, posterColors, sizedImageUrl } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconPlus, IconStarFilled } from '@tabler/icons-react';
 import { useNavigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
@@ -59,7 +59,7 @@ export function DiscoverCard({
     >
       <button type="button" onClick={open} className="block w-full text-left focus:outline-none">
         <div
-          className="relative aspect-2/3 overflow-hidden rounded-lg shadow-card transition-shadow duration-200 group-hover/card:shadow-[0_0_0_3px_var(--luma-accent),var(--shadow-pop)]"
+          className="relative aspect-2/3 overflow-hidden rounded-lg shadow-card transition-shadow duration-200 group-hover/card:shadow-[0_0_0_3px_var(--kroma-accent),var(--shadow-pop)]"
           style={{ background: `linear-gradient(158deg, ${c1} 0%, ${c2} 70%)` }}
         >
           {showImg ? (

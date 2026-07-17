@@ -1,8 +1,8 @@
 {
-  "name": "@luma/client",
+  "name": "@kroma/client",
   "version": "0.1.3",
   "type": "module",
-  "description": "LUMA server client: the typed API client (LumaClient), ts-rs wire types, zod runtime schemas + branded ids, and session storage. Shared by every LUMA app.",
+  "description": "KROMA server client: the typed API client (KromaClient), ts-rs wire types, zod runtime schemas + branded ids, and session storage. Shared by every KROMA app.",
   "exports": {
     ".": "./src/index.ts"
   },

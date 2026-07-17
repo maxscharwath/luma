@@ -1,9 +1,9 @@
 {
-  "name": "@luma/tizen",
+  "name": "@kroma/tizen",
   "version": "0.1.3",
   "private": true,
   "type": "module",
-  "description": "LUMA Samsung Tizen TV client thin shell over @luma/tv.",
+  "description": "KROMA Samsung Tizen TV client thin shell over @kroma/tv.",
   "scripts": {
     "dev": "vite",
     "build": "tsgo --noEmit && vite build",
@@ -16,9 +16,9 @@
     "logs": "make logs"
   },
   "dependencies": {
-    "@luma/core": "workspace:*",
-    "@luma/tv": "workspace:*",
-    "@luma/ui": "workspace:*",
+    "@kroma/core": "workspace:*",
+    "@kroma/tv": "workspace:*",
+    "@kroma/ui": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

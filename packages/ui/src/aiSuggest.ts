@@ -4,7 +4,7 @@
 // items may be empty, in which case the caller renders nothing) or we give up.
 // The client is injected so web and TV share the exact same logic.
 
-import type { LumaClient, Section } from '@luma/core';
+import type { KromaClient, Section } from '@kroma/core';
 import { useEffect, useState } from 'react';
 
 /** Re-poll cadence + ceiling while the model is still generating (×6s ≈ 72s). */
@@ -46,7 +46,7 @@ function useEstimatedProgress(active: boolean): number {
 }
 
 export function useAiSuggest(
-  client: LumaClient,
+  client: KromaClient,
   id: string,
   { active = true }: UseAiSuggestOptions = {},
 ): UseAiSuggestResult {

@@ -7,7 +7,7 @@ import type { ModuleApiRegistry } from './contracts';
 import type { ModuleManifest } from './types';
 
 /** The slice of the server API the host grants modules. The web host adapts its
- *  concrete `LumaClient` to this; a module never depends on the client package. */
+ *  concrete `KromaClient` to this; a module never depends on the client package. */
 export interface HostApi {
   /** GET a JSON resource under the server's `/api`, with auth attached. */
   get<T>(path: string): Promise<T>;
@@ -31,7 +31,7 @@ export interface HostNav {
 }
 
 /** Everything a module receives at setup. */
-export interface LumaHost {
+export interface KromaHost {
   api: HostApi;
   auth: HostAuth;
   i18n: HostI18n;
@@ -44,4 +44,4 @@ export interface LumaHost {
 
 /** What the host provides to the registry; `getModuleApi` is wired by the
  *  registry itself, so the caller supplies everything except that. */
-export type HostBase = Omit<LumaHost, 'getModuleApi'>;
+export type HostBase = Omit<KromaHost, 'getModuleApi'>;

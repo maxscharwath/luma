@@ -13,8 +13,8 @@
   --shadow-hero: 0 20px 50px rgba(0, 0, 0, 0.6);
 
   /* Focus + glow (10-foot / TV) */
-  --ring-focus: 0 0 0 4px var(--luma-accent);
-  --ring-focus-sm: 0 0 0 3px var(--luma-accent);
+  --ring-focus: 0 0 0 4px var(--kroma-accent);
+  --ring-focus-sm: 0 0 0 3px var(--kroma-accent);
   --glow-accent: 0 6px 22px rgba(242, 180, 66, 0.4);
   --glow-play: 0 6px 22px rgba(242, 180, 66, 0.32);
 

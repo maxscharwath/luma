@@ -6,7 +6,7 @@
 // WebAuthn is only available in a secure context (HTTPS or localhost); callers
 // must gate their UI on `passkeysSupported()` first.
 
-import type { WebAuthnCredential, WebAuthnOptions } from '@luma/core';
+import type { WebAuthnCredential, WebAuthnOptions } from '@kroma/core';
 
 /** Whether the browser can run a WebAuthn ceremony here. */
 export function passkeysSupported(): boolean {

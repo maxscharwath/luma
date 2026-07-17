@@ -8,7 +8,7 @@ import { REVERSE_DNS, slug as toSlug } from './module-format';
 
 const id = process.argv[2];
 if (!id || !REVERSE_DNS.test(id)) {
-  console.error('usage: bun run modules:new <reverse.dns.id>   e.g. bun run modules:new dev.luma.notes');
+  console.error('usage: bun run modules:new <reverse.dns.id>   e.g. bun run modules:new tv.kroma.notes');
   process.exit(1);
 }
 
@@ -42,7 +42,7 @@ optional \`\`\`rust block only to contribute extra backend items alongside it (d
 not redefine \`MODULE\`). Drop an \`\`\`svg block to package an icon.
 
 \`\`\`tsx
-import type { LumaModule, ModuleComponentProps } from '@luma/module-sdk';
+import type { KromaModule, ModuleComponentProps } from '@kroma/module-sdk';
 import manifest from '../../module.json';
 
 function Panel(_: ModuleComponentProps) {
@@ -54,7 +54,7 @@ function Panel(_: ModuleComponentProps) {
   );
 }
 
-export const module: LumaModule = {
+export const module: KromaModule = {
   id: manifest.id,
   version: manifest.version,
   dependsOn: manifest.dependsOn,

@@ -1,11 +1,11 @@
 // Formatting + deterministic-gradient helpers for the admin console. The core
-// hue / decimal / formatBytes helpers live in @luma/admin-kit; this module
+// hue / decimal / formatBytes helpers live in @kroma/admin-kit; this module
 // re-exports the ones the web app consumes and keeps the web-specific extras
 // (poster gradient, French durations/uptime, relative timestamps) below.
 
-import { decimal, hue } from '@luma/admin-kit';
+import { decimal, hue } from '@kroma/admin-kit';
 
-export { decimal, formatBytes } from '@luma/admin-kit';
+export { decimal, formatBytes } from '@kroma/admin-kit';
 
 /** Poster gradient for a title (matches the design's `posterGrad`). */
 export function posterGradient(title: string): string {

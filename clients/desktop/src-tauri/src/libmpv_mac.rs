@@ -4,7 +4,7 @@
 // frontend `MpvEngine` drives it UNCHANGED. Compositing model: mpv renders into its OWN
 // borderless window (embedding into our NSViews via `--wid` proved unreliable on macOS -
 // it only attaches to a standalone key window, not a subview/child), and on the first
-// load we pin that window BEHIND the transparent LUMA window as a child, so it moves +
+// load we pin that window BEHIND the transparent KROMA window as a child, so it moves +
 // composites with it while the React player chrome sits on top - the same "video plane
 // behind the page" model as the Deck / Tizen.
 //
@@ -24,16 +24,16 @@ extern "C" {
     /// Create the GL view behind the webview + the mpv render context bound to it, and
     /// make the app window + webview see-through. Returns 0 on success. MUST run on the
     /// main thread. `mpv_handle` is the raw `mpv_handle*`.
-    fn luma_mpv_render_setup(nswindow: *mut c_void, mpv_handle: *mut c_void) -> i32;
+    fn kroma_mpv_render_setup(nswindow: *mut c_void, mpv_handle: *mut c_void) -> i32;
     /// Blank the GL view once (file switch), so the previous video's last frame doesn't
     /// linger while the next one buffers.
-    fn luma_mpv_request_clear();
+    fn kroma_mpv_request_clear();
     /// Register MPRemoteCommandCenter handlers + Now Playing info so the MacBook's
     /// hardware media keys (⏯/⏭/⏮) route to us. MUST run on the main thread.
-    fn luma_setup_media_keys();
+    fn kroma_setup_media_keys();
     /// Update the OS Now Playing widget (title/artist/poster/progress/rate). `artwork`
     /// empty = keep the current poster. MUST run on the main thread.
-    fn luma_set_now_playing(
+    fn kroma_set_now_playing(
         title: *const c_char,
         artist: *const c_char,
         duration: f64,
@@ -51,7 +51,7 @@ static MEDIA_APP: Mutex<Option<AppHandle>> = Mutex::new(None);
 /// Called by the Obj-C MPRemoteCommandCenter handlers when a MacBook media key is
 /// pressed; forwards the action (`playpause`/`play`/`pause`/`next`/`prev`) to the UI.
 #[no_mangle]
-pub extern "C" fn luma_media_key_pressed(action: *const c_char) {
+pub extern "C" fn kroma_media_key_pressed(action: *const c_char) {
     if action.is_null() {
         return;
     }
@@ -67,7 +67,7 @@ pub extern "C" fn luma_media_key_pressed(action: *const c_char) {
 /// Called by the Obj-C `changePlaybackPositionCommand` handler when the OS scrubber is
 /// dragged; forwards the target position (seconds) to the UI as a `media-seek` event.
 #[no_mangle]
-pub extern "C" fn luma_media_seek(position: f64) {
+pub extern "C" fn kroma_media_seek(position: f64) {
     let guard = MEDIA_APP.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(app) = guard.as_ref() {
         let _ = app.emit("media-seek", position);
@@ -92,7 +92,7 @@ pub fn init(app: &AppHandle, nswindow: *mut c_void) -> bool {
         init.set_property("hr-seek", "yes")?;
         init.set_property("force-seekable", "yes")?;
         init.set_property("cache", "yes")?;
-        // LUMA renders its own subtitle overlay (React, over the transparent webview), so
+        // KROMA renders its own subtitle overlay (React, over the transparent webview), so
         // mpv must draw NONE itself: no external auto-load AND no embedded/default track.
         init.set_property("sub-auto", "no")?;
         init.set_property("sid", "no")?;
@@ -101,7 +101,7 @@ pub fn init(app: &AppHandle, nswindow: *mut c_void) -> bool {
     }) {
         Ok(m) => Arc::new(m),
         Err(e) => {
-            eprintln!("LUMA libmpv: init failed: {e:?}");
+            eprintln!("KROMA libmpv: init failed: {e:?}");
             return false;
         }
     };
@@ -115,9 +115,9 @@ pub fn init(app: &AppHandle, nswindow: *mut c_void) -> bool {
     // Create the GL view behind the webview + the mpv render context bound to it (we're
     // on the main thread). mpv (vo=libmpv) then draws each frame into it.
     let handle = mpv.ctx.as_ptr() as *mut c_void;
-    let rc = unsafe { luma_mpv_render_setup(nswindow, handle) };
+    let rc = unsafe { kroma_mpv_render_setup(nswindow, handle) };
     if rc != 0 {
-        eprintln!("LUMA libmpv: render setup failed (rc={rc}); falling back to no video");
+        eprintln!("KROMA libmpv: render setup failed (rc={rc}); falling back to no video");
     }
 
     if let Some(state) = app.try_state::<MpvState>() {
@@ -126,10 +126,10 @@ pub fn init(app: &AppHandle, nswindow: *mut c_void) -> bool {
     // MacBook hardware media keys (⏯/⏭/⏮) → the `media-key` event (we're on the main
     // thread, which MPRemoteCommandCenter requires).
     *MEDIA_APP.lock().unwrap() = Some(app.clone());
-    unsafe { luma_setup_media_keys() };
+    unsafe { kroma_setup_media_keys() };
     let app_pump = app.clone();
     thread::spawn(move || pump_events(app_pump, mpv));
-    eprintln!("LUMA libmpv: engine up (render API, GL view behind the webview)");
+    eprintln!("KROMA libmpv: engine up (render API, GL view behind the webview)");
     true
 }
 
@@ -198,7 +198,7 @@ pub fn mpv_load(state: State<'_, MpvState>, url: String, start: f64) {
         }
     }
     // Blank the last frame of the previous video while the new one buffers.
-    unsafe { luma_mpv_request_clear() };
+    unsafe { kroma_mpv_request_clear() };
 }
 
 /// Send a raw mpv command array (`set_property`, `seek`, `stop`, …). libmpv's string
@@ -249,7 +249,7 @@ pub fn set_now_playing(
     let _ = app.run_on_main_thread(move || {
         // as_ptr() on an empty Vec is valid + len() is 0, and the C side gates on len > 0.
         unsafe {
-            luma_set_now_playing(
+            kroma_set_now_playing(
                 title.as_ptr(),
                 artist.as_ptr(),
                 duration,

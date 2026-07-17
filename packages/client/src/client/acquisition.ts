@@ -159,13 +159,13 @@ export function removeDownload(
   return ctx.json<void>(`/admin/downloads/${encodeURIComponent(id)}${qs}`, { method: 'DELETE' });
 }
 
-/** Pause every active LUMA download (foreign torrents in a shared client are
+/** Pause every active KROMA download (foreign torrents in a shared client are
  * left untouched). Returns how many were paused. */
 export function pauseAllDownloads(ctx: RequestContext): Promise<{ count: number }> {
   return ctx.json<{ count: number }>('/admin/downloads/pause-all', { method: 'POST' });
 }
 
-/** Resume every LUMA download we previously paused. */
+/** Resume every KROMA download we previously paused. */
 export function resumeAllDownloads(ctx: RequestContext): Promise<{ count: number }> {
   return ctx.json<{ count: number }>('/admin/downloads/resume-all', { method: 'POST' });
 }

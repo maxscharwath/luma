@@ -1,7 +1,7 @@
 // Smart Hub preview card-builder: turns the live catalog (newest movies +
 // resumable items) into the carousel tile JSON the TV expects.
 
-import { type ContinueItem, type LumaClient, type MediaItem, metaLine } from '@luma/core';
+import { type ContinueItem, type KromaClient, type MediaItem, metaLine } from '@kroma/core';
 import type { DeepLink } from '#tv/shared/preview/types';
 
 // Row headers (shown by the carousel) vs. the badge baked onto each card.
@@ -62,7 +62,7 @@ function subtitleFor(m: MediaItem): string {
  *  (backdrop + category badge + title logo, with an optional resume bar). The
  *  title/subtitle are carousel-native. `?v=<addedAt>` busts the TV's preview
  *  image cache when art changes. */
-function tile(client: LumaClient, m: MediaItem, badge: string, progress?: number): Tile {
+function tile(client: KromaClient, m: MediaItem, badge: string, progress?: number): Tile {
   const params = new URLSearchParams({ label: badge, v: m.addedAt });
   if (progress != null && progress > 0) params.set('progress', progress.toFixed(3));
   return {
@@ -79,7 +79,7 @@ function tile(client: LumaClient, m: MediaItem, badge: string, progress?: number
  *  user has resumable items) followed by "Ajout récent" (newest movies). Returns
  *  `null` when there's nothing worth showing. */
 export function buildPreviewData(
-  client: LumaClient,
+  client: KromaClient,
   movies: MediaItem[],
   continueItems: ContinueItem[] = [],
 ): string | null {

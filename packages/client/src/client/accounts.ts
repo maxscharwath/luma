@@ -85,7 +85,7 @@ export function login(
 
 /** Exchange the long-lived access token for a short-lived session token. Pass
  * `pin` when switching into a PIN-locked profile (required on the first exchange;
- * silent refreshes omit it). Throws `LumaApiError` 401 when the PIN is needed or
+ * silent refreshes omit it). Throws `KromaApiError` 401 when the PIN is needed or
  * the access token is invalid/expired. */
 export function exchangeToken(
   ctx: RequestContext,
@@ -166,7 +166,7 @@ export function updateLanguage(
 }
 
 /** Change the signed-in account's password after verifying the current one.
- * Resolves on 204; throws `LumaApiError` on 401 (wrong current) / 400 (too
+ * Resolves on 204; throws `KromaApiError` on 401 (wrong current) / 400 (too
  * short). There is no email-based reset (LAN self-hosted, no mail service). */
 export async function changePassword(
   ctx: RequestContext,
@@ -194,7 +194,7 @@ export function users(ctx: RequestContext): Promise<PublicUser[]> {
 }
 
 /** Verify a profile-lock PIN with the remembered token (TV switch-in). Resolves
- * on 204; throws `LumaApiError` on 401 (wrong) / 429 (locked out the error's
+ * on 204; throws `KromaApiError` on 401 (wrong) / 429 (locked out the error's
  * `retryAfter` seconds are surfaced as a cooldown). */
 export function pinVerify(ctx: RequestContext, pin: string): Promise<void> {
   return ctx.json<void>('/auth/pin/verify', {
@@ -234,7 +234,7 @@ export function sessions(ctx: RequestContext): Promise<SessionInfo[]> {
 }
 
 /** Revoke one of the account's own devices by its id (from {@link sessions}),
- * signing it out. Resolves on 204; throws `LumaApiError` 404 if unknown. */
+ * signing it out. Resolves on 204; throws `KromaApiError` 404 if unknown. */
 export async function revokeSession(ctx: RequestContext, id: string): Promise<void> {
   await ctx.json<void>(`/auth/me/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

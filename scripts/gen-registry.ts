@@ -1,22 +1,22 @@
 #!/usr/bin/env bun
 
-// Build a static module registry from the packed `.lmod` files: a catalog
-// index (schema 2) plus the `.lmod` files themselves, ready to publish to any
+// Build a static module registry from the packed `.kmod` files: a catalog
+// index (schema 2) plus the `.kmod` files themselves, ready to publish to any
 // static host. The canonical deployment is the release workflow, which attaches
-// the .lmod files + this index (as `modules.json`) to the GitHub Release, so
+// the .kmod files + this index (as `modules.json`) to the GitHub Release, so
 // `https://github.com/<owner>/<repo>/releases/latest/download/modules.json` is
 // a permanent, always-current store URL. The in-app Store fetches the index,
 // picks the artifact matching the server's build target, verifies its sha256,
 // and resolves `dependsOn` before installing.
 //
-//   bun run scripts/gen-registry.ts                             # from dist/modules/*.lmod
+//   bun run scripts/gen-registry.ts                             # from dist/modules/*.kmod
 //   bun run scripts/gen-registry.ts --base https://mods.example.com
 //   bun run scripts/gen-registry.ts --base .../releases/download/v0.1.5
 //
-// Output: dist/registry/{catalog.json, <id>[-<target>].lmod, ...}
+// Output: dist/registry/{catalog.json, <id>[-<target>].kmod, ...}
 //
 // Catalog schema 2: one entry per module id with `artifacts` grouped per build
-// target (a sidecar .lmod carries a native binary, so CI packs one per target
+// target (a sidecar .kmod carries a native binary, so CI packs one per target
 // and suffixes the filename with the triple; library modules are unsuffixed and
 // platform-independent). Flat url/size/sha256 of the first artifact are kept
 // per entry so schema-1 consumers keep working.
@@ -83,7 +83,7 @@ interface Entry {
   sha256: string;
 }
 
-/** Decompress a `.lmod` to its inner tar (zstd today; gzip/raw accepted like
+/** Decompress a `.kmod` to its inner tar (zstd today; gzip/raw accepted like
  *  the server's installer, dispatched by magic bytes). */
 function toTar(bytes: Buffer): Uint8Array {
   if (bytes[0] === 0x28 && bytes[1] === 0xb5 && bytes[2] === 0x2f && bytes[3] === 0xfd) {
@@ -128,10 +128,10 @@ function tarRead(tar: Uint8Array, wanted: string): Uint8Array | null {
   return null;
 }
 
-const lmods = readdirSync(modulesDir).filter((f) => f.endsWith('.lmod'));
+const kmods = readdirSync(modulesDir).filter((f) => f.endsWith('.kmod'));
 const entries = new Map<string, Entry>();
 
-for (const file of lmods.sort()) {
+for (const file of kmods.sort()) {
   const path = join(modulesDir, file);
   const bytes = readFileSync(path);
   const tar = toTar(bytes);
@@ -142,10 +142,10 @@ for (const file of lmods.sort()) {
   }
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as Manifest;
 
-  // The pack script names bundles `<id>.lmod` (host/library build) or
-  // `<id>-<target>.lmod` (per-target sidecar); recover the target from the
+  // The pack script names bundles `<id>.kmod` (host/library build) or
+  // `<id>-<target>.kmod` (per-target sidecar); recover the target from the
   // filename using the id we just read out of the bundle.
-  const stem = file.slice(0, -'.lmod'.length);
+  const stem = file.slice(0, -'.kmod'.length);
   const target =
     stem === manifest.id ? null : stem.slice(manifest.id.length).replace(/^-/, '') || null;
 

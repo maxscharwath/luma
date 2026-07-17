@@ -20,7 +20,7 @@ use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Extension, Json, Router};
-use luma_module_supervisor::Supervisor;
+use kroma_module_supervisor::Supervisor;
 
 use crate::model::Category;
 use crate::services::jobs::{JobContext, RemoteRun};
@@ -110,7 +110,7 @@ fn remote_run(supervisor: Arc<Supervisor>, module_id: String, key: String) -> Re
             return Ok(());
         };
         let url = format!("http://127.0.0.1:{port}/_job/run/{key}");
-        let resp = luma_http::Fetch::new()
+        let resp = kroma_http::Fetch::new()
             .header("authorization", format!("Bearer {host_token}"))
             // Imports move whole files across disks; allow up to 30 minutes.
             .max_time(30 * 60)

@@ -1,6 +1,6 @@
-import type { LumaClient } from '@luma/client';
+import type { KromaClient } from '@kroma/client';
 import { canDirectPlay, capabilities, type DirectPlayVerdict } from './hevc';
-import type { MediaItem } from '@luma/client';
+import type { MediaItem } from '@kroma/client';
 
 export interface AttachOptions {
   /** Resume position in milliseconds. */
@@ -16,7 +16,7 @@ export interface AttachOptions {
  */
 export function attachDirectPlay(
   video: HTMLVideoElement,
-  client: LumaClient,
+  client: KromaClient,
   item: MediaItem,
   opts: AttachOptions = {},
 ): DirectPlayVerdict {

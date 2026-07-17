@@ -3,8 +3,8 @@
 // previews, markers, embedding), plus a one-click reprocess. Plex-style: see at a
 // glance what has and hasn't been done to this exact element.
 
-import { hasPermission, type MessageKey, type Treatment } from '@luma/core';
-import { useT } from '@luma/ui';
+import { hasPermission, type MessageKey, type Treatment } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconAlertTriangleFilled,
   IconCircle,
@@ -15,7 +15,7 @@ import {
 } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { lumaClient } from '#web/shared/lib/api';
+import { kromaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
 type Kind = 'item' | 'show';
@@ -39,7 +39,7 @@ export function TreatmentsPanel({ kind, id }: Readonly<{ kind: Kind; id: string 
   const { data: treatments = null } = useQuery({
     queryKey,
     queryFn: async (): Promise<Treatment[]> => {
-      const c = lumaClient();
+      const c = kromaClient();
       const r = await (kind === 'show' ? c.showProcessing(id) : c.itemProcessing(id));
       return r.treatments;
     },

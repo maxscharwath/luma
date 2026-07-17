@@ -1,10 +1,10 @@
 //! The admin module Store: browse a registry catalog, install (with automatic
 //! dependency resolution + checksum verification), update and uninstall
-//! runtime `.lmod` modules. Admin-gated (`settings.manage`); installing native
+//! runtime `.kmod` modules. Admin-gated (`settings.manage`); installing native
 //! code is an admin-trust action.
 //!
 //! A "registry" is any static host serving a catalog index (see [`catalog`])
-//! plus the `.lmod` files it points at. The default is the `modules.json` the
+//! plus the `.kmod` files it points at. The default is the `modules.json` the
 //! release workflow attaches to this repo's GitHub Releases, so the Store is
 //! GitHub-backed out of the box; the `moduleRegistryUrl` setting points it at
 //! any other registry (a third-party repo's releases, GitHub Pages, a NAS).
@@ -20,7 +20,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
-use luma_module_supervisor::Supervisor;
+use kroma_module_supervisor::Supervisor;
 use serde_json::{json, Value};
 
 use crate::api::extract::AuthUser;
@@ -30,12 +30,12 @@ use crate::state::SharedState;
 /// Max bundle size (a native module binary + a small frontend bundle).
 const MAX_BUNDLE_BYTES: usize = 64 * 1024 * 1024;
 
-/// Default module registry: the machine-readable index of `.lmod` bundles the
+/// Default module registry: the machine-readable index of `.kmod` bundles the
 /// release workflow attaches to every GitHub Release of this repo.
 /// `releases/latest/download/...` is a stable URL that always resolves to the
 /// newest release's asset. Overridable via the `moduleRegistryUrl` setting.
 const DEFAULT_REGISTRY: &str =
-    "https://github.com/maxscharwath/luma/releases/latest/download/modules.json";
+    "https://github.com/maxscharwath/kroma/releases/latest/download/modules.json";
 
 pub fn routes() -> Router<SharedState> {
     Router::new()
@@ -116,7 +116,7 @@ async fn catalog_view(
     Ok(Json(body).into_response())
 }
 
-/// Install an uploaded `.lmod` (raw request body). The manual escape hatch:
+/// Install an uploaded `.kmod` (raw request body). The manual escape hatch:
 /// no registry, no checksum to verify against (the upload IS the source).
 async fn install_upload(
     Extension(sup): Extension<Arc<Supervisor>>,
@@ -158,10 +158,10 @@ async fn uninstall(
     // Dependents guard: removing a module other enabled modules hard-depend on
     // would break them at their next port call. Surface who needs it instead.
     if !q.force {
-        let dependents: Vec<String> = luma_module_kernel::manifests(&state)
+        let dependents: Vec<String> = kroma_module_kernel::manifests(&state)
             .into_iter()
             .filter(|m| m.id != id && m.depends_on.iter().any(|d| d.id == id))
-            .filter(|m| luma_engine::modules::module_enabled(&state.settings, &m.id))
+            .filter(|m| kroma_engine::modules::module_enabled(&state.settings, &m.id))
             .map(|m| m.id)
             .collect();
         if !dependents.is_empty() {

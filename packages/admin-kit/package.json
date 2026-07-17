@@ -1,8 +1,8 @@
 {
-  "name": "@luma/admin-kit",
+  "name": "@kroma/admin-kit",
   "version": "0.1.0",
   "type": "module",
-  "description": "LUMA admin UI contract: the presentational primitives, hooks, and host-context provider that admin pages (built-in AND module-contributed) render with. Shared by @luma/web and every module ui/ package so a module page never imports app internals.",
+  "description": "KROMA admin UI contract: the presentational primitives, hooks, and host-context provider that admin pages (built-in AND module-contributed) render with. Shared by @kroma/web and every module ui/ package so a module page never imports app internals.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -11,8 +11,8 @@
     "build": "tsgo --noEmit"
   },
   "dependencies": {
-    "@luma/core": "workspace:*",
-    "@luma/ui": "workspace:*",
+    "@kroma/core": "workspace:*",
+    "@kroma/ui": "workspace:*",
     "@radix-ui/react-select": "^2",
     "@tabler/icons-react": "^3.44.0",
     "@tanstack/react-query": "^5.101.2"

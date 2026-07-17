@@ -1,4 +1,4 @@
-import type { MediaItem } from '@luma/core';
+import type { MediaItem } from '@kroma/core';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import type { MovieView } from '#web/shared/lib/api';
 

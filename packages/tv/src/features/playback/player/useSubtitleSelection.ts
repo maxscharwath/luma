@@ -1,4 +1,4 @@
-import { type DownloadedSub, isTextSubtitle, type LumaClient, type MediaItem } from '@luma/core';
+import { type DownloadedSub, isTextSubtitle, type KromaClient, type MediaItem } from '@kroma/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export interface SubView {
@@ -27,7 +27,7 @@ export interface SubtitleSelection {
 /** Resolves an item's renderable subtitle tracks (embedded + on-device generated)
  * and tracks the active selection. The custom <TvSubtitles> layer renders cues
  * itself, so "picking" is just state. */
-export function useSubtitleSelection(client: LumaClient, item: MediaItem): SubtitleSelection {
+export function useSubtitleSelection(client: KromaClient, item: MediaItem): SubtitleSelection {
   const [active, setActive] = useState<number | null>(null);
   const [downloaded, setDownloaded] = useState<DownloadedSub[]>([]);
   const [nonce, setNonce] = useState(0);

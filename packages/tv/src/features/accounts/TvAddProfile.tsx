@@ -1,5 +1,5 @@
-import { normalizeServerUrl as norm } from '@luma/core';
-import { useT } from '@luma/ui';
+import { normalizeServerUrl as norm } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconChevronRight, IconPlus, IconServer2 } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';

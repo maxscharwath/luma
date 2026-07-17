@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src=".github/assets/banner.svg" alt="LUMA self-hosted, direct-play, HEVC-first media streaming" width="100%">
+<img src=".github/assets/banner.svg" alt="KROMA self-hosted, direct-play, HEVC-first media streaming" width="100%">
 
 <br/>
 
 **Your own Netflix — everything built in, on hardware you own.**
 Find it, download it, organize it, stream it. One blazing-fast Rust binary:
 indexers · torrent engine · VPN + kill switch · AI · player · web & TV clients.
-No Sonarr, no Radarr, no Jackett, no qBittorrent, no Gluetun — **just LUMA.**
+No Sonarr, no Radarr, no Jackett, no qBittorrent, no Gluetun — **just KROMA.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4B642.svg?style=flat-square)](LICENSE)
 [![Bun ≥ 1.3](https://img.shields.io/badge/Bun-%E2%89%A5%201.3-0A0A0C.svg?style=flat-square&logo=bun&logoColor=F4B642)](https://bun.sh)
@@ -20,10 +20,10 @@ No Sonarr, no Radarr, no Jackett, no qBittorrent, no Gluetun — **just LUMA.**
 
 ---
 
-LUMA is a self-hosted, multi-platform **media stack that does the whole job** —
+KROMA is a self-hosted, multi-platform **media stack that does the whole job** —
 the *arr suite, your indexer aggregator, your torrent client, your VPN wrapper
 and your media server, collapsed into **one Rust binary**. Request a title and
-LUMA searches your trackers, scores the releases, grabs the best one through its
+KROMA searches your trackers, scores the releases, grabs the best one through its
 built-in torrent engine (tunneled through your VPN, behind a kill switch),
 imports and renames it Plex-style, enriches it from **TMDB**, and direct-play
 streams it to the web, your phone and your living-room TV — wrapped in one calm,
@@ -31,7 +31,7 @@ cinematic, amber-on-charcoal design language.
 
 **No moving parts to wire together.** Where a typical setup bolts together
 Sonarr + Radarr + Prowlarr/Jackett + qBittorrent + Gluetun + Jellyfin + Overseerr
-(six containers, six configs, six things that break), LUMA is a single process
+(six containers, six configs, six things that break), KROMA is a single process
 that starts in milliseconds, sips RAM, and has no transcode farm to keep warm —
 because Rust is fast and the video is never re-encoded.
 
@@ -109,11 +109,11 @@ activity never leave your network.
 - **Built-in torrent engine** an embedded BitTorrent client (librqbit, in-process)
   grabs releases directly; Transmission / qBittorrent are supported too. Disable
   it and active downloads pause on the spot.
-- **Automatic acquisition** request a movie or show and LUMA searches every
+- **Automatic acquisition** request a movie or show and KROMA searches every
   indexer, **scores each release** against a quality profile (resolution, codec,
   size, seeders, keywords), grabs the best, then imports + renames it into the
   library. Manual search + one-click grab (with override) for the picky.
-- **VPN with a real kill switch** paste a WireGuard config and LUMA runs a managed
+- **VPN with a real kill switch** paste a WireGuard config and KROMA runs a managed
   WireGuard→SOCKS5 bridge; all torrent traffic is tunneled, and a failed tunnel
   check **pauses every download instantly** — no leaks, no Gluetun sidecar.
 - **On-device AI** recommendations and semantic "themed" rows from local content
@@ -138,7 +138,7 @@ activity never leave your network.
 - **Typo-tolerant search** full-text catalogue search over titles, cast and
   genres, tuned for imperfect input (incl. TV voice queries).
 - **One design language, three shells** web (desktop), Samsung Tizen and LG
-  webOS TVs share `@luma/core`, `@luma/ui` and the entire `@luma/tv` experience.
+  webOS TVs share `@kroma/core`, `@kroma/ui` and the entire `@kroma/tv` experience.
 - **10-foot TV UX** spatial remote navigation, lazy poster decoding,
   `content-visibility`, memoized tiles, a single-chunk ~52 kB build. Feels like
   Netflix / Disney+.
@@ -153,36 +153,36 @@ activity never leave your network.
 
 ## Architecture
 
-The web, Tizen and webOS clients are **thin shells**: all UI lives in `@luma/ui`,
-all logic in `@luma/core`, and the entire TV experience in `@luma/tv`. HEVC
+The web, Tizen and webOS clients are **thin shells**: all UI lives in `@kroma/ui`,
+all logic in `@kroma/core`, and the entire TV experience in `@kroma/tv`. HEVC
 detection and the API contract are written once.
 
 ```
-luma/
+kroma/
 ├─ server/                 Rust media server (axum) Plex-style scan, SQLite, range streaming
 ├─ packages/
-│  ├─ core/   @luma/core    API client · types · HEVC capability detection · remote map · direct-play
-│  ├─ ui/     @luma/ui      design-system React components + tokens (from design/)
-│  └─ tv/     @luma/tv      shared 10-foot experience (spatial focus nav, home, detail, player)
+│  ├─ core/   @kroma/core    API client · types · HEVC capability detection · remote map · direct-play
+│  ├─ ui/     @kroma/ui      design-system React components + tokens (from design/)
+│  └─ tv/     @kroma/tv      shared 10-foot experience (spatial focus nav, home, detail, player)
 ├─ clients/
-│  ├─ web/    @luma/web     desktop browser shell (sidebar) TanStack Start SSR + Tailwind v4
-│  ├─ tizen/  @luma/tizen   Samsung TV thin shell + config.xml → .wgt
-│  ├─ webos/  @luma/webos   LG TV thin shell (modern + legacy tiers) → .ipk
-│  ├─ androidtv/ @luma/androidtv  Android TV WebView shell + native ExoPlayer → .apk
+│  ├─ web/    @kroma/web     desktop browser shell (sidebar) TanStack Start SSR + Tailwind v4
+│  ├─ tizen/  @kroma/tizen   Samsung TV thin shell + config.xml → .wgt
+│  ├─ webos/  @kroma/webos   LG TV thin shell (modern + legacy tiers) → .ipk
+│  ├─ androidtv/ @kroma/androidtv  Android TV WebView shell + native ExoPlayer → .apk
 │  └─ tv-build/              shared TV-shell build pipeline (tv.target.ts per shell)
-└─ design/                  imported design source (tokens, components, guidelines, LUMA.dc.html)
+└─ design/                  imported design source (tokens, components, guidelines, KROMA.dc.html)
 ```
 
 | Package / app | What it is | README |
 | ------------- | ---------- | ------ |
 | `server` | Rust media server scan, SQLite, TMDB, range/HLS streaming | [server/README.md](server/README.md) |
-| `@luma/core` | API client, types, HEVC detection, remote map, direct-play | [packages/core/README.md](packages/core/README.md) |
-| `@luma/ui` | Design-system React components + tokens | [packages/ui/README.md](packages/ui/README.md) |
-| `@luma/tv` | Shared 10-foot TV experience | [packages/tv/README.md](packages/tv/README.md) |
-| `@luma/web` | Desktop browser client | [clients/web/README.md](clients/web/README.md) |
-| `@luma/tizen` | Samsung TV (Tizen) shell | [clients/tizen/README.md](clients/tizen/README.md) |
-| `@luma/webos` | LG TV (webOS) shell, modern + legacy (2018+) tiers | [clients/webos/README.md](clients/webos/README.md) |
-| `@luma/androidtv` | Android TV / Google TV shell (WebView + ExoPlayer) | [clients/androidtv/README.md](clients/androidtv/README.md) |
+| `@kroma/core` | API client, types, HEVC detection, remote map, direct-play | [packages/core/README.md](packages/core/README.md) |
+| `@kroma/ui` | Design-system React components + tokens | [packages/ui/README.md](packages/ui/README.md) |
+| `@kroma/tv` | Shared 10-foot TV experience | [packages/tv/README.md](packages/tv/README.md) |
+| `@kroma/web` | Desktop browser client | [clients/web/README.md](clients/web/README.md) |
+| `@kroma/tizen` | Samsung TV (Tizen) shell | [clients/tizen/README.md](clients/tizen/README.md) |
+| `@kroma/webos` | LG TV (webOS) shell, modern + legacy (2018+) tiers | [clients/webos/README.md](clients/webos/README.md) |
+| `@kroma/androidtv` | Android TV / Google TV shell (WebView + ExoPlayer) | [clients/androidtv/README.md](clients/androidtv/README.md) |
 | `design` | Design system source (tokens, guidelines) | [design/readme.md](design/readme.md) |
 
 ## Prerequisites
@@ -205,7 +205,7 @@ titles (movies + two shows, a HEVC/HDR 4K hero among them) so the UI is populate
 immediately. Point it at real media with:
 
 ```bash
-LUMA_MEDIA_DIRS=/volume1/media bun run server
+KROMA_MEDIA_DIRS=/volume1/media bun run server
 ```
 
 ```bash
@@ -268,22 +268,22 @@ See each client's README for full device install steps.
 - **Accounts & control** `/auth/*` (incl. Quick Connect), `/progress`,
   `/admin/*`, `GET /events` (WebSocket), `POST /scan`.
 
-Configure via `LUMA_HOST` / `LUMA_PORT` / `LUMA_MEDIA_DIRS` / `LUMA_DATA_DIR` /
-`LUMA_TMDB_API_KEY`. Library persisted in SQLite (`<data>/luma.db`, WAL). Optional
+Configure via `KROMA_HOST` / `KROMA_PORT` / `KROMA_MEDIA_DIRS` / `KROMA_DATA_DIR` /
+`KROMA_TMDB_API_KEY`. Library persisted in SQLite (`<data>/kroma.db`, WAL). Optional
 semantic recommendations are a `--features semantic-embeddings` build (a BERT
-sentence model in `LUMA_EMBED_MODEL_DIR`). **Full reference → [server/README.md](server/README.md).**
+sentence model in `KROMA_EMBED_MODEL_DIR`). **Full reference → [server/README.md](server/README.md).**
 
 ## Deploy on a Synology NAS
 
 The server ships a multi-stage [Dockerfile](server/Dockerfile) (bundles ffmpeg):
 
 ```bash
-docker build -t luma-server ./server
+docker build -t kroma-server ./server
 docker run -d -p 4040:4040 \
-  -e LUMA_MEDIA_DIRS=/media \
+  -e KROMA_MEDIA_DIRS=/media \
   -v /volume1/video:/media:ro \
-  -v luma-data:/data \
-  luma-server
+  -v kroma-data:/data \
+  kroma-server
 ```
 
 Build for the NAS CPU arch `linux/amd64` (Intel/AMD) or `linux/arm64` (ARM) via
@@ -294,10 +294,10 @@ launch (or let auto-discovery find it).
 
 `design/` is the imported design source deep-charcoal + amber, Bricolage
 Grotesque / Hanken Grotesk, French copy, no emoji. Its tokens and components are
-ported into `@luma/ui`; `design/LUMA.dc.html` is the full clickable reference.
+ported into `@kroma/ui`; `design/KROMA.dc.html` is the full clickable reference.
 
 ```bash
-open design/LUMA.dc.html
+open design/KROMA.dc.html
 ```
 
 More in [design/readme.md](design/readme.md).

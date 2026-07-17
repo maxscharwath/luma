@@ -1,11 +1,11 @@
-/* Shared LUMA Tailwind v4 entry. The design tokens + fonts, the `tailwindcss`
-   import, and the @theme block that maps the LUMA tokens onto Tailwind utilities
+/* Shared KROMA Tailwind v4 entry. The design tokens + fonts, the `tailwindcss`
+   import, and the @theme block that maps the KROMA tokens onto Tailwind utilities
    (so `bg-accent` / `text-muted` / `rounded-lg` / `shadow-card` render the exact
-   LUMA design), plus the shared keyframes + fluid layout tokens.
+   KROMA design), plus the shared keyframes + fluid layout tokens.
 
    Imported by the web app AND by every module's own stylesheet, so a runtime-
    installed module (a Module Federation remote with no source in the host build)
-   ships a SELF-CONTAINED CSS with the full LUMA design - it no longer relies on
+   ships a SELF-CONTAINED CSS with the full KROMA design - it no longer relies on
    whichever utility classes the host happened to generate. Each build's Tailwind
    scans its own source, so the app gets the app's classes and a module gets the
    module's. */
@@ -13,32 +13,32 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors → reference the LUMA tokens (no namespace collision). */
-  --color-bg: var(--luma-bg);
-  --color-surface-1: var(--luma-surface-1);
-  --color-surface-2: var(--luma-surface-2);
-  --color-surface-3: var(--luma-surface-3);
-  --color-border: var(--luma-border);
-  --color-border-strong: var(--luma-border-strong);
-  --color-text: var(--luma-text);
-  --color-muted: var(--luma-text-muted);
-  --color-dim: var(--luma-text-dim);
-  --color-accent: var(--luma-accent);
-  --color-accent-hover: var(--luma-accent-hover);
-  --color-accent-soft: var(--luma-accent-soft);
-  --color-accent-ink: var(--luma-accent-ink);
-  --color-hdr: var(--luma-hdr);
-  --color-h265: var(--luma-h265);
-  --color-success: var(--luma-success);
-  --color-info: var(--luma-info);
-  --color-danger: var(--luma-danger);
+  /* Colors → reference the KROMA tokens (no namespace collision). */
+  --color-bg: var(--kroma-bg);
+  --color-surface-1: var(--kroma-surface-1);
+  --color-surface-2: var(--kroma-surface-2);
+  --color-surface-3: var(--kroma-surface-3);
+  --color-border: var(--kroma-border);
+  --color-border-strong: var(--kroma-border-strong);
+  --color-text: var(--kroma-text);
+  --color-muted: var(--kroma-text-muted);
+  --color-dim: var(--kroma-text-dim);
+  --color-accent: var(--kroma-accent);
+  --color-accent-hover: var(--kroma-accent-hover);
+  --color-accent-soft: var(--kroma-accent-soft);
+  --color-accent-ink: var(--kroma-accent-ink);
+  --color-hdr: var(--kroma-hdr);
+  --color-h265: var(--kroma-h265);
+  --color-success: var(--kroma-success);
+  --color-info: var(--kroma-info);
+  --color-danger: var(--kroma-danger);
 
-  /* Fonts (literal Tailwind's --font-* namespace collides with the LUMA
+  /* Fonts (literal Tailwind's --font-* namespace collides with the KROMA
      token names, so we can't self-reference). */
   --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
 
-  /* Radii (literal LUMA values; override Tailwind's defaults). */
+  /* Radii (literal KROMA values; override Tailwind's defaults). */
   --radius-md: 10px;
   --radius-lg: 13px;
   --radius-xl: 16px;
@@ -54,7 +54,7 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Fluid layout tokens (unlayered so they beat @luma/ui's :root defaults, which
+/* Fluid layout tokens (unlayered so they beat @kroma/ui's :root defaults, which
    are desktop/TV constants). */
 :root {
   /* Page side padding: 16px on a phone → 56px on desktop. */
@@ -63,7 +63,7 @@
   --card-w: clamp(8.25rem, 30vw, 13rem);
 }
 
-@keyframes luma-breathe {
+@keyframes kroma-breathe {
   0%,
   100% {
     opacity: 0.45;

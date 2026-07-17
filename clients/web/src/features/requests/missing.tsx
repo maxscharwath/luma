@@ -4,8 +4,8 @@
 // and a "search all". A library-scan gap (no request yet) becomes a request on
 // search ("ask to watch"); a requested title just re-runs its grab.
 
-import { type CalendarEntry, hasPermission, posterColors, sizedImageUrl } from '@luma/core';
-import { useLocale, useT } from '@luma/ui';
+import { type CalendarEntry, hasPermission, posterColors, sizedImageUrl } from '@kroma/core';
+import { useLocale, useT } from '@kroma/ui';
 import { IconInbox, IconLoader2, IconSearch } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';

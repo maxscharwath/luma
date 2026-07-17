@@ -1,4 +1,4 @@
-import type { LumaClient } from '@luma/core';
+import type { KromaClient } from '@kroma/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { startHealthMonitor } from '#tv/app/healthMonitor';
 
@@ -21,7 +21,7 @@ const TIMEOUT_MS = 4000;
  * The loop itself lives in {@link startHealthMonitor} (unit-tested separately).
  */
 export function useServerHealth(
-  client: LumaClient | null,
+  client: KromaClient | null,
   enabled: boolean,
   onReconnect?: () => void,
 ): { online: boolean; recheck: () => void } {

@@ -1,4 +1,4 @@
-import '@luma/tv/tv.css';
-import { mountTv } from '@luma/tv';
+import '@kroma/tv/tv.css';
+import { mountTv } from '@kroma/tv';
 
 mountTv({ platform: 'webOS' });

@@ -13,7 +13,7 @@ name: CI
 #
 # No dev mode anywhere: `vite build` runs in production mode, the shared TV
 # shell factory (clients/tv-build/shell.ts) strips console/debugger on build,
-# and LUMA_TV_DEVICE (on-device dev HMR) is never set in CI.
+# and KROMA_TV_DEVICE (on-device dev HMR) is never set in CI.
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Hard gate: every workspace must type-check (@luma/core, ui, tv, web, shells).
+      # Hard gate: every workspace must type-check (@kroma/core, ui, tv, web, shells).
       - name: Typecheck
         run: bun run typecheck
 
@@ -117,7 +117,7 @@ jobs:
       - name: Upload bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: luma-${{ matrix.name }}-ci
+          name: kroma-${{ matrix.name }}-ci
           path: ${{ matrix.dist }}
           retention-days: 7
           if-no-files-found: error
@@ -154,9 +154,9 @@ jobs:
 
       # tauri's generate_context! needs the frontend dist to exist.
       - name: Build desktop frontend
-        run: bun run --filter '@luma/desktop' build
+        run: bun run --filter '@kroma/desktop' build
 
-      # tauri.linux.conf.json declares the `luma-mpv` externalBin sidecar; fetch it
+      # tauri.linux.conf.json declares the `kroma-mpv` externalBin sidecar; fetch it
       # so the merged config always points at a real file (skips when already there).
       - name: Fetch bundled mpv (Linux sidecar)
         run: bash clients/desktop/scripts/fetch-mpv.sh
@@ -199,7 +199,7 @@ jobs:
         run: cargo test --workspace
 
       # Domain purity is now enforced by the compiler, not a grep: the entities +
-      # pure rules live in the `luma-domain` crate (crates/luma-domain), which
+      # pure rules live in the `kroma-domain` crate (crates/kroma-domain), which
       # depends only on serde. An accidental `use axum::`/`use rusqlite::` there
       # won't resolve and `cargo build` above fails. Dependencies still point
       # inward (api → services → {db,infra} → domain). See ARCHITECTURE.md.

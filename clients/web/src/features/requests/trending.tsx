@@ -2,8 +2,8 @@
 // so the discovery page is a place to browse, not just a search box. Filtered
 // by the active type chip.
 
-import type { DiscoverEntry, DiscoverType } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { DiscoverEntry, DiscoverType } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconChevronRight, IconFlame } from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';
 import { DiscoverCard } from '#web/features/requests/discover-card';

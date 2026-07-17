@@ -5,9 +5,9 @@
 // main app shell and the admin shell can read module contributions. This is the
 // single runtime mount point that replaced the old /modules page.
 
-import { hasPermission, type Locale, type MessageKey, type TVars, translateIn } from '@luma/core';
-import type { LumaHost, ModuleNav, ModulePanel, ModuleRoute } from '@luma/module-sdk';
-import { useLocale, useT } from '@luma/ui';
+import { hasPermission, type Locale, type MessageKey, type TVars, translateIn } from '@kroma/core';
+import type { KromaHost, ModuleNav, ModulePanel, ModuleRoute } from '@kroma/module-sdk';
+import { useLocale, useT } from '@kroma/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
 import { useModuleHost } from '#web/modules/host';
@@ -30,7 +30,7 @@ export function useModuleT(moduleId: string): (key: string, vars?: TVars) => str
 }
 
 interface ModuleHostValue {
-  host: LumaHost | null;
+  host: KromaHost | null;
   nav: ModuleNav[];
   routes: ModuleRoute[];
   panels: ModulePanel[];
@@ -140,7 +140,7 @@ export function ModuleHostProvider({ children }: Readonly<{ children: ReactNode 
 }
 
 /** The wired module host, or null until modules finish starting. */
-export function useModuleHostValue(): LumaHost | null {
+export function useModuleHostValue(): KromaHost | null {
   return useContext(ModuleHostContext).host;
 }
 
@@ -200,7 +200,7 @@ export function useModuleRoute(path: string): ModuleRoute | undefined {
 /** Settings panels a module contributes (plus the host to render them with), for
  *  the admin Modules page. Empty when the module ships none. */
 export function useModuleSettingsPanels(moduleId: string): {
-  host: LumaHost | null;
+  host: KromaHost | null;
   panels: ModulePanel[];
 } {
   const { host, panels } = useContext(ModuleHostContext);

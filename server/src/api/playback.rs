@@ -108,7 +108,7 @@ pub async fn ping(
         duration_ms: body.duration_ms,
         state: body.state,
         mode: body.mode,
-        player: body.player.unwrap_or_else(|| "LUMA".into()),
+        player: body.player.unwrap_or_else(|| "KROMA".into()),
         device: body.device.unwrap_or_else(|| "Appareil".into()),
         audio: body.audio,
         subtitle: body.subtitle,

@@ -10,8 +10,8 @@
 // or past the produced edge re-anchors (the parent remounts the <video> with a
 // fresh remux at the target, ready in ~1s).
 
-import type { AudioTrack, EngineDecision } from '@luma/core';
-import { lumaClient, type MovieView } from '#web/shared/lib/api';
+import type { AudioTrack, EngineDecision } from '@kroma/core';
+import { kromaClient, type MovieView } from '#web/shared/lib/api';
 
 type HlsInstance = import('hls.js').default;
 
@@ -239,7 +239,7 @@ export function attachMediaSource(opts: AttachSourceOptions): () => void {
   // The HLS session is remuxed from `startSec` (server input -ss) with `audioRel`
   // muxed in. hls.js plays it from RELATIVE 0, and the hook adds `startSec` back
   // to report the absolute position (bindMediaEvents `baseSec`). No client seek.
-  const url = lumaClient().hlsMasterUrl(item.id, decision.aacMaster, startSec, audioRel);
+  const url = kromaClient().hlsMasterUrl(item.id, decision.aacMaster, startSec, audioRel);
   let destroyed = false;
 
   if (useNativeHls) {

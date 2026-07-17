@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# LUMA one-shot macOS setup for deploying to a Samsung Tizen TV.
+# KROMA one-shot macOS setup for deploying to a Samsung Tizen TV.
 #
 #   bash clients/tizen/scripts/bootstrap-macos.sh
 #
@@ -80,7 +80,7 @@ $(printf "\033[1;32m✓ Toolchain setup done.\033[0m")  Three steps remain that 
      Host PC IP = this Mac's IP, then reboot the TV.
   2) Tizen Studio → Tools → Certificate Manager → + → Samsung → TV:
      sign in with your Samsung account, create Author + Distributor certs
-     (the TV must be connected so it reads its DUID). Name the profile  LUMA.
+     (the TV must be connected so it reads its DUID). Name the profile  KROMA.
   3) Deploy:
         cp clients/tizen/.tizen.env.example clients/tizen/.tizen.env   # set TV_IP
         make -C clients/tizen deploy TV_IP=<your-tv-ip>

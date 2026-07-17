@@ -1,4 +1,4 @@
-import { dispatchRemoteKey, registerTvMediaKeys } from '@luma/core';
+import { dispatchRemoteKey, registerTvMediaKeys } from '@kroma/core';
 import { useEffect } from 'react';
 import { useEnv } from '#tv/app/providers/env';
 

@@ -2,8 +2,8 @@
 // releases (a movie's availability date + a show episode's air date), grouped by
 // month and ascending by date. Read-only view over GET /api/requests/calendar.
 
-import { type CalendarEntry, posterColors, sizedImageUrl } from '@luma/core';
-import { useLocale, useT } from '@luma/ui';
+import { type CalendarEntry, posterColors, sizedImageUrl } from '@kroma/core';
+import { useLocale, useT } from '@kroma/ui';
 import { IconCalendarClock, IconChecks } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';

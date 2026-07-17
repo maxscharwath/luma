@@ -8,11 +8,11 @@
 // `playing` state; the TV player supplies platform labels + the raw <video> and
 // drives the prompt ping off the element's play/pause events.
 
-import { LumaApiError, type LumaClient, LumaEvents } from '@luma/core';
+import { KromaApiError, type KromaClient, KromaEvents } from '@kroma/core';
 import { type RefObject, useEffect, useRef } from 'react';
 
 export interface PlaybackHeartbeatParams {
-  client: LumaClient;
+  client: KromaClient;
   /** Gates pinging (web: signed-in; TV: `client.hasAuth`). */
   enabled: boolean;
   itemId: string;
@@ -75,7 +75,7 @@ export function usePlaybackHeartbeat(params: PlaybackHeartbeatParams): void {
       })
       .catch((e: unknown) => {
         // 410 Gone → an admin terminated this session (WS fallback).
-        if (e instanceof LumaApiError && e.status === 410) fireTerminated.current('');
+        if (e instanceof KromaApiError && e.status === 410) fireTerminated.current('');
       });
   });
 
@@ -109,7 +109,7 @@ export function usePlaybackHeartbeat(params: PlaybackHeartbeatParams): void {
   // Listen for an admin terminating this session (matched by session id).
   useEffect(() => {
     if (!params.enabled) return;
-    const ev = new LumaEvents(params.eventsBaseUrl, {
+    const ev = new KromaEvents(params.eventsBaseUrl, {
       onEvent: (e) => {
         if (e.type === 'playback.terminate' && e.sessionId === sessionId.current) {
           fireTerminated.current(e.message);

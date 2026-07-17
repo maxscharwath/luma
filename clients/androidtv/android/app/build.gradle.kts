@@ -4,29 +4,29 @@ plugins {
 }
 
 android {
-    namespace = "app.luma.tv"
+    namespace = "tv.kroma.androidtv"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.luma.tv"
+        applicationId = "tv.kroma.androidtv"
         // media3's floor; covers every Android TV / Google TV / Fire TV device.
         minSdk = 21
         targetSdk = 35
-        // CI stamps the release version: -PlumaVersion=1.2.3 -PlumaVersionCode=<n>.
-        versionCode = (findProperty("lumaVersionCode") as String?)?.toInt() ?: 1
-        versionName = (findProperty("lumaVersion") as String?) ?: "0.1.3"
+        // CI stamps the release version: -PkromaVersion=1.2.3 -PkromaVersionCode=<n>.
+        versionCode = (findProperty("kromaVersionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("kromaVersion") as String?) ?: "0.1.3"
     }
 
     // Optional release signing, driven by env (CI secrets). Absent env = the
     // release APK is unsigned; CI then ships the debug-signed APK instead.
-    val keystore = System.getenv("LUMA_ANDROID_KEYSTORE_FILE")
+    val keystore = System.getenv("KROMA_ANDROID_KEYSTORE_FILE")
     if (keystore != null) {
         signingConfigs {
             create("release") {
                 storeFile = file(keystore)
-                storePassword = System.getenv("LUMA_ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("LUMA_ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("LUMA_ANDROID_KEY_PASSWORD")
+                storePassword = System.getenv("KROMA_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KROMA_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("KROMA_ANDROID_KEY_PASSWORD")
             }
         }
     }

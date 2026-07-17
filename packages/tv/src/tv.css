@@ -1,4 +1,4 @@
-/* LUMA TV Tailwind v4, themed with the LUMA design tokens (same mapping as the
+/* KROMA TV Tailwind v4, themed with the KROMA design tokens (same mapping as the
    web client). Built through the Lightning CSS transformer (see the shells'
    vite.config), which down-levels color-mix()/oklch() to plain fallbacks - but
    NOT cascade layers, so the modern bundles floor at Chrome 99 (Tizen 8 /
@@ -7,8 +7,8 @@
    @layer and shims flex-gap / aspect-ratio / scale at build time. Keep this file
    inside what that pipeline handles: flex (never grid), no `/opacity` modifiers.
 
-   We import the raw `--luma-*` token files by relative path rather than
-   `@luma/ui/styles.css`: that entry pulls a remote Google-Fonts `@import` which the
+   We import the raw `--kroma-*` token files by relative path rather than
+   `@kroma/ui/styles.css`: that entry pulls a remote Google-Fonts `@import` which the
    Lightning CSS transformer can't inline. The TV shells load the fonts via a
    <link> in index.html instead. */
 @import "../../ui/src/styles/tokens/colors.css";
@@ -31,41 +31,41 @@
 /* Native video surfaces (mpv / AVPlay) render a plane BEHIND the page. While the
    player is up (TvPlayer toggles this class), force the html/body/#root chain
    transparent so the video shows through - free-mode macOS otherwise paints an
-   opaque --luma-bg over it. */
-html.luma-native-surface,
-html.luma-native-surface body,
-html.luma-native-surface #root {
-  /* biome-ignore lint/complexity/noImportantStyles: needed to override the layered opaque --luma-bg so the native video plane shows through. */
+   opaque --kroma-bg over it. */
+html.kroma-native-surface,
+html.kroma-native-surface body,
+html.kroma-native-surface #root {
+  /* biome-ignore lint/complexity/noImportantStyles: needed to override the layered opaque --kroma-bg so the native video plane shows through. */
   background: transparent !important;
 }
 
 @theme {
-  /* Colors → reference the LUMA tokens. */
-  --color-bg: var(--luma-bg);
-  --color-surface-1: var(--luma-surface-1);
-  --color-surface-2: var(--luma-surface-2);
-  --color-surface-3: var(--luma-surface-3);
-  --color-border: var(--luma-border);
-  --color-border-strong: var(--luma-border-strong);
-  --color-text: var(--luma-text);
-  --color-muted: var(--luma-text-muted);
-  --color-dim: var(--luma-text-dim);
-  --color-accent: var(--luma-accent);
-  --color-accent-hover: var(--luma-accent-hover);
-  --color-accent-bright: var(--luma-accent-bright);
-  --color-accent-soft: var(--luma-accent-soft);
-  --color-accent-ink: var(--luma-accent-ink);
-  --color-hdr: var(--luma-hdr);
-  --color-h265: var(--luma-h265);
-  --color-success: var(--luma-success);
-  --color-info: var(--luma-info);
-  --color-danger: var(--luma-danger);
+  /* Colors → reference the KROMA tokens. */
+  --color-bg: var(--kroma-bg);
+  --color-surface-1: var(--kroma-surface-1);
+  --color-surface-2: var(--kroma-surface-2);
+  --color-surface-3: var(--kroma-surface-3);
+  --color-border: var(--kroma-border);
+  --color-border-strong: var(--kroma-border-strong);
+  --color-text: var(--kroma-text);
+  --color-muted: var(--kroma-text-muted);
+  --color-dim: var(--kroma-text-dim);
+  --color-accent: var(--kroma-accent);
+  --color-accent-hover: var(--kroma-accent-hover);
+  --color-accent-bright: var(--kroma-accent-bright);
+  --color-accent-soft: var(--kroma-accent-soft);
+  --color-accent-ink: var(--kroma-accent-ink);
+  --color-hdr: var(--kroma-hdr);
+  --color-h265: var(--kroma-h265);
+  --color-success: var(--kroma-success);
+  --color-info: var(--kroma-info);
+  --color-danger: var(--kroma-danger);
 
-  /* Fonts (literal Tailwind's --font-* namespace collides with LUMA tokens). */
+  /* Fonts (literal Tailwind's --font-* namespace collides with KROMA tokens). */
   --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
 
-  /* Radii (literal LUMA values; override Tailwind defaults). */
+  /* Radii (literal KROMA values; override Tailwind defaults). */
   --radius-md: 10px;
   --radius-lg: 13px;
   --radius-xl: 16px;
@@ -83,17 +83,17 @@ html.luma-native-surface #root {
 
 @layer base {
   html,
-  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .luma-native-surface overrides). */
+  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .kroma-native-surface overrides). */
   body,
-  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .luma-native-surface overrides). */
+  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .kroma-native-surface overrides). */
   #root {
     height: 100%;
   }
-  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .luma-native-surface overrides). */
+  /* biome-ignore lint/style/noDescendingSpecificity: cascade order is intentional (this layered base rule deliberately sits below the unlayered .kroma-native-surface overrides). */
   body {
     margin: 0;
-    background: var(--luma-bg);
-    color: var(--luma-text);
+    background: var(--kroma-bg);
+    color: var(--kroma-text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -128,7 +128,7 @@ html.luma-native-surface #root {
   box-shadow: var(--ring-focus), var(--glow-accent);
 }
 [data-focus].cast-face:focus .cast-face__name {
-  color: var(--luma-accent);
+  color: var(--kroma-accent);
 }
 
 /* Hide scrollbars on TV scroll regions (no pointer; smooth focus scrolling). */

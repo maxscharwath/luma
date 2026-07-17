@@ -1,6 +1,6 @@
 // Server-URL helpers shared across the TV auth/profile screens.
 
-import { normalizeServerUrl } from '@luma/core';
+import { normalizeServerUrl } from '@kroma/core';
 
 /** Hostname of a server URL, or `null` when it can't be parsed. */
 export function hostOf(url: string): string | null {

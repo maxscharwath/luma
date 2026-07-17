@@ -23,9 +23,9 @@ export function HeroBackdrop({ bg }: Readonly<{ bg: string }>) {
   return (
     <>
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: bg }} />
-      <div className="absolute inset-0 bg-[radial-gradient(125%_125%_at_80%_22%,transparent_38%,var(--luma-bg)_94%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,var(--luma-bg)_0%,rgba(10,10,12,.74)_22%,rgba(10,10,12,.34)_46%,rgba(10,10,12,.08)_64%,transparent_80%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(0deg,var(--luma-bg)_3%,transparent_46%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(125%_125%_at_80%_22%,transparent_38%,var(--kroma-bg)_94%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,var(--kroma-bg)_0%,rgba(10,10,12,.74)_22%,rgba(10,10,12,.34)_46%,rgba(10,10,12,.08)_64%,transparent_80%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(0deg,var(--kroma-bg)_3%,transparent_46%)]" />
       {/* Reading frost light + wide so the backdrop still reads through. Below md
           the rem mask would cover the whole viewport, so use %-stops there. */}
       <div

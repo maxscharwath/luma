@@ -9,7 +9,7 @@ export const BOOST_GAIN: Record<Exclude<BoostLevel, 'off'>, number> = {
   high: 3,
 };
 
-const KEY = 'luma.audioBoost';
+const KEY = 'kroma.audioBoost';
 
 // One page-wide AudioContext, created on first enable (a user gesture, so it is
 // never born suspended by autoplay policy) and kept for the tab's lifetime -

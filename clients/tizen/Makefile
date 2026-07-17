@@ -1,4 +1,4 @@
-# LUMA Samsung Tizen TV build & deploy system
+# KROMA Samsung Tizen TV build & deploy system
 # ----------------------------------------------------------------------------
 # Usage:   make doctor        # check toolchain + config
 #          make package       # build web bundle + sign → .wgt
@@ -16,11 +16,11 @@ TIZEN      ?= $(shell command -v tizen 2>/dev/null || echo $(TIZEN_HOME)/tools/i
 SDB        ?= $(shell command -v sdb   2>/dev/null || echo $(TIZEN_HOME)/tools/sdb)
 
 # App identity must match public/config.xml.
-PKG_ID     ?= LumaTV0001
-APP_ID     ?= LumaTV0001.LUMA
+PKG_ID     ?= KromaTV0001
+APP_ID     ?= KromaTV0001.KROMA
 
 # Signing profile name (created via Certificate Manager see SETUP.md).
-PROFILE    ?= LUMA
+PROFILE    ?= KROMA
 
 # Build output + TV connection.
 DIST       ?= dist
@@ -54,7 +54,7 @@ doctor: ## Check toolchain + print current config
 	@echo "device  : $(if $(SERIAL),$(SERIAL),<none connected>)"
 
 build: ## Build the web bundle (Vite → dist/). Pass SERVER=http://host:4040 to bake a default address.
-	cd $(REPO_ROOT) && $(if $(SERVER),VITE_LUMA_SERVER="$(SERVER)") bun run build:tizen
+	cd $(REPO_ROOT) && $(if $(SERVER),VITE_KROMA_SERVER="$(SERVER)") bun run build:tizen
 
 package: build ## Build + sign the app → dist/*.wgt
 	$(TIZEN) package -t wgt -s $(PROFILE) -- $(DIST)
@@ -91,7 +91,7 @@ dev-shell: connect ## One-time: install a live-dev shell (redirects the TV to th
 	# replaces it while developing; `make deploy` restores the real one.
 	# build:fast = vite build without the tsgo typecheck, so WIP type errors elsewhere
 	# in the tree never block getting a live-dev shell onto the TV.
-	cd $(REPO_ROOT) && bun run --filter '@luma/tizen' build:fast
+	cd $(REPO_ROOT) && bun run --filter '@kroma/tizen' build:fast
 	@rm -rf $(DEV_STAGE) && cp -R $(DIST) $(DEV_STAGE)
 	@rm -f $(DEV_STAGE)/*.wgt $(DEV_STAGE)/author-signature.xml $(DEV_STAGE)/signature1.xml
 	@sed -e 's|__HOST_IP__|$(HOST_IP)|g' -e 's|__DEV_PORT__|$(DEV_PORT)|g' public/index.dev.html > $(DEV_STAGE)/index.html
@@ -100,11 +100,11 @@ dev-shell: connect ## One-time: install a live-dev shell (redirects the TV to th
 	$(TIZEN) run -p $(APP_ID) || $(SDB) shell 0 was_execute $(APP_ID)
 	@echo ""
 	@echo "✓ Dev shell installed & launched. Now start the dev server:"
-	@echo "    LUMA_TV_HOST=$(HOST_IP) bun run dev:tizen:device"
+	@echo "    KROMA_TV_HOST=$(HOST_IP) bun run dev:tizen:device"
 	@echo "  Edit code → it hot-reloads on the TV. Run 'make deploy' to restore the shipped app."
 
 logs: ## Tail the app's logs from the TV (Ctrl-C to stop)
-	$(SDB) dlog -v time 2>/dev/null | grep -i -E 'luma|consoleMessage'
+	$(SDB) dlog -v time 2>/dev/null | grep -i -E 'kroma|consoleMessage'
 
 uninstall: connect ## Remove the app from the TV
 	$(TIZEN) uninstall -p $(PKG_ID)
@@ -114,7 +114,7 @@ clean: ## Delete built .wgt artifacts
 	rm -rf $(DEV_STAGE)
 
 cert-selfsigned: ## Create a SELF-SIGNED profile (EMULATOR ONLY retail TVs need a Samsung cert, see SETUP.md)
-	$(TIZEN) certificate -a LUMA -f luma-author -p luma1234 -c FR -n "LUMA Dev"
+	$(TIZEN) certificate -a KROMA -f kroma-author -p kroma1234 -c FR -n "KROMA Dev"
 	$(TIZEN) security-profiles add -n $(PROFILE) \
-		-a $(TIZEN_HOME)-data/keystore/author/luma-author.p12 -p luma1234
+		-a $(TIZEN_HOME)-data/keystore/author/kroma-author.p12 -p kroma1234
 	@echo "⚠  Self-signed: installs on the emulator, NOT a retail Samsung TV."

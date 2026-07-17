@@ -1,0 +1,27 @@
+[package]
+name = "kroma-module-runtime"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "The out-of-process module runtime: each module ships as its own native binary that opens the shared SQLite, serves its routes on a local port, and reaches the host over a small IPC. `serve(...)` is the whole main()."
+license.workspace = true
+
+[dependencies]
+# The host contract the module code is written against (HostCtx / ServerModule /
+# Event / AuthUser) + the DI seam. This is the ONLY module-facing dep in common
+# with the in-process path, so the same route code runs behind the remote host.
+kroma-module-host = { workspace = true }
+# Shared SQLite: the module opens the same DB the core owns (WAL = multi-process),
+# so db()/auth/session lookups are direct, no IPC.
+kroma-db = { workspace = true }
+# User / Permission for local require() checks.
+kroma-domain = { workspace = true }
+# Sync curl client for the host callbacks (settings / events / jobs) to the core.
+kroma-http = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

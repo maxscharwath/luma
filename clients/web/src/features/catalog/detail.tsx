@@ -8,8 +8,8 @@ import {
   posterColors,
   type Translate,
   type VideoTrack,
-} from '@luma/core';
-import { useT, useThemeAudio } from '@luma/ui';
+} from '@kroma/core';
+import { useT, useThemeAudio } from '@kroma/ui';
 import {
   IconCheck,
   IconChevronLeft,
@@ -37,7 +37,7 @@ export function qualityBadges(video: VideoTrack | null | undefined): QualityTone
 }
 
 // `langName` is re-exported so existing importers (AvDrawer, movie route) keep
-// their `#web/features/catalog/detail` path; the implementation now lives in @luma/core.
+// their `#web/features/catalog/detail` path; the implementation now lives in @kroma/core.
 export { langName };
 
 /** "Français · AAC 5.1" language then codec/channels. */
@@ -128,7 +128,7 @@ export interface DetailHeroProps {
 }
 
 /** Full-bleed cinematic detail hero shared by the movie and series fiches
- * (matches the web DETAIL section of LUMA.dc.html). */
+ * (matches the web DETAIL section of KROMA.dc.html). */
 export function DetailHero({
   art,
   overline,

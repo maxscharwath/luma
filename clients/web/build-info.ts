@@ -44,7 +44,7 @@ export function buildInfoPlugin(): Plugin {
   // Default export + named exports so both import styles work.
   const code = `export default ${json};\nexport const { version, commit, commitFull, branch, dirty, buildDate } = ${json};\n`;
   return {
-    name: 'luma-build-info',
+    name: 'kroma-build-info',
     resolveId: (source) => (source === virtualId ? resolvedId : null),
     load: (id) => (id === resolvedId ? code : null),
   };

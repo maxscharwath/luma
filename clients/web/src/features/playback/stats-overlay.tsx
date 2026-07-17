@@ -1,5 +1,5 @@
-import type { AudioTrack } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AudioTrack } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { type RefObject, useEffect, useState } from 'react';
 import { IconClose } from '#web/features/playback/icons';
 import type { MovieView } from '#web/shared/lib/api';

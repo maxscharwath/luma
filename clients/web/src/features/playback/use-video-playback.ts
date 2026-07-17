@@ -7,7 +7,7 @@ import {
   type PlayEnv,
   SAFARI_CAPS,
   selectEngine,
-} from '@luma/core';
+} from '@kroma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { preferredAudioIndex } from '#web/features/playback/track-prefs';
 import {
@@ -15,7 +15,7 @@ import {
   bindMediaEvents,
   type VideoPlayback,
 } from '#web/features/playback/video-engine';
-import { lumaClient, type MovieView } from '#web/shared/lib/api';
+import { kromaClient, type MovieView } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 
 // The media-element / hls / track-wiring engine lives in `./videoEngine`; the
@@ -161,7 +161,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       return;
     }
     let cancelled = false;
-    const url = lumaClient().hlsMasterUrl(item.id, decision.aacMaster, anchor, audioIndex);
+    const url = kromaClient().hlsMasterUrl(item.id, decision.aacMaster, anchor, audioIndex);
     fetch(url)
       .then((r) => {
         const k = Number(r.headers.get('X-Hls-Start'));

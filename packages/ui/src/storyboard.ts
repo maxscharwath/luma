@@ -5,12 +5,12 @@
 // instantly. Per-position cost is a CSS `background-position` lookup: no canvas,
 // no per-frame decode.
 //
-// The client is injected so the web (global `lumaClient()`) and the TV (its auth
+// The client is injected so the web (global `kromaClient()`) and the TV (its auth
 // client) can share the exact same logic. `generate: false` (dashboard thumbs)
 // does a single fetch and never polls/awaits lazy generation, so it cannot compete
 // with live-playback IO.
 
-import type { LumaClient, StoryboardManifest } from '@luma/core';
+import type { KromaClient, StoryboardManifest } from '@kroma/core';
 import { useCallback, useEffect, useState } from 'react';
 
 /** CSS for one preview tile, scaled to a requested display width. Spread onto a
@@ -45,7 +45,7 @@ const MAX_TRIES = FAST_POLLS + 240; // overall bound (~1 h) so we never dead-sto
  * polls/awaits lazy generation, so it can't compete with live-playback IO.
  */
 export function useStoryboard(
-  client: LumaClient,
+  client: KromaClient,
   itemId: string,
   { generate = true }: { generate?: boolean } = {},
 ): Storyboard {

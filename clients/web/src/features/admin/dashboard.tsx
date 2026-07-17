@@ -1,5 +1,5 @@
-import type { MetricsSnapshot, PlaybackSession, TopUser } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { MetricsSnapshot, PlaybackSession, TopUser } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconPlayerPlay, IconUsers } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { HistoryBars, MetricsChart } from '#web/features/admin/charts';
@@ -45,7 +45,7 @@ export function DashboardScreen() {
 
   return (
     <>
-      <PageHeader title={serverInfo?.name ?? 'LUMA'} suffix={t('admin.dashboardSuffix')} realtime />
+      <PageHeader title={serverInfo?.name ?? 'KROMA'} suffix={t('admin.dashboardSuffix')} realtime />
 
       <Section title={t('admin.nowPlaying')}>
         {sessions.length === 0 ? (
@@ -142,7 +142,7 @@ function BandwidthSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | nul
 
 function CpuSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) {
   const t = useT();
-  const luma = metrics?.series.cpuLuma ?? [];
+  const kroma = metrics?.series.cpuKroma ?? [];
   const sys = metrics?.series.cpuSystem ?? [];
   return (
     <Section title={t('admin.cpu')} right={<FilterLabel>{t('admin.realtime')}</FilterLabel>}>
@@ -151,13 +151,13 @@ function CpuSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) 
         formatValue={pct}
         series={[
           { label: t('admin.legendSystem'), data: sys, color: C.cpuRed },
-          { label: t('admin.legendLumaServer'), data: luma, color: C.green },
+          { label: t('admin.legendKromaServer'), data: kroma, color: C.green },
         ]}
         legend={[
-          { label: t('admin.legendLumaServer'), color: C.green },
+          { label: t('admin.legendKromaServer'), color: C.green },
           { label: t('admin.legendSystem'), color: C.cpuRed },
         ]}
-        footer={t('admin.cpuAverages', { luma: decimal(avg(luma), 1), sys: decimal(avg(sys), 1) })}
+        footer={t('admin.cpuAverages', { kroma: decimal(avg(kroma), 1), sys: decimal(avg(sys), 1) })}
       />
     </Section>
   );
@@ -165,7 +165,7 @@ function CpuSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) 
 
 function RamSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) {
   const t = useT();
-  const luma = metrics?.series.ramLuma ?? [];
+  const kroma = metrics?.series.ramKroma ?? [];
   const sys = metrics?.series.ramSystem ?? [];
   return (
     <Section title={t('admin.ram')} right={<FilterLabel>{t('admin.realtime')}</FilterLabel>}>
@@ -174,13 +174,13 @@ function RamSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) 
         formatValue={pct}
         series={[
           { label: t('admin.legendSystem'), data: sys, color: C.purple },
-          { label: t('admin.legendLumaServer'), data: luma, color: C.green },
+          { label: t('admin.legendKromaServer'), data: kroma, color: C.green },
         ]}
         legend={[
-          { label: t('admin.legendLumaServer'), color: C.green },
+          { label: t('admin.legendKromaServer'), color: C.green },
           { label: t('admin.legendSystem'), color: C.purple },
         ]}
-        footer={t('admin.ramAverages', { luma: decimal(avg(luma), 2), sys: decimal(avg(sys), 2) })}
+        footer={t('admin.ramAverages', { kroma: decimal(avg(kroma), 2), sys: decimal(avg(sys), 2) })}
       />
     </Section>
   );
@@ -217,13 +217,13 @@ function TopUserCard({ u }: Readonly<{ u: TopUser }>) {
           >
             <span
               className="text-[13.5px] font-semibold"
-              style={{ color: r.on ? C.accent : 'var(--luma-text-muted)' }}
+              style={{ color: r.on ? C.accent : 'var(--kroma-text-muted)' }}
             >
               {r.label}
             </span>
             <span
               className="text-[13.5px] font-semibold tabular-nums"
-              style={{ color: r.on ? C.accent : 'var(--luma-text-muted)' }}
+              style={{ color: r.on ? C.accent : 'var(--kroma-text-muted)' }}
             >
               {r.val}
             </span>

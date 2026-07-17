@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- LUMA on-device live-dev loader. `make dev-shell` swaps this in for the built
+<!-- KROMA on-device live-dev loader. `make dev-shell` swaps this in for the built
      index.html inside an otherwise-untouched production wgt (a hand-stripped config
      is rejected by retail firmware, so we reuse the real build). On launch it
      redirects the webview to the Vite dev server on the developer's machine, giving
@@ -9,7 +9,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080, user-scalable=no" />
-    <title>LUMA Dev</title>
+    <title>KROMA Dev</title>
     <script>
       // replace() so the loader isn't left in history (Back on the TV won't return here).
       location.replace('http://__HOST_IP__:__DEV_PORT__/');
@@ -20,6 +20,6 @@
     </style>
   </head>
   <body>
-    Connecting to LUMA dev server at __HOST_IP__:__DEV_PORT__ …
+    Connecting to KROMA dev server at __HOST_IP__:__DEV_PORT__ …
   </body>
 </html>

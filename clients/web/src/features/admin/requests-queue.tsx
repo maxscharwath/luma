@@ -2,8 +2,8 @@
 // table (mirroring the pipeline console's shape), with quick approve/deny and
 // a detail drawer. Backed by GET /api/requests + the request.updated WS event.
 
-import { LumaEvents, type MediaRequest, type RequestStatus } from '@luma/core';
-import { useT } from '@luma/ui';
+import { KromaEvents, type MediaRequest, type RequestStatus } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconInbox, IconSearch, IconX } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { RequestDrawer } from '#web/features/admin/request-drawer';
@@ -55,7 +55,7 @@ export function RequestsQueuePage() {
     reload();
   }, [reload]);
   useEffect(() => {
-    const ev = new LumaEvents(apiBase(), {
+    const ev = new KromaEvents(apiBase(), {
       onEvent: (e) => {
         if (e.type === 'request.updated') throttledReload();
       },

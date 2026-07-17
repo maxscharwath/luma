@@ -40,7 +40,7 @@ export type ServerEvent =
   | { type: 'download.completed'; id: string; title: string }
   | { type: 'vpn.status'; connected: boolean; exitIp: string | null; paused: boolean };
 
-export interface LumaEventsOptions {
+export interface KromaEventsOptions {
   onEvent?: (event: ServerEvent) => void;
   onOpen?: () => void;
   onClose?: () => void;
@@ -50,16 +50,16 @@ export interface LumaEventsOptions {
   maxBackoffMs?: number;
 }
 
-/** Reconnecting client for the LUMA server's event stream. */
-export class LumaEvents {
+/** Reconnecting client for the KROMA server's event stream. */
+export class KromaEvents {
   private readonly url: string;
-  private readonly opts: LumaEventsOptions;
+  private readonly opts: KromaEventsOptions;
   private ws: WebSocket | null = null;
   private closed = false;
   private retry = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(baseUrl: string, opts: LumaEventsOptions = {}) {
+  constructor(baseUrl: string, opts: KromaEventsOptions = {}) {
     // http→ws, https→wss.
     this.url = `${baseUrl.replace(/^http/i, 'ws').replace(/\/+$/, '')}/api/events`;
     this.opts = opts;

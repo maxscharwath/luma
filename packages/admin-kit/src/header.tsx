@@ -2,7 +2,7 @@
 // constants mirror the app's single page dialect (kept in sync with
 // `#web/shared/ui/page`) so a module page aligns with the built-in pages.
 
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconPlus } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
@@ -37,7 +37,7 @@ export function PageHeader({
       </div>
       {realtime ? (
         <div className="flex shrink-0 items-center gap-2.5 rounded-full border border-border bg-[#121216] px-4 py-2">
-          <span className="h-1.75 w-1.75 animate-[luma-breathe_2s_ease-in-out_infinite] rounded-full bg-accent" />
+          <span className="h-1.75 w-1.75 animate-[kroma-breathe_2s_ease-in-out_infinite] rounded-full bg-accent" />
           <span className="text-[13px] font-semibold text-text/70">
             {t('admin.realtimeActivity')}
           </span>

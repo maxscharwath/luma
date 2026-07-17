@@ -2,8 +2,8 @@
 // library + TMDB (Overseerr-style). A prominent search hero, trending rails as
 // the empty state, and counted result grids. TMDB is gated on requests.create.
 
-import { type DiscoverType, hasPermission } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type DiscoverType, hasPermission } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconMoodEmpty, IconSearch, IconX } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { SearchResults } from '#web/features/requests/search-results';

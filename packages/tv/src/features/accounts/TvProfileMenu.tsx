@@ -1,5 +1,5 @@
-import { LOCALES } from '@luma/core';
-import { useLocale, useSetLocale, useT } from '@luma/ui';
+import { LOCALES } from '@kroma/core';
+import { useLocale, useSetLocale, useT } from '@kroma/ui';
 import {
   IconChevronRight,
   IconLanguage,

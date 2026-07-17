@@ -1,9 +1,9 @@
-/* LUMA web Tailwind v4. The shared entry (`@luma/ui/tailwind.css`) brings the
+/* KROMA web Tailwind v4. The shared entry (`@kroma/ui/tailwind.css`) brings the
    design tokens + fonts + `tailwindcss` + the @theme mapping + keyframes + fluid
    layout tokens; the SAME file is imported by every module so a runtime-installed
    module ships a self-contained CSS with the identical design. This file adds
    only the app-specific bits below. */
-@import "@luma/ui/tailwind.css";
+@import "@kroma/ui/tailwind.css";
 
 /* Tailwind v4 auto-detects sources rooted at this app, so it misses class names
    in packages/modules that live OUTSIDE clients/web: the admin UI kit and every
@@ -18,8 +18,8 @@
   html,
   body {
     margin: 0;
-    background: var(--luma-bg);
-    color: var(--luma-text);
+    background: var(--kroma-bg);
+    color: var(--kroma-text);
     font-family: var(--font-sans);
   }
 }
@@ -35,8 +35,8 @@
   }
 }
 
-/* (Fluid layout tokens --gutter-web/--card-w + the luma-breathe/fade-in/pop-in
-   keyframes now live in the shared @luma/ui/tailwind.css imported above.) */
+/* (Fluid layout tokens --gutter-web/--card-w + the kroma-breathe/fade-in/pop-in
+   keyframes now live in the shared @kroma/ui/tailwind.css imported above.) */
 
 /* Blinking caret for the OTP / PIN slots (shared/ui/Otp). */
 @keyframes otp-caret {
@@ -64,7 +64,7 @@
   }
 }
 
-/* The shared @luma/ui `:focus-visible` amber ring (essential for 10-foot TV
+/* The shared @kroma/ui `:focus-visible` amber ring (essential for 10-foot TV
    navigation) is UNLAYERED, so it beats Tailwind's layered utilities and the
    InputGroup's `focus-visible:shadow-none` never actually suppressed it. On the
    web, text inputs signal focus with their field border, so a ring drawn around

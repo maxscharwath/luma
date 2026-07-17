@@ -3,7 +3,7 @@
 // into the auth session so the sidebar/picker update at once. (The server has no
 // avatar-removal endpoint, so there is no reset here.)
 
-import { useT } from '@luma/ui';
+import { useT } from '@kroma/ui';
 import { IconCamera } from '@tabler/icons-react';
 import { useRef } from 'react';
 import { Panel, StatusText, useSave } from '#web/features/accounts/account/ui';

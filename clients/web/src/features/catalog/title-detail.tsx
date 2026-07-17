@@ -4,8 +4,8 @@
 // similar, and the owned-only Treatments + AI rails. Replaces the old split
 // movie/show fiche vs discover fiche.
 
-import { apiErrorText, type EpisodeRef, formatRuntime } from '@luma/core';
-import { useT } from '@luma/ui';
+import { apiErrorText, type EpisodeRef, formatRuntime } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconLoader2, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';

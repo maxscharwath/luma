@@ -1,5 +1,5 @@
 // The two remote-driven on-screen keyboards: a full layout for server URLs and a
-// dedicated search layout (matching the LUMA design). Everything interactive
+// dedicated search layout (matching the KROMA design). Everything interactive
 // carries `data-focus` so the spatial focus nav (useFocusNav) reaches it and OK
 // activates via the native click.
 
@@ -104,7 +104,7 @@ const SEARCH_LETTER_ROWS = [
   ['S', 'T', 'U', 'V', 'W', 'X'],
 ];
 
-/** The search on-screen keyboard, matching the LUMA design: a 1–0 digit row, the
+/** The search on-screen keyboard, matching the KROMA design: a 1–0 digit row, the
  * uppercase alphabet in rows of six, and a final row pairing Y / Z with space,
  * backspace and a close key. Letters insert lowercase (search is
  * case-insensitive); the focused key fills solid amber for a strong 10-foot cue. */

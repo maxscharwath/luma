@@ -1,5 +1,5 @@
 // The wire shape published by the backend at GET /api/modules. Mirrors the Rust
-// `luma_module_sdk::ModuleManifest` (serialized camelCase). The frontend reads
+// `kroma_module_sdk::ModuleManifest` (serialized camelCase). The frontend reads
 // this to learn which backend modules are active and to reconcile them against
 // the frontend modules registered in the host.
 
@@ -62,12 +62,12 @@ export interface FeRemote {
 
 /** A backend module's self-description. */
 export interface ModuleManifest {
-  /** Stable id, shared with the `@luma/module-<id>` frontend package. */
+  /** Stable id, shared with the `@kroma/module-<id>` frontend package. */
   id: string;
   name: string;
   version: string;
   description?: string;
-  /** Minimum LUMA server version (bare version or semver range) the module
+  /** Minimum KROMA server version (bare version or semver range) the module
    *  needs. Checked server-side at install and spawn. */
   minServer?: string;
   dependsOn?: Dependency[];

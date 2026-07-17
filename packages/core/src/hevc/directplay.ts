@@ -2,7 +2,7 @@
 // from the runtime {@link PlaybackCapabilities}.
 
 import type { MessageKey, TVars } from '../i18n';
-import type { AudioTrack, MediaItem } from '@luma/client';
+import type { AudioTrack, MediaItem } from '@kroma/client';
 import { type AudioCapabilities, capabilities, type PlaybackCapabilities } from './capabilities';
 
 export interface DirectPlayVerdict {

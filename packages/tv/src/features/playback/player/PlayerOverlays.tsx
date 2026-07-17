@@ -1,5 +1,5 @@
-import { episodeTag, type LumaClient, type MediaItem, posterColors } from '@luma/core';
-import { useT } from '@luma/ui';
+import { episodeTag, type KromaClient, type MediaItem, posterColors } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { ForwardGlyph, PlayGlyph } from '#tv/features/playback/player/icons';
 import { CTRL_OFF, CTRL_ON, FOCUS_RING, PILL } from '#tv/features/playback/player/playerStyles';
 import { TvArt } from '#tv/shared/TvMedia';
@@ -37,7 +37,7 @@ export function SkipIntroButton({ visible, focused, onSkip }: SkipIntroProps) {
 interface UpNextProps {
   show: boolean;
   next: MediaItem | null;
-  client: LumaClient;
+  client: KromaClient;
   /** Seconds left on the auto-advance countdown. */
   countdown: number;
   playFocused: boolean;

@@ -1,4 +1,4 @@
-import type { LumaClient, MediaItem } from '@luma/core';
+import type { KromaClient, MediaItem } from '@kroma/core';
 import { useCallback, useEffect, useRef } from 'react';
 
 /** The slice of the engine resume/persistence needs, so this works the same for
@@ -18,7 +18,7 @@ export interface PersistPort {
  * applied by `useDirectPlayback` as the engine's `startSec` (so it opens directly at
  * the resume point), not re-seeked here.
  */
-export function useResumeAndPersist(client: LumaClient, item: MediaItem, port: PersistPort): void {
+export function useResumeAndPersist(client: KromaClient, item: MediaItem, port: PersistPort): void {
   const portRef = useRef(port);
   portRef.current = port;
 

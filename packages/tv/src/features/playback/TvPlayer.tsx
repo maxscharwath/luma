@@ -1,5 +1,5 @@
-import { audioSupport, type MediaItem, playerSubtitle } from '@luma/core';
-import { useLocale, useT } from '@luma/ui';
+import { audioSupport, type MediaItem, playerSubtitle } from '@kroma/core';
+import { useLocale, useT } from '@kroma/ui';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { endsAtClock } from '#tv/features/catalog/detail/parts';
@@ -213,8 +213,8 @@ export function TvPlayer() {
     const native = playback.surface !== 'video';
     if (!native || !playback.ready || typeof document === 'undefined') return;
     const el = document.documentElement;
-    el.classList.add('luma-native-surface');
-    return () => el.classList.remove('luma-native-surface');
+    el.classList.add('kroma-native-surface');
+    return () => el.classList.remove('kroma-native-surface');
   }, [playback.surface, playback.ready]);
 
   const endsAt = dur ? endsAtClock(Math.max(0, dur - cur) * 1000, locale) : '';

@@ -1,5 +1,5 @@
-import type { AdminLibrary } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AdminLibrary } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useState } from 'react';
 import { FolderPicker } from '#web/features/admin/folder-picker';
 import { useAsyncAction } from '#web/features/admin/shell';
@@ -132,7 +132,7 @@ export function ManageLibraryModal({
           type="checkbox"
           checked={autoScan}
           onChange={(e) => setAutoScan(e.target.checked)}
-          className="h-4 w-4 accent-(--luma-accent)"
+          className="h-4 w-4 accent-(--kroma-accent)"
         />
         <span className="text-[14px] font-semibold">{t('admin.autoScan')}</span>
       </label>

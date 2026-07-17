@@ -1,7 +1,7 @@
 import { imageUrl } from '#web/shared/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '#web/shared/ui';
 
-// Vivid two-stop gradients lifted from the LUMA design (LUMA.dc.html profiles),
+// Vivid two-stop gradients lifted from the KROMA design (KROMA.dc.html profiles),
 // picked deterministically from a seed so a given account keeps its colour.
 const GRADS = [
   'linear-gradient(135deg,#F4B642,#E8743B)', // amber → orange
@@ -36,7 +36,7 @@ export function initials(name: string): string {
 }
 
 /**
- * Account avatar in the LUMA shape: a rounded-square gradient with Bricolage
+ * Account avatar in the KROMA shape: a rounded-square gradient with Bricolage
  * initials, with the uploaded WebP photo layered over it once loaded (Radix
  * Avatar handles the swap, so SSR shows initials and the photo fades in).
  */

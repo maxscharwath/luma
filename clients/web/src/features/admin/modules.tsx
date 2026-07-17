@@ -5,8 +5,8 @@
 // and /api/admin/store. The Store grid lives in module-store.tsx, the
 // dependency chips in module-deps.tsx.
 
-import { sessionToken } from '@luma/core';
-import { moduleIconUrl } from '@luma/module-sdk';
+import { sessionToken } from '@kroma/core';
+import { moduleIconUrl } from '@kroma/module-sdk';
 import { useRef, useState } from 'react';
 import { type AdminModule, adminApi } from '#web/features/admin/module-api';
 import { ModuleConfigForm } from '#web/features/admin/module-config-form';
@@ -23,7 +23,7 @@ import { Card, Pill, Toggle } from '#web/features/admin/ui';
 import { useModuleSettingsPanels, useRefreshModules } from '#web/modules/ModuleHostProvider';
 import { apiBase } from '#web/shared/lib/api';
 
-/** POST a module bundle (raw .lmod bytes) to the install endpoint. */
+/** POST a module bundle (raw .kmod bytes) to the install endpoint. */
 async function installBundle(file: File): Promise<void> {
   const token = sessionToken();
   const res = await fetch(`${apiBase()}/api/admin/store/install`, {
@@ -136,13 +136,13 @@ export function ModulesAdminPage() {
           <h1 className="text-2xl font-bold text-text">Modules</h1>
           <p className="text-sm text-muted">
             Install modules from the registry (dependencies and checksums handled for you), or
-            upload a .lmod file.
+            upload a .kmod file.
           </p>
         </div>
         <input
           ref={fileRef}
           type="file"
-          accept=".lmod,.tar"
+          accept=".kmod,.tar"
           className="hidden"
           onChange={(e) => void onPick(e.target.files?.[0])}
         />
@@ -152,7 +152,7 @@ export function ModulesAdminPage() {
           onClick={() => fileRef.current?.click()}
           className="shrink-0 rounded border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:text-text disabled:opacity-50"
         >
-          {busy ? 'Working...' : 'Upload .lmod'}
+          {busy ? 'Working...' : 'Upload .kmod'}
         </button>
       </div>
 

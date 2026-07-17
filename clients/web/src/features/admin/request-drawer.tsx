@@ -9,9 +9,9 @@ import {
   type MediaRequest,
   type MessageKey,
   type ScoredReleaseView,
-} from '@luma/core';
-import { useModuleEnabled } from '@luma/admin-kit';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { useModuleEnabled } from '@kroma/admin-kit';
+import { useT } from '@kroma/ui';
 import { IconCheck, IconLoader2, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { kindMeta, posterGrad } from '#web/features/admin/pipeline-meta';
@@ -61,7 +61,7 @@ export function RequestDrawer({
   const { client } = useAuth();
   // The interactive release search + grab are the Acquisition module's feature;
   // hide the whole panel when it is disabled (its routes 404 too).
-  const acqEnabled = useModuleEnabled('dev.luma.acquisition');
+  const acqEnabled = useModuleEnabled('tv.kroma.acquisition');
   const open = !!req;
   const km = kindMeta(req?.kind === 'show' ? 'series' : 'film');
   const [denying, setDenying] = useState(false);

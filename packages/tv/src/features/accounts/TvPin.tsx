@@ -1,5 +1,5 @@
-import { LumaApiError, LumaClient, type MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import { KromaApiError, KromaClient, type MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
@@ -31,7 +31,7 @@ export function TvPin() {
   // For `verify`, talk to the account's own server. The bearer is minted on
   // demand by exchanging the account's access token (see `submit`).
   const verifyClient = useMemo(
-    () => (account?.serverUrl ? new LumaClient({ baseUrl: account.serverUrl }) : null),
+    () => (account?.serverUrl ? new KromaClient({ baseUrl: account.serverUrl }) : null),
     [account],
   );
 
@@ -117,7 +117,7 @@ export function TvPin() {
         nav.back();
       }
     } catch (e) {
-      if (e instanceof LumaApiError && e.status === 429) {
+      if (e instanceof KromaApiError && e.status === 429) {
         const secs = Number((e.body as { retryAfter?: number } | undefined)?.retryAfter ?? 30);
         setCooldown(secs);
         fail('auth.pinLocked');

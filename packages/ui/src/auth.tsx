@@ -3,7 +3,7 @@
 // Token model: localStorage holds only a long-lived ACCESS token per remembered
 // account (never a bearer). On boot we silently exchange the active account's
 // access token for a short-lived SESSION token, kept in memory (see
-// `setSessionToken` in @luma/core) and set as the client's bearer. A 401 during
+// `setSessionToken` in @kroma/core) and set as the client's bearer. A 401 during
 // use triggers a silent re-exchange (the `refreshHandler`). Switching INTO a
 // PIN-locked profile requires the PIN on the exchange; returning to the picker
 // re-locks it (`relock`) so the next switch-in re-prompts.
@@ -13,8 +13,8 @@ import {
   apiErrorText,
   clearSession,
   forgetAccount,
-  LumaApiError,
-  type LumaClient,
+  KromaApiError,
+  type KromaClient,
   loadAccounts,
   loadSession,
   type StoredSession,
@@ -22,7 +22,7 @@ import {
   setSessionToken,
   sharedTokenExchange,
   type User,
-} from '@luma/core';
+} from '@kroma/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 /** Outcome of an {@link AuthSession.activate}. `needsPin` asks the UI to collect
@@ -57,7 +57,7 @@ export interface AuthSession {
   updateUser: (patch: Partial<User>) => void;
 }
 
-export function useAuthSession(client: LumaClient | null): AuthSession {
+export function useAuthSession(client: KromaClient | null): AuthSession {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [accounts, setAccounts] = useState<StoredSession[]>([]);
   const [ready, setReady] = useState(false);
@@ -154,7 +154,7 @@ export function useAuthSession(client: LumaClient | null): AuthSession {
         adopt(s, res.token, res.user);
         return { ok: true };
       } catch (e) {
-        if (e instanceof LumaApiError) {
+        if (e instanceof KromaApiError) {
           // Rate-limited (429): too many wrong PINs. Keep the PIN screen and pass
           // the cooldown so the UI can count it down.
           if (e.status === 429) {

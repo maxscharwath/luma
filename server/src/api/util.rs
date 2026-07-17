@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use axum::http::HeaderMap;
 
-pub(crate) use luma_module_host::{blocking, query};
+pub(crate) use kroma_module_host::{blocking, query};
 
 /// Best client IP for an incoming request. Cloudflare sets `CF-Connecting-IP` to
 /// the true client and overwrites it at the edge, so it can't be spoofed by a

@@ -1,8 +1,8 @@
 {
-  "name": "@luma/tv",
+  "name": "@kroma/tv",
   "version": "0.1.3",
   "type": "module",
-  "description": "LUMA shared 10-foot TV experience spatial remote navigation, home, player. Mounted by the Tizen and webOS shells.",
+  "description": "KROMA shared 10-foot TV experience spatial remote navigation, home, player. Mounted by the Tizen and webOS shells.",
   "exports": {
     ".": "./src/index.tsx",
     "./tv.css": "./src/tv.css"
@@ -12,8 +12,8 @@
     "build": "tsgo --noEmit"
   },
   "dependencies": {
-    "@luma/core": "workspace:*",
-    "@luma/ui": "workspace:*",
+    "@kroma/core": "workspace:*",
+    "@kroma/ui": "workspace:*",
     "@tabler/icons-react": "^3.44.0",
     "hls.js": "^1.5.0",
     "qrcode-generator": "^2.0.4"

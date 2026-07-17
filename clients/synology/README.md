@@ -1,13 +1,13 @@
-# LUMA Synology package (`.spk`)
+# KROMA Synology package (`.spk`)
 
 One self-contained package for **x86_64 DSM 7**. It installs a single process that
 serves the **API + streaming _and_ the web UI** on one port, plus a bundled static
 **ffmpeg/ffprobe**. No Node, no extra dependencies.
 
 ```
-luma-<version>-x86_64.spk
- └ /var/packages/luma/target/
-     ├ bin/luma-server     # Rust: API + streaming + serves the web SPA
+kroma-<version>-x86_64.spk
+ └ /var/packages/kroma/target/
+     ├ bin/kroma-server     # Rust: API + streaming + serves the web SPA
      ├ web/                # the static web SPA (served on the same origin)
      └ ffmpeg/{ffmpeg,ffprobe}
 ```
@@ -19,35 +19,39 @@ Rust cross-toolchain needed), **bun**, and `curl`.
 
 ```bash
 clients/synology/build.sh 0.1.0
-# → clients/synology/dist/luma-0.1.0-x86_64.spk
+# → clients/synology/dist/kroma-0.1.0-x86_64.spk
 ```
 
-The script: builds the web SPA → cross-compiles `luma-server` to
+The script: builds the web SPA → cross-compiles `kroma-server` to
 `x86_64-unknown-linux-musl` in a Docker musl image → downloads a static ffmpeg →
 assembles the `.spk`. Re-run faster with `SKIP_WEB=1` / `SKIP_RUST=1`.
 
 ## Install via the package source (recommended, auto-updates)
 
-LUMA publishes a **Synology package source** on GitHub Pages, so you install and
-**auto-update** straight from Package Center no manual `.spk` uploads. The `.spk`
-itself is hosted on the GitHub Release (GitHub's CDN); Pages only serves a small
-catalog. Nothing to host, no server.
+KROMA runs a **dynamic package source** (SynoCommunity-style: a Cloudflare Worker,
+`packages/synology-repo/worker`) that answers DSM directly and lists EVERY
+release, both channels, live from the GitHub Releases API - nothing is rebuilt
+or redeployed when a release ships. The `.spk` itself is hosted on the GitHub
+Release (GitHub's CDN).
 
 1. **Package Center → Settings → Package Sources → Add**
-   - Name: `LUMA`
-   - Location: `https://maxscharwath.github.io/luma/catalog.json`
-2. **Settings → General → Trust Level → Any publisher** (LUMA is not Synology-signed).
-3. Open the **Community** tab, install **LUMA**, and follow the wizard (below).
+   - Name: `KROMA`
+   - Location: the bare worker URL (e.g. `https://kroma-packages.<account>.workers.dev/`)
+2. **Settings → General → Trust Level → Any publisher** (KROMA is not Synology-signed).
+3. Open the **Community** tab, install **KROMA**, and follow the wizard (below).
 
-New releases then show an **Update** button automatically.
+New releases then show an **Update** button automatically. Opening the same URL
+in a browser shows a landing page listing every published version with download
+links.
 
-**Nightly channel (optional):** every push to `main` publishes a nightly `.spk` to
-a separate beta catalog. To ride nightlies, add
-`https://maxscharwath.github.io/luma/nightly.json` as a second source and enable
-*Settings &rarr; General &rarr; beta packages*. Note the two catalogs describe the
-same `luma` package, and nightlies share the stable base version (`0.1.4.<build>`),
-so a nightly is always version-higher a NAS with *both* sources added rides the
-nightly. Subscribe to one channel, not both.
+**Nightly channel (optional):** every push to `main` publishes a canary `.spk`
+to the rolling `nightly` prerelease. Enable *Settings → General → beta packages*
+on the SAME source and DSM rides whichever channel is newest (nightlies use a
+4th feature segment, so they outrank their stable base until the next tag).
+
+**Static fallback:** the old GitHub Pages catalogs still work and stay
+published: `https://maxscharwath.github.io/kroma/catalog.json` (stable) and
+`.../nightly.json` (beta).
 
 ## Install on the NAS (manual `.spk`)
 
@@ -67,7 +71,7 @@ The package runs as its own least-privilege user, which can't read your shares b
 default. Grant it read access to the media folder:
 
 **Control Panel → Shared Folder → (your media share) → Edit → Permissions →**
-set the system user **`luma`** (or `sc-luma`) to **Read-only**, then restart the
+set the system user **`kroma`** (or `sc-kroma`) to **Read-only**, then restart the
 package.
 
 > Prefer zero setup over least-privilege? Change `conf/privilege` to
@@ -81,24 +85,30 @@ package.
   libraries. Everything else lives in the **web admin > Bibliothèques**, where a
   folder picker lets you add more folders and set each library's type (Movies or
   TV Shows) without editing paths by hand.
-- Data (SQLite DB, image cache, logs) lives in `/var/packages/luma/var/data` by
+- Data (SQLite DB, image cache, logs) lives in `/var/packages/kroma/var/data` by
   default (or the optional data folder you chose in the wizard) and survives
   upgrades.
 - The TV apps (Tizen/webOS) connect to this server over the LAN via mDNS, unchanged.
 
 ## Publishing a release (and how updates work)
 
-One workflow owns the whole Synology deliverable: `.github/workflows/synology.yml`.
-A `vX.Y.Z` tag builds the stable `.spk` and attaches it to that GitHub Release; a
-push to `main` builds a nightly `.spk` into the rolling `nightly` prerelease. Either
-way the same run then regenerates BOTH catalogs `catalog.json` (stable) +
-`nightly.json` (beta) from the latest releases via the `@luma/synology-repo`
-package and deploys them to GitHub Pages. NASes on either source update
-automatically. (Stable + nightly share one build job, so there is no separate
-Pages workflow to keep in sync.)
+One workflow owns the whole server deliverable: `.github/workflows/synology.yml`.
+A `vX.Y.Z` tag builds the stable `.spk` and attaches it (+ a `<spk>.info.json`
+sidecar with version/md5/size, read by the dynamic source) to that GitHub
+Release; a push to `main` that touches server/web/shared code builds a canary
+`.spk` into the rolling `nightly` prerelease. The same run then assembles the
+**Docker image from the .spk payload** (no second compile) and pushes it to
+ghcr, and regenerates the static Pages catalogs as a fallback. The dynamic
+worker source needs nothing: it reads the releases live.
+
+The musl target dir is cached between runs (`synology-v2-*` cache) and the
+cross image is digest-pinned, so a warm push build takes minutes, not a cold
+~15-minute compile. The full client fleet (desktop + TV + modules) additionally
+ships nightly at 03:00 UTC onto the same `nightly` prerelease via
+`.github/workflows/release.yml` (skipped when main has not moved).
 
 To iterate on the store landing page without a build, run
-`bun run --filter @luma/synology-repo preview` (live-reload; `CATALOG_BETA=true`
+`bun run --filter @kroma/synology-repo preview` (live-reload; `CATALOG_BETA=true`
 for the nightly variant).
 
 **Version rule (do not regress this):** DSM installs a `.spk` over an existing one

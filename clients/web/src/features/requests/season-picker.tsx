@@ -2,7 +2,7 @@
 // or requested seasons disabled with their chip), a "toutes les saisons"
 // master, and the request action.
 
-import { useLocale, useT } from '@luma/ui';
+import { useLocale, useT } from '@kroma/ui';
 import { IconCheck, IconLoader2, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';

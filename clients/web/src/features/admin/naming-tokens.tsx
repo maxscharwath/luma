@@ -3,8 +3,8 @@
 // full-filename presets and a separator helper. Clicking a token inserts it at
 // the cursor of the field being edited; clicking a preset replaces the field.
 
-import type { NamingTemplatesView } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { NamingTemplatesView } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconX } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
 import { Select } from '#web/shared/ui';

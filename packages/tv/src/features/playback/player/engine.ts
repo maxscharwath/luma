@@ -95,11 +95,11 @@ export function avplayAvailable(): boolean {
 }
 
 // ----- Desktop mpv bridge (Tauri) --------------------------------------------
-// The @luma/desktop shell (a Tauri app, Steam Deck the primary target) runs a
+// The @kroma/desktop shell (a Tauri app, Steam Deck the primary target) runs a
 // native mpv process for video (VA-API hardware decode of HEVC + surround audio)
 // and exposes a tiny command surface + event stream to the webview. We reach it
 // through Tauri's injected `window.__TAURI__` globals (the shell sets
-// `app.withGlobalTauri: true`), so @luma/tv needs no Tauri dependency and this
+// `app.withGlobalTauri: true`), so @kroma/tv needs no Tauri dependency and this
 // whole path stays inert in a plain browser (getTauri() → null → the HTML/AVPlay
 // engines are used instead).
 
@@ -127,17 +127,17 @@ export function mpvAvailable(): boolean {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   if (/Linux/i.test(ua) && !/Android/i.test(ua)) return true; // Deck: mpv binary
   // macOS: the in-process libmpv engine flags itself in Rust `setup` once it's up.
-  return '__LUMA_MPV__' in globalThis;
+  return '__KROMA_MPV__' in globalThis;
 }
 
 // ----- Android TV ExoPlayer bridge --------------------------------------------
-// The @luma/androidtv shell hosts the app in a WebView with a native media3 /
+// The @kroma/androidtv shell hosts the app in a WebView with a native media3 /
 // ExoPlayer instance rendering to a SurfaceView BEHIND it (the same "video plane
 // behind the page" model as AVPlay/mpv). The Kotlin side injects this object via
 // addJavascriptInterface, and pushes events by calling the global
-// `__lumaExoEvent(payload)` the engine installs. Inert in a plain browser.
+// `__kromaExoEvent(payload)` the engine installs. Inert in a plain browser.
 
-/** The command surface the Android shell injects as `__LUMA_ANDROID__`. */
+/** The command surface the Android shell injects as `__KROMA_ANDROID__`. */
 export interface ExoShellBridge {
   /** Load a URL (replaces the current item). `master` hints HLS vs progressive. */
   load(url: string, startSec: number, master: boolean): void;
@@ -147,8 +147,8 @@ export interface ExoShellBridge {
 
 /** The injected ExoPlayer bridge when running inside the Android TV shell, else null. */
 export function getExo(): ExoShellBridge | null {
-  const w = globalThis as unknown as { __LUMA_ANDROID__?: Partial<ExoShellBridge> };
-  const b = w.__LUMA_ANDROID__;
+  const w = globalThis as unknown as { __KROMA_ANDROID__?: Partial<ExoShellBridge> };
+  const b = w.__KROMA_ANDROID__;
   return typeof b?.load === 'function' && typeof b?.command === 'function'
     ? (b as ExoShellBridge)
     : null;

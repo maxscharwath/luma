@@ -4,15 +4,15 @@
 // TanStack Start build is untouched. Remotes are DISCOVERED from the backend:
 // `GET /api/modules` lists every installed module, and each one that ships a
 // `feRemote` is loaded from `/modules/<id>/remoteEntry.js` (served same-origin by
-// the Rust server from the module's install dir). Its exposed `LumaModule` is
+// the Rust server from the module's install dir). Its exposed `KromaModule` is
 // registered into the same ModuleRegistry the compile-time modules use.
 //
 // The Chromium-53 TV tier never runs this (no dynamic import / import maps); TVs
 // stay compile-time bundled. `@module-federation/runtime` is imported inside the
 // browser-only path so it never runs during the SSR shell prerender.
 
-import { sessionToken } from '@luma/core';
-import type { LumaModule, ModuleManifest, ModuleRegistry } from '@luma/module-sdk';
+import { sessionToken } from '@kroma/core';
+import type { KromaModule, ModuleManifest, ModuleRegistry } from '@kroma/module-sdk';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { apiBase } from '#web/shared/lib/api';
@@ -63,7 +63,7 @@ const loadedRemotes = new Set<string>();
 const injectedStyles = new Set<string>();
 
 /** Load a runtime module's self-contained stylesheet. Its FE build emits a fixed
- *  `style.css` (Tailwind + LUMA design) next to its remoteEntry, so - unlike a
+ *  `style.css` (Tailwind + KROMA design) next to its remoteEntry, so - unlike a
  *  compile-time module whose classes are in the host build - a runtime `.tar`
  *  module carries its own CSS. Best-effort: a module that ships none just 404s
  *  the link (removed silently to avoid console noise). */
@@ -74,7 +74,7 @@ function injectRemoteStyles(entry: string): void {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = href;
-  link.dataset.lumaModuleStyles = '';
+  link.dataset.kromaModuleStyles = '';
   link.onerror = () => link.remove();
   document.head.appendChild(link);
 }
@@ -84,7 +84,7 @@ function ensureMf(): Promise<typeof import('@module-federation/runtime')> {
     mfReady = import('@module-federation/runtime')
       .then((mf) => {
         mf.init({
-          name: 'luma_web_host',
+          name: 'kroma_web_host',
           remotes: [],
           shared: {
             react: {
@@ -135,7 +135,7 @@ export async function loadRuntimeRemotes(registry: ModuleRegistry): Promise<stri
   }
   mf.registerRemotes(fresh.map((s) => ({ name: s.name, entry: s.entry, type: 'module' as const })));
   // Each runtime remote ships its own stylesheet next to remoteEntry; load it so
-  // the module renders with the full LUMA design regardless of host classes.
+  // the module renders with the full KROMA design regardless of host classes.
   fresh.forEach((s) => {
     injectRemoteStyles(s.entry);
   });
@@ -145,7 +145,7 @@ export async function loadRuntimeRemotes(registry: ModuleRegistry): Promise<stri
     fresh.map(async (s) => {
       loadedRemotes.add(s.name);
       try {
-        const mod = (await mf.loadRemote<{ default: LumaModule }>(s.module))?.default;
+        const mod = (await mf.loadRemote<{ default: KromaModule }>(s.module))?.default;
         if (mod && !registry.has(mod.id)) {
           registry.register(mod);
           try {

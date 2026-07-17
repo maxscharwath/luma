@@ -1,12 +1,12 @@
-// The `/account` settings page, laid out to the LUMA "Mon profil" design: a
+// The `/account` settings page, laid out to the KROMA "Mon profil" design: a
 // title + sections (photo, personal info, language & preferences, security),
 // with a sticky save bar that batches the editable profile fields (name, email,
 // audio/subtitle prefs) into one `PATCH /auth/me`. The photo uploads on pick,
 // and password / PIN keep their own action buttons everything acts on the
 // signed-in account and syncs across devices via the server.
 
-import type { AccountPatch } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { AccountPatch } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconAt,
   IconCheck,

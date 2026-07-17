@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build a single self-contained LUMA Synology package (.spk) for x86_64 DSM 7.
+# Build a single self-contained KROMA Synology package (.spk) for x86_64 DSM 7.
 #
 # Produces ONE installable package containing:
-#   • luma-server Rust API + streaming, AND serves the web SPA (one process)
+#   • kroma-server Rust API + streaming, AND serves the web SPA (one process)
 #   • web/ the built static web SPA (served on the same origin)
 #   • ffmpeg/ static ffmpeg + ffprobe (scan + audio HLS remux)
 #
@@ -73,7 +73,10 @@ CANARY="${CANARY:-$([ -z "$EXPLICIT_VERSION" ] && echo 1 || echo 0)}"
 BUILD="${BUILD:-$(( ( $(date -u +%s) - 1577836800 ) / 60 ))}"
 ARCH="x86_64"
 TARGET="x86_64-unknown-linux-musl"
-RUST_IMAGE="${RUST_IMAGE:-messense/rust-musl-cross:x86_64-musl}"
+# Digest-pinned: a moving tag swaps rustc underneath, which invalidates every
+# cached build artifact (CI caches server/target across runs). Bump the digest
+# deliberately when a newer toolchain is wanted.
+RUST_IMAGE="${RUST_IMAGE:-messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a}"
 FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -112,10 +115,10 @@ fi
 [ -f "$ROOT/clients/web/dist/client/_shell.html" ] || { echo "web build missing (_shell.html)"; exit 1; }
 
 # 2) Rust server → static musl binary ----------------------------------------
-BIN="$ROOT/server/target/$TARGET/release/luma-server"
+BIN="$ROOT/server/target/$TARGET/release/kroma-server"
 if [ "${SKIP_RUST:-}" != "1" ]; then
   command -v docker >/dev/null || { echo "Docker required for the musl cross-build (or set SKIP_RUST=1 after a manual build)"; exit 1; }
-  say "Cross-compiling luma-server → $TARGET (Docker: $RUST_IMAGE)"
+  say "Cross-compiling kroma-server → $TARGET (Docker: $RUST_IMAGE)"
   # `whisper-local`: bundle in-process Whisper (candle) so the .spk transcribes
   # subtitles with no external binary. Pure-Rust CPU backend → still links on
   # musl. The model is downloaded at runtime (not baked into the .spk), so the
@@ -137,11 +140,11 @@ if [ ! -x "$FF/ffmpeg" ]; then
   mkdir -p "$FF" && tar xJf "$WORK/ff.tar.xz" -C "$FF" --strip-components=1
 fi
 
-# 4) Stage the payload (→ /var/packages/luma/target) -------------------------
+# 4) Stage the payload (→ /var/packages/kroma/target) -------------------------
 say "Staging payload"
 PAY="$WORK/payload"
 mkdir -p "$PAY/bin" "$PAY/web" "$PAY/ffmpeg"
-install -m755 "$BIN" "$PAY/bin/luma-server"
+install -m755 "$BIN" "$PAY/bin/kroma-server"
 cp -R "$ROOT/clients/web/dist/client/." "$PAY/web/"
 install -m755 "$FF/ffmpeg" "$PAY/ffmpeg/ffmpeg"
 install -m755 "$FF/ffprobe" "$PAY/ffmpeg/ffprobe"
@@ -174,13 +177,13 @@ fi
 sed -e "s/@INFO_VERSION@/$INFO_VERSION/g" -e "s/@ARCH@/$ARCH/g" -e "s/@SIZE@/$EXT_SIZE/g" \
   "$SKEL/INFO.template" > "$SPK/INFO"
 say "DSM package version: $INFO_VERSION ($([ "$CANARY" = 1 ] && echo 'canary: 4th-segment build keeps every nightly upgradable' || echo 'stable: X.Y.Z orders releases, BUILD is the versionCode'))"
-# Icons: the LUMA brand mark (gold ring + dot), checked in alongside the skeleton.
+# Icons: the KROMA brand mark (gold ring + dot), checked in alongside the skeleton.
 cp "$SKEL/PACKAGE_ICON.PNG" "$SKEL/PACKAGE_ICON_256.PNG" "$SPK/"
 
-# Full INFO version in the filename: a bare `luma-0.1.3-x86_64.spk` made every
+# Full INFO version in the filename: a bare `kroma-0.1.3-x86_64.spk` made every
 # build look identical, so a stale copy (e.g. in ~/Downloads) was easy to upload
 # by mistake — which DSM refuses with the same opaque 4521.
-OUT_SPK="$OUT/luma-$INFO_VERSION-$ARCH.spk"
+OUT_SPK="$OUT/kroma-$INFO_VERSION-$ARCH.spk"
 # Pristine, deterministic outer tar: INFO first (DSM reads it first), no macOS
 # metadata/xattrs/AppleDouble. Members listed explicitly rather than globbed.
 xattr -cr "$SPK" 2>/dev/null || true

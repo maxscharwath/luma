@@ -27,7 +27,7 @@ use axum::extract::{OriginalUri, Path as AxPath, Request, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Extension;
-use luma_module_supervisor::Supervisor;
+use kroma_module_supervisor::Supervisor;
 use axum::routing::{get, post};
 use axum::Json;
 use axum::Router;
@@ -51,7 +51,7 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
     // mounted behind its enabled-gate (404 when the module is disabled), so a
     // disabled module's whole admin surface disappears. The Downloads / VPN /
     // Indexers / Remote routers are modules now, so they are no longer merged
-    // here -- they come in via `luma_module_kernel::mount_admin` below.
+    // here -- they come in via `kroma_module_kernel::mount_admin` below.
     let mut router = Router::new()
         .route("/server", get(server_info))
         .route("/sessions", get(sessions))
@@ -69,7 +69,7 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
         .merge(store::routes())
         .merge(pipeline::routes())
         .merge(backup::routes());
-    router = router.merge(luma_module_kernel::mount_admin(state.clone()));
+    router = router.merge(kroma_module_kernel::mount_admin(state.clone()));
     // Out-of-process modules with admin routes: anything not matched above is
     // reverse-proxied to the sidecar that owns the path's first segment (from its
     // manifest `adminPrefixes`), so a converted module's `/api/admin/<prefix>/*`
@@ -94,7 +94,7 @@ async fn admin_module_proxy(
     match sup.admin_route_port(seg) {
         Some(port) => {
             let query = uri.query().map(|q| format!("?{q}")).unwrap_or_default();
-            luma_module_supervisor::proxy_to(port, &format!("/{rest}{query}"), req).await
+            kroma_module_supervisor::proxy_to(port, &format!("/{rest}{query}"), req).await
         }
         None => (StatusCode::NOT_FOUND, "not found").into_response(),
     }
@@ -135,12 +135,12 @@ pub async fn server_info(
     AuthUser(user): AuthUser,
 ) -> Result<Response, Response> {
     require_any_admin(&user)?;
-    let hostname = sysinfo::System::host_name().unwrap_or_else(|| "luma".into());
+    let hostname = sysinfo::System::host_name().unwrap_or_else(|| "kroma".into());
     Ok(Json(crate::api::dto::ServerInfo {
         name: crate::services::settings::server_name(&state.settings),
         hostname,
         version: env!("CARGO_PKG_VERSION"),
-        uptime_sec: luma_engine::process_started().elapsed().as_secs(),
+        uptime_sec: kroma_engine::process_started().elapsed().as_secs(),
         online: true,
         sessions: state.playback.list().len(),
     })

@@ -2,7 +2,7 @@
 // deps and capability requirements (colored by whether each is satisfied),
 // plus the reverse edges (who depends on this module).
 
-import { depEntries } from '@luma/module-sdk';
+import { depEntries } from '@kroma/module-sdk';
 import type { AdminModule } from '#web/features/admin/module-api';
 
 type DepState = 'ok' | 'missing' | 'disabled' | 'optional';

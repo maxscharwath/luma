@@ -1,4 +1,4 @@
-// Player icons backed by @tabler/icons-react, sized/stroked to match the LUMA
+// Player icons backed by @tabler/icons-react, sized/stroked to match the KROMA
 // player. Color comes from `currentColor`, so Tailwind text-* controls it.
 import {
   IconChartBar as TbChartBar,

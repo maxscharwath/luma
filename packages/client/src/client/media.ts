@@ -12,7 +12,7 @@ import type {
   Show,
   ShowDetail,
 } from '../types';
-import { LumaApiError, libraryQuery, type RequestContext } from './base';
+import { KromaApiError, libraryQuery, type RequestContext } from './base';
 
 /** Server liveness + counts. Accepts an `init` (e.g. an `AbortSignal`) so a
  * client-side heartbeat can bound the probe with a short timeout. */
@@ -118,7 +118,7 @@ export function logsUrl(ctx: RequestContext, tail = 200): string {
 /** Fetch the last `tail` lines of the server log as plain text. */
 export async function logs(ctx: RequestContext, tail = 200): Promise<string> {
   const res = await ctx.fetchFn(logsUrl(ctx, tail));
-  if (!res.ok) throw new LumaApiError(res.status, `GET /logs failed (${res.status})`);
+  if (!res.ok) throw new KromaApiError(res.status, `GET /logs failed (${res.status})`);
   return res.text();
 }
 

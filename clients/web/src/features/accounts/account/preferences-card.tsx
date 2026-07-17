@@ -5,8 +5,8 @@
 // drive the player's default track pick (see useVideoPlayback). Empty value =
 // no preference; subtitles also offer the "off" sentinel.
 
-import { LOCALES, langName } from '@luma/core';
-import { useLocale, useSetLocale, useT } from '@luma/ui';
+import { LOCALES, langName } from '@kroma/core';
+import { useLocale, useSetLocale, useT } from '@kroma/ui';
 import { IconBadgeCc, IconLanguage, IconVolume } from '@tabler/icons-react';
 import { PrefRow } from '#web/features/accounts/account/ui';
 import { Select } from '#web/shared/ui';

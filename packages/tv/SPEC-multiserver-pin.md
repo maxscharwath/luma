@@ -1,6 +1,6 @@
 # Spec TV multi-server profiles, Quick-Connect-only sign-in, server PIN
 
-> Status: **Draft / for review** · Scope: `@luma/tv`, `@luma/core`, Rust `server`
+> Status: **Draft / for review** · Scope: `@kroma/tv`, `@kroma/core`, Rust `server`
 > Deliverable of this document: design only no code is changed yet.
 
 ## 1. Summary
@@ -26,7 +26,7 @@ thing you ever key in, and only to *re-enter* a profile that has one.
 
 **Goals**
 
-- A TV can hold profiles from two or more different LUMA servers at once.
+- A TV can hold profiles from two or more different KROMA servers at once.
 - Adding a profile is always Quick Connect (scan QR / enter code, approve on
   another signed-in device).
 - A profile with a server-side PIN prompts for it before switching in.
@@ -50,7 +50,7 @@ thing you ever key in, and only to *re-enter* a profile that has one.
 
 | Area | Today | After |
 | --- | --- | --- |
-| Server address | one `luma.serverUrl` (`packages/tv/src/server.ts`) | list of servers (`luma.servers`) |
+| Server address | one `kroma.serverUrl` (`packages/tv/src/server.ts`) | list of servers (`kroma.servers`) |
 | Remembered accounts | flat list keyed by `user.id` (`packages/core/src/session.ts`) | scoped by `(serverUrl, user.id)` |
 | Active session | `{ token, user }` | `{ serverUrl, token, user }` |
 | TV auth screens | `profiles`, `login`, `register`, `quick` (`packages/tv/src/TvApp.tsx`) | `profiles`, `addProfile`, `connect`, `quick`, `pin` (no `login`/`register`) |
@@ -60,7 +60,7 @@ thing you ever key in, and only to *re-enter* a profile that has one.
 
 ## 4. Data model
 
-### 4.1 Client storage (`@luma/core/src/session.ts`)
+### 4.1 Client storage (`@kroma/core/src/session.ts`)
 
 Replace the two single-scope keys with server-scoped structures. Keep them in
 `localStorage`, guarded by the existing `storage()` helper.
@@ -94,11 +94,11 @@ Storage keys:
 
 | Key | Was | Now |
 | --- | --- | --- |
-| `luma.servers` | | `SavedServer[]` |
-| `luma.session` | `{token,user}` | `ActiveSession` (`+ serverUrl`) |
-| `luma.accounts` | `StoredSession[]` | `StoredAccount[]` (`+ serverUrl`) |
-| `luma.serverUrl` | single URL | **removed** (folded into `luma.servers`) |
-| `luma.locale` | unchanged | unchanged |
+| `kroma.servers` | | `SavedServer[]` |
+| `kroma.session` | `{token,user}` | `ActiveSession` (`+ serverUrl`) |
+| `kroma.accounts` | `StoredSession[]` | `StoredAccount[]` (`+ serverUrl`) |
+| `kroma.serverUrl` | single URL | **removed** (folded into `kroma.servers`) |
+| `kroma.locale` | unchanged | unchanged |
 
 New/changed functions (names kept close to today's so call sites move cleanly):
 
@@ -113,7 +113,7 @@ New/changed functions (names kept close to today's so call sites move cleanly):
 > (`session.ts:54`). The new key is the **pair** `(serverUrl, user.id)` the
 > same user id on two servers is two distinct profiles.
 
-### 4.2 `PublicUser` (`@luma/core/src/types.ts`)
+### 4.2 `PublicUser` (`@kroma/core/src/types.ts`)
 
 Add a flag so the picker can render a lock and decide whether to prompt:
 
@@ -177,7 +177,7 @@ poll. No protocol change is required for per-server pairing.
 > Admin override (set/clear another user's PIN) can reuse the existing
 > `/admin/users/:id` surface; **out of scope for phase 1**, listed in §8.
 
-## 6. Frontend changes (`@luma/tv`)
+## 6. Frontend changes (`@kroma/tv`)
 
 ### 6.1 Screen registry & router (`TvApp.tsx`)
 
@@ -205,9 +205,9 @@ poll. No protocol change is required for per-server pairing.
 ### 6.2 Connection layer becomes multi-server (`TvApp.tsx`, `server.ts`)
 
 - State holds `servers: SavedServer[]` and an `activeServerUrl`, instead of one
-  `serverUrl`. The `LumaClient` is rebuilt whenever the active server changes
+  `serverUrl`. The `KromaClient` is rebuilt whenever the active server changes
   (its base URL + the active account's token).
-- `connect(url)` upserts into `luma.servers` (does not replace).
+- `connect(url)` upserts into `kroma.servers` (does not replace).
 - `discover()` (mDNS/subnet, `packages/core/src/discover.ts`) is unchanged; its
   hit is *added* to the server list. It powers both the first-run empty state and
   the "local server" list inside the Add-profile wizard (§6.4).
@@ -238,14 +238,14 @@ The ➕ on the picker starts a short wizard. **Step 1 choose a server:**
 - **Local server(s)** run LAN discovery (`discoverServer`, `discover.ts`:
   mDNS + subnet scan) and list every server that answers `/api/health`. Each is a
   focusable row.
-- **Existing distant server(s)** every server already in `luma.servers` that is
+- **Existing distant server(s)** every server already in `kroma.servers` that is
   not in the local results (remote/manually-added), so you can add another profile
   to a server you already use.
 - **Add manually** routes to `connect` (the repurposed `TvConnect` URL-entry
   screen) to register a new distant server by address; on a successful
-  `/api/health` probe it is upserted into `luma.servers` and the wizard advances.
+  `/api/health` probe it is upserted into `kroma.servers` and the wizard advances.
 
-**Step 2 Quick Connect:** once a server is chosen, point the `LumaClient` at it
+**Step 2 Quick Connect:** once a server is chosen, point the `KromaClient` at it
 and go to `quick`. The existing `TvQuickConnect` screen
 (`TvProfiles.tsx:355`) initiates against that server and renders the **QR + numeric
 code**; the user approves from another signed-in device, and the TV pairs the
@@ -281,7 +281,7 @@ Notes:
   error, with the rate-limit/backoff from §7.
 - Back returns to the picker (profile stays locked).
 
-### 6.6 `@luma/core` client (`api.ts`)
+### 6.6 `@kroma/core` client (`api.ts`)
 
 Add methods mirroring the endpoints:
 
@@ -315,11 +315,11 @@ them); they are simply no longer wired into any TV screen.
 On first launch of the new client, a one-time `migrateStorage()` in
 `session.ts`:
 
-1. If `luma.servers` is absent but `luma.serverUrl` exists → seed
-   `luma.servers = [{ url, lastUsedAt: <now passed in> }]` and delete
-   `luma.serverUrl`.
-2. Upgrade `luma.accounts`: stamp every legacy `StoredSession` with
-   `serverUrl = <the old single server>`. Same for `luma.session`.
+1. If `kroma.servers` is absent but `kroma.serverUrl` exists → seed
+   `kroma.servers = [{ url, lastUsedAt: <now passed in> }]` and delete
+   `kroma.serverUrl`.
+2. Upgrade `kroma.accounts`: stamp every legacy `StoredSession` with
+   `serverUrl = <the old single server>`. Same for `kroma.session`.
 3. `hasPin` defaults to `false` until the next `client.users()` refresh, so no
    one is unexpectedly locked out by the upgrade.
 
@@ -351,7 +351,7 @@ new `hasPin` field and the PIN routes.
 
 1. **Phase 1 (this spec):**
    - DB `pin_hash` + `/auth/pin/*` + `hasPin` on `PublicUser`.
-   - Client storage → multi-server; `@luma/core` PIN methods.
+   - Client storage → multi-server; `@kroma/core` PIN methods.
    - TV: remove `login`/`register`, add `pin`, multi-server picker, Add-server.
    - PIN set/clear self-service on **web** (admin/profile settings).
 2. **Phase 2 (later):**

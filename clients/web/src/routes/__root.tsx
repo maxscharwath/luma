@@ -26,14 +26,14 @@ export interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   // No apiBase injection: the SPA resolves the API origin at runtime (same origin
-  // in the packaged build, VITE_LUMA_SERVER in dev see lib/api `apiBase`).
+  // in the packaged build, VITE_KROMA_SERVER in dev see lib/api `apiBase`).
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
       // viewport-fit=cover extends the canvas under the iPhone notch/home
       // indicator so `env(safe-area-inset-*)` paddings (player, topbar) apply.
       { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
-      { title: 'LUMA' },
+      { title: 'KROMA' },
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),

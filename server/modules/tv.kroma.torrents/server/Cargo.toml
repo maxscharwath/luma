@@ -1,0 +1,70 @@
+[package]
+name = "kroma-torrent"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "DownloadClient trait + torrent engines (embedded librqbit, Transmission, qBittorrent)"
+license.workspace = true
+
+[[bin]]
+# The module's `.kmod` entrypoint: an out-of-process sidecar that hosts the
+# downloads vertical + the co-located torrent engines (see src/bin/module.rs).
+name = "kroma-module-torrents"
+path = "src/bin/module.rs"
+
+[package.metadata.kmod]
+# The packed `.kmod` bundles the embedded librqbit engine (modules:pack reads
+# this to add `--features rqbit`).
+features = ["rqbit"]
+
+[features]
+# The embedded librqbit engine. Off = the "rqbit" client kind compiles as a
+# stub reporting "not compiled"; Transmission/qBittorrent (plain curl) remain.
+rqbit = ["dep:librqbit", "tokio/rt-multi-thread"]
+
+[dependencies]
+kroma-module-sdk = { workspace = true }
+# The `.kmod` binary only (guarded to the bin's use): the out-of-process runtime,
+# the cross-module port bridges, and the sibling torrent-engine modules co-hosted
+# in this process so they register their kind into the shared DownloadManager.
+kroma-module-runtime = { workspace = true }
+kroma-port-bridge = { workspace = true }
+kroma-transmission = { workspace = true }
+kroma-qbittorrent = { workspace = true }
+# The download manager + monitor (formerly the kroma-downloads crate) live here now,
+# so the module owns its whole backend and nothing download-related sits in crates/.
+# The admin routes (queue / clients / organize) moved into this crate need the
+# axum router + extractors, exactly like the vpn / indexer module crates.
+axum = { workspace = true }
+# The module owns its `downloads` / `download_clients` tables now (schema + typed
+# queries), so it talks to SQLite directly through the pool kroma-db hands out.
+rusqlite = { workspace = true }
+# The organize vertical (moved out of the core kroma-engine crate) lives here: it
+# orchestrates the app (kroma-engine) and parses release names via kroma-scene. The
+# db facade re-exports the indexers table from kroma-indexer for the queue view.
+# The acquisition vertical is its own crate (kroma-acquisition), which deps THIS one.
+sha1 = "0.10"
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+# Pinned to an exact 9.x release: 9.x's HTTP tracker client honors the tracker's
+# `peers6` (IPv4-only in 8.x), which is REQUIRED for IPv6-only private swarms
+# (private = no DHT, so the tracker is the only peer source). 9.x moved the socks
+# proxy into `connect: ConnectionOptions{proxy_url}` and the listen port into
+# `listen: ListenerOptions`. default-features off drops native-tls (openssl) and
+# the HTTP API; rust-tls keeps the musl single binary linking. Exact-pinned (not
+# a range) because this is an -rc: a new rc could shift the API under us.
+librqbit = { version = "=9.0.0-rc.0", optional = true, default-features = false, features = ["rust-tls"] }
+# The async admin routes + downloads monitor need spawn_blocking + timers
+# unconditionally (independent of the embedded engine); the `rqbit` feature layers
+# on the multi-thread runtime the librqbit session drives.
+tokio = { version = "1", features = ["rt", "time"] }
+
+[dev-dependencies]
+# The engine_probe example only: session logs for swarm diagnostics.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[example]]
+name = "engine_probe"
+required-features = ["rqbit"]

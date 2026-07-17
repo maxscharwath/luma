@@ -1,4 +1,4 @@
-//! LUMA a self-hosted, direct-play media streaming server.
+//! KROMA a self-hosted, direct-play media streaming server.
 //!
 //! Scans a media library (Plex-style movie/show detection), persists it in
 //! SQLite, exposes metadata over a JSON REST API, and range-streams the original
@@ -12,13 +12,13 @@
 
 // The HTTP router + handlers. Everything below the router (infra adapters,
 // services, app state, the i18n extractor and the wire-model barrel) lives in
-// the luma-engine crate, aliased here so `crate::{infra,services,state,i18n,model}`
+// the kroma-engine crate, aliased here so `crate::{infra,services,state,i18n,model}`
 // call sites in api/ keep resolving. Lower layers (config/db/domain) are their
 // own crates, likewise aliased.
 mod api;
-use luma_config as config;
-use luma_db as db;
-use luma_engine::{i18n, infra, model, services, state};
+use kroma_config as config;
+use kroma_db as db;
+use kroma_engine::{i18n, infra, model, services, state};
 
 use anyhow::Context;
 use tracing::{info, warn};
@@ -27,22 +27,22 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use crate::config::Config;
 use crate::state::AppState;
 
-/// Composition-root adapter: talks to the Vector module's `.lmod` sidecar
-/// (dev.luma.vector) over the port bridge, wrapping it as the engine's
-/// [`luma_engine::ports::Embedder`] port so the core never names the concrete
+/// Composition-root adapter: talks to the Vector module's `.kmod` sidecar
+/// (tv.kroma.vector) over the port bridge, wrapping it as the engine's
+/// [`kroma_engine::ports::Embedder`] port so the core never names the concrete
 /// embedder crate. The heavy MiniLM/candle model runs out of the core; the
 /// `embed`/`embed_batch` calls reuse the shared bridge helper, and `embed_batch`
 /// keeps the catalog-wide reembed to one round-trip per chunk. When the sidecar
 /// is absent every call degrades to empty vectors (like `NoopEmbedder`), so
 /// recommendations quietly no-op rather than break.
 struct EmbedderClient {
-    resolve: luma_port_bridge::Resolver,
+    resolve: kroma_port_bridge::Resolver,
     /// Memoized `/_port/embedder/meta` (dim + relevance_floor), constant for the
     /// sidecar's life; `dim()` is hit per-item in the pipeline embed stage.
     meta: std::sync::RwLock<Option<serde_json::Value>>,
 }
 impl EmbedderClient {
-    fn new(resolve: luma_port_bridge::Resolver) -> Self {
+    fn new(resolve: kroma_port_bridge::Resolver) -> Self {
         Self { resolve, meta: std::sync::RwLock::new(None) }
     }
     fn meta(&self) -> serde_json::Value {
@@ -52,7 +52,7 @@ impl EmbedderClient {
         let Some((base, token)) = (self.resolve)() else {
             return serde_json::Value::Null;
         };
-        let v = luma_http::Fetch::new()
+        let v = kroma_http::Fetch::new()
             .header("authorization", format!("Bearer {token}"))
             .get_json::<serde_json::Value>(&format!("{base}/_port/embedder/meta"))
             .unwrap_or(serde_json::Value::Null);
@@ -62,16 +62,16 @@ impl EmbedderClient {
         v
     }
 }
-impl luma_engine::ports::Embedder for EmbedderClient {
+impl kroma_engine::ports::Embedder for EmbedderClient {
     fn dim(&self) -> usize {
         self.meta().get("dim").and_then(serde_json::Value::as_u64).unwrap_or(0) as usize
     }
     fn embed(&self, text: &str) -> Vec<f32> {
-        luma_port_bridge::call_raw(&self.resolve, "embedder/embed", &serde_json::json!({ "text": text }))
+        kroma_port_bridge::call_raw(&self.resolve, "embedder/embed", &serde_json::json!({ "text": text }))
             .unwrap_or_default()
     }
     fn embed_batch(&self, texts: &[String]) -> Vec<Vec<f32>> {
-        luma_port_bridge::call_raw(&self.resolve, "embedder/embed_batch", &serde_json::json!({ "texts": texts }))
+        kroma_port_bridge::call_raw(&self.resolve, "embedder/embed_batch", &serde_json::json!({ "texts": texts }))
             .unwrap_or_default()
     }
     fn relevance_floor(&self) -> f32 {
@@ -88,8 +88,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Seed the uptime clock (now owned by luma-engine).
-    luma_engine::process_started();
+    // Seed the uptime clock (now owned by kroma-engine).
+    kroma_engine::process_started();
     let config = Config::from_env();
     // Keep the appender guard alive for the whole process so buffered log lines
     // are flushed to disk.
@@ -100,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
         port = config.port,
         media_dirs = config.media_dirs.len(),
         db = %config.db_path().display(),
-        "starting LUMA server"
+        "starting KROMA server"
     );
 
     let ffprobe_available = infra::probe::ffprobe_available();
@@ -114,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
         if infra::metadata::curl_available() {
             info!(language = %config.tmdb_language, "TMDB enrichment enabled");
         } else {
-            warn!("LUMA_TMDB_API_KEY is set but `curl` was not found; TMDB enrichment disabled");
+            warn!("KROMA_TMDB_API_KEY is set but `curl` was not found; TMDB enrichment disabled");
         }
     }
 
@@ -125,13 +125,13 @@ async fn main() -> anyhow::Result<()> {
     // before any module reads/writes them (settings load, `apply_enabled_states`).
     {
         let conn = db.get().context("failed to get a db connection for module schema")?;
-        for migration in luma_module_kernel::module_migrations() {
+        for migration in kroma_module_kernel::module_migrations() {
             db::apply_migrations(&conn, migration).context("failed to apply module schema")?;
         }
     }
 
     // Persisted settings (incl. the editable library definitions, seeded from
-    // LUMA_MEDIA_DIRS on first run).
+    // KROMA_MEDIA_DIRS on first run).
     let settings = services::settings::Settings::load(&db);
     let library_defs = services::settings::library_defs(&settings, &config);
     let has_folders = library_defs.iter().any(|d| !d.folders.is_empty());
@@ -171,7 +171,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = config.socket_addr();
 
-    // The out-of-process module supervisor (spawns/proxies installed .lmod
+    // The out-of-process module supervisor (spawns/proxies installed .kmod
     // modules). Built here (before the module services) so ported modules that
     // moved out of the base build can be resolved as client proxies pointing at
     // their sidecar process. A fresh random token authenticates host callbacks.
@@ -184,21 +184,21 @@ async fn main() -> anyhow::Result<()> {
             .collect()
     };
     let supervisor =
-        luma_module_supervisor::Supervisor::new(luma_module_supervisor::SupervisorConfig {
+        kroma_module_supervisor::Supervisor::new(kroma_module_supervisor::SupervisorConfig {
             modules_dir: config.data_dir.join("modules"),
             core_url: format!("http://127.0.0.1:{}", config.port),
             host_token: host_token.clone(),
             db_path: config.db_path(),
             data_dir: config.data_dir.clone(),
             // A module with an in-core backend (a compiled ServerModule) can't be
-            // shadowed by an installed `.lmod` of the same id (two live backends),
+            // shadowed by an installed `.kmod` of the same id (two live backends),
             // so the store rejects those. Manifest-only modules whose backend IS a
-            // sidecar (whisper / vector) are NOT reserved -- their `.lmod` must be
+            // sidecar (whisper / vector) are NOT reserved -- their `.kmod` must be
             // installable.
-            reserved_ids: luma_module_kernel::backend_ids(),
+            reserved_ids: kroma_module_kernel::backend_ids(),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
             // Pipe each sidecar's output: echo to our stdout (so the .spk's
-            // luma.log keeps carrying module lines, now prefixed) and mirror
+            // kroma.log keeps carrying module lines, now prefixed) and mirror
             // into the in-memory ring the admin "Journaux" page reads.
             log_line: Some(std::sync::Arc::new(|id: &str, line: &str| {
                 println!("[{id}] {line}");
@@ -207,85 +207,85 @@ async fn main() -> anyhow::Result<()> {
         });
 
     // Build the module services + peer ports the composition root owns, so the
-    // core (luma-engine) names no module: the Remote connector, the VPN bridge, and
+    // core (kroma-engine) names no module: the Remote connector, the VPN bridge, and
     // the VpnProxy / TorrentFetch ports. AppState builds the download manager (its
     // one direct module field) and merges these in.
     let mut module_services: std::collections::HashMap<
         std::any::TypeId,
         std::sync::Arc<dyn std::any::Any + Send + Sync>,
     > = std::collections::HashMap::new();
-    // The supervisor is a service too, so the module registry (luma-module-kernel)
-    // can list runtime-installed `.lmod` modules + resolve their icons without the
+    // The supervisor is a service too, so the module registry (kroma-module-kernel)
+    // can list runtime-installed `.kmod` modules + resolve their icons without the
     // kernel holding a router Extension.
     module_services.insert(
-        std::any::TypeId::of::<luma_module_supervisor::Supervisor>(),
+        std::any::TypeId::of::<kroma_module_supervisor::Supervisor>(),
         supervisor.clone() as std::sync::Arc<dyn std::any::Any + Send + Sync>,
     );
-    // Remote access (dev.luma.remote) is a sidecar now (de-rostered): its .lmod
+    // Remote access (tv.kroma.remote) is a sidecar now (de-rostered): its .kmod
     // bin constructs its own RemoteAccess and serves the /api/admin/remote
     // routes, reverse-proxied via the manifest's adminPrefixes.
 
     // Every out-of-process module the core CONSUMES is reached by a client proxy
     // that resolves the sidecar's live localhost port from the supervisor. One
     // resolver builder for all of them: id -> port -> (url, token).
-    let local_resolver = |id: &'static str| -> luma_port_bridge::Resolver {
+    let local_resolver = |id: &'static str| -> kroma_port_bridge::Resolver {
         let (sup, tok) = (supervisor.clone(), host_token.clone());
         std::sync::Arc::new(move || {
             sup.port_of(id).map(|p| (format!("http://127.0.0.1:{p}"), tok.clone()))
         })
     };
 
-    // VPN (dev.luma.vpn): VpnProxyPort, consumed by indexer + torrents.
-    let vpn_proxy: std::sync::Arc<dyn luma_module_sdk::ports::VpnProxyPort> =
-        std::sync::Arc::new(luma_port_bridge::VpnProxyClient::new(local_resolver("dev.luma.vpn")));
-    let (tid, val) = luma_module_host::port_service(vpn_proxy);
+    // VPN (tv.kroma.vpn): VpnProxyPort, consumed by indexer + torrents.
+    let vpn_proxy: std::sync::Arc<dyn kroma_module_sdk::ports::VpnProxyPort> =
+        std::sync::Arc::new(kroma_port_bridge::VpnProxyClient::new(local_resolver("tv.kroma.vpn")));
+    let (tid, val) = kroma_module_host::port_service(vpn_proxy);
     module_services.insert(tid, val);
-    // Indexers (dev.luma.indexer): torrent-fetch / data / native-search ports,
+    // Indexers (tv.kroma.indexer): torrent-fetch / data / native-search ports,
     // consumed by the torrents queue + acquisition.
-    let torrent_fetch: std::sync::Arc<dyn luma_module_sdk::ports::TorrentFetchPort> =
-        std::sync::Arc::new(luma_port_bridge::TorrentFetchClient::new(local_resolver("dev.luma.indexer")));
-    let (tid, val) = luma_module_host::port_service(torrent_fetch);
+    let torrent_fetch: std::sync::Arc<dyn kroma_module_sdk::ports::TorrentFetchPort> =
+        std::sync::Arc::new(kroma_port_bridge::TorrentFetchClient::new(local_resolver("tv.kroma.indexer")));
+    let (tid, val) = kroma_module_host::port_service(torrent_fetch);
     module_services.insert(tid, val);
-    // Torznab (dev.luma.torznab): the external-aggregator search engine.
-    let torznab: std::sync::Arc<dyn luma_module_sdk::ports::TorznabPort> =
-        std::sync::Arc::new(luma_port_bridge::TorznabClient::new(local_resolver("dev.luma.torznab")));
-    let (tid, val) = luma_module_host::port_service(torznab);
+    // Torznab (tv.kroma.torznab): the external-aggregator search engine.
+    let torznab: std::sync::Arc<dyn kroma_module_sdk::ports::TorznabPort> =
+        std::sync::Arc::new(kroma_port_bridge::TorznabClient::new(local_resolver("tv.kroma.torznab")));
+    let (tid, val) = kroma_module_host::port_service(torznab);
     module_services.insert(tid, val);
-    let idx_db: std::sync::Arc<dyn luma_module_sdk::ports::IndexerDbPort> =
-        std::sync::Arc::new(luma_port_bridge::IndexerDbClient::new(local_resolver("dev.luma.indexer")));
-    let (tid, val) = luma_module_host::port_service(idx_db);
+    let idx_db: std::sync::Arc<dyn kroma_module_sdk::ports::IndexerDbPort> =
+        std::sync::Arc::new(kroma_port_bridge::IndexerDbClient::new(local_resolver("tv.kroma.indexer")));
+    let (tid, val) = kroma_module_host::port_service(idx_db);
     module_services.insert(tid, val);
-    let idx_search: std::sync::Arc<dyn luma_module_sdk::ports::IndexerSearchPort> =
-        std::sync::Arc::new(luma_port_bridge::IndexerSearchClient::new(local_resolver("dev.luma.indexer")));
-    let (tid, val) = luma_module_host::port_service(idx_search);
+    let idx_search: std::sync::Arc<dyn kroma_module_sdk::ports::IndexerSearchPort> =
+        std::sync::Arc::new(kroma_port_bridge::IndexerSearchClient::new(local_resolver("tv.kroma.indexer")));
+    let (tid, val) = kroma_module_host::port_service(idx_search);
     module_services.insert(tid, val);
-    // Acquisition (dev.luma.acquisition): its interactive-search + grab surface,
+    // Acquisition (tv.kroma.acquisition): its interactive-search + grab surface,
     // consumed by the core's /api/requests/:id/search + /grab endpoints.
-    let acq_search: std::sync::Arc<dyn luma_module_sdk::ports::AcquisitionSearchPort> =
-        std::sync::Arc::new(luma_port_bridge::AcquisitionSearchClient::new(local_resolver("dev.luma.acquisition")));
-    let (tid, val) = luma_module_host::port_service(acq_search);
+    let acq_search: std::sync::Arc<dyn kroma_module_sdk::ports::AcquisitionSearchPort> =
+        std::sync::Arc::new(kroma_port_bridge::AcquisitionSearchClient::new(local_resolver("tv.kroma.acquisition")));
+    let (tid, val) = kroma_module_host::port_service(acq_search);
     module_services.insert(tid, val);
-    // The download engine (dev.luma.torrents) is a sidecar: it PROVIDES the
+    // The download engine (tv.kroma.torrents) is a sidecar: it PROVIDES the
     // DownloadClientHost / DownloadVpn / DownloadGrab / DownloadDb ports from its
     // own process (its bin serves them over the bridge), and the sidecars that
     // consume them (acquisition, vpn) resolve them sibling-to-sibling through the
     // core proxy. So the core neither constructs the manager nor registers those
     // ports here.
-    // Whisper transcription runs out-of-process (the dev.luma.whisper .lmod);
+    // Whisper transcription runs out-of-process (the tv.kroma.whisper .kmod);
     // register the client proxy so the subtitles endpoint resolves it by type. It
     // carries the DB pool (the progress/cancel side-channel) + a resolver to the
     // sidecar's port.
     let whisper_client = std::sync::Arc::new(api::online_subs::WhisperClient::new(
-        local_resolver("dev.luma.whisper"),
+        local_resolver("tv.kroma.whisper"),
         db.clone(),
     ));
     module_services
         .insert(std::any::TypeId::of::<api::online_subs::WhisperClient>(), whisper_client);
-    // The embedder runs out-of-process (the dev.luma.vector .lmod); resolve it as a
+    // The embedder runs out-of-process (the tv.kroma.vector .kmod); resolve it as a
     // client proxy to its sidecar. Absent sidecar => empty vectors (recommendations
     // quietly no-op), same as the former NoopEmbedder fallback.
-    let embedder: std::sync::Arc<dyn luma_engine::ports::Embedder> =
-        std::sync::Arc::new(EmbedderClient::new(local_resolver("dev.luma.vector")));
+    let embedder: std::sync::Arc<dyn kroma_engine::ports::Embedder> =
+        std::sync::Arc::new(EmbedderClient::new(local_resolver("tv.kroma.vector")));
     // Acquisition's search / import / match jobs run in ITS sidecar now: the
     // sidecar registers them with the core JobManager over `/_host/register-job`
     // (so they appear in admin Tâches), which drives them by triggering the
@@ -351,7 +351,7 @@ async fn main() -> anyhow::Result<()> {
     // down. Each module seeds/starts/monitors its OWN resources in on_enable, so
     // this shell names no module and touches no module-specific data (onion
     // boundary); a module's enabled state is also durable across a restart.
-    luma_module_kernel::apply_enabled_states(&state).await;
+    kroma_module_kernel::apply_enabled_states(&state).await;
 
     // mDNS advertising is a runtime-toggleable setting (Réseau → Découverte locale).
 
@@ -363,11 +363,11 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| format!("failed to bind {addr}"))?;
 
-    info!("LUMA listening on http://{addr}  (API under /api)");
+    info!("KROMA listening on http://{addr}  (API under /api)");
 
     // Bring up every installed out-of-process module whose enabled flag is on.
-    // (mDNS advertising moved into the `dev.luma.mdns` module; install its .lmod
-    // to advertise the server over `_luma._tcp` / `luma.local`.)
+    // (mDNS advertising moved into the `tv.kroma.mdns` module; install its .kmod
+    // to advertise the server over `_kroma._tcp` / `kroma.local`.)
     supervisor.spawn_enabled(&*state);
 
     // Auto-update installed modules to the newest compatible catalog version, in
@@ -446,13 +446,13 @@ fn init_tracing(log_dir: &std::path::Path) -> Option<tracing_appender::non_block
     // connection errors (why a torrent finds no peers). Bump to
     // `RUST_LOG=librqbit=debug` for the full swarm chatter.
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("luma_server=info,tower_http=info,axum=info,librqbit=info")
+        EnvFilter::new("kroma_server=info,tower_http=info,axum=info,librqbit=info")
     });
 
     // Best-effort rolling file layer (no ANSI colour codes on disk).
     let (file_layer, guard) = match std::fs::create_dir_all(log_dir) {
         Ok(()) => {
-            let appender = tracing_appender::rolling::daily(log_dir, "luma.log");
+            let appender = tracing_appender::rolling::daily(log_dir, "kroma.log");
             let (writer, guard) = tracing_appender::non_blocking(appender);
             let layer = tracing_subscriber::fmt::layer()
                 .with_ansi(false)

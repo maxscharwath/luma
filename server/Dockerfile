@@ -1,15 +1,15 @@
 # syntax=docker/dockerfile:1
 #
-# One image that runs the LUMA server: the Rust API + streaming server AND serves
+# One image that runs the KROMA server: the Rust API + streaming server AND serves
 # the built web SPA on the same port (same single-process model as the .spk).
 #
 # BUILD FROM THE REPO ROOT (the server include_str!s the shared locale catalogs
 # under packages/, and the web SPA lives under clients/):
-#     docker build -f server/Dockerfile -t luma .
+#     docker build -f server/Dockerfile -t kroma .
 #
-# Run: bind-mount media read-only, a data volume, point LUMA_MEDIA_DIRS at it:
-#     docker run -p 4040:4040 -v luma-data:/data -v /media:/media:ro \
-#       -e LUMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/luma:latest
+# Run: bind-mount media read-only, a data volume, point KROMA_MEDIA_DIRS at it:
+#     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media:ro \
+#       -e KROMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/kroma:latest
 
 # ---- 1) Web SPA (node + bun) -----------------------------------------------
 # Node base (not the bun-only image): the TanStack Start prerender spawns a `node`
@@ -38,9 +38,9 @@ COPY server/Cargo.toml server/Cargo.lock ./server/
 # so copy the whole modules/ tree (its ui/ dirs are ignored by cargo).
 COPY server/crates ./server/crates
 COPY server/modules ./server/modules
-# luma-engine (a workspace member, so it's compiled by the warm-up build below)
+# kroma-engine (a workspace member, so it's compiled by the warm-up build below)
 # include_str!s the shared locale catalogs at compile time
-# (crates/luma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json),
+# (crates/kroma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json),
 # so they must exist before this build. Copy just the catalogs here they change
 # rarely, so the expensive dependency cache stays warm; the rest of packages/
 # lands with the real sources below.
@@ -50,11 +50,11 @@ RUN cd server \
     && cargo build --release \
     && rm -rf src
 # Real sources: the server crate + the shared locale catalogs it include_str!s at
-# compile time (crates/luma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json).
+# compile time (crates/kroma-engine/src/i18n.rs -> ../../../packages/core/src/locales/*.json).
 COPY packages ./packages
 COPY server ./server
 RUN cd server && touch src/main.rs && cargo build --release
-# → /src/server/target/release/luma-server
+# → /src/server/target/release/kroma-server
 
 # ---- 3) Runtime ------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
@@ -65,17 +65,17 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /src/server/target/release/luma-server /usr/local/bin/luma-server
+COPY --from=builder /src/server/target/release/kroma-server /usr/local/bin/kroma-server
 COPY --from=web /app/clients/web/dist/client /app/web
 
 # Defaults; override at runtime. Media dirs are intentionally unset (bind-mount +
-# LUMA_MEDIA_DIRS / LUMA_MOVIES_DIRS / LUMA_SERIES_DIRS).
-ENV LUMA_HOST=0.0.0.0 \
-    LUMA_PORT=4040 \
-    LUMA_DATA_DIR=/data \
-    LUMA_WEB_DIR=/app/web \
-    RUST_LOG=luma_server=info,tower_http=info
+# KROMA_MEDIA_DIRS / KROMA_MOVIES_DIRS / KROMA_SERIES_DIRS).
+ENV KROMA_HOST=0.0.0.0 \
+    KROMA_PORT=4040 \
+    KROMA_DATA_DIR=/data \
+    KROMA_WEB_DIR=/app/web \
+    RUST_LOG=kroma_server=info,tower_http=info
 
 VOLUME ["/data"]
 EXPOSE 4040
-ENTRYPOINT ["luma-server"]
+ENTRYPOINT ["kroma-server"]

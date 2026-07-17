@@ -1,8 +1,8 @@
-// LAN auto-discovery for the LUMA server.
+// LAN auto-discovery for the KROMA server.
 //
 // Browsers / TV webviews can't browse mDNS from JavaScript. Two strategies,
 // tried in order:
-//   1. Named candidates `http://luma.local:4040` (works where the client OS
+//   1. Named candidates `http://kroma.local:4040` (works where the client OS
 //      resolves the mDNS `.local` hostname the server advertises: desktop,
 //      mobile; NOT Samsung Tizen).
 //   2. Subnet scan get this device's own LAN IP (Tizen/webOS system API, or a
@@ -11,7 +11,7 @@
 // The first server to answer `{ status: "ok" }` wins.
 
 export interface DiscoverOptions {
-  /** Named origins probed first. Default: `http://luma.local:4040`. */
+  /** Named origins probed first. Default: `http://kroma.local:4040`. */
   candidates?: string[];
   /** Per-probe timeout (ms). Default 2000. */
   timeoutMs?: number;
@@ -24,10 +24,10 @@ export interface DiscoverOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-export const DEFAULT_DISCOVERY_CANDIDATES = ['http://luma.local:4040'];
+export const DEFAULT_DISCOVERY_CANDIDATES = ['http://kroma.local:4040'];
 
 /** Probe candidates, then (optionally) the local subnet; resolve the first live
- *  LUMA server origin, or `null`. */
+ *  KROMA server origin, or `null`. */
 export async function discoverServer(opts: DiscoverOptions = {}): Promise<string | null> {
   const fetchFn = opts.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetchFn) return null;
@@ -159,7 +159,7 @@ function webrtcLocalIp(): Promise<string | null> {
     let pc: RTCPeerConnection;
     try {
       pc = new RTC({ iceServers: [] });
-      pc.createDataChannel('luma');
+      pc.createDataChannel('kroma');
       pc.onicecandidate = (e) => {
         const cand = e.candidate?.candidate;
         if (!cand) return;
@@ -182,7 +182,7 @@ function isPrivateIPv4(ip: string): boolean {
 // ----- probing ----------------------------------------------------------------
 
 /** Probe `urls` (≤ `concurrency` at a time); resolve the first that is a live
- *  LUMA server, or `null` when all fail. */
+ *  KROMA server, or `null` when all fail. */
 function raceForServer(
   urls: string[],
   fetchFn: typeof globalThis.fetch,

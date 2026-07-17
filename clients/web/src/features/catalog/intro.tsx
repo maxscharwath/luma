@@ -1,13 +1,13 @@
-// The LUMA brand intro a full-screen, audio-synced sting shown once per browser
+// The KROMA brand intro a full-screen, audio-synced sting shown once per browser
 // session before the app. It overlays everything (including the login gate) and
 // hands off to the app on completion. Client-only: Audio() and sessionStorage
 // don't exist during SSR, so it renders nothing on the server and until the first
 // client effect decides whether it should play (no hydration mismatch).
 
-import { LumaIntro } from '@luma/ui';
+import { KromaIntro } from '@kroma/ui';
 import { useEffect, useState } from 'react';
 
-const SEEN_KEY = 'luma:intro-seen';
+const SEEN_KEY = 'kroma:intro-seen';
 
 export function Intro() {
   const [show, setShow] = useState(false);
@@ -25,7 +25,7 @@ export function Intro() {
   if (!mounted || !show) return null;
 
   return (
-    <LumaIntro
+    <KromaIntro
       onDone={() => {
         try {
           sessionStorage.setItem(SEEN_KEY, '1');

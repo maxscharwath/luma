@@ -3,8 +3,8 @@
 // model·host; expanded reveals the editable fields (provider type, base URL,
 // API key, searchable model picker, advanced) and per-card Test / Set default /
 // Remove. Backed by /api/admin/llm* each card probes its own in-progress values.
-import type { LumaClient, MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { KromaClient, MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconCheck,
   IconChevronDown,
@@ -107,7 +107,7 @@ export function ProviderCard({
   onChange: (patch: Partial<ProviderForm>) => void;
   onSetDefault: () => void;
   onRemove: () => void;
-  client: LumaClient;
+  client: KromaClient;
 }>) {
   const t = useT();
   const [models, setModels] = useState<string[]>([]);

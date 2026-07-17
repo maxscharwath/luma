@@ -1,7 +1,7 @@
 // Background-service plumbing for the Tizen Smart Hub preview. The carousel is
 // rendered by the TV platform from data a *background service* provides
 // (config.xml declares `use.preview = bg_service`). That service can't reach
-// LUMA on its own (no shared localStorage / mDNS, and Node's `fs` is unavailable
+// KROMA on its own (no shared localStorage / mDNS, and Node's `fs` is unavailable
 // to it), so the work is split:
 //   • the foreground (this module) builds the tile JSON from the live catalog and
 //     writes it to the package-private `wgt-private` dir, then nudges the
@@ -9,12 +9,12 @@
 //   • the service (clients/tizen/public/service/preview-service.js) reads that
 //     file and calls webapis.preview.setPreviewData(), which the TV shows.
 
-import type { ContinueItem, LumaClient, MediaItem } from '@luma/core';
+import type { ContinueItem, KromaClient, MediaItem } from '@kroma/core';
 import { buildPreviewData } from '#tv/shared/preview/cards';
 import { type Tizen, type TizenFile, tizen } from '#tv/shared/preview/tizen';
 
 // Must match the <tizen:service id> in clients/tizen/public/config.xml.
-const SERVICE_ID = 'LumaTV0001.PreviewSvc';
+const SERVICE_ID = 'KromaTV0001.PreviewSvc';
 // Package-private dir shared between the foreground app and its service.
 const PRIVATE_DIR = 'wgt-private';
 const PREVIEW_FILE = 'preview.json';
@@ -69,7 +69,7 @@ let lastNudge = 0;
 
 /** Persist the carousel (resume + recently-added rows) and (throttled) ask the
  *  service to publish it. No-op off Tizen. */
-export async function publishPreview(client: LumaClient, movies: MediaItem[]): Promise<void> {
+export async function publishPreview(client: KromaClient, movies: MediaItem[]): Promise<void> {
   const t = tizen();
   if (!t) return;
   // Continue-watching is per-user and needs auth best-effort, empty if absent.

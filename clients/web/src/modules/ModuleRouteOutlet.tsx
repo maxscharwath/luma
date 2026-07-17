@@ -3,7 +3,7 @@
 // route; a disabled or unknown module renders the not-found state, so turning a
 // module off makes its pages vanish just like its nav.
 
-import type { LumaHost } from '@luma/module-sdk';
+import type { KromaHost } from '@kroma/module-sdk';
 import { Suspense, useMemo } from 'react';
 import { useModuleHostValue, useModuleRoute, useModuleT } from '#web/modules/ModuleHostProvider';
 
@@ -13,7 +13,7 @@ export function ModuleRouteOutlet({ path }: Readonly<{ path: string }>) {
   // Give the page a host whose i18n resolves the module's OWN catalog first
   // (falling back to the core catalogs). `moduleT` is stable per module + locale.
   const moduleT = useModuleT(route?.moduleId ?? '');
-  const scopedHost = useMemo<LumaHost | null>(
+  const scopedHost = useMemo<KromaHost | null>(
     () =>
       host
         ? {

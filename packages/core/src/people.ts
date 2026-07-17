@@ -1,8 +1,8 @@
 // Shared cast/crew ("person") helpers used by every client. People have no stable
-// id in LUMA cast/crew are embedded in each title's TMDB metadata and matched by
+// id in KROMA cast/crew are embedded in each title's TMDB metadata and matched by
 // name so all of this keys off a case-insensitive name comparison.
 
-import type { Metadata } from '@luma/client';
+import type { Metadata } from '@kroma/client';
 
 /** Case-insensitive, trimmed name equality (TMDB credit names). */
 function sameName(a: string, b: string): boolean {

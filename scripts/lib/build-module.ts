@@ -1,7 +1,7 @@
 // Shared module-bundle builder: compile the WASM backend guest, build the Module
 // Federation frontend remote, and stage the installable payload (module.json +
 // optional module.wasm + icon + fe/). The archive step (raw `.tar` vs gzipped
-// `.lmod`) is left to the caller; this does everything up to that point.
+// `.kmod`) is left to the caller; this does everything up to that point.
 
 import {
   copyFileSync,

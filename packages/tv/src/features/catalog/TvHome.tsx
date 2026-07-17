@@ -7,8 +7,8 @@ import {
   qualityBadgeForVideo,
   type SectionItem,
   type Show,
-} from '@luma/core';
-import { useT } from '@luma/ui';
+} from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useContinue } from '#tv/app/providers/continue';

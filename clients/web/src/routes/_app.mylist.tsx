@@ -1,5 +1,5 @@
-import { ItemId, ShowId } from '@luma/core';
-import { useT } from '@luma/ui';
+import { ItemId, ShowId } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconListDetails } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';

@@ -38,7 +38,7 @@ export function BackChevron() {
 }
 
 export function CheckGlyph() {
-  return <IconCheck size={20} stroke={2.4} color="var(--luma-accent)" />;
+  return <IconCheck size={20} stroke={2.4} color="var(--kroma-accent)" />;
 }
 
 export function SparkleGlyph() {

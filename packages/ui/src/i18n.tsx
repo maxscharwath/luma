@@ -1,10 +1,10 @@
-// React bindings for the shared i18n core (`@luma/core`). Web and TV both mount
+// React bindings for the shared i18n core (`@kroma/core`). Web and TV both mount
 // <I18nProvider> and read strings with useT(). The provider is "controlled": the
 // app owns the resolved `locale` (account preference → device override → browser)
 // and passes it in; useSetLocale() bubbles a change request back via
 // `onLocaleChange` so the app can persist it and sync it to the account.
 
-import { createTranslator, type Locale, type Translate } from '@luma/core';
+import { createTranslator, type Locale, type Translate } from '@kroma/core';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 
 interface I18nValue {

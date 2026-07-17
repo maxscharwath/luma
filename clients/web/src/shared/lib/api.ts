@@ -1,37 +1,37 @@
-// LUMA API origin resolution.
+// KROMA API origin resolution.
 //
 // Production (the single-binary Synology package): the Rust server serves THIS
 // SPA *and* the API on the same origin, so we call the page's own origin and
 // there's nothing to configure. Dev: the web (vite :3000) and API (:4040) are
-// separate origins, so a build-time `VITE_LUMA_SERVER` points at the API.
-// `window.__LUMA_API__` (if injected) still wins, for embedding flexibility.
+// separate origins, so a build-time `VITE_KROMA_SERVER` points at the API.
+// `window.__KROMA_API__` (if injected) still wins, for embedding flexibility.
 import {
   isTextSubtitle,
-  LumaClient,
+  KromaClient,
   loadSession,
   type MediaItem,
   type Show,
   sessionToken,
   setSessionToken,
   sharedTokenExchange,
-} from '@luma/core';
+} from '@kroma/core';
 
 declare global {
   interface Window {
-    __LUMA_API__?: string;
+    __KROMA_API__?: string;
   }
 }
 
 const DEFAULT_BASE = 'http://localhost:4040';
 
-/** The LUMA server origin (no trailing slash). */
+/** The KROMA server origin (no trailing slash). */
 export function apiBase(): string {
   // 1) Explicit runtime override (rare).
-  if (typeof window !== 'undefined' && window.__LUMA_API__) {
-    return window.__LUMA_API__.replace(/\/+$/, '');
+  if (typeof window !== 'undefined' && window.__KROMA_API__) {
+    return window.__KROMA_API__.replace(/\/+$/, '');
   }
   // 2) Build-time override set in dev/staging to point at a specific API.
-  const envBase = import.meta.env?.VITE_LUMA_SERVER;
+  const envBase = import.meta.env?.VITE_KROMA_SERVER;
   if (envBase) return envBase.replace(/\/+$/, '');
   // 3) Dev (vite): same-origin the Vite dev server reverse-proxies `/api`
   //    (incl. the events WebSocket) to the Rust server, so the whole app lives
@@ -45,7 +45,7 @@ export function apiBase(): string {
   // 4) Production SPA: same origin as the page (the Rust server serves both).
   if (typeof window !== 'undefined') return window.location.origin.replace(/\/+$/, '');
   // 5) SSR / prerender fallback.
-  const env = typeof process !== 'undefined' ? process.env.LUMA_SERVER_URL : undefined;
+  const env = typeof process !== 'undefined' ? process.env.KROMA_SERVER_URL : undefined;
   return (env ?? DEFAULT_BASE).replace(/\/+$/, '');
 }
 
@@ -63,7 +63,7 @@ function exchangeStoredSession(): Promise<string | undefined> {
   const active = loadSession();
   if (!active) return Promise.resolve(undefined);
   return sharedTokenExchange(() =>
-    new LumaClient({ baseUrl: apiBase() }).exchangeToken(active.accessToken),
+    new KromaClient({ baseUrl: apiBase() }).exchangeToken(active.accessToken),
   )
     .then((res) => {
       setSessionToken(res.token);
@@ -75,7 +75,7 @@ function exchangeStoredSession(): Promise<string | undefined> {
     });
 }
 
-// Silent refresh shared by every ad-hoc `lumaClient()`: on a 401 they exchange
+// Silent refresh shared by every ad-hoc `kromaClient()`: on a 401 they exchange
 // the stored access token for a fresh bearer.
 function refreshSession(): Promise<string | undefined> {
   return exchangeStoredSession();
@@ -91,18 +91,18 @@ export function ensureSession(): Promise<void> {
   return exchangeStoredSession().then(() => undefined);
 }
 
-export function lumaClient(): LumaClient {
+export function kromaClient(): KromaClient {
   // The bearer is the in-memory session token (never persisted); a 401 refreshes
   // it from the stored access token. `sessionToken()` is null during the shell
   // prerender / before the boot exchange, which is fine those requests either
   // hit public endpoints or trigger a refresh.
-  const c = new LumaClient({ baseUrl: apiBase(), authToken: sessionToken() });
+  const c = new KromaClient({ baseUrl: apiBase(), authToken: sessionToken() });
   c.setRefreshHandler(refreshSession);
   return c;
 }
 
 /** Resolve a metadata image path (relative `/api/…` cached art, or an absolute
- * URL) against the LUMA origin. Works on both server and client. */
+ * URL) against the KROMA origin. Works on both server and client. */
 export function imageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return /^https?:\/\//.test(url) ? url : `${apiBase()}${url}`;
@@ -126,7 +126,7 @@ export interface SubtitleView {
   provider?: string;
 }
 
-/** A movie/episode with art + stream + subtitle URLs pre-resolved to absolute LUMA URLs. */
+/** A movie/episode with art + stream + subtitle URLs pre-resolved to absolute KROMA URLs. */
 export interface MovieView extends MediaItem {
   poster: string;
   backdrop: string | null;
@@ -140,7 +140,7 @@ export interface ShowView extends Show {
   backdrop: string | null;
 }
 
-export function toMovieView(c: LumaClient, item: MediaItem): MovieView {
+export function toMovieView(c: KromaClient, item: MediaItem): MovieView {
   const subs: SubtitleView[] = item.subtitles.map((s, index) => ({
     index,
     language: s.language,
@@ -156,6 +156,6 @@ export function toMovieView(c: LumaClient, item: MediaItem): MovieView {
   };
 }
 
-export function toShowView(c: LumaClient, show: Show): ShowView {
+export function toShowView(c: KromaClient, show: Show): ShowView {
   return { ...show, poster: c.showPosterFor(show), backdrop: c.backdropFor(show) };
 }

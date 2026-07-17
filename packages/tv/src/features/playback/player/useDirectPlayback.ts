@@ -6,15 +6,15 @@ import {
   avplayDirectPlayable,
   canDirectPlay,
   type DirectPlayVerdict,
-  type LumaClient,
+  type KromaClient,
   type MediaItem,
   type MessageKey,
   NATIVE_TV_CAPS,
   type PlayEnv,
   resolveAudioRelativeIndex,
   selectEngine,
-} from '@luma/core';
-import { usePlaybackHeartbeat, useT } from '@luma/ui';
+} from '@kroma/core';
+import { usePlaybackHeartbeat, useT } from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type EnginePref, getEnginePref } from '#tv/app/enginePref';
 import { AvplayEngine } from '#tv/features/playback/player/avplayEngine';
@@ -83,7 +83,7 @@ export interface Playback {
 }
 
 /** The browser/platform environment for engine selection (TVs are Chromium; the
- * @luma/desktop shell is a Tauri app whose native mpv bridge is detectable). */
+ * @kroma/desktop shell is a Tauri app whose native mpv bridge is detectable). */
 function detectTvEnv(): PlayEnv {
   if (mpvAvailable()) return { platform: 'desktop', safari: false }; // Linux shell -> mpv
   if (exoAvailable()) return { platform: 'androidtv', safari: false }; // Android TV shell -> ExoPlayer
@@ -172,7 +172,7 @@ function renditionFor(item: MediaItem, audioIndex: number): number {
  * the `tizen-avplay` engine); on webOS / for direct-play it uses `<video>` (+
  * hls.js). State is mirrored into React; resume + progress are persisted.
  */
-export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback {
+export function useDirectPlayback(client: KromaClient, item: MediaItem): Playback {
   const t = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   const objectRef = useRef<HTMLObjectElement>(null);
@@ -407,12 +407,12 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     if (surface === 'avplay' || ready || error) return;
     const id = window.setTimeout(() => {
       if (surface === 'mpv' || surface === 'exo') {
-        console.error(`[LUMA] ${surface} engine did not signal ready in 15s`);
+        console.error(`[KROMA] ${surface} engine did not signal ready in 15s`);
       } else {
         const v = videoRef.current;
         const e = v?.error;
         console.error(
-          `[LUMA] stream did not load in 15s: networkState=${v?.networkState} ` +
+          `[KROMA] stream did not load in 15s: networkState=${v?.networkState} ` +
             `readyState=${v?.readyState} errorCode=${e?.code ?? '-'} ${e?.message ?? ''} ` +
             `src=${v?.currentSrc || v?.src || '(none)'}`,
         );
@@ -469,7 +469,7 @@ export function useDirectPlayback(client: LumaClient, item: MediaItem): Playback
     // Ping promptly on play/pause, buffering, and audio-track changes.
     pingSignal: `${playing}|${waiting}|${audioIndex}`,
     mode: playbackMode,
-    player: 'LUMA TV',
+    player: 'KROMA TV',
     device: tvDevice(),
     eventsBaseUrl: client.baseUrl,
     idPrefix: 'tv',

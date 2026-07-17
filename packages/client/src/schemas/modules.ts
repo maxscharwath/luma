@@ -5,7 +5,7 @@
 // add-UI; adding an engine needs no frontend change).
 //
 // Hand-authored (no ts-rs binding): mirrors `Capability` / `ConfigField` in the
-// Rust `luma-module-sdk` crate. Kept as plain interfaces since these are read-only
+// Rust `kroma-module-sdk` crate. Kept as plain interfaces since these are read-only
 // response DTOs the client never validates or sends.
 
 /** One field in an engine's add-form (mirrors the Rust `ConfigField`). */

@@ -3,7 +3,7 @@
 // (`useSuspenseQuery` / `useQuery`), so a value fetched by a loader is the same
 // cache entry the component then reads no double fetch.
 //
-// Query functions run through the ad-hoc `lumaClient()` (see `queries.ts`), whose
+// Query functions run through the ad-hoc `kromaClient()` (see `queries.ts`), whose
 // bearer is the in-memory session token; a 401 self-refreshes. So auth-gated
 // queries just work once a session exists we gate *when* they run at the call
 // site (only mount a suspense query once `ready && user`), matching the old

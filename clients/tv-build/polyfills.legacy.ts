@@ -5,7 +5,7 @@
 // core-js does not ship: AbortController (Chrome 66, used by discovery/health
 // checks - this build also patches fetch to honour `signal`) and
 // IntersectionObserver (Chrome 51, used by the growing browse grid).
-// Intl.PluralRules is already guarded in @luma/core.
+// Intl.PluralRules is already guarded in @kroma/core.
 import 'core-js/stable';
 import 'abortcontroller-polyfill/dist/polyfill-patch-fetch';
 import 'intersection-observer';

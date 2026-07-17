@@ -9,11 +9,11 @@ export interface BadgeProps {
 
 // [color, background] per tone.
 const MAP: Record<BadgeTone, [string, string]> = {
-  '4K': ['var(--luma-accent)', 'var(--luma-accent-soft)'],
-  HDR: ['var(--luma-hdr)', 'rgba(199,146,234,.16)'],
-  'H.265': ['var(--luma-h265)', 'rgba(95,211,196,.16)'],
-  success: ['var(--luma-success)', 'rgba(70,208,141,.16)'],
-  info: ['var(--luma-info)', 'rgba(134,168,255,.16)'],
+  '4K': ['var(--kroma-accent)', 'var(--kroma-accent-soft)'],
+  HDR: ['var(--kroma-hdr)', 'rgba(199,146,234,.16)'],
+  'H.265': ['var(--kroma-h265)', 'rgba(95,211,196,.16)'],
+  success: ['var(--kroma-success)', 'rgba(70,208,141,.16)'],
+  info: ['var(--kroma-info)', 'rgba(134,168,255,.16)'],
   neutral: ['rgba(244,243,240,.85)', 'rgba(255,255,255,.08)'],
 };
 

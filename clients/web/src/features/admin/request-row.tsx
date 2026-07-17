@@ -1,8 +1,8 @@
 // One request row in the admin queue: poster, title + type pill + seasons,
 // requester, date, status chip, and quick approve/deny on pending rows.
 
-import type { MediaRequest, MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { MediaRequest, MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { kindMeta, posterGrad } from '#web/features/admin/pipeline-meta';

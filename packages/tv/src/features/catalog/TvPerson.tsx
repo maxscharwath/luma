@@ -1,6 +1,6 @@
-import type { Metadata, PersonInvolvement, Translate } from '@luma/core';
-import { creditsPerson, personInvolvement, posterColors } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { Metadata, PersonInvolvement, Translate } from '@kroma/core';
+import { creditsPerson, personInvolvement, posterColors } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';

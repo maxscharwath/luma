@@ -2,15 +2,15 @@ import {
   type Activity,
   discoverServer,
   forgetServer as forgetServerStore,
-  LumaClient,
-  LumaEvents,
+  KromaClient,
+  KromaEvents,
   loadSession,
   type MediaItem,
   normalizeServerUrl as norm,
   type SavedServer,
   type Show,
   saveServer as saveServerStore,
-} from '@luma/core';
+} from '@kroma/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Connection } from '#tv/app/providers/connection';
 import { useServerHealth } from '#tv/app/useServerHealth';
@@ -49,7 +49,7 @@ const base = (a: Activity | null): Activity => a ?? EMPTY_ACTIVITY;
  * plus the few handles the auth provider needs wired directly. */
 export interface Catalogue {
   connection: Connection;
-  client: LumaClient | null;
+  client: KromaClient | null;
   activeServerUrl: string | null;
   setActiveServer: (url: string) => void;
   setSignedIn: (v: boolean) => void;
@@ -70,12 +70,12 @@ export function useCatalogue(platform: string): Catalogue {
     () => bootSession?.serverUrl ?? servers[0]?.url ?? null,
   );
 
-  const client = useMemo<LumaClient | null>(() => {
+  const client = useMemo<KromaClient | null>(() => {
     if (!activeServerUrl) return null;
     // No initial bearer: the auth provider exchanges the active account's access
     // token for a session token and calls `setAuthToken` (+ installs the refresh
     // handler) once the session belongs to this server.
-    return new LumaClient({ baseUrl: activeServerUrl });
+    return new KromaClient({ baseUrl: activeServerUrl });
   }, [activeServerUrl]);
 
   // Reported up by the auth provider; gates the catalogue + event stream so the
@@ -135,7 +135,7 @@ export function useCatalogue(platform: string): Catalogue {
 
   // Fetch the catalogue. `quiet` skips the status/error toggles (used by the live
   // refetch below no "connecting" flicker, keep current data on a transient error).
-  const fetchCatalogue = useCallback(async (c: LumaClient, quiet = false) => {
+  const fetchCatalogue = useCallback(async (c: KromaClient, quiet = false) => {
     if (!quiet) setStatus('connecting');
     try {
       const [mvs, shs] = await Promise.all([c.movies(), c.shows()]);
@@ -181,7 +181,7 @@ export function useCatalogue(platform: string): Catalogue {
         trailing = setTimeout(run, MIN_MS - since);
       }
     };
-    const events = new LumaEvents(client.baseUrl, {
+    const events = new KromaEvents(client.baseUrl, {
       // The stream open/close is the fastest signal that the server just came
       // back or dropped; nudge the heartbeat to confirm reachability at once
       // rather than waiting for its next tick.

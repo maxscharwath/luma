@@ -76,7 +76,7 @@ function detectHdr(): boolean {
  * (LG) TVs, HEVC (incl. 10-bit / HDR) is hardware-decoded and reliable even
  * when `canPlayType` is conservative so we treat those platforms as HEVC-capable.
  * The Android TV shell is the same shape: its media3/ExoPlayer bridge (which
- * injects `__LUMA_ANDROID__`) decodes through the platform, not the webview.
+ * injects `__KROMA_ANDROID__`) decodes through the platform, not the webview.
  */
 export function detectCapabilities(): PlaybackCapabilities {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -85,7 +85,7 @@ export function detectCapabilities(): PlaybackCapabilities {
   const isWebOS =
     /Web0S|webOS/i.test(ua) || typeof (globalThis as Record<string, unknown>).webOS !== 'undefined';
   const isAndroidTvShell =
-    typeof (globalThis as Record<string, unknown>).__LUMA_ANDROID__ !== 'undefined';
+    typeof (globalThis as Record<string, unknown>).__KROMA_ANDROID__ !== 'undefined';
 
   if (isTizen || isWebOS || isAndroidTvShell) {
     // TVs hardware-decode the common surround codecs (AC3/EAC3/DTS) too.

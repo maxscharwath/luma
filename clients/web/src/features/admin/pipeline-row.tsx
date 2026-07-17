@@ -2,8 +2,8 @@
 // (metadata, or the failing/running stage), the treatment "flow" of status dots,
 // the overall status pill, and a reprocess shortcut.
 
-import type { ElementRow, MessageKey, Translate, Treatment } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { ElementRow, MessageKey, Translate, Treatment } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconCheck, IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import {

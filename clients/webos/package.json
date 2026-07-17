@@ -1,9 +1,9 @@
 {
-  "name": "@luma/webos",
+  "name": "@kroma/webos",
   "version": "0.1.3",
   "private": true,
   "type": "module",
-  "description": "LUMA LG webOS TV client thin shell over @luma/tv.",
+  "description": "KROMA LG webOS TV client thin shell over @kroma/tv.",
   "scripts": {
     "dev": "vite",
     "build": "tsgo --noEmit && vite build && vite build --config vite.config.legacy.ts && bun run check:legacy",
@@ -13,9 +13,9 @@
     "package": "echo 'Run: bun run build:webos, then: ares-package clients/webos/dist'"
   },
   "dependencies": {
-    "@luma/core": "workspace:*",
-    "@luma/tv": "workspace:*",
-    "@luma/ui": "workspace:*",
+    "@kroma/core": "workspace:*",
+    "@kroma/tv": "workspace:*",
+    "@kroma/ui": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

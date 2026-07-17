@@ -32,15 +32,15 @@ export interface TvTarget {
    * runtime-gated loader in dist/index.html) down to this Chrome major.
    * Omit for modern-only shells. */
   legacyChrome?: number;
-  /** Honor LUMA_TV_DEVICE=1 on-device dev (LAN HMR, no letterbox frame, keep
+  /** Honor KROMA_TV_DEVICE=1 on-device dev (LAN HMR, no letterbox frame, keep
    * console.* so on-TV logs reach the platform log collector). */
   deviceDev?: boolean;
 }
 
 /** This machine's LAN IPv4 a dev TV connects back to for the HMR websocket.
- * LUMA_TV_HOST (set by dev-device.sh) wins; the scan is only a fallback. */
+ * KROMA_TV_HOST (set by dev-device.sh) wins; the scan is only a fallback. */
 function lanIp(): string | undefined {
-  if (process.env.LUMA_TV_HOST) return process.env.LUMA_TV_HOST;
+  if (process.env.KROMA_TV_HOST) return process.env.KROMA_TV_HOST;
   return Object.values(networkInterfaces())
     .flatMap((addrs) => addrs ?? [])
     .find((a) => a.family === 'IPv4' && !a.internal)?.address;
@@ -49,14 +49,14 @@ function lanIp(): string | undefined {
 /** The MODERN tier config. `shellUrl` is the calling vite.config's import.meta.url. */
 export function tvShellConfig(shellUrl: string, target: TvTarget) {
   const repoRoot = fileURLToPath(new URL('../..', shellUrl));
-  const deviceDev = target.deviceDev === true && process.env.LUMA_TV_DEVICE === '1';
+  const deviceDev = target.deviceDev === true && process.env.KROMA_TV_DEVICE === '1';
   const floor = target.chromeFloor ?? 99;
   return ({ command }: ConfigEnv): UserConfig => ({
     // `tvFrame()` is dev-only (apply: 'serve'): letterboxes the app into a
     // 1920x1080 stage in a desktop browser; on a real TV the panel already is
     // that canvas, so device mode turns it off.
     plugins: [tailwindcss(), react(), tvFrame({ enabled: !deviceDev })],
-    // `#tv/*` -> the @luma/tv package src (mirrors tsconfig.base paths).
+    // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths).
     resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', shellUrl)) } },
     // Packaged TV apps load from a local path: assets must be referenced relatively.
     base: './',
@@ -66,7 +66,7 @@ export function tvShellConfig(shellUrl: string, target: TvTarget) {
       hmr: deviceDev ? { host: lanIp(), protocol: 'ws' } : undefined,
       fs: { allow: [repoRoot] },
     },
-    optimizeDeps: { exclude: ['@luma/ui', '@luma/core', '@luma/tv'] },
+    optimizeDeps: { exclude: ['@kroma/ui', '@kroma/core', '@kroma/tv'] },
     // Down-level the modern CSS Tailwind emits (color-mix, oklch) to plain
     // fallbacks. Fonts load via <link> in index.html so no remote @import
     // reaches the transformer. Version encoding: major << 16.

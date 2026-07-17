@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Fetch the pinned self-contained mpv (pkgforge-dev "anylinux" AppImage) that the
-# Linux packages bundle as the `luma-mpv` Tauri sidecar (externalBin, see
+# Linux packages bundle as the `kroma-mpv` Tauri sidecar (externalBin, see
 # src-tauri/tauri.linux.conf.json). SteamOS ships no mpv and its rootfs is
-# read-only, so LUMA carries its own; named luma-mpv so the .deb never collides
+# read-only, so KROMA carries its own; named kroma-mpv so the .deb never collides
 # with a system mpv package.
 #
 # Idempotent: skips the download when the file is already present with the right
@@ -14,10 +14,10 @@ ASSET="mpv-v0.41.0-anylinux-x86_64.AppImage"
 SHA256="9ba489eb78c39fa4d5ef9cfaf9e80b92dcb9f69a05dd365d30255e6dca3c8fbd"
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-# Tauri externalBin naming: `bin/luma-mpv` in the config resolves to this
-# triple-suffixed file on disk; it installs as plain `luma-mpv` next to the
-# LUMA binary ($APPDIR/usr/bin in the AppImage, /usr/bin from the .deb).
-OUT="$DIR/src-tauri/bin/luma-mpv-x86_64-unknown-linux-gnu"
+# Tauri externalBin naming: `bin/kroma-mpv` in the config resolves to this
+# triple-suffixed file on disk; it installs as plain `kroma-mpv` next to the
+# KROMA binary ($APPDIR/usr/bin in the AppImage, /usr/bin from the .deb).
+OUT="$DIR/src-tauri/bin/kroma-mpv-x86_64-unknown-linux-gnu"
 
 # Portable across GNU coreutils (CI) and BSD/macOS.
 sum_of() {

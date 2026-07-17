@@ -1,5 +1,5 @@
 // Runtime schemas (zod): the single source of truth for every wire type, plus
-// branded ids + shared field rules. Import from `@luma/client` / `@luma/core`.
+// branded ids + shared field rules. Import from `@kroma/client` / `@kroma/core`.
 export * from './accounts';
 export * from './acquisition';
 export * from './admin';

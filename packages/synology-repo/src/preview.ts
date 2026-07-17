@@ -4,7 +4,7 @@
  * `landing.template.html` and the browser reloads on save - no .spk or build
  * needed (it renders the template with realistic sample values).
  *
- * Run:  bun run --filter @luma/synology-repo preview
+ * Run:  bun run --filter @kroma/synology-repo preview
  *   or: bun packages/synology-repo/src/preview.ts
  * Env:  PORT (default 4321), CATALOG_BETA=true to preview the nightly variant.
  */
@@ -26,14 +26,14 @@ const ICON =
 
 // Realistic sample values so the preview looks like a real published page.
 const sampleSubs: Subs = {
-  DNAME: 'LUMA',
+  DNAME: 'KROMA',
   ICON_FILE: ICON,
   VERSION: '0.1.4.3431188-3431188',
   ARCH: 'x86_64',
   DSM_FLOOR: '7.0',
-  CATALOG_URL: `https://maxscharwath.github.io/luma/${beta ? 'nightly.json' : 'catalog.json'}`,
-  DOWNLOAD_URL: 'https://github.com/maxscharwath/luma/releases/latest',
-  ...channelSubs(beta, 'LUMA'),
+  CATALOG_URL: `https://maxscharwath.github.io/kroma/${beta ? 'nightly.json' : 'catalog.json'}`,
+  DOWNLOAD_URL: 'https://github.com/maxscharwath/kroma/releases/latest',
+  ...channelSubs(beta, 'KROMA'),
 };
 
 const LIVE_RELOAD = `<script>new EventSource('/__reload').onmessage = () => location.reload();</script>`;

@@ -1,5 +1,5 @@
-// LUMA desktop shell (Steam Deck / macOS / Windows). A thin Tauri window hosting the
-// shared @luma/tv frontend (built to ../dist).
+// KROMA desktop shell (Steam Deck / macOS / Windows). A thin Tauri window hosting the
+// shared @kroma/tv frontend (built to ../dist).
 //
 //  - Linux (the Deck): drives a native mpv BINARY over a unix-socket IPC (mpv.rs) for
 //    VA-API hardware decode, behind a transparent always-on-top window.
@@ -125,7 +125,7 @@ fn main() {
                                 // Advertise mpv to the frontend ONLY after the engine is up,
                                 // so playback started early can't invoke a no-op mpv_load.
                                 if libmpv_mac::init(&h, nsw) {
-                                    let _ = win.eval("window.__LUMA_MPV__ = true;");
+                                    let _ = win.eval("window.__KROMA_MPV__ = true;");
                                 }
                             }
                         }
@@ -135,7 +135,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building the LUMA desktop app")
+        .expect("error while building the KROMA desktop app")
         .run(|_app, _event| {
             // Tauri does not reap child processes; kill the mpv binary on exit (Deck).
             #[cfg(target_os = "linux")]

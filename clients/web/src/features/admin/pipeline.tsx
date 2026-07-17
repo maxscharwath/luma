@@ -3,8 +3,8 @@
 // status of every treatment applied to it, with a detail drawer to inspect and
 // reprocess. Backed by GET /api/admin/pipeline/elements + the pipeline.stats WS.
 
-import { type ElementRow, LumaEvents, type MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import { type ElementRow, KromaEvents, type MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -69,7 +69,7 @@ export function PipelinePage() {
   }, [reload]);
 
   useEffect(() => {
-    const ev = new LumaEvents(apiBase(), {
+    const ev = new KromaEvents(apiBase(), {
       onEvent: (e) => {
         if (
           e.type === 'pipeline.stats' ||

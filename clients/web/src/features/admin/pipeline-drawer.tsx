@@ -2,8 +2,8 @@
 // status (and, on failure, the error + a per-stage retry), a series episode
 // aggregate, and the "reprocess this element" action.
 
-import type { ElementRow, MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { ElementRow, MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { fmtDur, kindMeta, posterGrad, statusMeta } from '#web/features/admin/pipeline-meta';

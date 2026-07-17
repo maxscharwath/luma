@@ -1,0 +1,24 @@
+{
+  "name": "@kroma/module-indexer",
+  "version": "0.1.3",
+  "type": "module",
+  "description": "KROMA Indexers module (frontend half): the Indexers admin page. Paired with the kroma-indexer backend at ../server via the shared module.json.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "build": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@kroma/module-sdk": "workspace:*",
+    "@tabler/icons-react": "^3.44.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^7.0.2"
+  }
+}

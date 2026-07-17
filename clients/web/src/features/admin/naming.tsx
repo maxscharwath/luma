@@ -1,8 +1,8 @@
 // Admin "Nommage & organisation": edit the Sonarr/Radarr-style naming
 // templates with a live sample, then preview + apply a library-wide rename.
 
-import { apiErrorText, type NamingTemplatesView, type OrganizePlan } from '@luma/core';
-import { useT } from '@luma/ui';
+import { apiErrorText, type NamingTemplatesView, type OrganizePlan } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { IconArrowRight, IconBraces, IconLoader2, IconWand } from '@tabler/icons-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { NamingTokenModal } from '#web/features/admin/naming-tokens';

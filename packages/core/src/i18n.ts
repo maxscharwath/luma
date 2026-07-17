@@ -1,9 +1,9 @@
 // Shared, framework-agnostic i18n core. The JSON catalogs in ./locales are the
-// single source of truth for every LUMA surface they are bundled into the TS
+// single source of truth for every KROMA surface they are bundled into the TS
 // clients here AND `include_str!`'d by the Rust server (see server/src/i18n.rs),
 // so message keys stay in lockstep across the whole stack.
 //
-// React bindings (provider + hooks) live in `@luma/ui` to keep this package
+// React bindings (provider + hooks) live in `@kroma/ui` to keep this package
 // React-free; the server has its own tiny mirror of `translate`.
 
 import en from './locales/en.json';

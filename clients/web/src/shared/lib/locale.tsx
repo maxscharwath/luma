@@ -1,8 +1,8 @@
-// Web adapter over the shared <LocaleProvider> (@luma/ui): wires the app's auth
+// Web adapter over the shared <LocaleProvider> (@kroma/ui): wires the app's auth
 // (client + signed-in account) into the controlled locale resolver and mirrors
 // the choice onto <html lang>.
-import type { Locale } from '@luma/core';
-import { LocaleProvider as UiLocaleProvider } from '@luma/ui';
+import type { Locale } from '@kroma/core';
+import { LocaleProvider as UiLocaleProvider } from '@kroma/ui';
 import type { ReactNode } from 'react';
 import { useAuth } from '#web/shared/lib/auth';
 

@@ -3,8 +3,8 @@
 // :runId/logs`; while a run is active the short poll interval makes the logs
 // feel live.
 
-import type { JobLog, JobRun, MessageKey } from '@luma/core';
-import { useT } from '@luma/ui';
+import type { JobLog, JobRun, MessageKey } from '@kroma/core';
+import { useT } from '@kroma/ui';
 import { useState } from 'react';
 import { clock, dur, rel } from '#web/features/admin/jobs-format';
 import { usePoll } from '#web/features/admin/shell';

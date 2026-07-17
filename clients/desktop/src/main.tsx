@@ -1,5 +1,5 @@
-import '@luma/tv/tv.css';
-import { mountTv } from '@luma/tv';
+import '@kroma/tv/tv.css';
+import { mountTv } from '@kroma/tv';
 import { startGamepadBridge } from './gamepad';
 import { installStage } from './stage';
 import { startUpdater } from './updater';
@@ -16,10 +16,10 @@ if (fixedScreen) {
   // Free-size desktop (macOS/Windows). On macOS the window is TRANSPARENT so the native
   // mpv video plane can show behind the player, so paint an opaque app background by
   // default - otherwise the transparent window shows through everywhere. The player
-  // toggles `.luma-native-surface` (see tv.css) to go transparent only while a native
+  // toggles `.kroma-native-surface` (see tv.css) to go transparent only while a native
   // video plays.
   const base = document.createElement('style');
-  base.textContent = 'html, body, #root { background: var(--luma-bg, #0a0a0c); }';
+  base.textContent = 'html, body, #root { background: var(--kroma-bg, #0a0a0c); }';
   document.head.appendChild(base);
 }
 

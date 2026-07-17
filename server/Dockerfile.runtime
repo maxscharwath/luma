@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+#
+# Runtime-only KROMA image, ASSEMBLED from the already-built Synology .spk
+# payload (static musl kroma-server + web SPA + static ffmpeg/ffprobe) - no
+# compiler in sight, so CI turns the ~13-minute from-source build into a copy +
+# push. Build context = the extracted payload (bin/ web/ ffmpeg/):
+#
+#     tar -xOf kroma-<ver>-x86_64.spk package.tgz | tar -xz -C docker-ctx
+#     docker build -f server/Dockerfile.runtime -t kroma docker-ctx
+#
+# For a from-source build (no .spk at hand), use server/Dockerfile instead.
+# Run: bind-mount media read-only, a data volume, point KROMA_MEDIA_DIRS at it:
+#     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media:ro \
+#       -e KROMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/kroma:latest
+
+FROM debian:bookworm-slim
+# curl = TMDB lookups + artwork + the managed-cloudflared download;
+# ca-certificates for outbound TLS. ffmpeg/ffprobe come STATIC from the payload
+# (same builds the NAS runs), and openssl is vendored into the binary.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY bin/kroma-server /usr/local/bin/kroma-server
+COPY ffmpeg/ffmpeg ffmpeg/ffprobe /usr/local/bin/
+COPY web /app/web
+
+# Defaults; override at runtime. Media dirs are intentionally unset (bind-mount +
+# KROMA_MEDIA_DIRS / KROMA_MOVIES_DIRS / KROMA_SERIES_DIRS).
+ENV KROMA_HOST=0.0.0.0 \
+    KROMA_PORT=4040 \
+    KROMA_DATA_DIR=/data \
+    KROMA_WEB_DIR=/app/web \
+    RUST_LOG=kroma_server=info,tower_http=info
+
+VOLUME ["/data"]
+EXPOSE 4040
+ENTRYPOINT ["kroma-server"]
