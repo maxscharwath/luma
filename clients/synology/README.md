@@ -49,9 +49,10 @@ to the rolling `nightly` prerelease. Enable *Settings → General → beta packa
 on the SAME source and DSM rides whichever channel is newest (nightlies use a
 4th feature segment, so they outrank their stable base until the next tag).
 
-**Static fallback:** the old GitHub Pages catalogs still work and stay
-published: `https://maxscharwath.github.io/kroma/catalog.json` (stable) and
-`.../nightly.json` (beta).
+The dynamic worker is the only package source now (the old GitHub Pages static
+catalogs were retired). To self-host a static catalog anyway, the generator
+still exists: `bun run --filter @kroma/synology-repo gen` (see that package's
+README).
 
 ## Install on the NAS (manual `.spk`)
 

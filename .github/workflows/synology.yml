@@ -5,13 +5,12 @@ name: Synology
 #                  to that GitHub Release
 #   push main   -> build a canary .spk -> rolling `nightly` prerelease
 #   either      -> push the Docker image ASSEMBLED FROM the same static musl
-#                  binary + web SPA (no second Rust compile), and rebuild the
-#                  static package-source catalogs on GitHub Pages
+#                  binary + web SPA (no second Rust compile)
 #
-# The DYNAMIC package source (packages/synology-repo/worker, a Cloudflare
-# Worker) reads releases + the .info.json sidecars straight from the GitHub
-# API, so it needs NO deploy here; the Pages catalogs stay as a static
-# fallback. Stable + nightly share one build job (only the version differs).
+# The package source is the DYNAMIC Cloudflare Worker at packages.kroma.tv
+# (packages/synology-repo/worker); it reads releases + the .info.json sidecars
+# straight from the GitHub API, so it needs NO deploy here. Stable + nightly
+# share one build job (only the version differs).
 on:
   push:
     tags: ['v*']
@@ -21,8 +20,6 @@ on:
 permissions:
   contents: write # create/update releases + upload assets
   packages: write # push the Docker image to ghcr
-  pages: write
-  id-token: write
 
 concurrency:
   group: synology-${{ github.ref }}
@@ -251,72 +248,3 @@ jobs:
             || gh release create nightly --prerelease --title "KROMA nightly" \
                  --notes "Rolling nightly build from main. Unstable; auto-updates via the nightly package source."
           gh release upload nightly kroma-nightly-x86_64.spk kroma-nightly-x86_64.spk.info.json --clobber
-
-  # Rebuild BOTH static package-source catalogs from the latest releases and
-  # deploy to Pages. Static fallback for the dynamic worker source; runs after
-  # whichever publish job fired (the other is skipped).
-  pages:
-    name: Deploy package source to Pages
-    # Either publish job succeeding already implies build succeeded (they need it).
-    needs: [publish-stable, publish-nightly]
-    if: >-
-      always()
-      && (needs.publish-stable.result == 'success' || needs.publish-nightly.result == 'success')
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    concurrency:
-      group: synology-pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Rebuild both catalogs from the latest releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          OWNER_REPO="$GITHUB_REPOSITORY"
-          PAGES_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
-          mkdir -p _site
-
-          # Regenerate one channel's catalog from a published release into _site.
-          build_channel() { # <release-ref> <catalog-name> <beta?>
-            gh release download "$1" -p '*.spk' -D "dl-$1" --clobber
-            local spk; spk="$(ls "dl-$1"/*.spk | head -1)"
-            CATALOG_SPK="$spk" \
-            CATALOG_DOWNLOAD_URL="https://github.com/$OWNER_REPO/releases/download/$1/$(basename "$spk")" \
-            CATALOG_PAGES_URL="$PAGES_URL" CATALOG_OUT_DIR=_site \
-            CATALOG_NAME="$2" CATALOG_BETA="${3:-false}" \
-              bun packages/synology-repo/src/gen-catalog.ts
-          }
-
-          # Nightly FIRST so the stable landing page wins as the site root.
-          if gh release view nightly >/dev/null 2>&1; then
-            build_channel nightly nightly.json true
-          fi
-          # Stable = latest non-draft, non-prerelease release (robust across gh versions).
-          TAG="$(gh release list -L 30 --json tagName,isPrerelease,isDraft \
-                   -q 'map(select(.isPrerelease==false and .isDraft==false)) | .[0].tagName // empty' || true)"
-          if [ -n "$TAG" ]; then
-            build_channel "$TAG" catalog.json
-          fi
-
-          # Never deploy an empty site on the very first run (before any release).
-          [ -f _site/index.html ] || printf '<!doctype html><meta charset=utf-8><title>KROMA</title><p>No KROMA package published yet.\n' > _site/index.html
-          echo "Site contents:"; ls -la _site
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: _site
-
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

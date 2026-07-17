@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type UserConfig } from 'vite';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -9,7 +9,10 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 // (SteamOS 3, Arch-based), so there is no old-webview floor: no Lightning CSS
 // down-levelling and a modern build target. The shared @kroma/tv CSS (Tailwind v4
 // cascade layers, color-mix, oklch) is emitted as-is and the browser handles it.
-export default defineConfig(({ command }) => ({
+// Return type pinned to UserConfig so the config resolves against a single
+// defineConfig overload (some tsgo builds otherwise report a spurious TS2769
+// "no overload matches" on the function form across platforms).
+export default defineConfig(({ command }): UserConfig => ({
   plugins: [tailwindcss(), react()],
   // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
   resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) } },
