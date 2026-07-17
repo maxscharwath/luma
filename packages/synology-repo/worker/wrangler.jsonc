@@ -11,9 +11,8 @@
   "vars": {
     "GITHUB_REPO": "maxscharwath/kroma"
   },
-  // Custom domain: once kroma.tv is added as a zone on this Cloudflare account,
-  // uncomment to serve the package source at https://packages.kroma.tv/ (the URL
-  // pasted into DSM Package Center). Until the zone exists, `wrangler deploy`
-  // would fail on this route, so it ships on <name>.workers.dev by default.
-  // "routes": [{ "pattern": "packages.kroma.tv", "custom_domain": true }]
+  // Served at https://packages.kroma.tv/ (the URL pasted into DSM Package
+  // Center). Requires the kroma.tv zone on this Cloudflare account; wrangler
+  // provisions the custom domain + DNS record on deploy.
+  "routes": [{ "pattern": "packages.kroma.tv", "custom_domain": true }]
 }

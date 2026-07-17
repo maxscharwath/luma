@@ -1,0 +1,21 @@
+{
+  // KROMA module registry. Deploy from this directory:
+  //   bunx wrangler deploy
+  // Optional (lifts anonymous GitHub API rate limits):
+  //   bunx wrangler secret put GITHUB_TOKEN
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kroma-modules",
+  "main": "index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+  // Keep a <name>.workers.dev URL alongside the custom domain (fallback + while
+  // the modules.kroma.tv cert provisions).
+  "workers_dev": true,
+  "vars": {
+    "GITHUB_REPO": "maxscharwath/kroma"
+  },
+  // Served at https://modules.kroma.tv/ (bare URL = catalog for the Store,
+  // HTML for browsers; /modules.json is the stable registry URL). Requires the
+  // kroma.tv zone on this Cloudflare account.
+  "routes": [{ "pattern": "modules.kroma.tv", "custom_domain": true }]
+}
