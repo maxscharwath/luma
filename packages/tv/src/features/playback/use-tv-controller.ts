@@ -1,6 +1,7 @@
 import { type KromaClient, type MediaItem, qualityBadgeForVideo } from '@kroma/core';
 import { type PlayerController, useT } from '@kroma/ui';
 import { useCallback, useMemo, useRef } from 'react';
+import { availableEngines, ENGINE_LABEL_KEY, type EnginePref } from '#tv/app/enginePref';
 import { type Playback, useDirectPlayback } from '#tv/features/playback/player/useDirectPlayback';
 import { buildTvStats } from '#tv/features/playback/tv-stats';
 import { type TvSubtitles, useTvSubtitles } from '#tv/features/playback/use-tv-subtitles';
@@ -37,6 +38,14 @@ export function useTvController(client: KromaClient, item: MediaItem): TvControl
     const badgeSuffix = badge ? ` · ${badge}` : '';
     return [{ id: 'auto', label: `${t('player.qualityAuto')}${badgeSuffix}` }];
   }, [item.video, t]);
+
+  // Engine picker (Settings): the engines this platform actually offers (Tizen ->
+  // AVPlay/remux, webOS -> direct/remux, desktop -> direct/remux/mpv, ...). A
+  // single-option list hides the row (nothing to switch).
+  const engines = useMemo(() => {
+    const list = availableEngines();
+    return list.length > 1 ? list.map((id) => ({ id, label: t(ENGINE_LABEL_KEY[id]) })) : [];
+  }, [t]);
 
   const statsRef = useRef<() => ReturnType<typeof buildTvStats>>(() => ({}));
   statsRef.current = () =>
@@ -86,6 +95,9 @@ export function useTvController(client: KromaClient, item: MediaItem): TvControl
     qualities,
     qualityId: 'auto',
     setQuality: () => undefined,
+    engines,
+    engineId: pb.enginePref,
+    setEngine: (id: string) => pb.setEngine(id as EnginePref),
     audioFilter: 'off',
     setAudioFilter: () => undefined,
     audioFilterSupported: false,

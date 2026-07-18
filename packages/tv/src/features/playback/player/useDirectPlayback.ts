@@ -16,7 +16,11 @@ import {
 } from '@kroma/core';
 import { usePlaybackHeartbeat, useT } from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type EnginePref, getEnginePref } from '#tv/app/enginePref';
+import {
+  type EnginePref,
+  getEnginePref,
+  setEnginePref as persistEnginePref,
+} from '#tv/app/enginePref';
 import { AvplayEngine } from '#tv/features/playback/player/avplayEngine';
 import {
   avplayAvailable,
@@ -42,6 +46,10 @@ export interface Playback {
   objectRef: React.RefObject<HTMLObjectElement | null>;
   /** Which surface to render. `mpv`/`exo` render nothing in-page (native plane behind). */
   surface: Surface;
+  /** The active engine override (per-device pref); `auto` lets `planEngine` decide. */
+  enginePref: EnginePref;
+  /** Switch the engine live (persists + rebuilds at the current position). */
+  setEngine: (p: EnginePref) => void;
   verdict: DirectPlayVerdict | null;
   /** Codec/stream load failure, as an i18n key translated at the render site. */
   error: MessageKey | null;
@@ -394,8 +402,12 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   // Resolved each render (via `planEngine`) so a live engine-pref change (profile
   // menu -> Playback engine) takes effect on the next item build.
   const env = useMemo(detectTvEnv, []);
+  // Engine override, reactive so an in-player switch (Settings -> "Moteur de
+  // lecture") re-plans + rebuilds the engine live. Seeded from the per-device
+  // pref (shared with the profile-menu picker).
+  const [enginePref, setEnginePrefState] = useState<EnginePref>(getEnginePref);
   const { eng, surface, useMpv, useExo, avplayDirect, exoDirect, direct, masterAac, playbackMode } =
-    planEngine(item, env, getEnginePref());
+    planEngine(item, env, enginePref);
   const durationSec = item.durationMs ? item.durationMs / 1000 : 0;
   // The runtime decode verdict for this item (from probed `capabilities()`). Drives
   // the pre-play warning and, when a `<video>`-engine attempt fails, the SPECIFIC
@@ -633,10 +645,26 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
     [],
   );
 
+  // Live engine switch (Settings -> "Moteur de lecture"): persist the choice, then
+  // re-plan with it AND reset the resume anchor to the CURRENT position so the
+  // rebuilt engine resumes here instead of jumping back to the start.
+  const setEngine = useCallback(
+    (p: EnginePref) => {
+      if (p === enginePref) return;
+      const pos = engineRef.current?.position() ?? 0;
+      persistEnginePref(p);
+      setResolved({ id: item.id, sec: pos });
+      setEnginePrefState(p);
+    },
+    [enginePref, item.id],
+  );
+
   return {
     videoRef,
     objectRef,
     surface,
+    enginePref,
+    setEngine,
     verdict: playVerdict,
     error,
     terminated,
