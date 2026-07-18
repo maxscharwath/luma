@@ -1,3 +1,5 @@
+import type { PlaneRect } from '@kroma/ui';
+
 // A thin playback-engine abstraction for the TV player so the same hook/UI can
 // drive either a plain HTML `<video>` (+ hls.js) or Samsung's native AVPlay.
 //
@@ -37,6 +39,11 @@ export interface TvEngine {
   seekTo(absSec: number): void;
   /** Select an audio rendition by its audio-relative index (`0:a:<index>`). */
   setAudioRendition(rendition: number): void;
+  /** Resize the native video plane to a fraction-rect (or `null` = fullscreen), so
+   *  the chrome can shrink it into the settings card. Only the native engines
+   *  (AVPlay / mpv / ExoPlayer) implement it; the HTML `<video>` engine omits it
+   *  (the chrome CSS-transforms its element instead). */
+  setRect?(rect: PlaneRect | null): void;
   destroy(): void;
 }
 

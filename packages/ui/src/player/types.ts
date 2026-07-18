@@ -85,6 +85,16 @@ export interface PlayerStats {
  *  the others render to a native plane BEHIND a transparent page. */
 export type PlayerSurface = 'video' | 'avplay' | 'mpv' | 'exo';
 
+/** A video-plane rectangle in viewport FRACTIONS [0,1] (`x,y` = top-left corner,
+ *  `w,h` = size). Used to shrink a NATIVE plane (AVPlay / mpv / ExoPlayer) into
+ *  the settings card - those can't be CSS-transformed like an in-page <video>. */
+export interface PlaneRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /**
  * Everything the shared chrome reads or drives. Values marked "(web)" are no-ops
  * / stable falses on TV (their flag is off, so the chrome never surfaces them).
@@ -162,6 +172,13 @@ export interface PlayerController {
   togglePip(): void;
   fullscreen: boolean;
   toggleFullscreen(): void;
+
+  // ---- native video plane (TV: AVPlay / mpv / ExoPlayer) ----
+  /** Resize the NATIVE video plane to a fraction-rect, or `null` for fullscreen.
+   *  Lets the chrome shrink the plane into the settings card (YouTube-style),
+   *  since a hardware plane behind the page can't be CSS-transformed. Absent for
+   *  an in-page <video> surface, which the chrome shrinks with a CSS transform. */
+  setPlaneRect?(rect: PlaneRect | null): void;
 
   // ---- stats ----
   getStats(): PlayerStats;

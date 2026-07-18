@@ -143,6 +143,14 @@ describe('AvplayEngine construction', () => {
     expect(a.calls().map((c) => c.m)).toContain('prepareAsync');
   });
 
+  it('setRect shrinks the plane into the card (fractions -> 1920x1080 px); null restores', () => {
+    const { e, lastArgs } = make({ direct: true });
+    e.setRect({ x: 0.03, y: 0.25, w: 0.5, h: 0.5 });
+    expect(lastArgs('setDisplayRect')).toEqual([58, 270, 960, 540]);
+    e.setRect(null);
+    expect(lastArgs('setDisplayRect')).toEqual([0, 0, 1920, 1080]);
+  });
+
   it('master mode opens the anchored HLS master (no anchor -> immediate)', () => {
     const { lastArgs } = make({ direct: false, startSec: 0 });
     expect(lastArgs('open')).toEqual(['master:sm1:false:0:0']);

@@ -312,4 +312,19 @@ describe('MpvEngine end-of-file + destroy', () => {
     expect(t.cmds()).toContainEqual(['stop']);
     expect(t.hasListener('mpv://property')).toBe(false);
   });
+
+  it('setRect insets the video with margin ratios; null clears them', () => {
+    const { e, t } = started();
+    e.setRect({ x: 0.03, y: 0.25, w: 0.5, h: 0.5 });
+    expect(t.cmds()).toContainEqual(['set_property', 'video-margin-ratio-left', 0.03]);
+    expect(t.cmds()).toContainEqual(['set_property', 'video-margin-ratio-top', 0.25]);
+    expect(t.cmds()).toContainEqual(['set_property', 'video-margin-ratio-right', 1 - (0.03 + 0.5)]);
+    expect(t.cmds()).toContainEqual([
+      'set_property',
+      'video-margin-ratio-bottom',
+      1 - (0.25 + 0.5),
+    ]);
+    e.setRect(null);
+    expect(t.cmds()).toContainEqual(['set_property', 'video-margin-ratio-left', 0]);
+  });
 });

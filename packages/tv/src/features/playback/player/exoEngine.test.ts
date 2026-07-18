@@ -233,4 +233,12 @@ describe('ExoEngine transport', () => {
     expect(x.cmds()).toContainEqual({ op: 'stop' });
     expect(hasHandler()).toBe(false);
   });
+
+  it('setRect sends the fraction-rect; null restores fullscreen', () => {
+    const { e, x } = make({ direct: true });
+    e.setRect({ x: 0.03, y: 0.25, w: 0.5, h: 0.5 });
+    expect(x.cmds()).toContainEqual({ op: 'rect', x: 0.03, y: 0.25, w: 0.5, h: 0.5 });
+    e.setRect(null);
+    expect(x.cmds()).toContainEqual({ op: 'rect' });
+  });
 });

@@ -19,6 +19,7 @@
 // sit on top. Events arrive through the global `__kromaExoEvent` callback the
 // Kotlin side invokes with a JSON payload.
 
+import type { PlaneRect } from '@kroma/ui';
 import {
   BaseTvEngine,
   type EngineOptions,
@@ -196,6 +197,17 @@ export class ExoEngine extends BaseTvEngine {
       return;
     }
     this.reanchor(this.position());
+  }
+
+  /** Shrink/restore the plane: the Kotlin side resizes + repositions the
+   *  SurfaceView (a fraction-rect of the screen) behind the WebView; `{op:'rect'}`
+   *  with no bounds restores fullscreen. */
+  setRect(rect: PlaneRect | null): void {
+    this.bridge.command(
+      JSON.stringify(
+        rect ? { op: 'rect', x: rect.x, y: rect.y, w: rect.w, h: rect.h } : { op: 'rect' },
+      ),
+    );
   }
 
   destroy(): void {

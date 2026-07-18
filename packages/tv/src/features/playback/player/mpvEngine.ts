@@ -21,6 +21,7 @@
 // media element for this backend (surface: 'mpv'); the HTML chrome + subtitle
 // overlay sit on top.
 
+import type { PlaneRect } from '@kroma/ui';
 import {
   BaseTvEngine,
   type EngineOptions,
@@ -297,6 +298,19 @@ export class MpvEngine extends BaseTvEngine {
       return;
     }
     this.reanchor(this.position());
+  }
+
+  /** Shrink/restore the mpv plane by insetting the video with margin ratios (the
+   * mpv window fills the screen behind the page, so a fraction-rect maps straight
+   * to left/top/right/bottom margins; the video letterboxes inside the remainder). */
+  setRect(rect: PlaneRect | null): void {
+    const [l, t, r, b] = rect
+      ? [rect.x, rect.y, Math.max(0, 1 - (rect.x + rect.w)), Math.max(0, 1 - (rect.y + rect.h))]
+      : [0, 0, 0, 0];
+    this.setProp('video-margin-ratio-left', l);
+    this.setProp('video-margin-ratio-top', t);
+    this.setProp('video-margin-ratio-right', r);
+    this.setProp('video-margin-ratio-bottom', b);
   }
 
   destroy(): void {

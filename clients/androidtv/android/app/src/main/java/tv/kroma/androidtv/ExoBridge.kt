@@ -95,7 +95,7 @@ class ExoBridge(
         }
     }
 
-    /** `{op: 'play'|'pause'|'seek'|'audio'|'stop', value?: number}`. */
+    /** `{op: 'play'|'pause'|'seek'|'audio'|'stop'|'rect', value?, x?,y?,w?,h?}`. */
     @JavascriptInterface
     fun command(json: String) {
         val cmd = JSONObject(json)
@@ -105,12 +105,36 @@ class ExoBridge(
                 "pause" -> player.pause()
                 "seek" -> player.seekTo((cmd.optDouble("value", 0.0) * 1000).toLong())
                 "audio" -> selectAudio(cmd.optInt("value", 0))
+                "rect" -> setRect(cmd)
                 "stop" -> {
                     player.stop()
                     player.clearMediaItems()
                 }
             }
         }
+    }
+
+    /** Shrink/restore the video plane: resize the PlayerView to a fraction-rect of
+     * its (full-screen FrameLayout) parent so the video lands in the settings card;
+     * a `rect` with no bounds restores fullscreen (MATCH_PARENT). */
+    private fun setRect(cmd: JSONObject) {
+        val parent = playerView.parent as? android.view.View ?: return
+        val pw = parent.width
+        val ph = parent.height
+        val lp = playerView.layoutParams as? android.widget.FrameLayout.LayoutParams ?: return
+        if (cmd.has("w") && pw > 0 && ph > 0) {
+            lp.width = (cmd.optDouble("w", 1.0) * pw).toInt()
+            lp.height = (cmd.optDouble("h", 1.0) * ph).toInt()
+            lp.leftMargin = (cmd.optDouble("x", 0.0) * pw).toInt()
+            lp.topMargin = (cmd.optDouble("y", 0.0) * ph).toInt()
+            lp.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        } else {
+            lp.width = android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            lp.height = android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            lp.leftMargin = 0
+            lp.topMargin = 0
+        }
+        playerView.layoutParams = lp
     }
 
     /** Select the Nth audio track group (audio-relative index, file order) in

@@ -14,7 +14,7 @@ import {
   resolveAudioRelativeIndex,
   selectEngine,
 } from '@kroma/core';
-import { usePlaybackHeartbeat, useT } from '@kroma/ui';
+import { type PlaneRect, usePlaybackHeartbeat, useT } from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type EnginePref,
@@ -50,6 +50,8 @@ export interface Playback {
   enginePref: EnginePref;
   /** Switch the engine live (persists + rebuilds at the current position). */
   setEngine: (p: EnginePref) => void;
+  /** Resize the native video plane to a fraction-rect (or `null` = fullscreen). */
+  setPlaneRect: (rect: PlaneRect | null) => void;
   verdict: DirectPlayVerdict | null;
   /** Codec/stream load failure, as an i18n key translated at the render site. */
   error: MessageKey | null;
@@ -563,6 +565,12 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   }, [surface, ready, error, failKey]);
 
   const getPosition = useCallback(() => engineRef.current?.position() ?? 0, []);
+  // Resize the native video plane (shrink into the settings card, or null =
+  // fullscreen). No-op on the HTML engine (no setRect: the chrome CSS-transforms
+  // the <video> instead).
+  const setPlaneRect = useCallback((rect: PlaneRect | null) => {
+    engineRef.current?.setRect?.(rect);
+  }, []);
   const runtime = useCallback(() => engineRef.current?.duration() || durationSec, [durationSec]);
 
   // Resume + progress persistence, driven through the engine port.
@@ -665,6 +673,7 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
     surface,
     enginePref,
     setEngine,
+    setPlaneRect,
     verdict: playVerdict,
     error,
     terminated,

@@ -112,6 +112,7 @@ export function useTvController(client: KromaClient, item: MediaItem): TvControl
     togglePip: () => undefined,
     fullscreen: false,
     toggleFullscreen: () => undefined,
+    setPlaneRect: pb.setPlaneRect,
     getStats,
   };
 

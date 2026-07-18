@@ -19,6 +19,7 @@
 // shows an `<object type="application/avplayer">` surface (transparent body)
 // and the HTML chrome + subtitle overlay sit on top.
 
+import type { PlaneRect } from '@kroma/ui';
 import {
   BaseTvEngine,
   type EngineOptions,
@@ -26,12 +27,19 @@ import {
 } from '#tv/features/playback/player/baseEngine';
 import { type AvplayApi, getAvplay, resolveMasterStart } from '#tv/features/playback/player/engine';
 
+/** AVPlay's display coordinate space is the app's fixed 1920x1080 canvas. */
+const AVPLAY_W = 1920;
+const AVPLAY_H = 1080;
+
 export class AvplayEngine extends BaseTvEngine {
   readonly kind = 'avplay';
   private readonly api: AvplayApi;
   /** Direct mode: absolute position to seek to right after prepare (resume /
    * fallback hand-off), else null. */
   private pendingSeek: number | null = null;
+  /** Current display rectangle (device px). Re-applied on every (re)open so a
+   * shrunk plane survives a re-anchor / audio switch instead of popping back. */
+  private displayRect = { x: 0, y: 0, w: AVPLAY_W, h: AVPLAY_H };
   private readonly onVisibility: () => void;
 
   constructor(opts: EngineOptions) {
@@ -69,7 +77,8 @@ export class AvplayEngine extends BaseTvEngine {
   private openNow(url: string): void {
     try {
       this.api.open(url);
-      this.api.setDisplayRect(0, 0, 1920, 1080);
+      const r = this.displayRect;
+      this.api.setDisplayRect(r.x, r.y, r.w, r.h);
       try {
         this.api.setStreamingProperty('ADAPTIVE_INFO', 'STARTBITRATE=HIGHEST|SKIPBITRATE=LOWEST');
       } catch {
@@ -232,6 +241,24 @@ export class AvplayEngine extends BaseTvEngine {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /** Shrink/restore the hardware video plane (fraction-rect → 1920x1080 px). */
+  setRect(rect: PlaneRect | null): void {
+    this.displayRect = rect
+      ? {
+          x: Math.round(rect.x * AVPLAY_W),
+          y: Math.round(rect.y * AVPLAY_H),
+          w: Math.round(rect.w * AVPLAY_W),
+          h: Math.round(rect.h * AVPLAY_H),
+        }
+      : { x: 0, y: 0, w: AVPLAY_W, h: AVPLAY_H };
+    try {
+      const r = this.displayRect;
+      this.api.setDisplayRect(r.x, r.y, r.w, r.h);
+    } catch {
+      /* transient (mid-prepare); re-applied on the next open() */
     }
   }
 

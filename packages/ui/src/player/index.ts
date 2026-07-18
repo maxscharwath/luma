@@ -22,7 +22,9 @@ export {
 export type {
   AudioFilterMode,
   Chapter,
+  PlaneRect,
   PlayerController,
+  PlayerEngineOption,
   PlayerFlags,
   PlayerQuality,
   PlayerStats,
