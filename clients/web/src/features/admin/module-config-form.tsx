@@ -23,7 +23,9 @@ function initial(field: ConfigField, stored: unknown): ConfigValue {
     }
     default:
       if (raw == null) return '';
-      return typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+      if (typeof raw === 'string') return raw;
+      if (typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
+      return JSON.stringify(raw);
   }
 }
 
