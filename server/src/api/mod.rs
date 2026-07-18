@@ -42,9 +42,23 @@ mod test_support;
 #[cfg(test)]
 mod it_auth;
 #[cfg(test)]
+mod it_accounts;
+#[cfg(test)]
+mod it_pin;
+#[cfg(test)]
 mod it_content;
 #[cfg(test)]
+mod it_media;
+#[cfg(test)]
+mod it_playback;
+#[cfg(test)]
+mod it_invites;
+#[cfg(test)]
 mod it_admin;
+#[cfg(test)]
+mod it_admin2;
+#[cfg(test)]
+mod it_admin_manage;
 
 use std::sync::Arc;
 

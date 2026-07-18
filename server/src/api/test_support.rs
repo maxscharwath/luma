@@ -141,6 +141,28 @@ pub fn seed_session(
     (user.id, token)
 }
 
+/// Like [`seed_session`] but stores a real PBKDF2 hash of `password`, so
+/// password-verifying endpoints (change-password) can be driven end to end (the
+/// plain `seed_session` stores a sentinel `"test-hash"` that `verify_password`
+/// can never match). Returns `(user_id, bearer)`.
+pub fn seed_session_pw(
+    state: &SharedState,
+    email: &str,
+    username: &str,
+    password: &str,
+    perms: &[Permission],
+) -> (String, String) {
+    let n = SEQ.fetch_add(1, Ordering::Relaxed);
+    let hash = crate::services::auth::hash_password(password);
+    let user = db::create_user(&state.db, email, username, &hash, perms).expect("create user");
+    let access = format!("access-{}-{n}", std::process::id());
+    db::create_access_token(&state.db, &access, &user.id, FUTURE, true, Some("integration-test"))
+        .expect("create access token");
+    let token = format!("session-{}-{n}", std::process::id());
+    db::create_session(&state.db, &token, &user.id, FUTURE, Some(&access)).expect("create session");
+    (user.id, token)
+}
+
 /// Add a library definition to the settings store (as the admin create handler
 /// does, minus the background rescan). Returns the new library id.
 pub fn seed_library(state: &SharedState, name: &str) -> String {

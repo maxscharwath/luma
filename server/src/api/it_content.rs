@@ -227,3 +227,22 @@ async fn discover_is_gated_by_permission_then_by_tmdb() {
     let (status, _) = get(&t.app, "/api/discover/search?q=dune", Some(&member)).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn discover_trending_and_detail_follow_the_same_gates() {
+    let t = test_app();
+    let (_, member) = seed_session(&t.state, "viewer2@test.dev", "viewer2", &[Permission::Playback]);
+
+    // Trending: owner clears the permission gate and hits the TMDB gate -> 503;
+    // the member is stopped at the permission gate -> 403.
+    let (status, _) = get(&t.app, "/api/discover/trending?type=movie", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    let (status, _) = get(&t.app, "/api/discover/trending", Some(&member)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Detail: same ordering (permission, then TMDB), so no network is reached.
+    let (status, _) = get(&t.app, "/api/discover/movie/603", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    let (status, _) = get(&t.app, "/api/discover/movie/603", Some(&member)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
