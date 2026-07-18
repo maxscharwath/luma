@@ -154,6 +154,32 @@ async fn register_rejects_a_malformed_body_and_a_duplicate_email() {
 }
 
 #[tokio::test]
+async fn register_rejects_a_taken_username_before_burning_the_invite() {
+    let t = test_app();
+    // The seeded owner already holds the username "owner"; a fresh invite + that
+    // username is a 409 (the username pre-check fires before the invite is spent).
+    let token = mint_invite(&t, json!(["playback"])).await;
+    let (status, _) = send(
+        &t.app,
+        "POST",
+        "/api/auth/register",
+        None,
+        Some(json!({
+            "email": "fresh@test.dev",
+            "username": "owner",
+            "password": "s3cret",
+            "inviteToken": token,
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // The invite survived the rejected attempt and still validates.
+    let (_, chk) = get(&t.app, &format!("/api/invites/{token}"), None).await;
+    assert_eq!(chk["valid"], json!(true));
+}
+
+#[tokio::test]
 async fn invite_management_requires_users_manage() {
     let t = test_app();
     let m = member(&t, "invite-member");

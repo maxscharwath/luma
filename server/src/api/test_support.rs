@@ -92,6 +92,18 @@ fn test_supervisor(data_dir: &Path) -> Arc<kroma_module_supervisor::Supervisor> 
 /// Build the app: fresh temp DB (+ module-owned tables), demo catalogue, search
 /// index, and an all-permissions owner session.
 pub fn test_app() -> TestApp {
+    build_app(None)
+}
+
+/// Like [`test_app`] but with a (fake) TMDB key configured, so the metadata /
+/// discover handlers clear their `require_tmdb_key` gate and reach the DB-only
+/// branches (item/show lookup + the pre-network 404). Tests built on this MUST
+/// only request *unknown* ids so the handler 404s before any network fetch.
+pub fn test_app_with_tmdb() -> TestApp {
+    build_app(Some("test-tmdb-key"))
+}
+
+fn build_app(tmdb_api_key: Option<&str>) -> TestApp {
     let data_dir = unique_data_dir();
     let db = db::init(&data_dir.join("kroma.db")).expect("init db");
 
@@ -105,7 +117,8 @@ pub fn test_app() -> TestApp {
         }
     }
 
-    let config = test_config(data_dir.clone());
+    let mut config = test_config(data_dir.clone());
+    config.tmdb_api_key = tmdb_api_key.map(str::to_string);
     let settings = Settings::load(&db);
     let embedder: Arc<dyn kroma_engine::ports::Embedder> = Arc::new(kroma_engine::ports::NoopEmbedder);
     let state = AppState::new(config, false, db.clone(), settings, embedder, HashMap::new(), &[]);
@@ -161,6 +174,35 @@ pub fn seed_session_pw(
     let token = format!("session-{}-{n}", std::process::id());
     db::create_session(&state.db, &token, &user.id, FUTURE, Some(&access)).expect("create session");
     (user.id, token)
+}
+
+/// Mint a bare device access token for an existing `user_id` with the given
+/// `pin_verified` flag (no session). Lets a test drive `POST /auth/token`
+/// (exchange) through the PIN gate, which the all-verified [`seed_session`]
+/// token can't reach. Returns the raw access token.
+pub fn seed_access_token(state: &SharedState, user_id: &str, pin_verified: bool) -> String {
+    let n = SEQ.fetch_add(1, Ordering::Relaxed);
+    let access = format!("raw-access-{}-{n}", std::process::id());
+    db::create_access_token(&state.db, &access, user_id, FUTURE, pin_verified, Some("integration-test"))
+        .expect("create access token");
+    access
+}
+
+/// Add a library definition of a specific `kind` to the settings store (no
+/// rescan). Returns the new library id. Lets tests exercise the admin library
+/// card's kind-label mapping without kicking `library.scan`.
+pub fn seed_library_kind(state: &SharedState, name: &str, kind: &str) -> String {
+    let mut defs = settings::library_defs(&state.settings, &state.config);
+    let id = format!("lib-{}", SEQ.fetch_add(1, Ordering::Relaxed));
+    defs.push(LibraryDef {
+        id: id.clone(),
+        name: name.into(),
+        kind: kind.into(),
+        folders: Vec::new(),
+        auto_scan: true,
+    });
+    settings::set_library_defs(&state.settings, &state.db, &defs);
+    id
 }
 
 /// Add a library definition to the settings store (as the admin create handler
@@ -221,6 +263,39 @@ fn build_request(method: &str, uri: &str, token: Option<&str>, body: Option<Stri
     req
 }
 
+/// Drive one request against the router and return `(status, headers, parsed-json)`.
+/// Extra request headers are attached verbatim (e.g. `CF-Connecting-IP` to give a
+/// login test its own brute-force-guard bucket). A non-JSON or empty body (204,
+/// `text/plain` logs) parses to [`Value::Null`].
+pub async fn raw(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+    json: Option<Value>,
+    headers: &[(&str, &str)],
+) -> (StatusCode, axum::http::HeaderMap, Value) {
+    use axum::http::{HeaderName, HeaderValue};
+    let body = json.map(|v| v.to_string());
+    let mut req = build_request(method, uri, token, body);
+    for (k, v) in headers {
+        req.headers_mut().insert(
+            HeaderName::from_bytes(k.as_bytes()).expect("header name"),
+            HeaderValue::from_str(v).expect("header value"),
+        );
+    }
+    let resp = app.clone().oneshot(req).await.expect("router response");
+    let status = resp.status();
+    let out_headers = resp.headers().clone();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.expect("read body");
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+    };
+    (status, out_headers, value)
+}
+
 /// Drive one request against the router and return `(status, parsed-json)`. A
 /// non-JSON or empty body (204, `text/plain` logs) parses to [`Value::Null`].
 pub async fn send(
@@ -230,19 +305,7 @@ pub async fn send(
     token: Option<&str>,
     json: Option<Value>,
 ) -> (StatusCode, Value) {
-    let body = json.map(|v| v.to_string());
-    let resp = app
-        .clone()
-        .oneshot(build_request(method, uri, token, body))
-        .await
-        .expect("router response");
-    let status = resp.status();
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.expect("read body");
-    let value = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
-    };
+    let (status, _headers, value) = raw(app, method, uri, token, json, &[]).await;
     (status, value)
 }
 

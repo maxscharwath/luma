@@ -6,7 +6,7 @@
 use axum::http::StatusCode;
 use serde_json::json;
 
-use crate::api::test_support::{get, seed_library, seed_session, send, test_app};
+use crate::api::test_support::{get, seed_library, seed_library_kind, seed_session, send, test_app};
 use crate::model::Permission;
 
 fn member(t: &crate::api::test_support::TestApp, tag: &str) -> String {
@@ -48,6 +48,51 @@ async fn library_create_rejects_a_blank_name() {
     let (status, _) =
         send(&t.app, "POST", "/api/admin/libraries", Some(&m), Some(json!({ "name": "Nope" }))).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn library_cards_map_each_kind_to_its_label() {
+    let t = test_app();
+    // Seed one library per kind (settings-only, no scan) and check the card label.
+    seed_library_kind(&t.state, "Musique", "music");
+    seed_library_kind(&t.state, "Photos", "photo");
+    seed_library_kind(&t.state, "Bizarre", "quux"); // unknown -> the "film" default.
+
+    let (status, body) = get(&t.app, "/api/admin/libraries", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::OK);
+    let by_name = |name: &str| -> String {
+        body["libraries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|l| l["name"] == json!(name))
+            .unwrap_or_else(|| panic!("library {name} missing"))["kind"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    assert_eq!(by_name("Musique"), "music");
+    assert_eq!(by_name("Photos"), "photo");
+    assert_eq!(by_name("Bizarre"), "film");
+}
+
+#[tokio::test]
+async fn library_browse_reads_a_real_directory_and_404s_a_missing_one() {
+    let t = test_app();
+
+    // Browsing an existing absolute path returns its sub-dirs + a parent link.
+    let dir = t.state.config.data_dir.to_string_lossy().to_string();
+    let (status, body) =
+        get(&t.app, &format!("/api/admin/libraries/browse?path={dir}"), Some(&t.token)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["entries"].is_array());
+    assert!(body["path"].is_string());
+    assert!(body["parent"].is_string(), "a non-root dir exposes its parent");
+
+    // A non-existent path fails canonicalisation -> a clean 404.
+    let (status, _) =
+        get(&t.app, "/api/admin/libraries/browse?path=/no/such/kroma/dir/xyz", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

@@ -7,7 +7,9 @@
 use axum::http::StatusCode;
 use serde_json::json;
 
-use crate::api::test_support::{demo_item_id, demo_show_id, get, seed_session, send, test_app};
+use crate::api::test_support::{
+    demo_item_id, demo_show_id, get, raw, seed_session, send, test_app, test_app_with_tmdb,
+};
 use crate::model::Permission;
 
 // ----- auth gate --------------------------------------------------------------
@@ -19,6 +21,48 @@ async fn content_routes_reject_anonymous_callers() {
         let (status, _) = get(&t.app, uri, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{uri} should require a session");
     }
+}
+
+#[tokio::test]
+async fn content_routes_reject_a_bogus_bearer() {
+    let t = test_app();
+    // A non-empty but unknown token passes the header check, then fails the
+    // session lookup in `require_session` -> 401 (the invalid-token branch).
+    let (status, _) = get(&t.app, "/api/items", Some("definitely-not-a-session")).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+// ----- module proxy + SPA cache middleware (api/mod.rs) ------------------------
+
+#[tokio::test]
+async fn module_proxy_404s_an_unknown_module() {
+    let t = test_app();
+    // No sidecar owns this id, so the reverse proxy has no port to forward to.
+    let (status, _) = get(&t.app, "/api/module/ghost/anything", None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn spa_cache_headers_tag_hashed_assets_immutable() {
+    let t = test_app();
+
+    // An unhashed (non-/api) miss revalidates: `no-cache`.
+    let (_s, headers, _) = raw(&t.app, "GET", "/some-spa-route", None, None, &[]).await;
+    assert_eq!(
+        headers.get("cache-control").and_then(|v| v.to_str().ok()),
+        Some("no-cache"),
+    );
+
+    // A Vite content-hashed asset name is cached for a year (immutable).
+    let (_s, headers, _) = raw(&t.app, "GET", "/assets/index-DXQwrN_7.js", None, None, &[]).await;
+    assert_eq!(
+        headers.get("cache-control").and_then(|v| v.to_str().ok()),
+        Some("public, max-age=31536000, immutable"),
+    );
+
+    // `/api/*` responses are never touched by the SPA cache policy.
+    let (_s, headers, _) = raw(&t.app, "GET", "/api/health", None, None, &[]).await;
+    assert!(headers.get("cache-control").is_none());
 }
 
 // ----- browse -----------------------------------------------------------------
@@ -211,6 +255,17 @@ async fn item_metadata_is_unavailable_without_a_tmdb_key() {
     // before any network call.
     let (status, _) = get(&t.app, &format!("/api/items/{id}/metadata"), Some(&t.token)).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn metadata_404s_unknown_ids_once_a_key_is_configured() {
+    // With a (fake) TMDB key the `require_tmdb_key` gate passes; an unknown id then
+    // 404s at the DB lookup, BEFORE any network fetch is attempted.
+    let t = test_app_with_tmdb();
+    let (status, _) = get(&t.app, "/api/items/no-such-item/metadata", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = get(&t.app, "/api/shows/no-such-show/metadata", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
