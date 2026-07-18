@@ -36,7 +36,9 @@ class ExoBridge(
 
     // Position/buffer heartbeat for the web engine's clock (absolute time is
     // reconstructed there: baseSec + this relative position).
-    private val ticker = Runnable {
+    // Explicit type required: the lambda references `ticker` (self-reschedule),
+    // which makes inferring its type recursive.
+    private val ticker: Runnable = Runnable {
         if (player.playbackState != Player.STATE_IDLE) {
             emit(JSONObject().put("t", "time").put("sec", player.currentPosition / 1000.0))
             emit(JSONObject().put("t", "buffered").put("sec", player.bufferedPosition / 1000.0))
