@@ -17,11 +17,14 @@ function toCard(item: MediaItem): UpNextItem {
   };
 }
 
+/** Stable empty default so the memo below doesn't recompute for a movie. */
+const NO_EPISODES: MediaItem[] = [];
+
 /**
- * "À suivre" data (§10) for the web player: the immediate next episode plus
+ * "À suivre" data (§10) for the web player: the upcoming episodes plus
  * content-similar recommendations, mapped to the shared up-next card shape.
  */
-export function useWebUpNext(item: MediaItem, next?: MediaItem | null): UpNextData {
+export function useWebUpNext(item: MediaItem, following: MediaItem[] = NO_EPISODES): UpNextData {
   const [similar, setSimilar] = useState<MediaItem[]>([]);
   // Recommend against the SHOW when watching an episode (episodes carry no
   // embedding of their own, so similar(episodeId) would be empty); a movie
@@ -40,9 +43,9 @@ export function useWebUpNext(item: MediaItem, next?: MediaItem | null): UpNextDa
 
   return useMemo(
     () => ({
-      nextEpisodes: next ? [toCard(next)] : [],
+      nextEpisodes: following.map(toCard),
       recommendations: similar.slice(0, 18).map(toCard),
     }),
-    [next, similar],
+    [following, similar],
   );
 }

@@ -21,12 +21,16 @@ export interface TvUpNext {
   byId: Map<string, MediaItem>;
 }
 
-/** "À suivre" data (§10) for the TV player: the next episode + recommendations,
- *  plus an id -> item map so a chosen card can be handed to the router. */
+/** Stable empty default so the memo below doesn't recompute for a movie. */
+const NO_EPISODES: MediaItem[] = [];
+
+/** "À suivre" data (§10) for the TV player: the upcoming episodes +
+ *  recommendations, plus an id -> item map so a chosen card can be handed to the
+ *  router. */
 export function useTvUpNext(
   client: KromaClient,
   item: MediaItem,
-  next: MediaItem | null,
+  following: MediaItem[] = NO_EPISODES,
 ): TvUpNext {
   const [similar, setSimilar] = useState<MediaItem[]>([]);
   // Recommend against the SHOW for an episode (episodes carry no embedding of
@@ -46,14 +50,14 @@ export function useTvUpNext(
   return useMemo(() => {
     const recos = similar.slice(0, 18);
     const byId = new Map<string, MediaItem>();
-    if (next) byId.set(next.id, next);
+    for (const e of following) byId.set(e.id, e);
     for (const s of recos) byId.set(s.id, s);
     return {
       data: {
-        nextEpisodes: next ? [toCard(client, next)] : [],
+        nextEpisodes: following.map((e) => toCard(client, e)),
         recommendations: recos.map((s) => toCard(client, s)),
       },
       byId,
     };
-  }, [client, next, similar]);
+  }, [client, following, similar]);
 }

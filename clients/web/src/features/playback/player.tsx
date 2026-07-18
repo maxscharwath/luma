@@ -27,12 +27,15 @@ const PREVIEW_W = 176;
 export function Player({
   item,
   next,
+  following,
   onPlayNext,
   onPlayItem,
   onClose,
 }: Readonly<{
   item: MovieView;
   next?: MediaItem | null;
+  /** Upcoming episodes (sequence order) for the "up next" rail; `next` is [0]. */
+  following?: MediaItem[];
   onPlayNext?: () => void;
   /** Play any up-next card (recommendation / next episode from the sheet). */
   onPlayItem?: (id: string) => void;
@@ -44,7 +47,7 @@ export function Player({
   const [appearance, setAppearance] = useSubtitleAppearance();
   const storyboard = useStoryboard(item.id);
   const tileAt = useCallback((sec: number) => storyboard.tile(sec, PREVIEW_W), [storyboard]);
-  const upNext = useWebUpNext(item, next);
+  const upNext = useWebUpNext(item, following);
 
   // Resume prompt (the anchor is already set to the saved position by the engine;
   // this only shows the toast + offers a restart) and the admin-stop overlay.

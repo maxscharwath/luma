@@ -20,7 +20,7 @@ export const Route = createFileRoute('/_app/watch/$id')({
 function WatchPage() {
   const { id } = Route.useParams();
   const {
-    data: { item, next },
+    data: { item, next, following },
   } = useSuspenseQuery(catalogQueries.watch(id));
   const navigate = useNavigate();
   return (
@@ -28,6 +28,7 @@ function WatchPage() {
       key={item.id}
       item={item}
       next={next}
+      following={following}
       onPlayNext={next ? () => navigate({ to: '/watch/$id', params: { id: next.id } }) : undefined}
       onPlayItem={(id) => navigate({ to: '/watch/$id', params: { id } })}
       onClose={() => navigate({ to: '/' })}

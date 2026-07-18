@@ -42,18 +42,23 @@ export function TvPlayer() {
   const storyboard = useStoryboard(client, item.id);
   const tileAt = useCallback((sec: number) => storyboard.tile(sec, PREVIEW_W), [storyboard]);
 
-  // Next episode (series autoplay) + the up-next sheet data.
-  const [next, setNext] = useState<MediaItem | null>(null);
+  // Upcoming episodes (series autoplay uses [0]) + the up-next sheet data.
+  const [following, setFollowing] = useState<MediaItem[]>([]);
   const advancedRef = useRef(false);
   useEffect(() => {
     advancedRef.current = false;
-    setNext(null);
+    setFollowing([]);
+    let cancelled = false;
     client
-      .nextEpisode(item.id)
-      .then(setNext)
+      .followingEpisodes(item.id)
+      .then((list) => !cancelled && setFollowing(list))
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [client, item.id]);
-  const up = useTvUpNext(client, item, next);
+  const next = following[0] ?? null;
+  const up = useTvUpNext(client, item, following);
 
   const goNext = useCallback(() => {
     if (advancedRef.current || !next) return;

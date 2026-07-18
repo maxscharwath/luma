@@ -116,15 +116,16 @@ export const catalogQueries = {
       queryFn: () => kromaClient().nextEpisode(itemId),
     }),
 
-  /** The player payload: the item (art/stream URLs resolved) + its "up next"
-   * episode for autoplay. */
+  /** The player payload: the item (art/stream URLs resolved) + its upcoming
+   * episodes. `next` (the immediate one) drives autoplay; the full list fills the
+   * player's "up next" episode rail. */
   watch: (id: string) =>
     queryOptions({
       queryKey: ['watch', id] as const,
       queryFn: async () => {
         const c = kromaClient();
-        const [item, next] = await Promise.all([c.item(id), c.nextEpisode(id)]);
-        return { item: toMovieView(c, item), next };
+        const [item, following] = await Promise.all([c.item(id), c.followingEpisodes(id)]);
+        return { item: toMovieView(c, item), next: following[0] ?? null, following };
       },
     }),
 } as const;

@@ -23,6 +23,12 @@ export function nextEpisode(ctx: RequestContext, itemId: string): Promise<MediaI
   return ctx.json<MediaItem | null>(`/items/${encodeURIComponent(itemId)}/next`);
 }
 
+/** The upcoming episodes after `itemId` in its show (sequence order), for the
+ * player's "up next" episode rail. Empty for a movie / the last episode. */
+export function followingEpisodes(ctx: RequestContext, itemId: string): Promise<MediaItem[]> {
+  return ctx.json<MediaItem[]>(`/items/${encodeURIComponent(itemId)}/following`);
+}
+
 /** Saved position for a single item, or null if none. */
 export function itemProgress(ctx: RequestContext, itemId: string): Promise<ProgressEntry | null> {
   return ctx.json<ProgressEntry | null>(`/progress/${encodeURIComponent(itemId)}`);

@@ -186,3 +186,23 @@ async fn next_episode_walks_the_sequence_then_ends() {
     let (_, next) = get(&t.app, &format!("/api/items/{movie}/next"), Some(&t.token)).await;
     assert!(next.is_null());
 }
+
+#[tokio::test]
+async fn following_lists_the_upcoming_episodes() {
+    let t = test_app();
+    let ep1 = demo_item_id("Islands"); // Planet Earth II S1E1
+    let ep2 = demo_item_id("Mountains"); // S1E2 (last)
+
+    // From the first episode, the rail lists every later episode in order.
+    let (status, list) = get(&t.app, &format!("/api/items/{ep1}/following"), Some(&t.token)).await;
+    assert_eq!(status, StatusCode::OK);
+    let ids: Vec<&str> = list.as_array().unwrap().iter().map(|i| i["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, vec![ep2.as_str()]);
+
+    // The last episode and a movie have an empty rail.
+    let (_, list) = get(&t.app, &format!("/api/items/{ep2}/following"), Some(&t.token)).await;
+    assert_eq!(list.as_array().unwrap().len(), 0);
+    let movie = demo_item_id("The Matrix");
+    let (_, list) = get(&t.app, &format!("/api/items/{movie}/following"), Some(&t.token)).await;
+    assert_eq!(list.as_array().unwrap().len(), 0);
+}

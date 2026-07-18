@@ -492,6 +492,10 @@ export class KromaClient {
   nextEpisode(itemId: string): Promise<MediaItem | null> {
     return playback.nextEpisode(this.ctx, itemId);
   }
+  /** The upcoming episodes after an item, for the player's "up next" rail. */
+  followingEpisodes(itemId: string): Promise<MediaItem[]> {
+    return playback.followingEpisodes(this.ctx, itemId);
+  }
   forYou(): Promise<MediaItem[]> {
     return playback.forYou(this.ctx);
   }

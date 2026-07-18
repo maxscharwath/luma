@@ -29,6 +29,7 @@ pub fn routes() -> Router<SharedState> {
     Router::new()
         .route("/shows/{id}/up-next", get(up_next))
         .route("/items/{id}/next", get(next_episode))
+        .route("/items/{id}/following", get(following_episodes))
         .route("/progress", get(list_progress))
         .route("/continue", get(continue_watching))
         .route(
@@ -269,6 +270,24 @@ pub async fn up_next(
 pub async fn next_episode(State(state): State<SharedState>, Path(item_id): Path<String>) -> Response {
     match query(&state.db, move |pool| db::next_episode(&pool, &item_id)).await {
         Ok(item) => Json(item).into_response(),
+        Err(resp) => resp,
+    }
+}
+
+/// How many upcoming episodes to feed the player's "up next" episode rail.
+const UP_NEXT_EPISODES: usize = 20;
+
+/// `GET /api/items/:id/following` → `[MediaItem]`. Up to `UP_NEXT_EPISODES`
+/// episodes after `id` in its show (sequence order), for the player's "up next"
+/// episode rail. Empty for a movie / the last episode.
+pub async fn following_episodes(
+    State(state): State<SharedState>,
+    Path(item_id): Path<String>,
+) -> Response {
+    match query(&state.db, move |pool| db::following_episodes(&pool, &item_id, UP_NEXT_EPISODES))
+        .await
+    {
+        Ok(items) => Json(items).into_response(),
         Err(resp) => resp,
     }
 }

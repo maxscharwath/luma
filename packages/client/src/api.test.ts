@@ -369,6 +369,7 @@ describe('delegating methods issue the expected request', () => {
     ['continueWatching', (c) => c.continueWatching()],
     ['upNext', (c) => c.upNext('s1')],
     ['nextEpisode', (c) => c.nextEpisode('i1')],
+    ['followingEpisodes', (c) => c.followingEpisodes('i1')],
     ['forYou', (c) => c.forYou()],
     ['saveProgress', (c) => c.saveProgress('i1', 1000)],
     ['deleteProgress', (c) => c.deleteProgress('i1')],

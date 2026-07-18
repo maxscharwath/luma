@@ -385,9 +385,13 @@ pub fn up_next_episode(
     Ok(Some((chosen, resume)))
 }
 
-/// The next episode after `item_id` in its show, by `(season, episode)` order.
-/// `None` for a movie / loose video / the last episode.
-pub fn next_episode(pool: &Pool, item_id: &str) -> Result<Option<MediaItem>> {
+/// The next `n` episodes after `item_id` in its show, by `(season, episode)`
+/// order. Empty for a movie / loose video / the last episode. Drives the
+/// player's "up next" episode rail (autoplay is the `n == 1` case).
+pub fn following_episodes(pool: &Pool, item_id: &str, n: usize) -> Result<Vec<MediaItem>> {
+    if n == 0 {
+        return Ok(Vec::new());
+    }
     let conn = pool.get()?;
     let coords: Option<(Option<String>, Option<i64>, Option<i64>)> = conn
         .query_row(
@@ -397,22 +401,28 @@ pub fn next_episode(pool: &Pool, item_id: &str) -> Result<Option<MediaItem>> {
         )
         .ok();
     let Some((Some(show_id), Some(season), Some(episode))) = coords else {
-        return Ok(None);
+        return Ok(Vec::new());
     };
     let mut stmt = conn.prepare(&format!(
         "SELECT {ITEM_COLS} FROM items \
          WHERE show_id = ?1 AND kind = 'episode' \
            AND (season > ?2 OR (season = ?2 AND episode > ?3)) \
-         ORDER BY season, episode LIMIT 1"
+         ORDER BY season, episode LIMIT ?4"
     ))?;
-    let next = stmt
-        .query_map(params![show_id, season, episode], row_to_item)?
-        .next()
-        .transpose()?;
+    let mut items: Vec<MediaItem> = stmt
+        .query_map(params![show_id, season, episode, n as i64], row_to_item)?
+        .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
-    let Some(mut item) = next else { return Ok(None) };
-    attach_files(&conn, &mut item)?;
-    Ok(Some(item))
+    for item in &mut items {
+        attach_files(&conn, item)?;
+    }
+    Ok(items)
+}
+
+/// The next episode after `item_id` in its show, by `(season, episode)` order.
+/// `None` for a movie / loose video / the last episode.
+pub fn next_episode(pool: &Pool, item_id: &str) -> Result<Option<MediaItem>> {
+    Ok(following_episodes(pool, item_id, 1)?.into_iter().next())
 }
 
 #[cfg(test)]
@@ -563,6 +573,15 @@ mod tests {
         assert_eq!(next_episode(&pool, "e2").unwrap().map(|i| i.id), Some("e3".into()));
         assert!(next_episode(&pool, "e3").unwrap().is_none());
         assert!(next_episode(&pool, "m1").unwrap().is_none());
+
+        // The "up next" EPISODE rail: the next N in order, capped by `n`, empty
+        // for the last episode / a movie / n == 0.
+        let ids = |v: Vec<MediaItem>| v.into_iter().map(|i| i.id).collect::<Vec<_>>();
+        assert_eq!(ids(following_episodes(&pool, "e1", 10).unwrap()), vec!["e2", "e3"]);
+        assert_eq!(ids(following_episodes(&pool, "e1", 1).unwrap()), vec!["e2"]); // capped by n
+        assert!(following_episodes(&pool, "e3", 10).unwrap().is_empty()); // last episode
+        assert!(following_episodes(&pool, "m1", 10).unwrap().is_empty()); // a movie
+        assert!(following_episodes(&pool, "e1", 0).unwrap().is_empty()); // n == 0
     }
 
     /// Insert a movie item so `progress`'s items FK is satisfied.

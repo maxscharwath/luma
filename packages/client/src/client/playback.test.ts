@@ -4,6 +4,7 @@ import type { RequestContext } from './base';
 import {
   addToList,
   deleteProgress,
+  followingEpisodes,
   itemProgress,
   markWatched,
   nextEpisode,
@@ -52,15 +53,17 @@ describe('progress + resume URLs', () => {
     const { ctx, calls } = recordCtx();
     void upNext(ctx, 's 1');
     void nextEpisode(ctx, 'i 2');
+    void followingEpisodes(ctx, 'i 5');
     void itemProgress(ctx, 'i 3');
     void deleteProgress(ctx, 'i 4');
     expect(calls.map((c) => c.path)).toEqual([
       '/shows/s%201/up-next',
       '/items/i%202/next',
+      '/items/i%205/following',
       '/progress/i%203',
       '/progress/i%204',
     ]);
-    expect(calls[3]?.init?.method).toBe('DELETE');
+    expect(calls[4]?.init?.method).toBe('DELETE');
   });
 });
 
