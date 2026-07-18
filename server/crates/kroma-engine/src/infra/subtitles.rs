@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::domain::media::SubtitleTrack;
 
@@ -156,7 +156,7 @@ fn extract_batch_blocking_cancellable(
         cmd.arg("-map").arg(format!("0:s:{sidx}")).args(["-f", "webvtt"]).arg(tmp);
     }
 
-    let outcome = run_capturing_cancellable(cmd, timeout_for(abs), cancel);
+    let outcome = crate::infra::ffmpeg_run::run_capturing_cancellable(cmd, timeout_for(abs), cancel);
 
     // Move each non-empty output into place; clean up the rest either way so a
     // failed/partial pass never leaves temp files behind.
@@ -176,74 +176,6 @@ fn extract_batch_blocking_cancellable(
         // ffmpeg succeeded but produced nothing usable (e.g. every mapped track was
         // empty): not a hard error, just nothing to cache.
         Ok(()) => Ok(()),
-        Err(reason) => Err(reason),
-    }
-}
-
-/// Spawn `cmd`, wait up to `dur` (killing it on timeout), capture stderr for a
-/// meaningful failure message. A sync stand-in for `tokio::time::timeout` (the
-/// pipeline stage runs on a blocking thread). Mirrors `infra::storyboard`. Kept as
-/// the stable non-cancellable entry point; delegates to the cancellable variant.
-#[allow(dead_code)]
-fn run_capturing(cmd: Command, dur: Duration) -> Result<(), String> {
-    run_capturing_cancellable(cmd, dur, &|| false)
-}
-
-/// [`run_capturing`] that also polls `cancel` each tick, killing the child and
-/// returning `Err("cancelled")` the moment it flips so a cancelled job/stage stops
-/// the in-flight ffmpeg instead of waiting out `dur`.
-fn run_capturing_cancellable(
-    mut cmd: Command,
-    dur: Duration,
-    cancel: &dyn Fn() -> bool,
-) -> Result<(), String> {
-    use std::io::Read;
-    // Draw one slot from the process-wide ffmpeg budget (see `infra::ffmpeg_gate`)
-    // so subtitle extraction shares the same cap as storyboard/marker work.
-    let _permit = crate::infra::ffmpeg_gate::acquire();
-    cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("could not start ffmpeg (is it installed and on PATH?): {e}"))?;
-    let drain = child.stderr.take().map(|mut s| {
-        std::thread::spawn(move || {
-            let mut buf = String::new();
-            let _ = s.read_to_string(&mut buf);
-            buf
-        })
-    });
-    let start = Instant::now();
-    let outcome = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Ok(status),
-            Ok(None) => {
-                if cancel() {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break Err("cancelled".to_string());
-                }
-                if start.elapsed() >= dur {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break Err(format!("timed out after {}s", dur.as_secs()));
-                }
-                std::thread::sleep(Duration::from_millis(200));
-            }
-            Err(e) => break Err(format!("waiting on ffmpeg failed: {e}")),
-        }
-    };
-    let stderr = drain.and_then(|h| h.join().ok()).unwrap_or_default();
-    match outcome {
-        Ok(status) if status.success() => Ok(()),
-        Ok(status) => {
-            let code = status.code().map_or_else(|| "killed by signal".to_string(), |c| format!("exit {c}"));
-            let cleaned: String = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
-            let n = cleaned.chars().count();
-            let tail: String = cleaned.chars().skip(n.saturating_sub(300)).collect();
-            Err(if tail.is_empty() { code } else { format!("{code} ({tail})") })
-        }
         Err(reason) => Err(reason),
     }
 }

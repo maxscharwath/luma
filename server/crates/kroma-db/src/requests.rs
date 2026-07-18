@@ -261,35 +261,44 @@ fn row_to_wanted(r: &Row) -> rusqlite::Result<WantedRow> {
 const WANTED_COLS: &str =
     "id, request_id, kind, tmdb_id, imdb_id, title, year, season, episode, air_date, status, last_search_at";
 
+/// Column list + placeholders shared by the two `wanted` inserts; append after
+/// an `INSERT INTO` / `INSERT OR IGNORE INTO` verb.
+const WANTED_INSERT_TAIL: &str =
+    "wanted (id, request_id, kind, tmdb_id, imdb_id, title, year, season, episode, air_date, status, last_search_at, updated_at) \
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)";
+
+/// Insert `rows` into `wanted` via `sql` (an `INSERT …` / `INSERT OR IGNORE …`
+/// built from [`WANTED_INSERT_TAIL`]), stamping `updated_at = now_ms`. Runs on
+/// the caller's connection/transaction so the whole batch shares one tx.
+fn insert_wanted_rows(conn: &Connection, sql: &str, rows: &[WantedRow], now_ms: i64) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare(sql)?;
+    for w in rows {
+        stmt.execute(params![
+            w.id,
+            w.request_id,
+            w.kind,
+            w.tmdb_id as i64,
+            w.imdb_id,
+            w.title,
+            w.year,
+            w.season,
+            w.episode,
+            w.air_date,
+            w.status,
+            w.last_search_at,
+            now_ms
+        ])?;
+    }
+    Ok(())
+}
+
 /// Replace a request's wanted rows (approval re-materializes from scratch, so a
 /// re-approve after a season merge stays consistent). One transaction.
 pub fn replace_wanted(pool: &Pool, request_id: &str, rows: &[WantedRow], now_ms: i64) -> Result<()> {
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
     tx.execute("DELETE FROM wanted WHERE request_id = ?1", params![request_id])?;
-    {
-        let mut stmt = tx.prepare(
-            "INSERT INTO wanted (id, request_id, kind, tmdb_id, imdb_id, title, year, season, episode, air_date, status, last_search_at, updated_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-        )?;
-        for w in rows {
-            stmt.execute(params![
-                w.id,
-                w.request_id,
-                w.kind,
-                w.tmdb_id as i64,
-                w.imdb_id,
-                w.title,
-                w.year,
-                w.season,
-                w.episode,
-                w.air_date,
-                w.status,
-                w.last_search_at,
-                now_ms
-            ])?;
-        }
-    }
+    insert_wanted_rows(&tx, &format!("INSERT INTO {WANTED_INSERT_TAIL}"), rows, now_ms)?;
     tx.commit()?;
     Ok(())
 }
@@ -304,29 +313,7 @@ pub fn insert_wanted(pool: &Pool, rows: &[WantedRow], now_ms: i64) -> Result<()>
     }
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
-    {
-        let mut stmt = tx.prepare(
-            "INSERT OR IGNORE INTO wanted (id, request_id, kind, tmdb_id, imdb_id, title, year, season, episode, air_date, status, last_search_at, updated_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-        )?;
-        for w in rows {
-            stmt.execute(params![
-                w.id,
-                w.request_id,
-                w.kind,
-                w.tmdb_id as i64,
-                w.imdb_id,
-                w.title,
-                w.year,
-                w.season,
-                w.episode,
-                w.air_date,
-                w.status,
-                w.last_search_at,
-                now_ms
-            ])?;
-        }
-    }
+    insert_wanted_rows(&tx, &format!("INSERT OR IGNORE INTO {WANTED_INSERT_TAIL}"), rows, now_ms)?;
     tx.commit()?;
     Ok(())
 }
@@ -351,6 +338,31 @@ pub fn wanted_for_request(conn: &Connection, request_id: &str) -> rusqlite::Resu
     rows.collect()
 }
 
+/// `SELECT … FROM wanted w JOIN requests r …` shared by the upcoming + missing
+/// views; callers append their own `WHERE`/`ORDER BY`/`LIMIT` and map rows with
+/// [`row_to_calendar_entry`].
+const CALENDAR_SELECT: &str = "SELECT w.request_id, w.tmdb_id, r.kind, w.title, w.year, r.poster_url, \
+                w.season, w.episode, w.air_date, w.status \
+         FROM wanted w JOIN requests r ON r.id = w.request_id";
+
+/// Map a [`CALENDAR_SELECT`] row into a [`CalendarEntry`] (request-backed rows,
+/// so `request_id` is always present).
+fn row_to_calendar_entry(r: &Row) -> rusqlite::Result<CalendarEntry> {
+    let kind: String = r.get(2)?;
+    Ok(CalendarEntry {
+        request_id: Some(r.get(0)?),
+        tmdb_id: r.get::<_, i64>(1)? as u64,
+        kind: RequestKind::parse(&kind).unwrap_or(RequestKind::Movie),
+        title: r.get(3)?,
+        year: r.get(4)?,
+        poster_url: r.get(5)?,
+        season: r.get(6)?,
+        episode: r.get(7)?,
+        air_date: r.get(8)?,
+        status: r.get(9)?,
+    })
+}
+
 /// Upcoming "coming soon" calendar entries: future-dated wanted rows (a movie's
 /// availability date or a show episode's air date) not yet on disk, joined with
 /// their request's display fields, ascending by date. `requester` limits to one
@@ -362,31 +374,15 @@ pub fn upcoming_calendar(
     requester: Option<&str>,
     limit: usize,
 ) -> rusqlite::Result<Vec<CalendarEntry>> {
-    let mut stmt = conn.prepare(
-        "SELECT w.request_id, w.tmdb_id, r.kind, w.title, w.year, r.poster_url, \
-                w.season, w.episode, w.air_date, w.status \
-         FROM wanted w JOIN requests r ON r.id = w.request_id \
+    let mut stmt = conn.prepare(&format!(
+        "{CALENDAR_SELECT} \
          WHERE w.air_date IS NOT NULL AND w.air_date > ?1 \
            AND w.status IN ('wanted', 'grabbed') \
            AND r.status NOT IN ('denied', 'failed') \
            AND (?2 IS NULL OR r.requested_by = ?2) \
-         ORDER BY w.air_date ASC, r.title ASC LIMIT ?3",
-    )?;
-    let rows = stmt.query_map(params![today, requester, limit as i64], |r| {
-        let kind: String = r.get(2)?;
-        Ok(CalendarEntry {
-            request_id: Some(r.get(0)?),
-            tmdb_id: r.get::<_, i64>(1)? as u64,
-            kind: RequestKind::parse(&kind).unwrap_or(RequestKind::Movie),
-            title: r.get(3)?,
-            year: r.get(4)?,
-            poster_url: r.get(5)?,
-            season: r.get(6)?,
-            episode: r.get(7)?,
-            air_date: r.get(8)?,
-            status: r.get(9)?,
-        })
-    })?;
+         ORDER BY w.air_date ASC, r.title ASC LIMIT ?3"
+    ))?;
+    let rows = stmt.query_map(params![today, requester, limit as i64], row_to_calendar_entry)?;
     rows.collect()
 }
 
@@ -402,30 +398,14 @@ pub fn missing_items(
     requester: Option<&str>,
     limit: usize,
 ) -> rusqlite::Result<Vec<CalendarEntry>> {
-    let mut stmt = conn.prepare(
-        "SELECT w.request_id, w.tmdb_id, r.kind, w.title, w.year, r.poster_url, \
-                w.season, w.episode, w.air_date, w.status \
-         FROM wanted w JOIN requests r ON r.id = w.request_id \
+    let mut stmt = conn.prepare(&format!(
+        "{CALENDAR_SELECT} \
          WHERE w.status = 'wanted' AND (w.air_date IS NULL OR w.air_date <= ?1) \
            AND r.status NOT IN ('denied', 'failed') \
            AND (?2 IS NULL OR r.requested_by = ?2) \
-         ORDER BY r.title ASC, w.season ASC, w.episode ASC LIMIT ?3",
-    )?;
-    let rows = stmt.query_map(params![today, requester, limit as i64], |r| {
-        let kind: String = r.get(2)?;
-        Ok(CalendarEntry {
-            request_id: Some(r.get(0)?),
-            tmdb_id: r.get::<_, i64>(1)? as u64,
-            kind: RequestKind::parse(&kind).unwrap_or(RequestKind::Movie),
-            title: r.get(3)?,
-            year: r.get(4)?,
-            poster_url: r.get(5)?,
-            season: r.get(6)?,
-            episode: r.get(7)?,
-            air_date: r.get(8)?,
-            status: r.get(9)?,
-        })
-    })?;
+         ORDER BY r.title ASC, w.season ASC, w.episode ASC LIMIT ?3"
+    ))?;
+    let rows = stmt.query_map(params![today, requester, limit as i64], row_to_calendar_entry)?;
     rows.collect()
 }
 

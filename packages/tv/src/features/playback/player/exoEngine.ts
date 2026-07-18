@@ -19,32 +19,16 @@
 // sit on top. Events arrive through the global `__kromaExoEvent` callback the
 // Kotlin side invokes with a JSON payload.
 
-import type { KromaClient, MediaItem } from '@kroma/core';
 import {
-  type EngineListeners,
   type ExoShellBridge,
   getExo,
   resolveMasterStart,
-  type TvEngine,
 } from '#tv/features/playback/player/engine';
-
-export interface ExoOptions {
-  client: KromaClient;
-  item: MediaItem;
-  durationSec: number;
-  /** Audio-relative rendition to select once loaded (0 = the first/default track). */
-  initialRendition: number;
-  /** Initial position (s): master anchor / direct start offset. */
-  startSec: number;
-  /** Open the original file directly (see the module doc) instead of the master. */
-  direct: boolean;
-  listeners: EngineListeners;
-}
-
-/** A native seek beyond this many seconds ahead of the current position (master
- * mode only) is assumed past the anchored remux's production edge, so we
- * re-anchor instead of stalling there. Direct mode always seeks natively. */
-const NATIVE_SEEK_AHEAD = 60;
+import {
+  BaseTvEngine,
+  type EngineOptions,
+  NATIVE_SEEK_AHEAD,
+} from '#tv/features/playback/player/baseEngine';
 
 /** Event payload pushed by the Kotlin bridge. */
 interface ExoEvent {
@@ -57,41 +41,19 @@ interface ExoEvent {
 
 type ExoEventGlobal = { __kromaExoEvent?: (e: ExoEvent) => void };
 
-export class ExoEngine implements TvEngine {
+export class ExoEngine extends BaseTvEngine {
   readonly kind = 'exo';
   private readonly bridge: ExoShellBridge;
-  private readonly client: KromaClient;
-  private readonly item: MediaItem;
-  private readonly listeners: EngineListeners;
-  private mode: 'direct' | 'master';
-  /** One-shot guard: a failed direct attempt falls back to the master ONCE. */
-  private fellBack = false;
-  private durSec: number;
-  private baseSec: number;
-  private elSec = 0;
   private bufSec = 0;
-  private paused = true;
-  private destroyed = false;
-  private rendition: number;
-  /** Set on a re-anchor so playback resumes once the new source has loaded. */
-  private resumeOnLoad = false;
 
-  constructor(opts: ExoOptions) {
+  constructor(opts: EngineOptions) {
+    super(opts);
+    // ExoPlayer reports its playing/paused state via events; assume paused until
+    // the first `state` event arrives.
+    this.paused = true;
     const bridge = getExo();
     if (!bridge) throw new Error('ExoPlayer bridge unavailable');
     this.bridge = bridge;
-    this.client = opts.client;
-    this.item = opts.item;
-    this.listeners = opts.listeners;
-    this.durSec = opts.durationSec;
-    this.mode = opts.direct ? 'direct' : 'master';
-    this.rendition = opts.initialRendition;
-    if (this.mode === 'direct') {
-      this.baseSec = 0;
-      this.elSec = opts.startSec;
-    } else {
-      this.baseSec = opts.startSec;
-    }
     (globalThis as ExoEventGlobal).__kromaExoEvent = (e) => {
       if (!this.destroyed) this.onEvent(e);
     };
@@ -160,28 +122,6 @@ export class ExoEngine implements TvEngine {
     }
   }
 
-  private fail(): void {
-    if (this.destroyed) return;
-    if (this.mode === 'direct' && !this.fellBack) {
-      this.fellBack = true;
-      const pos = this.position();
-      this.mode = 'master';
-      this.listeners.onWaiting();
-      this.reanchor(pos);
-      return;
-    }
-    this.listeners.onError();
-  }
-
-  /** The source URL for the current mode (direct = original file, absolute
-   * timeline; master = the remux anchored at `baseSec` with the chosen audio,
-   * stream-copied: the platform decodes surround itself). */
-  private sourceUrl(): string {
-    return this.mode === 'direct'
-      ? this.client.streamUrl(this.item.id)
-      : this.client.hlsMasterUrl(this.item.id, false, this.baseSec, this.rendition);
-  }
-
   /** (Re)load the current source. An anchored master first resolves its REAL
    * start (the keyframe the server actually seeked to) so `baseSec` and every
    * absolute-time consumer stay honest; direct sources open at once. */
@@ -204,7 +144,7 @@ export class ExoEngine implements TvEngine {
 
   /** Reopen the current mode's source at `absSec` (master: a new anchor; direct:
    * a start offset, used by the direct→master fallback hand-off too). */
-  private reanchor(absSec: number): void {
+  protected reanchor(absSec: number): void {
     this.resumeOnLoad = !this.paused;
     if (this.mode === 'direct') {
       this.baseSec = 0;
@@ -225,15 +165,6 @@ export class ExoEngine implements TvEngine {
     this.cmd('pause');
     this.paused = true;
     this.listeners.onPause();
-  }
-  isPaused(): boolean {
-    return this.paused;
-  }
-  position(): number {
-    return this.baseSec + this.elSec;
-  }
-  duration(): number {
-    return this.durSec;
   }
   bufferedEnd(): number {
     return this.baseSec + Math.max(this.elSec, this.bufSec);

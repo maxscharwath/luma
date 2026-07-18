@@ -89,35 +89,45 @@ pub fn render(card: &Card) -> Option<Vec<u8>> {
 
 // ---- layers ----------------------------------------------------------------
 
+/// Fill the whole card with a vertical (top -> bottom) two-stop linear gradient
+/// running from `top` at `y0` to `bottom` at `y1`. No-op if the shader can't be
+/// built (degenerate stops).
+fn fill_vgradient(pm: &mut Pixmap, y0: f32, y1: f32, top: Color, bottom: Color) {
+    if let Some(shader) = LinearGradient::new(
+        Point::from_xy(0.0, y0),
+        Point::from_xy(0.0, y1),
+        vec![GradientStop::new(0.0, top), GradientStop::new(1.0, bottom)],
+        SpreadMode::Pad,
+        Transform::identity(),
+    ) {
+        let paint = Paint { shader, ..Default::default() };
+        pm.fill_rect(
+            Rect::from_xywh(0.0, 0.0, W as f32, H as f32).unwrap(),
+            &paint,
+            Transform::identity(),
+            None,
+        );
+    }
+}
+
 fn paint_scrims(pm: &mut Pixmap) {
-    let (w, h) = (W as f32, H as f32);
-    if let Some(shader) = LinearGradient::new(
-        Point::from_xy(0.0, h * 0.4),
-        Point::from_xy(0.0, h),
-        vec![
-            GradientStop::new(0.0, Color::from_rgba8(0, 0, 0, 0)),
-            GradientStop::new(1.0, Color::from_rgba8(0, 0, 0, 225)),
-        ],
-        SpreadMode::Pad,
-        Transform::identity(),
-    ) {
-        let paint = Paint { shader, ..Default::default() };
-        pm.fill_rect(Rect::from_xywh(0.0, 0.0, w, h).unwrap(), &paint, Transform::identity(), None);
-    }
+    let h = H as f32;
+    // Bottom scrim so the title logo stays legible over bright art.
+    fill_vgradient(
+        pm,
+        h * 0.4,
+        h,
+        Color::from_rgba8(0, 0, 0, 0),
+        Color::from_rgba8(0, 0, 0, 225),
+    );
     // Soft top scrim so the badge stays legible over bright art.
-    if let Some(shader) = LinearGradient::new(
-        Point::from_xy(0.0, 0.0),
-        Point::from_xy(0.0, h * 0.32),
-        vec![
-            GradientStop::new(0.0, Color::from_rgba8(0, 0, 0, 150)),
-            GradientStop::new(1.0, Color::from_rgba8(0, 0, 0, 0)),
-        ],
-        SpreadMode::Pad,
-        Transform::identity(),
-    ) {
-        let paint = Paint { shader, ..Default::default() };
-        pm.fill_rect(Rect::from_xywh(0.0, 0.0, w, h).unwrap(), &paint, Transform::identity(), None);
-    }
+    fill_vgradient(
+        pm,
+        0.0,
+        h * 0.32,
+        Color::from_rgba8(0, 0, 0, 150),
+        Color::from_rgba8(0, 0, 0, 0),
+    );
 }
 
 /// Top-left category pill: translucent dark rounded rect + amber uppercase label.

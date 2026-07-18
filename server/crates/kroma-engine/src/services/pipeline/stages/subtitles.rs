@@ -10,36 +10,22 @@
 use anyhow::{anyhow, Result};
 
 use crate::infra::subtitles;
-use crate::model::Category;
-use crate::services::jobs::{Builtin, JobContext, JobKey, Trigger};
-use crate::services::pipeline::stage::Stage;
+use crate::services::jobs::{JobContext, JobKey, Trigger};
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// One ffmpeg pass per item (all tracks muxed out together); the dispatcher pauses
+// between items while anyone is streaming, as this reads whole files. Nightly, and
+// chained after `storyboard` (rather than firing on the same library change), so
+// the CPU-heavy stages run one after another instead of all at once. Also manual.
+stage! {
     short: "subtitles",
-    key: "pipeline.subtitles",
     subject_kind: "item",
-    // One ffmpeg pass per item (all tracks muxed out together); the dispatcher
-    // pauses between items while anyone is streaming, as this reads whole files.
     concurrency: 2,
     pause_for_playback: true,
-    enumerate,
-    process,
-};
-
-/// Drain `Builtin`: nightly, and chained after `storyboard` (rather than firing on
-/// the same library change), so the CPU-heavy stages run one after another instead
-/// of all at once. Also manual. Runs the shared dispatcher over [`STAGE`].
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.subtitles"),
-    category: Category::Pipeline,
     schedule: Some("0 3 * * *"),
     triggers: &[Trigger::AfterJob(JobKey("pipeline.storyboard"))],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// Every item with a backing file AND at least one text subtitle track, signed by

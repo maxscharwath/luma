@@ -540,6 +540,26 @@ async fn apply_email(
     Ok(())
 }
 
+/// Persist an optional language `value` for `user_id` via the `set` DB setter
+/// (`db::set_user_*_language`), off the async runtime. Echoes the stored `value`
+/// back on success so the caller can mirror it onto the in-memory `User`;
+/// `Err(resp)` is the DB-error response. Shared by the UI/audio/subtitle language
+/// appliers, which differ only in the setter + the field they update.
+async fn store_user_lang<F>(
+    state: &SharedState,
+    user_id: &str,
+    value: Option<String>,
+    set: F,
+) -> Result<Option<String>, Response>
+where
+    F: FnOnce(&db::Pool, &str, Option<&str>) -> anyhow::Result<()> + Send + 'static,
+{
+    let uid = user_id.to_string();
+    let v = value.clone();
+    query(&state.db, move |pool| set(&pool, &uid, v.as_deref())).await?;
+    Ok(value)
+}
+
 /// Apply the optional preferred-UI-locale change (absent field = no-op). An
 /// unknown/garbage tag or an explicit `null` both clear it (fall back to the
 /// device locale). `Err(resp)` is the DB-error response to return.
@@ -550,12 +570,7 @@ async fn apply_language(
 ) -> Result<(), Response> {
     let Some(lang) = field else { return Ok(()) };
     let language = lang.and_then(|tag| i18n::normalize(&tag)).map(|c| c.to_string());
-    let uid = user.id.clone();
-    let l = language.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::set_user_language(&pool, &uid, l.as_deref())).await {
-        return Err(resp);
-    }
-    user.language = language;
+    user.language = store_user_lang(state, &user.id, language, db::set_user_language).await?;
     Ok(())
 }
 
@@ -568,12 +583,7 @@ async fn apply_audio_language(
 ) -> Result<(), Response> {
     let Some(audio) = field else { return Ok(()) };
     let audio = norm_media_lang(audio);
-    let uid = user.id.clone();
-    let a = audio.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::set_user_audio_language(&pool, &uid, a.as_deref())).await {
-        return Err(resp);
-    }
-    user.audio_language = audio;
+    user.audio_language = store_user_lang(state, &user.id, audio, db::set_user_audio_language).await?;
     Ok(())
 }
 
@@ -586,12 +596,7 @@ async fn apply_subtitle_language(
 ) -> Result<(), Response> {
     let Some(sub) = field else { return Ok(()) };
     let sub = norm_media_lang(sub);
-    let uid = user.id.clone();
-    let s = sub.clone();
-    if let Err(resp) = query(&state.db, move |pool| db::set_user_subtitle_language(&pool, &uid, s.as_deref())).await {
-        return Err(resp);
-    }
-    user.subtitle_language = sub;
+    user.subtitle_language = store_user_lang(state, &user.id, sub, db::set_user_subtitle_language).await?;
     Ok(())
 }
 
@@ -689,19 +694,22 @@ pub async fn revoke_session(
     }
 }
 
-/// Mint a long-lived access token + a short-lived session for a freshly
-/// authenticated `user` (password login / register). The access token is
-/// PIN-verified at birth password auth already proved identity, so silent
-/// refreshes work until the profile is switched away and re-locked. `user_agent`
-/// (the device's UA header) is stored on the access token to label it in the
-/// account's session list.
-pub(crate) async fn issue_tokens(state: SharedState, user: User, user_agent: Option<String>) -> Response {
+/// Mint a device access token (90d, PIN-verified) plus its first short-lived
+/// session for `user_id`, storing `user_agent` on the access token. Returns the
+/// `(session_token, access_token)` pair, or `Err(resp)` on a DB error. Shared by
+/// the password-login/register path ([`issue_tokens`]) and Quick Connect
+/// approval ([`quick_authorize`]), which mint the identical token pair.
+async fn mint_device_tokens(
+    state: &SharedState,
+    user_id: &str,
+    user_agent: Option<String>,
+) -> Result<(String, String), Response> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     // Access token (device credential, 90d, pin-verified).
     let access = auth::random_token();
     let access_db = access.clone();
-    let uid = user.id.clone();
+    let uid = user_id.to_string();
     let access_exp = now + auth::ACCESS_TTL_SECS;
     let ua = user_agent;
     if let Err(resp) = query(&state.db, move |pool| {
@@ -709,13 +717,13 @@ pub(crate) async fn issue_tokens(state: SharedState, user: User, user_agent: Opt
     })
     .await
     {
-        return resp;
+        return Err(resp);
     }
 
     // Session token (short-lived bearer, 1h), tied to the access token above.
     let token = auth::random_token();
     let token_db = token.clone();
-    let uid = user.id.clone();
+    let uid = user_id.to_string();
     let session_exp = now + auth::SESSION_TTL_SECS;
     let sess_access = access.clone();
     if let Err(resp) = query(&state.db, move |pool| {
@@ -723,8 +731,23 @@ pub(crate) async fn issue_tokens(state: SharedState, user: User, user_agent: Opt
     })
     .await
     {
-        return resp;
+        return Err(resp);
     }
+
+    Ok((token, access))
+}
+
+/// Mint a long-lived access token + a short-lived session for a freshly
+/// authenticated `user` (password login / register). The access token is
+/// PIN-verified at birth password auth already proved identity, so silent
+/// refreshes work until the profile is switched away and re-locked. `user_agent`
+/// (the device's UA header) is stored on the access token to label it in the
+/// account's session list.
+pub(crate) async fn issue_tokens(state: SharedState, user: User, user_agent: Option<String>) -> Response {
+    let (token, access) = match mint_device_tokens(&state, &user.id, user_agent).await {
+        Ok(pair) => pair,
+        Err(resp) => return resp,
+    };
 
     // Best-effort last-seen stamp for the admin members table.
     let uid = user.id.clone();
@@ -822,35 +845,15 @@ pub async fn quick_authorize(
     Json(body): Json<QuickAuthorizeBody>,
 ) -> Response {
     let code = body.code.trim().to_string();
-    let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     // Mint the device's long-lived access token (pin-verified the approver, who
     // is already signed in, is vouching for this device) plus its first session.
-    let access = auth::random_token();
-    let access_db = access.clone();
-    let uid = user.id.clone();
-    let access_exp = now + auth::ACCESS_TTL_SECS;
     // The paired device isn't the one making this request, so its UA is unknown
     // here (NULL); it will re-stamp last-seen on use.
-    if let Err(resp) = query(&state.db, move |pool| {
-        db::create_access_token(&pool, &access_db, &uid, access_exp, true, None)
-    })
-    .await
-    {
-        return resp;
-    }
-    let token = auth::random_token();
-    let token_db = token.clone();
-    let uid = user.id.clone();
-    let session_exp = now + auth::SESSION_TTL_SECS;
-    let sess_access = access.clone();
-    if let Err(resp) = query(&state.db, move |pool| {
-        db::create_session(&pool, &token_db, &uid, session_exp, Some(&sess_access))
-    })
-    .await
-    {
-        return resp;
-    }
+    let (token, access) = match mint_device_tokens(&state, &user.id, None).await {
+        Ok(pair) => pair,
+        Err(resp) => return resp,
+    };
 
     if state.quickconnect.authorize(&code, user, token.clone(), access.clone()) {
         StatusCode::NO_CONTENT.into_response()

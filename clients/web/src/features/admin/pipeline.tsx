@@ -11,25 +11,23 @@ import {
   IconInbox,
   IconPlayerPause,
   IconPlayerPlay,
-  IconSearch,
-  IconX,
 } from '@tabler/icons-react';
-import {
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { PipelineDrawer } from '#web/features/admin/pipeline-drawer';
 import { ElementRowView } from '#web/features/admin/pipeline-row';
 import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
+import {
+  Chip,
+  ConsoleSearch,
+  ConsoleSummary,
+  ConsoleToast,
+  Head,
+  useConsoleToast,
+  useThrottledReload,
+} from '#web/features/admin/table-console';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { EmptyState } from '#web/shared/ui';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 const PER_PAGE = 30;
 const apiKind = (el: ElementRow): 'item' | 'show' => (el.kind === 'series' ? 'show' : 'item');
@@ -134,7 +132,7 @@ export function PipelinePage() {
   const [drawer, setDrawer] = useState<ElementRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [toast, setToast] = useState<{ text: string; on: boolean }>({ text: '', on: false });
+  const { toast, flash } = useConsoleToast();
 
   // Debounce the search box.
   useEffect(() => {
@@ -155,13 +153,7 @@ export function PipelinePage() {
 
   // Throttle event-driven reloads: a draining stage fires pipeline.stats ~1/s and
   // enrich fires many item.updated; coalesce to at most one refetch per 1.5 s.
-  const lastReloadRef = useRef(0);
-  const throttledReload = useCallback(() => {
-    const now = Date.now();
-    if (now - lastReloadRef.current < 1500) return;
-    lastReloadRef.current = now;
-    reload();
-  }, [reload]);
+  const throttledReload = useThrottledReload(reload);
 
   usePipelineReloadEvents(throttledReload);
 
@@ -180,10 +172,6 @@ export function PipelinePage() {
     if (health) setPaused(health.paused);
   }, [health]);
 
-  const flash = (text: string) => {
-    setToast({ text, on: true });
-    window.setTimeout(() => setToast((s) => ({ ...s, on: false })), 2800);
-  };
   const { togglePause, reprocess, retryStage } = pipelineActions({
     client,
     canManage,
@@ -231,37 +219,20 @@ export function PipelinePage() {
                 {t(paused ? 'pipeline.resume' : 'pipeline.pause')}
               </button>
             ) : null}
-            <div className="w-80 max-w-full">
-              <InputGroup className="h-11">
-                <InputGroupAddon>
-                  <IconSearch size={17} />
-                </InputGroupAddon>
-                <InputGroupInput
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder={t('pipeline.searchPlaceholder')}
-                  className="text-[14px] font-semibold"
-                />
-                {q ? (
-                  <button
-                    type="button"
-                    onClick={() => setQ('')}
-                    className="shrink-0 text-white/50 hover:text-white"
-                  >
-                    <IconX size={16} stroke={2.2} />
-                  </button>
-                ) : null}
-              </InputGroup>
-            </div>
+            <ConsoleSearch
+              value={q}
+              onChange={setQ}
+              placeholder={t('pipeline.searchPlaceholder')}
+            />
           </div>
         }
       />
-      <p className="mb-5 mt-1.5 text-[14.5px] font-medium text-dim">
-        <span className="font-bold text-white">{total.toLocaleString()}</span>{' '}
-        {t('pipeline.trackedLabel')} ·{' '}
-        <span className="font-bold text-accent">{attention.toLocaleString()}</span>{' '}
-        {t('pipeline.needActionLabel')}
-      </p>
+      <ConsoleSummary
+        total={total}
+        totalLabel={t('pipeline.trackedLabel')}
+        accent={attention}
+        accentLabel={t('pipeline.needActionLabel')}
+      />
 
       {/* paused banner */}
       {paused ? (
@@ -419,30 +390,8 @@ export function PipelinePage() {
         onRetryStage={(stage) => drawer && retryStage(drawer, stage)}
       />
 
-      {/* toast */}
-      <div
-        className="pointer-events-none fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 transition-all duration-200"
-        style={{
-          opacity: toast.on ? 1 : 0,
-          transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)`,
-        }}
-      >
-        <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#1C1C22] px-[18px] py-2.5 shadow-[0_20px_50px_rgba(0,0,0,.55)]">
-          <span className="h-2 w-2 flex-[0_0_8px] rounded-full bg-accent" />
-          <span className="text-[13.5px] font-semibold text-white">{toast.text}</span>
-        </div>
-      </div>
+      <ConsoleToast toast={toast} />
     </>
-  );
-}
-
-function Head({ children, className = '' }: Readonly<{ children: ReactNode; className?: string }>) {
-  return (
-    <span
-      className={`text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40 ${className}`}
-    >
-      {children}
-    </span>
   );
 }
 
@@ -452,40 +401,6 @@ function Legend({ color, label }: Readonly<{ color: string; label: string }>) {
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       {label}
     </span>
-  );
-}
-
-function Chip({
-  label,
-  count,
-  dot,
-  on,
-  tone,
-  onClick,
-}: Readonly<{
-  label: string;
-  count?: number;
-  dot?: string;
-  on: boolean;
-  tone: 'accent' | 'blue';
-  onClick: () => void;
-}>) {
-  const active =
-    tone === 'accent'
-      ? 'border-accent/35 bg-accent/[0.14] text-accent'
-      : 'border-[#86A8FF]/35 bg-[#86A8FF]/[0.14] text-[#86A8FF]';
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors ${on ? active : 'border-white/[0.08] bg-[#15151A] text-white/65'}`}
-    >
-      {dot ? <span className="h-[7px] w-[7px] rounded-full" style={{ background: dot }} /> : null}
-      {label}
-      {count != null ? (
-        <span className="tabular-nums opacity-60">{count.toLocaleString()}</span>
-      ) : null}
-    </button>
   );
 }
 

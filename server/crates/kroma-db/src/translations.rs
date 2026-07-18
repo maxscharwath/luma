@@ -169,24 +169,21 @@ fn load(
     ids: &[&str],
 ) -> Result<HashMap<String, HashMap<String, TransData>>> {
     let mut out: HashMap<String, HashMap<String, TransData>> = HashMap::new();
-    if ids.is_empty() {
-        return Ok(out);
-    }
-    for chunk in ids.chunks(super::IN_CHUNK) {
-        let ph = vec!["?"; chunk.len()].join(",");
-        let mut stmt = conn.prepare(&format!(
-            "SELECT subject_id,lang,data FROM translations \
-             WHERE subject_kind=? AND subject_id IN ({ph})"
-        ))?;
-        let params_iter = std::iter::once(kind).chain(chunk.iter().copied());
-        let rows = stmt.query_map(rusqlite::params_from_iter(params_iter), |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
-        })?;
-        for row in rows {
-            let (id, lang, json) = row?;
-            let data = serde_json::from_str::<TransData>(&json).unwrap_or_default();
-            out.entry(id).or_default().insert(lang, data);
-        }
+    let rows = super::query_by_subject_ids(
+        conn,
+        kind,
+        ids,
+        |ph| {
+            format!(
+                "SELECT subject_id,lang,data FROM translations \
+                 WHERE subject_kind=? AND subject_id IN ({ph})"
+            )
+        },
+        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
+    )?;
+    for (id, lang, json) in rows {
+        let data = serde_json::from_str::<TransData>(&json).unwrap_or_default();
+        out.entry(id).or_default().insert(lang, data);
     }
     Ok(out)
 }

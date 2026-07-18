@@ -7,6 +7,7 @@
 pub mod probe;
 pub mod loudness;
 pub mod ffmpeg_gate;
+pub mod ffmpeg_run;
 pub mod hls;
 pub mod metadata;
 pub mod llm;

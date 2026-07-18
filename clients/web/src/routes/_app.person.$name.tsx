@@ -1,10 +1,4 @@
-import {
-  type PersonInvolvement,
-  personDisplayName,
-  personInvolvement,
-  posterColors,
-  type Translate,
-} from '@kroma/core';
+import { personDisplayName, personInvolvement, posterColors, roleLabels } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { IconUserX } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -34,28 +28,6 @@ export const Route = createFileRoute('/_app/person/$name')({
   pendingComponent: () => <PageSkeleton rails={0} />,
   component: PersonPage,
 });
-
-/** Localized role chips: "Acteur" for any cast credit, then each distinct crew
- * job (known jobs translated; anything else shown verbatim). */
-function roleLabels(t: Translate, inv: PersonInvolvement): string[] {
-  const roles: string[] = [];
-  if (inv.acted) roles.push(t('person.role.actor'));
-  for (const job of inv.jobs) roles.push(jobLabel(t, job));
-  return [...new Set(roles)];
-}
-
-function jobLabel(t: Translate, job: string): string {
-  switch (job) {
-    case 'Director':
-      return t('person.role.director');
-    case 'Writer':
-      return t('person.role.writer');
-    case 'Creator':
-      return t('person.role.creator');
-    default:
-      return job;
-  }
-}
 
 function PersonPage() {
   const t = useT();

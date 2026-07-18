@@ -21,52 +21,24 @@
 // media element for this backend (surface: 'mpv'); the HTML chrome + subtitle
 // overlay sit on top.
 
-import type { KromaClient, MediaItem } from '@kroma/core';
 import {
-  type EngineListeners,
   getTauri,
   resolveMasterStart,
   type TauriBridge,
-  type TvEngine,
 } from '#tv/features/playback/player/engine';
-
-export interface MpvOptions {
-  client: KromaClient;
-  item: MediaItem;
-  durationSec: number;
-  /** Audio-relative rendition to select once loaded (0 = the first/default track). */
-  initialRendition: number;
-  /** Initial position (s): master anchor / direct post-load seek. */
-  startSec: number;
-  /** Open the original file directly (see the module doc) instead of the master. */
-  direct: boolean;
-  listeners: EngineListeners;
-}
-
-/** A native seek beyond this many seconds ahead of the current position (master
- * mode only) is assumed past mpv's cache of the anchored remux, so we re-anchor
- * instead of stalling at the production edge. Direct mode always seeks natively. */
-const NATIVE_SEEK_AHEAD = 60;
+import {
+  BaseTvEngine,
+  type EngineOptions,
+  NATIVE_SEEK_AHEAD,
+} from '#tv/features/playback/player/baseEngine';
 
 /** A single mpv IPC command: `{"command": args}` (fire-and-forget). */
 type MpvArg = string | number | boolean;
 
-export class MpvEngine implements TvEngine {
+export class MpvEngine extends BaseTvEngine {
   readonly kind = 'mpv';
   private readonly bridge: TauriBridge;
-  private readonly client: KromaClient;
-  private readonly item: MediaItem;
-  private readonly listeners: EngineListeners;
-  private mode: 'direct' | 'master';
-  /** One-shot guard: a failed direct attempt falls back to the master ONCE. */
-  private fellBack = false;
-  private durSec: number;
-  private baseSec: number;
-  private elSec = 0;
   private cacheSec = 0;
-  private paused = false;
-  private destroyed = false;
-  private rendition: number;
   /** mpv's own track ids for the audio streams, in file order (from the observed
    * `track-list`); the array index is the audio-relative rendition. Empty until the
    * list arrives, then a rendition maps to the RIGHT track even when mpv's ids are
@@ -75,26 +47,15 @@ export class MpvEngine implements TvEngine {
   /** Direct mode: absolute position to seek to once the file loads (resume /
    * fallback hand-off), else null. */
   private pendingSeek: number | null = null;
-  /** Set on a re-anchor so playback resumes once the new source has loaded. */
-  private resumeOnLoad = false;
   private readonly unlisten: Array<() => void> = [];
 
-  constructor(opts: MpvOptions) {
+  constructor(opts: EngineOptions) {
+    super(opts);
     const bridge = getTauri();
     if (!bridge) throw new Error('mpv bridge unavailable');
     this.bridge = bridge;
-    this.client = opts.client;
-    this.item = opts.item;
-    this.listeners = opts.listeners;
-    this.durSec = opts.durationSec;
-    this.mode = opts.direct ? 'direct' : 'master';
-    this.rendition = opts.initialRendition;
     if (this.mode === 'direct') {
-      this.baseSec = 0;
-      this.elSec = opts.startSec;
       this.pendingSeek = opts.startSec > 0.5 ? opts.startSec : null;
-    } else {
-      this.baseSec = opts.startSec;
     }
   }
 
@@ -251,27 +212,6 @@ export class MpvEngine implements TvEngine {
     if (p.reason === 'error') this.fail();
   }
 
-  private fail(): void {
-    if (this.destroyed) return;
-    if (this.mode === 'direct' && !this.fellBack) {
-      this.fellBack = true;
-      const pos = this.position();
-      this.mode = 'master';
-      this.listeners.onWaiting();
-      this.reanchor(pos);
-      return;
-    }
-    this.listeners.onError();
-  }
-
-  /** The source URL for the current mode (direct = original file, absolute
-   * timeline; master = the remux anchored at `baseSec` with the chosen audio). */
-  private sourceUrl(): string {
-    return this.mode === 'direct'
-      ? this.client.streamUrl(this.item.id)
-      : this.client.hlsMasterUrl(this.item.id, false, this.baseSec, this.rendition);
-  }
-
   /** (Re)load the current source. An anchored master first resolves its REAL
    * start (the keyframe the server actually seeked to) so `baseSec` and every
    * absolute-time consumer stay honest; direct sources open at once. */
@@ -293,7 +233,7 @@ export class MpvEngine implements TvEngine {
 
   /** Reopen the current mode's source at `absSec` (master: a new anchor; direct:
    * a post-load seek, used by the direct→master fallback hand-off too). */
-  private reanchor(absSec: number): void {
+  protected reanchor(absSec: number): void {
     this.resumeOnLoad = !this.paused;
     if (this.mode === 'direct') {
       this.baseSec = 0;
@@ -325,15 +265,6 @@ export class MpvEngine implements TvEngine {
     this.setProp('pause', true);
     this.paused = true;
     this.listeners.onPause();
-  }
-  isPaused(): boolean {
-    return this.paused;
-  }
-  position(): number {
-    return this.baseSec + this.elSec;
-  }
-  duration(): number {
-    return this.durSec;
   }
   bufferedEnd(): number {
     return this.baseSec + Math.max(this.elSec, this.cacheSec);

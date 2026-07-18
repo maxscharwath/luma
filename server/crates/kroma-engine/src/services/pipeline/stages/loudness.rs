@@ -9,35 +9,22 @@
 
 use anyhow::Result;
 
-use crate::model::Category;
-use crate::services::jobs::{Builtin, JobContext, JobKey, Trigger};
-use crate::services::pipeline::stage::Stage;
+use crate::services::jobs::{JobContext, JobKey, Trigger};
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// One decode at a time: the measurement is disk-read-bound, and fanning out would
+// starve any concurrent stream from the same (often network) mount. Nightly (after
+// the 1:00 probe pass has landed fresh files), and chained after `pipeline.probe`
+// so a manual probe drain flows straight into analysis.
+stage! {
     short: "loudness",
-    key: "pipeline.loudness",
     subject_kind: "file",
-    // One decode at a time: the measurement is disk-read-bound, and fanning out
-    // would starve any concurrent stream from the same (often network) mount.
     concurrency: 1,
     pause_for_playback: true,
-    enumerate,
-    process,
-};
-
-/// Nightly (after the 1:00 probe pass has landed fresh files), and chained
-/// after `pipeline.probe` so a manual probe drain flows straight into analysis.
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.loudness"),
-    category: Category::Pipeline,
     schedule: Some("0 4 * * *"),
     triggers: &[Trigger::AfterJob(JobKey("pipeline.probe"))],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// Every **probed** file, signed by `mtime:size` (a replaced file re-measures;

@@ -22,3 +22,37 @@ fn acquisition_disabled(ctx: &JobContext) -> bool {
     ctx.info("Acquisition module disabled; skipping.");
     true
 }
+
+/// Declare one acquisition background job in a single place: its [`Builtin`]
+/// `SPEC` (always `Category::Acquisition`) plus a `run` handler that short-
+/// circuits to `Ok(())` when the module is disabled. Every acquisition job
+/// shares that descriptor + guard scaffolding; each handler file supplies only
+/// what differs (key, schedule, triggers, body). `$ctx` binds the [`JobContext`]
+/// in scope for the body.
+macro_rules! acquisition_job {
+    (
+        key: $key:literal,
+        schedule: $schedule:expr,
+        triggers: $triggers:expr,
+        run: |$ctx:ident| $body:block $(,)?
+    ) => {
+        pub const SPEC: kroma_module_sdk::engine::services::jobs::Builtin =
+            kroma_module_sdk::engine::services::jobs::Builtin {
+                key: kroma_module_sdk::engine::services::jobs::JobKey($key),
+                category: kroma_module_sdk::engine::model::Category::Acquisition,
+                schedule: $schedule,
+                triggers: $triggers,
+                run,
+            };
+
+        pub fn run(
+            $ctx: &kroma_module_sdk::engine::services::jobs::JobContext,
+        ) -> anyhow::Result<()> {
+            if $crate::jobs::acquisition_disabled($ctx) {
+                return Ok(());
+            }
+            $body
+        }
+    };
+}
+pub(crate) use acquisition_job;

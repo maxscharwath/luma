@@ -6,33 +6,21 @@
 
 use anyhow::Result;
 
-use crate::model::{Category, Kind};
-use crate::services::jobs::{Builtin, JobContext, JobKey};
-use crate::services::pipeline::stage::Stage;
+use crate::model::Kind;
+use crate::services::jobs::JobContext;
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// Nightly + manual. The detached scan-time enrich covers fresh scans; this stage
+// keeps the ledger honest (misses -> done) and is retriable.
+stage! {
     short: "metadata",
-    key: "pipeline.metadata",
     subject_kind: "item",
     concurrency: 8,
     pause_for_playback: false,
-    enumerate,
-    process,
-};
-
-/// Nightly + manual. The detached scan-time enrich covers fresh scans; this stage
-/// keeps the ledger honest (misses -> done) and is retriable.
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.metadata"),
-    category: Category::Pipeline,
     schedule: Some("15 4 * * *"),
     triggers: &[],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// Every movie/loose video + every show, signed by `title:year` (a rename

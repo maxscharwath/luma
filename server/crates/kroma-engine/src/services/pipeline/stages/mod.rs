@@ -9,6 +9,8 @@
 //! an `enumerate` (the incremental scope) and a `process` (wrap the existing
 //! per-subject code).
 
+mod common;
+
 pub mod embed;
 pub mod loudness;
 pub mod markers;

@@ -7,36 +7,23 @@
 
 use anyhow::{anyhow, Result};
 
-use crate::model::Category;
-use crate::services::jobs::{Builtin, JobContext, JobKey, Trigger};
-use crate::services::pipeline::stage::Stage;
+use crate::services::jobs::{JobContext, JobKey, Trigger};
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// One season at a time; `detect_season` parallelizes the episode decode internally
+// and yields to playback there, so the dispatcher does not. Nightly, and chained
+// after `subtitles` (the tail of the storyboard -> subtitles -> markers heavy-stage
+// chain, so they run one at a time rather than all firing on the same library
+// change). Also manual.
+stage! {
     short: "markers",
-    key: "pipeline.markers",
     subject_kind: "season",
-    // One season at a time; `detect_season` parallelizes the episode decode
-    // internally and yields to playback there, so the dispatcher does not.
     concurrency: 1,
     pause_for_playback: false,
-    enumerate,
-    process,
-};
-
-/// Drain `Builtin`: nightly, and chained after `subtitles` (the tail of the
-/// storyboard -> subtitles -> markers heavy-stage chain, so they run one at a time
-/// rather than all firing on the same library change). Also manual.
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.markers"),
-    category: Category::Pipeline,
     schedule: Some("30 3 * * *"),
     triggers: &[Trigger::AfterJob(JobKey("pipeline.subtitles"))],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// One subject per season that has at least one probed episode. Subject id is

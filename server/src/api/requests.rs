@@ -60,6 +60,29 @@ fn require_acquisition(state: &SharedState, user: &User) -> Result<(), Response>
     }
 }
 
+/// Manager-only gate shared by the acquisition-backed request routes (search /
+/// auto-search / grab): require `requests.manage`, require the Acquisition module
+/// be enabled, then resolve its search port. Returns the port, or the first
+/// failing gate's response.
+fn require_acquisition_port(
+    state: &SharedState,
+    user: &User,
+) -> Result<std::sync::Arc<dyn kroma_module_sdk::ports::AcquisitionSearchPort>, Response> {
+    require(user, Permission::RequestsManage)?;
+    require_acquisition(state, user)?;
+    acquisition_search(state, user)
+}
+
+/// Shared prologue for the request-listing routes (`list` / `calendar` /
+/// `missing`): require `requests.create`, then decide whether the caller sees
+/// everyone's requests (a `requests.manage` holder, unless `?mine=true`) and hand
+/// back that flag plus the caller's id for scoping the query.
+fn list_scope(user: &User, params: &ListParams) -> Result<(bool, String), Response> {
+    require(user, Permission::RequestsCreate)?;
+    let all = user.can(Permission::RequestsManage) && !params.mine.unwrap_or(false);
+    Ok((all, user.id.clone()))
+}
+
 /// Run a blocking service call whose failures are user-relevant (bad TMDB id,
 /// unknown request...): surface the message as a 400 instead of a mute 500.
 async fn service<T, F>(f: F) -> Result<T, Response>
@@ -102,9 +125,7 @@ pub async fn list(
     AuthUser(user): AuthUser,
     Query(params): Query<ListParams>,
 ) -> Result<Response, Response> {
-    require(&user, Permission::RequestsCreate)?;
-    let all = user.can(Permission::RequestsManage) && !params.mine.unwrap_or(false);
-    let uid = user.id.clone();
+    let (all, uid) = list_scope(&user, &params)?;
     let view = query(&state.db, move |pool| {
         let conn = pool.get()?;
         let scope = if all { None } else { Some(uid.as_str()) };
@@ -148,9 +169,7 @@ pub async fn calendar(
     AuthUser(user): AuthUser,
     Query(params): Query<ListParams>,
 ) -> Result<Response, Response> {
-    require(&user, Permission::RequestsCreate)?;
-    let all = user.can(Permission::RequestsManage) && !params.mine.unwrap_or(false);
-    let uid = user.id.clone();
+    let (all, uid) = list_scope(&user, &params)?;
     let today = crate::services::requests::today_ymd();
     let entries = query(&state.db, move |pool| {
         let conn = pool.get()?;
@@ -169,9 +188,7 @@ pub async fn missing(
     AuthUser(user): AuthUser,
     Query(params): Query<ListParams>,
 ) -> Result<Response, Response> {
-    require(&user, Permission::RequestsCreate)?;
-    let all = user.can(Permission::RequestsManage) && !params.mine.unwrap_or(false);
-    let uid = user.id.clone();
+    let (all, uid) = list_scope(&user, &params)?;
     let today = crate::services::requests::today_ymd();
     let entries = query(&state.db, move |pool| {
         let conn = pool.get()?;
@@ -224,9 +241,7 @@ pub async fn auto_search_one(
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    require(&user, Permission::RequestsManage)?;
-    require_acquisition(&state, &user)?;
-    let port = acquisition_search(&state, &user)?;
+    let port = require_acquisition_port(&state, &user)?;
     let rid = id.clone();
     let grabbed = service(move || {
         let view = port.interactive_search(&state, &rid)?;
@@ -348,9 +363,7 @@ pub async fn interactive_search(
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Response, Response> {
-    require(&user, Permission::RequestsManage)?;
-    require_acquisition(&state, &user)?;
-    let port = acquisition_search(&state, &user)?;
+    let port = require_acquisition_port(&state, &user)?;
     let view = service(move || port.interactive_search(&state, &id)).await?;
     Ok(Json(view).into_response())
 }
@@ -371,9 +384,7 @@ pub async fn grab(
     Path(id): Path<String>,
     Json(body): Json<GrabBody>,
 ) -> Result<Response, Response> {
-    require(&user, Permission::RequestsManage)?;
-    require_acquisition(&state, &user)?;
-    let port = acquisition_search(&state, &user)?;
+    let port = require_acquisition_port(&state, &user)?;
     // The port enqueues (fast) and backgrounds the slow torrent add on the
     // acquisition sidecar, so the request returns right away.
     let rid = id.clone();

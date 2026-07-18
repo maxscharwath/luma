@@ -11,6 +11,7 @@ mod cache;
 mod context;
 pub mod curate;
 pub mod generate;
+mod math;
 mod phrases;
 pub mod taste;
 

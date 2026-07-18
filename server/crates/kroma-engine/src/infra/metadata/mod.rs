@@ -17,6 +17,7 @@
 
 mod cache;
 mod client;
+mod common;
 pub mod discover;
 
 pub use cache::Cache;

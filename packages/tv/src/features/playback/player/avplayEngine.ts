@@ -19,86 +19,34 @@
 // shows an `<object type="application/avplayer">` surface (transparent body)
 // and the HTML chrome + subtitle overlay sit on top.
 
-import type { KromaClient, MediaItem } from '@kroma/core';
+import { type AvplayApi, getAvplay, resolveMasterStart } from '#tv/features/playback/player/engine';
 import {
-  type AvplayApi,
-  type EngineListeners,
-  getAvplay,
-  resolveMasterStart,
-  type TvEngine,
-} from '#tv/features/playback/player/engine';
+  BaseTvEngine,
+  type EngineOptions,
+  NATIVE_SEEK_AHEAD,
+} from '#tv/features/playback/player/baseEngine';
 
-export interface AvplayOptions {
-  client: KromaClient;
-  item: MediaItem;
-  durationSec: number;
-  /** Audio-relative rendition to select once prepared (0 = the master default). */
-  initialRendition: number;
-  /** Initial position (s): master anchor / direct post-prepare seek. */
-  startSec: number;
-  /** Open the original file directly (see the module doc) instead of the master. */
-  direct: boolean;
-  listeners: EngineListeners;
-}
-
-/** In master mode, a native seek beyond this many seconds ahead of the current
- * position is assumed to be past AVPlay's buffer, so we re-anchor instead
- * (faster + no stall over a network mount). Direct mode always seeks natively. */
-const NATIVE_SEEK_AHEAD = 60;
-
-export class AvplayEngine implements TvEngine {
+export class AvplayEngine extends BaseTvEngine {
   readonly kind = 'avplay';
   private readonly api: AvplayApi;
-  private readonly client: KromaClient;
-  private readonly item: MediaItem;
-  private readonly listeners: EngineListeners;
-  private mode: 'direct' | 'master';
-  /** One-shot guard: a failed direct attempt falls back to the master ONCE. */
-  private fellBack = false;
-  private durSec: number;
-  private baseSec: number;
-  private elSec = 0;
-  private paused = false;
-  private destroyed = false;
-  private rendition: number;
-  /** Set on a re-anchor so playback resumes once the new source is prepared. */
-  private resumeOnPrepare = false;
   /** Direct mode: absolute position to seek to right after prepare (resume /
    * fallback hand-off), else null. */
   private pendingSeek: number | null = null;
   private readonly onVisibility: () => void;
 
-  constructor(opts: AvplayOptions) {
+  constructor(opts: EngineOptions) {
+    super(opts);
     const api = getAvplay();
     if (!api) throw new Error('AVPlay unavailable');
     this.api = api;
-    this.client = opts.client;
-    this.item = opts.item;
-    this.listeners = opts.listeners;
-    this.durSec = opts.durationSec;
-    this.mode = opts.direct ? 'direct' : 'master';
-    this.rendition = opts.initialRendition;
     if (this.mode === 'direct') {
-      this.baseSec = 0;
-      this.elSec = opts.startSec;
       this.pendingSeek = opts.startSec > 0.5 ? opts.startSec : null;
-    } else {
-      this.baseSec = opts.startSec;
     }
     this.onVisibility = () => this.handleVisibility();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibility);
     }
     this.open();
-  }
-
-  /** The source URL for the current mode. Direct = the original file (absolute
-   * timeline, no anchor); master = the remux anchored at `baseSec` with the
-   * selected audio muxed in (TV decodes natively → copy master). */
-  private sourceUrl(): string {
-    return this.mode === 'direct'
-      ? this.client.streamUrl(this.item.id)
-      : this.client.hlsMasterUrl(this.item.id, false, this.baseSec, this.rendition);
   }
 
   /** (Re)open the current source and prepare it. An anchored master first
@@ -152,22 +100,6 @@ export class AvplayEngine implements TvEngine {
     }
   }
 
-  /** A prepare/playback failure: a direct attempt retries ONCE as the master at
-   * the same position (a file AVPlay can't demux still plays, remuxed); a
-   * master failure is surfaced. */
-  private fail(): void {
-    if (this.destroyed) return;
-    if (this.mode === 'direct' && !this.fellBack) {
-      this.fellBack = true;
-      const pos = this.position();
-      this.mode = 'master';
-      this.listeners.onWaiting();
-      this.reanchor(pos);
-      return;
-    }
-    this.listeners.onError();
-  }
-
   private onPrepared(): void {
     if (this.destroyed) return;
     try {
@@ -195,8 +127,8 @@ export class AvplayEngine implements TvEngine {
     }
     this.listeners.onDuration(this.durSec);
     this.listeners.onReady(); // the hook drives the FIRST playback start
-    if (this.resumeOnPrepare) {
-      this.resumeOnPrepare = false;
+    if (this.resumeOnLoad) {
+      this.resumeOnLoad = false;
       this.play(); // a re-anchor resumes itself (the hook won't, already started)
     }
   }
@@ -234,15 +166,6 @@ export class AvplayEngine implements TvEngine {
       /* ignore */
     }
   }
-  isPaused(): boolean {
-    return this.paused;
-  }
-  position(): number {
-    return this.baseSec + this.elSec;
-  }
-  duration(): number {
-    return this.durSec;
-  }
   bufferedEnd(): number {
     return this.baseSec + this.elSec;
   }
@@ -274,8 +197,8 @@ export class AvplayEngine implements TvEngine {
 
   /** Reopen the current mode's source at `absSec` (master: a new anchor; direct:
    * a post-prepare seek used by the direct→master fallback hand-off too). */
-  private reanchor(absSec: number): void {
-    this.resumeOnPrepare = !this.paused;
+  protected reanchor(absSec: number): void {
+    this.resumeOnLoad = !this.paused;
     if (this.mode === 'direct') {
       this.baseSec = 0;
       this.elSec = absSec;

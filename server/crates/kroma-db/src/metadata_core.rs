@@ -102,27 +102,20 @@ pub fn get_core(pool: &Pool, kind: &str, id: &str) -> Result<Option<MetaCore>> {
 
 /// Invariant cores for a batch of ids (one query per id-chunk), keyed by id.
 pub fn get_cores(conn: &Connection, kind: &str, ids: &[&str]) -> Result<HashMap<String, MetaCore>> {
-    let mut out = HashMap::new();
-    if ids.is_empty() {
-        return Ok(out);
-    }
-    for chunk in ids.chunks(super::IN_CHUNK) {
-        let ph = vec!["?"; chunk.len()].join(",");
-        let mut stmt = conn.prepare(&format!(
-            "SELECT subject_id,{CORE_COLS} FROM metadata_core \
-             WHERE subject_kind=? AND subject_id IN ({ph})"
-        ))?;
-        let params_iter = std::iter::once(kind).chain(chunk.iter().copied());
-        let rows = stmt.query_map(rusqlite::params_from_iter(params_iter), |r| {
-            // subject_id is col 0; core cols shift by one.
-            Ok((r.get::<_, String>(0)?, row_to_core_offset(r, 1)?))
-        })?;
-        for row in rows {
-            let (id, core) = row?;
-            out.insert(id, core);
-        }
-    }
-    Ok(out)
+    let rows = super::query_by_subject_ids(
+        conn,
+        kind,
+        ids,
+        |ph| {
+            format!(
+                "SELECT subject_id,{CORE_COLS} FROM metadata_core \
+                 WHERE subject_kind=? AND subject_id IN ({ph})"
+            )
+        },
+        // subject_id is col 0; core cols shift by one.
+        |r| Ok((r.get::<_, String>(0)?, row_to_core_offset(r, 1)?)),
+    )?;
+    Ok(rows.into_iter().collect())
 }
 
 /// Row mapper for a `SELECT CORE_COLS` (cols 0..=9).

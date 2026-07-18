@@ -50,17 +50,17 @@ export interface RequestContext {
   blob(path: string, init?: RequestInit): Promise<Blob>;
 }
 
-/** Authed `GET/POST/…` against `${baseUrl}/api${path}`, parsing the JSON body
- * (or `undefined` on 204). Throws {@link KromaApiError} with the parsed error
- * body on a non-2xx response. */
-export async function requestJson<T>(
+/** Shared request core: attach the auth/locale headers, hit `${baseUrl}/api${path}`,
+ * and throw {@link KromaApiError} (with the parsed JSON error body) on a non-2xx
+ * response. Returns the raw `Response` so callers read it as JSON or a `Blob`. */
+async function sendApiRequest(
   fetchFn: typeof globalThis.fetch,
   baseUrl: string,
   authToken: string | undefined,
   locale: string | undefined,
   path: string,
   init?: RequestInit,
-): Promise<T> {
+): Promise<Response> {
   const headers = new Headers(init?.headers);
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
   if (locale) headers.set('Accept-Language', locale);
@@ -75,6 +75,21 @@ export async function requestJson<T>(
       body,
     );
   }
+  return res;
+}
+
+/** Authed `GET/POST/…` against `${baseUrl}/api${path}`, parsing the JSON body
+ * (or `undefined` on 204). Throws {@link KromaApiError} with the parsed error
+ * body on a non-2xx response. */
+export async function requestJson<T>(
+  fetchFn: typeof globalThis.fetch,
+  baseUrl: string,
+  authToken: string | undefined,
+  locale: string | undefined,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await sendApiRequest(fetchFn, baseUrl, authToken, locale, path, init);
   // 204 No Content (progress writes) → nothing to parse.
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -91,18 +106,7 @@ export async function requestBlob(
   path: string,
   init?: RequestInit,
 ): Promise<Blob> {
-  const headers = new Headers(init?.headers);
-  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
-  if (locale) headers.set('Accept-Language', locale);
-  const res = await fetchFn(`${baseUrl}/api${path}`, { ...init, headers });
-  if (!res.ok) {
-    const body = await res.json().catch(() => undefined);
-    throw new KromaApiError(
-      res.status,
-      `${init?.method ?? 'GET'} ${path} failed (${res.status})`,
-      body,
-    );
-  }
+  const res = await sendApiRequest(fetchFn, baseUrl, authToken, locale, path, init);
   return res.blob();
 }
 

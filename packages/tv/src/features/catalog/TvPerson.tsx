@@ -1,5 +1,5 @@
-import type { Metadata, PersonInvolvement, Translate } from '@kroma/core';
-import { creditsPerson, personInvolvement, posterColors } from '@kroma/core';
+import type { Metadata } from '@kroma/core';
+import { creditsPerson, personInvolvement, posterColors, roleLabels } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
@@ -118,26 +118,4 @@ function PersonAvatar({ photo, name }: Readonly<{ photo: string | null; name: st
       )}
     </div>
   );
-}
-
-/** "Acteur" for any cast credit, then each distinct crew job (known jobs
- * translated; anything else shown verbatim). */
-function roleLabels(t: Translate, inv: PersonInvolvement): string[] {
-  const roles: string[] = [];
-  if (inv.acted) roles.push(t('person.role.actor'));
-  for (const job of inv.jobs) roles.push(jobLabel(t, job));
-  return [...new Set(roles)];
-}
-
-function jobLabel(t: Translate, job: string): string {
-  switch (job) {
-    case 'Director':
-      return t('person.role.director');
-    case 'Writer':
-      return t('person.role.writer');
-    case 'Creator':
-      return t('person.role.creator');
-    default:
-      return job;
-  }
 }

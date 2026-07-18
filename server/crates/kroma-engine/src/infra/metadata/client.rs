@@ -7,9 +7,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde::Deserialize;
 use tracing::{debug, warn};
 
-use crate::domain::metadata::{CastMember, CrewMember, Metadata};
+use crate::domain::metadata::{CastMember, Metadata};
 
 use super::cache::Cache;
+use super::common::{build_cast, build_crew, RawCreatedBy, RawCredits};
 
 pub(super) const API: &str = "https://api.themoviedb.org/3";
 pub(super) const IMG: &str = "https://image.tmdb.org/t/p";
@@ -52,9 +53,6 @@ const MAX_CAST: usize = 12;
 
 /// How many key crew to keep (directors first, then writers/creators).
 const MAX_CREW: usize = 8;
-/// TMDB crew jobs we surface the authorship roles, ranked. Anything else
-/// (gaffer, editor, …) is dropped.
-const KEY_CREW_JOBS: &[&str] = &["Director", "Creator", "Writer", "Screenplay", "Story"];
 
 /// How many TMDB keyword tags to keep (TMDB returns them unordered; the cap just
 /// bounds how much thematic text feeds the embedding doc).
@@ -233,18 +231,8 @@ fn fetch_details(
     // rail size, and the key crew (directors first) for collections / the detail
     // "Réalisation" line. TV creators come from the top-level `created_by`.
     let (raw_cast, raw_crew) = d.credits.map(|c| (c.cast, c.crew)).unwrap_or_default();
-    let mut cast_members = raw_cast;
-    cast_members.sort_by_key(|m| m.order.unwrap_or(u32::MAX));
-    let cast: Vec<CastMember> = cast_members
-        .into_iter()
-        .take(MAX_CAST)
-        .map(|m| CastMember {
-            name: m.name,
-            character: m.character.filter(|s| !s.is_empty()),
-            profile_url: m.profile_path.map(|p| format!("{IMG}/w185{p}")),
-        })
-        .collect();
-    let crew = map_crew(raw_crew, d.created_by);
+    let cast = build_cast(raw_cast, MAX_CAST, false);
+    let crew = build_crew(raw_crew, d.created_by, MAX_CREW);
 
     Ok(Metadata {
         provider: "tmdb",
@@ -319,17 +307,7 @@ pub fn season_episodes(api_key: &str, language: &str, tv_id: u64, season: u32) -
             rating: e.vote_average.filter(|v| *v > 0.0),
         })
         .collect();
-    let mut cast_members = resp.credits.map(|c| c.cast).unwrap_or_default();
-    cast_members.sort_by_key(|m| m.order.unwrap_or(u32::MAX));
-    let cast = cast_members
-        .into_iter()
-        .take(MAX_CAST)
-        .map(|m| CastMember {
-            name: m.name,
-            character: m.character.filter(|s| !s.is_empty()),
-            profile_url: m.profile_path.map(|p| format!("{IMG}/w185{p}")),
-        })
-        .collect();
+    let cast = build_cast(resp.credits.map(|c| c.cast).unwrap_or_default(), MAX_CAST, false);
     SeasonData { episodes, cast }
 }
 
@@ -357,7 +335,7 @@ struct SeasonResp {
     #[serde(default)]
     episodes: Vec<RawEpisode>,
     #[serde(default)]
-    credits: Option<Credits>,
+    credits: Option<RawCredits>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -489,9 +467,9 @@ struct Details {
     #[serde(default)]
     external_ids: Option<ExternalIds>, // appended (carries imdb_id for shows)
     #[serde(default)]
-    credits: Option<Credits>, // appended (cast + crew)
+    credits: Option<RawCredits>, // appended (cast + crew)
     #[serde(default)]
-    created_by: Vec<CreatedBy>, // TV series creators (top-level on show details)
+    created_by: Vec<RawCreatedBy>, // TV series creators (top-level on show details)
     #[serde(default)]
     images: Option<Images>, // appended (logos)
     #[serde(default)]
@@ -578,66 +556,6 @@ struct ExternalIds {
     /// TheTVDB series id (present on TV external_ids; absent for movies).
     #[serde(default)]
     tvdb_id: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Credits {
-    #[serde(default)]
-    cast: Vec<RawCast>,
-    #[serde(default)]
-    crew: Vec<RawCrew>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawCast {
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    character: Option<String>,
-    #[serde(default)]
-    profile_path: Option<String>,
-    #[serde(default)]
-    order: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawCrew {
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    job: String,
-}
-
-/// TV `created_by` block (top-level on series details) the show's creators.
-#[derive(Debug, Deserialize)]
-struct CreatedBy {
-    #[serde(default)]
-    name: String,
-}
-
-/// Map TMDB crew + TV creators into our capped, deduped [`CrewMember`] list:
-/// authorship roles only, directors/creators first, one entry per person (their
-/// most senior role wins).
-fn map_crew(crew: Vec<RawCrew>, created_by: Vec<CreatedBy>) -> Vec<CrewMember> {
-    let rank = |job: &str| KEY_CREW_JOBS.iter().position(|j| *j == job).unwrap_or(usize::MAX);
-    let mut candidates: Vec<(usize, CrewMember)> = crew
-        .into_iter()
-        .filter(|c| !c.name.is_empty() && KEY_CREW_JOBS.contains(&c.job.as_str()))
-        .map(|c| (rank(&c.job), CrewMember { name: c.name, job: c.job, profile_url: None }))
-        .collect();
-    // TV creators (no crew "Director" on series) → treat as "Creator".
-    for cb in created_by.into_iter().filter(|c| !c.name.is_empty()) {
-        candidates.push((rank("Creator"), CrewMember { name: cb.name, job: "Creator".into(), profile_url: None }));
-    }
-    // Most senior role first; keep one row per person.
-    candidates.sort_by_key(|(r, _)| *r);
-    let mut seen = std::collections::HashSet::new();
-    candidates
-        .into_iter()
-        .filter(|(_, m)| seen.insert(m.name.clone()))
-        .map(|(_, m)| m)
-        .take(MAX_CREW)
-        .collect()
 }
 
 #[cfg(test)]

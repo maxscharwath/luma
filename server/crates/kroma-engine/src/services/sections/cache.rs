@@ -11,6 +11,7 @@ use std::sync::{Arc, RwLock};
 use anyhow::Result;
 
 use crate::db::{self, Pool};
+use crate::services::sections::math::{dot, normalize};
 
 type Snapshot = Arc<Vec<(String, Vec<f32>)>>;
 
@@ -111,18 +112,5 @@ impl VectorCache {
 impl Default for VectorCache {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-fn dot(a: &[f32], b: &[f32]) -> f32 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-fn normalize(v: &mut [f32]) {
-    let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm > 0.0 {
-        for x in v.iter_mut() {
-            *x /= norm;
-        }
     }
 }

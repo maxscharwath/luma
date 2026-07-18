@@ -7,33 +7,21 @@
 use anyhow::{anyhow, Result};
 
 use kroma_domain::build_doc;
-use crate::model::{Category, Kind, Metadata};
-use crate::services::jobs::{Builtin, JobContext, JobKey, Trigger};
-use crate::services::pipeline::stage::Stage;
+use crate::model::{Kind, Metadata};
+use crate::services::jobs::{JobContext, JobKey, Trigger};
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// BERT embedding is in-process CPU work, so it yields to live playback. Nightly +
+// after the metadata stage (fresh metadata -> fresh embedding) + manual.
+stage! {
     short: "embed",
-    key: "pipeline.embed",
     subject_kind: "item",
     concurrency: 4,
-    // BERT embedding is in-process CPU work; yield it to live playback too.
     pause_for_playback: true,
-    enumerate,
-    process,
-};
-
-/// Nightly + after the metadata stage (fresh metadata -> fresh embedding) + manual.
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.embed"),
-    category: Category::Pipeline,
     schedule: Some("45 4 * * *"),
     triggers: &[Trigger::AfterJob(JobKey("pipeline.metadata"))],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// Every movie/show that already has metadata, signed by the active embedder's

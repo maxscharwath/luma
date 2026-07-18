@@ -4,6 +4,63 @@ use super::*;
 
 use kroma_domain::{Season, Show, ShowDetail};
 
+/// `SELECT … FROM shows s` with the season/episode-count correlated subqueries;
+/// callers append their own `WHERE`/`ORDER BY` and map rows with
+/// [`row_to_show_counted`].
+const SHOWS_COUNTED_SELECT: &str = "SELECT s.id,s.title,s.year,s.library,s.added_at,\
+    (SELECT COUNT(DISTINCT i.season) FROM items i WHERE i.show_id=s.id),\
+    (SELECT COUNT(*) FROM items i WHERE i.show_id=s.id),\
+    s.metadata \
+ FROM shows s";
+
+/// Map a `shows` row selected via [`SHOWS_COUNTED_SELECT`]
+/// (`id,title,year,library,added_at,season_count,episode_count,metadata`) into a
+/// [`Show`]; its representative `video` is filled in afterwards.
+fn row_to_show_counted(r: &Row) -> rusqlite::Result<Show> {
+    Ok(Show {
+        id: r.get(0)?,
+        title: r.get(1)?,
+        year: r.get(2)?,
+        library: r.get(3)?,
+        added_at: r.get(4)?,
+        season_count: r.get::<_, i64>(5)? as u32,
+        episode_count: r.get::<_, i64>(6)? as u32,
+        video: None,
+        metadata: parse_metadata(r.get(7)?),
+        progress: None,
+    })
+}
+
+/// Map a `shows` row selected as `id,title,year,library,added_at,metadata` (no
+/// count subqueries) into a [`Show`] with zeroed season/episode counts (the
+/// caller fills real counts in later when it needs them).
+fn row_to_show_bare(r: &Row) -> rusqlite::Result<Show> {
+    Ok(Show {
+        id: r.get(0)?,
+        title: r.get(1)?,
+        year: r.get(2)?,
+        library: r.get(3)?,
+        added_at: r.get(4)?,
+        season_count: 0,
+        episode_count: 0,
+        video: None,
+        metadata: parse_metadata(r.get(5)?),
+        progress: None,
+    })
+}
+
+/// Map five consecutive stream columns starting at `base`
+/// (`v_codec,v_width,v_height,v_hdr,v_bit_depth`) into a [`VideoStream`].
+fn row_to_video_at(r: &Row, base: usize) -> rusqlite::Result<VideoStream> {
+    Ok(VideoStream {
+        codec: r.get::<_, String>(base)?,
+        width: r.get(base + 1)?,
+        height: r.get(base + 2)?,
+        hdr: r.get::<_, Option<i64>>(base + 3)?.unwrap_or(0) != 0,
+        bit_depth: r.get(base + 4)?,
+    })
+}
+
 /// (libraries, items, shows) counts for `/api/health`.
 pub fn counts(pool: &Pool) -> Result<(usize, usize, usize)> {
     let conn = pool.get()?;
@@ -53,34 +110,14 @@ pub fn list_shows(pool: &Pool, library: Option<&str>) -> Result<Vec<Show>> {
         Some(_) => ("WHERE s.library = ?1", true),
         None => ("", false),
     };
-    let sql = format!(
-        "SELECT s.id,s.title,s.year,s.library,s.added_at,\
-            (SELECT COUNT(DISTINCT i.season) FROM items i WHERE i.show_id=s.id),\
-            (SELECT COUNT(*) FROM items i WHERE i.show_id=s.id),\
-            s.metadata \
-         FROM shows s {where_sql} ORDER BY s.title COLLATE NOCASE",
-    );
+    let sql = format!("{SHOWS_COUNTED_SELECT} {where_sql} ORDER BY s.title COLLATE NOCASE");
     let mut stmt = conn.prepare(&sql)?;
 
-    let map = |r: &Row| -> rusqlite::Result<Show> {
-        Ok(Show {
-            id: r.get(0)?,
-            title: r.get(1)?,
-            year: r.get(2)?,
-            library: r.get(3)?,
-            added_at: r.get(4)?,
-            season_count: r.get::<_, i64>(5)? as u32,
-            episode_count: r.get::<_, i64>(6)? as u32,
-            video: None,
-            metadata: parse_metadata(r.get(7)?),
-            progress: None,
-        })
-    };
     let mut shows: Vec<Show> = if want_lib {
-        stmt.query_map(params![library.unwrap()], map)?
+        stmt.query_map(params![library.unwrap()], row_to_show_counted)?
             .collect::<rusqlite::Result<Vec<_>>>()?
     } else {
-        stmt.query_map([], map)?.collect::<rusqlite::Result<Vec<_>>>()?
+        stmt.query_map([], row_to_show_counted)?.collect::<rusqlite::Result<Vec<_>>>()?
     };
 
     apply_representative_videos(&conn, &mut shows)?;
@@ -98,20 +135,7 @@ pub fn index_snapshot(pool: &Pool) -> Result<(Vec<MediaItem>, Vec<Show>)> {
         stmt.query_map([], row_to_item)?.collect::<rusqlite::Result<Vec<_>>>()?;
     let mut stmt = conn.prepare("SELECT id,title,year,library,added_at,metadata FROM shows")?;
     let shows: Vec<Show> = stmt
-        .query_map([], |r| {
-            Ok(Show {
-                id: r.get(0)?,
-                title: r.get(1)?,
-                year: r.get(2)?,
-                library: r.get(3)?,
-                added_at: r.get(4)?,
-                season_count: 0,
-                episode_count: 0,
-                video: None,
-                metadata: parse_metadata(r.get(5)?),
-                progress: None,
-            })
-        })?
+        .query_map([], row_to_show_bare)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok((items, shows))
 }
@@ -141,29 +165,10 @@ pub fn get_shows_by_ids(pool: &Pool, ids: &[String]) -> Result<Vec<Show>> {
     }
     let conn = pool.get()?;
     let placeholders = vec!["?"; ids.len()].join(",");
-    let sql = format!(
-        "SELECT s.id,s.title,s.year,s.library,s.added_at,\
-            (SELECT COUNT(DISTINCT i.season) FROM items i WHERE i.show_id=s.id),\
-            (SELECT COUNT(*) FROM items i WHERE i.show_id=s.id),\
-            s.metadata \
-         FROM shows s WHERE s.id IN ({placeholders})",
-    );
+    let sql = format!("{SHOWS_COUNTED_SELECT} WHERE s.id IN ({placeholders})");
     let mut stmt = conn.prepare(&sql)?;
     let mut shows: Vec<Show> = stmt
-        .query_map(rusqlite::params_from_iter(ids.iter()), |r| {
-            Ok(Show {
-                id: r.get(0)?,
-                title: r.get(1)?,
-                year: r.get(2)?,
-                library: r.get(3)?,
-                added_at: r.get(4)?,
-                season_count: r.get::<_, i64>(5)? as u32,
-                episode_count: r.get::<_, i64>(6)? as u32,
-                video: None,
-                metadata: parse_metadata(r.get(7)?),
-                progress: None,
-            })
-        })?
+        .query_map(rusqlite::params_from_iter(ids.iter()), row_to_show_counted)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     apply_representative_videos(&conn, &mut shows)?;
     Ok(shows)
@@ -214,20 +219,7 @@ pub fn get_show(pool: &Pool, id: &str) -> Result<Option<ShowDetail>> {
         .query_row(
             "SELECT id,title,year,library,added_at,metadata FROM shows WHERE id = ?1",
             params![id],
-            |r| {
-                Ok(Show {
-                    id: r.get(0)?,
-                    title: r.get(1)?,
-                    year: r.get(2)?,
-                    library: r.get(3)?,
-                    added_at: r.get(4)?,
-                    season_count: 0,
-                    episode_count: 0,
-                    video: None,
-                    metadata: parse_metadata(r.get(5)?),
-                    progress: None,
-                })
-            },
+            row_to_show_bare,
         )
         .ok();
 
@@ -287,16 +279,7 @@ fn apply_representative_videos(conn: &rusqlite::Connection, shows: &mut [Show]) 
              ORDER BY f.v_width DESC NULLS LAST",
         ))?;
         let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                VideoStream {
-                    codec: r.get::<_, String>(1)?,
-                    width: r.get(2)?,
-                    height: r.get(3)?,
-                    hdr: r.get::<_, Option<i64>>(4)?.unwrap_or(0) != 0,
-                    bit_depth: r.get(5)?,
-                },
-            ))
+            Ok((r.get::<_, String>(0)?, row_to_video_at(r, 1)?))
         })?;
         for row in rows {
             let (show_id, video) = row?;
@@ -318,15 +301,7 @@ fn representative_video(conn: &rusqlite::Connection, show_id: &str) -> Result<Op
          WHERE i.show_id = ?1 AND f.probed = 1 AND f.v_codec IS NOT NULL \
          ORDER BY f.v_width DESC NULLS LAST LIMIT 1",
     )?;
-    let mut rows = stmt.query_map(params![show_id], |r| {
-        Ok(VideoStream {
-            codec: r.get::<_, String>(0)?,
-            width: r.get(1)?,
-            height: r.get(2)?,
-            hdr: r.get::<_, Option<i64>>(3)?.unwrap_or(0) != 0,
-            bit_depth: r.get(4)?,
-        })
-    })?;
+    let mut rows = stmt.query_map(params![show_id], |r| row_to_video_at(r, 0))?;
     match rows.next() {
         Some(v) => Ok(Some(v?)),
         None => Ok(None),

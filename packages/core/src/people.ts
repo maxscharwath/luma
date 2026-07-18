@@ -3,6 +3,7 @@
 // name so all of this keys off a case-insensitive name comparison.
 
 import type { Metadata } from '@kroma/client';
+import type { Translate } from './i18n';
 
 /** Case-insensitive, trimmed name equality (TMDB credit names). */
 function sameName(a: string, b: string): boolean {
@@ -78,4 +79,27 @@ export function personDisplayName(
     for (const c of meta.crew ?? []) if (sameName(c.name, name)) return c.name;
   }
   return name;
+}
+
+/** Localized role chips for a person: "Acteur" for any cast credit, then each
+ * distinct crew job (known jobs translated; anything else shown verbatim). */
+export function roleLabels(t: Translate, inv: PersonInvolvement): string[] {
+  const roles: string[] = [];
+  if (inv.acted) roles.push(t('person.role.actor'));
+  for (const job of inv.jobs) roles.push(jobLabel(t, job));
+  return [...new Set(roles)];
+}
+
+/** The localized label for a single crew job (verbatim when unknown). */
+export function jobLabel(t: Translate, job: string): string {
+  switch (job) {
+    case 'Director':
+      return t('person.role.director');
+    case 'Writer':
+      return t('person.role.writer');
+    case 'Creator':
+      return t('person.role.creator');
+    default:
+      return job;
+  }
 }

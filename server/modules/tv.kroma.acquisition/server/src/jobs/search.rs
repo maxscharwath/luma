@@ -3,33 +3,23 @@
 //! searched first) and grab the best accepted release per target. Fired by
 //! the cron and immediately after a request is approved.
 
-use anyhow::Result;
-use kroma_module_sdk::engine::model::Category;
-use kroma_module_sdk::engine::services::jobs::{Builtin, JobContext, JobKey};
-
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("acquisition.search"),
-    category: Category::Acquisition,
+crate::jobs::acquisition_job! {
+    key: "acquisition.search",
     schedule: Some("*/30 * * * *"),
     triggers: &[],
-    run,
-};
-
-pub fn run(ctx: &JobContext) -> Result<()> {
-    if super::acquisition_disabled(ctx) {
-        return Ok(());
+    run: |ctx| {
+        let summary = crate::auto::auto_search_pass(
+            &ctx.state,
+            &|line| ctx.info(line),
+            &|| ctx.cancelled(),
+        )?;
+        for e in summary.errors.iter().take(10) {
+            ctx.warn(e.clone());
+        }
+        ctx.info(format!(
+            "searched {} targets across {} requests, grabbed {}",
+            summary.targets, summary.requests, summary.grabbed
+        ));
+        Ok(())
     }
-    let summary = crate::auto::auto_search_pass(
-        &ctx.state,
-        &|line| ctx.info(line),
-        &|| ctx.cancelled(),
-    )?;
-    for e in summary.errors.iter().take(10) {
-        ctx.warn(e.clone());
-    }
-    ctx.info(format!(
-        "searched {} targets across {} requests, grabbed {}",
-        summary.targets, summary.requests, summary.grabbed
-    ));
-    Ok(())
 }

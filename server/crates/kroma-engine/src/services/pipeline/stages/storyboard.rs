@@ -6,35 +6,21 @@
 
 use anyhow::{anyhow, Result};
 
-use crate::model::Category;
-use crate::services::jobs::{Builtin, JobContext, JobKey, Trigger};
-use crate::services::pipeline::stage::Stage;
+use crate::services::jobs::{JobContext, Trigger};
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// Two concurrent ffmpeg passes, matching the engine's own gate; the dispatcher
+// pauses between items while anyone is streaming. Nightly, on a library change, and
+// manually.
+stage! {
     short: "storyboard",
-    key: "pipeline.storyboard",
     subject_kind: "item",
-    // Two concurrent ffmpeg passes, matching the engine's own gate; the dispatcher
-    // pauses between items while anyone is streaming.
     concurrency: 2,
     pause_for_playback: true,
-    enumerate,
-    process,
-};
-
-/// Drain `Builtin`: nightly, on a library change, and manually. Runs the shared
-/// dispatcher over [`STAGE`].
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.storyboard"),
-    category: Category::Pipeline,
     schedule: Some("0 2 * * *"),
     triggers: &[Trigger::LibraryChange],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// Every playable item (has a backing file + a known duration), signed by that

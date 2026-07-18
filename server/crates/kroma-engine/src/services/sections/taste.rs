@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use crate::db::{self, Pool};
+use crate::services::sections::math::{dot, normalize};
 use crate::services::sections::VectorCache;
 
 /// Minimum distinct watched titles (with embeddings) before clustering is worth
@@ -194,19 +195,6 @@ fn mean(vectors: &[&[f32]]) -> Vec<f32> {
     }
     normalize(&mut sum);
     sum
-}
-
-fn dot(a: &[f32], b: &[f32]) -> f32 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-fn normalize(v: &mut [f32]) {
-    let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm > 0.0 {
-        for x in v.iter_mut() {
-            *x /= norm;
-        }
-    }
 }
 
 #[cfg(test)]

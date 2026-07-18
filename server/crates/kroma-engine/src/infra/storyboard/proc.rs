@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// A cheap "should I stop?" poll threaded through the ffmpeg passes so cancelling
 /// the job interrupts the current pass at the next tick. `Sync` so the scoped tile
@@ -15,91 +15,22 @@ pub(super) type Cancel<'a> = &'a (dyn Fn() -> bool + Sync);
 /// Distinct temp suffixes so two concurrent writers never clobber each other.
 pub(super) static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// Spawn `cmd`, wait up to `dur` (killing it on timeout), and **capture stderr**
-/// so a failure can explain itself the previous version discarded stderr, which
-/// is exactly why a broken pass left no trace. `Ok(())` on a clean exit;
-/// `Err(reason)` on a spawn error (ffmpeg missing), a non-zero exit (with the
-/// stderr tail), or a timeout. A sync stand-in for `tokio::time::timeout`
-/// (generation runs on a blocking thread).
+/// Spawn `cmd`, wait up to `dur` (killing it on timeout), and capture stderr so a
+/// failure can explain itself. A thin wrapper over the shared
+/// [`crate::infra::ffmpeg_run`] runner (also used by subtitle extraction).
 pub(super) fn run_capturing(cmd: Command, dur: Duration) -> std::result::Result<(), String> {
-    run_capturing_cancellable(cmd, dur, &|| false)
+    crate::infra::ffmpeg_run::run_capturing(cmd, dur)
 }
 
-/// [`run_capturing`] that also polls `cancel` each tick, killing the child and
-/// returning `Err("cancelled")` the moment it flips so a cancelled job/stage stops
-/// the in-flight ffmpeg (a tile seek can otherwise hang up to `TILE_TIMEOUT`)
-/// instead of waiting out `dur`.
+/// [`run_capturing`] that also polls `cancel` each tick, killing the in-flight
+/// ffmpeg the moment it flips so a cancelled job/stage stops (a tile seek can
+/// otherwise hang up to `TILE_TIMEOUT`) instead of waiting out `dur`.
 pub(super) fn run_capturing_cancellable(
-    mut cmd: Command,
+    cmd: Command,
     dur: Duration,
     cancel: Cancel,
 ) -> std::result::Result<(), String> {
-    use std::io::Read;
-    // One slot from the process-wide ffmpeg budget, held until this pass exits, so
-    // the tile fan-out + montage + jpeg never oversubscribe the box (see
-    // `infra::ffmpeg_gate`). Acquired before spawn; released on return.
-    let _permit = crate::infra::ffmpeg_gate::acquire();
-    cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("could not start ffmpeg (is it installed and on PATH?): {e}"))?;
-    // Drain stderr on a side thread so a chatty child can never deadlock on a full
-    // pipe buffer while we poll for the timeout.
-    let drain = child.stderr.take().map(|mut s| {
-        std::thread::spawn(move || {
-            let mut buf = String::new();
-            let _ = s.read_to_string(&mut buf);
-            buf
-        })
-    });
-    let start = Instant::now();
-    // Poll with exponential backoff: a sub-second tile seek is noticed in a few
-    // ms (a fixed 200 ms sleep would waste up to that per tile, and there are
-    // hundreds), while a long montage never busy-spins.
-    let mut backoff = Duration::from_millis(2);
-    let outcome = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Ok(status),
-            Ok(None) => {
-                if cancel() {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break Err("cancelled".to_string());
-                }
-                if start.elapsed() >= dur {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break Err(format!("timed out after {}s", dur.as_secs()));
-                }
-                std::thread::sleep(backoff);
-                backoff = (backoff * 2).min(Duration::from_millis(100));
-            }
-            Err(e) => break Err(format!("waiting on ffmpeg failed: {e}")),
-        }
-    };
-    let stderr = drain.and_then(|h| h.join().ok()).unwrap_or_default();
-    match outcome {
-        Ok(status) if status.success() => Ok(()),
-        Ok(status) => {
-            let code = status.code().map_or_else(|| "killed by signal".to_string(), |c| format!("exit {c}"));
-            Err(format!("{code}{}", stderr_tail(&stderr)))
-        }
-        Err(reason) => Err(reason),
-    }
-}
-
-/// A compact, single-line tail of captured stderr for an error/log line (so a
-/// failure shows ffmpeg's own message without flooding the log).
-fn stderr_tail(stderr: &str) -> String {
-    let cleaned: String = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
-    if cleaned.is_empty() {
-        return String::new();
-    }
-    let n = cleaned.chars().count();
-    let tail: String = cleaned.chars().skip(n.saturating_sub(300)).collect();
-    format!(" ({tail})")
+    crate::infra::ffmpeg_run::run_capturing_cancellable(cmd, dur, cancel)
 }
 
 /// A unique sibling temp path for `out` that KEEPS `out`'s extension last (so

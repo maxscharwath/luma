@@ -1,14 +1,14 @@
-// Loading-placeholder kit. One `Skeleton` primitive (a pulsing surface block)
-// plus composites shaped like the real layouts they stand in for — rails, the
-// title-detail page, admin tables/cards — so a loading screen keeps the page's
-// structure instead of a blank gap or a spinner. Used as `<Suspense>` fallbacks
-// and route `pendingComponent`s. Every list here is a fixed-length placeholder
-// that never reorders, so an index key is correct.
+// Loading-placeholder kit. The base `Skeleton` primitive plus the admin
+// table/card shells come from the design system (@kroma/ui); this file adds the
+// catalogue-specific composites shaped like the real layouts they stand in for
+// (rails, the title-detail page) so a loading screen keeps the page's structure
+// instead of a blank gap or a spinner. Used as `<Suspense>` fallbacks and route
+// `pendingComponent`s. Every list here is a fixed-length placeholder that never
+// reorders, so an index key is correct.
 
-/** A single pulsing placeholder block. Size/shape via `className` (Tailwind). */
-export function Skeleton({ className = '' }: Readonly<{ className?: string }>) {
-  return <div className={`animate-pulse rounded bg-white/[0.06] ${className}`} />;
-}
+import { Skeleton } from '@kroma/ui';
+
+export { CardSkeleton, Skeleton, TableSkeleton } from '@kroma/ui';
 
 /** A stack of text-line placeholders; the last line is shortened like real text. */
 export function SkeletonText({
@@ -100,40 +100,5 @@ export function DetailSkeleton() {
         <RailSkeleton count={6} />
       </div>
     </main>
-  );
-}
-
-/** Admin list/table placeholder: a header bar + evenly spaced rows. */
-export function TableSkeleton({ rows = 8 }: Readonly<{ rows?: number }>) {
-  return (
-    <div className="mt-4 space-y-3">
-      <div className="space-y-2 rounded-xl border border-border-strong bg-surface-1 p-3">
-        {Array.from({ length: rows }, (_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-          <div key={i} className="flex items-center gap-4 py-2">
-            <Skeleton className="h-9 w-9 rounded-lg" />
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-8 w-20 rounded-lg" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Admin settings/card placeholder: a titled panel with a few field rows. */
-export function CardSkeleton({ fields = 4 }: Readonly<{ fields?: number }>) {
-  return (
-    <div className="space-y-4 rounded-xl border border-border-strong bg-surface-1 p-6">
-      <Skeleton className="h-6 w-40" />
-      {Array.from({ length: fields }, (_, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder fields
-        <div key={i} className="space-y-2">
-          <Skeleton className="h-3.5 w-28 bg-white/[0.04]" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-        </div>
-      ))}
-    </div>
   );
 }

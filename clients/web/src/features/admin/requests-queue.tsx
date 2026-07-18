@@ -4,15 +4,23 @@
 
 import { KromaEvents, type MediaRequest, type RequestStatus } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { IconInbox, IconSearch, IconX } from '@tabler/icons-react';
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { IconInbox } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 import { RequestDrawer } from '#web/features/admin/request-drawer';
 import { RequestRowView } from '#web/features/admin/request-row';
 import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
+import {
+  Chip,
+  ConsoleSearch,
+  ConsoleSummary,
+  ConsoleToast,
+  Head,
+  useConsoleToast,
+  useThrottledReload,
+} from '#web/features/admin/table-console';
 import { apiBase } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { EmptyState, TableSkeleton } from '#web/shared/ui';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '#web/shared/ui/input-group';
 
 /** Filter-chip buckets over the wire statuses. */
 const BUCKETS: Record<string, (s: RequestStatus) => boolean> = {
@@ -37,7 +45,7 @@ export function RequestsQueuePage() {
   const [q, setQ] = useState('');
   const [drawer, setDrawer] = useState<MediaRequest | null>(null);
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<{ text: string; on: boolean }>({ text: '', on: false });
+  const { toast, flash } = useConsoleToast();
 
   const { data, reload } = usePoll(
     ['admin', 'requests', 'all'],
@@ -47,13 +55,7 @@ export function RequestsQueuePage() {
 
   // Event-driven refresh, coalesced (request.updated is low-frequency, but an
   // approval fans out into several transitions in a row).
-  const lastReloadRef = useRef(0);
-  const throttledReload = useCallback(() => {
-    const now = Date.now();
-    if (now - lastReloadRef.current < 1500) return;
-    lastReloadRef.current = now;
-    reload();
-  }, [reload]);
+  const throttledReload = useThrottledReload(reload);
   useEffect(() => {
     const ev = new KromaEvents(apiBase(), {
       onEvent: (e) => {
@@ -71,10 +73,6 @@ export function RequestsQueuePage() {
     setDrawer(fresh ?? null);
   }, [data, drawer]);
 
-  const flash = (text: string) => {
-    setToast({ text, on: true });
-    window.setTimeout(() => setToast((s) => ({ ...s, on: false })), 2800);
-  };
   const act = (label: string, fn: () => Promise<unknown>) => {
     if (!canReview) return;
     setBusy(true);
@@ -111,36 +109,15 @@ export function RequestsQueuePage() {
       <PageHeader
         title={t('admin.requestsTitle')}
         action={
-          <div className="w-80 max-w-full">
-            <InputGroup className="h-11">
-              <InputGroupAddon>
-                <IconSearch size={17} />
-              </InputGroupAddon>
-              <InputGroupInput
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={t('requests.searchPlaceholder')}
-                className="text-[14px] font-semibold"
-              />
-              {q ? (
-                <button
-                  type="button"
-                  onClick={() => setQ('')}
-                  className="shrink-0 text-white/50 hover:text-white"
-                >
-                  <IconX size={16} stroke={2.2} />
-                </button>
-              ) : null}
-            </InputGroup>
-          </div>
+          <ConsoleSearch value={q} onChange={setQ} placeholder={t('requests.searchPlaceholder')} />
         }
       />
-      <p className="mb-5 mt-1.5 text-[14.5px] font-medium text-dim">
-        <span className="font-bold text-white">{(c?.total ?? 0).toLocaleString()}</span>{' '}
-        {t('requests.totalLabel')} ·{' '}
-        <span className="font-bold text-accent">{(c?.pending ?? 0).toLocaleString()}</span>{' '}
-        {t('requests.pendingLabel')}
-      </p>
+      <ConsoleSummary
+        total={c?.total ?? 0}
+        totalLabel={t('requests.totalLabel')}
+        accent={c?.pending ?? 0}
+        accentLabel={t('requests.pendingLabel')}
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
         <Chip
@@ -221,50 +198,7 @@ export function RequestsQueuePage() {
         onDelete={() => drawer && removeReq(drawer)}
       />
 
-      <div
-        className="pointer-events-none fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 transition-all duration-200"
-        style={{
-          opacity: toast.on ? 1 : 0,
-          transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)`,
-        }}
-      >
-        <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#1C1C22] px-[18px] py-2.5 shadow-[0_20px_50px_rgba(0,0,0,.55)]">
-          <span className="h-2 w-2 flex-[0_0_8px] rounded-full bg-accent" />
-          <span className="text-[13.5px] font-semibold text-white">{toast.text}</span>
-        </div>
-      </div>
+      <ConsoleToast toast={toast} />
     </>
-  );
-}
-
-function Head({ children, className = '' }: Readonly<{ children: ReactNode; className?: string }>) {
-  return (
-    <span
-      className={`text-[9.5px] font-bold uppercase tracking-[.12em] text-white/40 ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function Chip({
-  label,
-  count,
-  dot,
-  on,
-  onClick,
-}: Readonly<{ label: string; count?: number; dot?: string; on: boolean; onClick: () => void }>) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors ${on ? 'border-accent/35 bg-accent/[0.14] text-accent' : 'border-white/[0.08] bg-[#15151A] text-white/65'}`}
-    >
-      {dot ? <span className="h-[7px] w-[7px] rounded-full" style={{ background: dot }} /> : null}
-      {label}
-      {count != null ? (
-        <span className="tabular-nums opacity-60">{count.toLocaleString()}</span>
-      ) : null}
-    </button>
   );
 }

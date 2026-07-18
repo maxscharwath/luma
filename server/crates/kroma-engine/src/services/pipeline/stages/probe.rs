@@ -7,33 +7,20 @@
 
 use anyhow::Result;
 
-use crate::model::Category;
-use crate::services::jobs::{Builtin, JobContext, JobKey};
-use crate::services::pipeline::stage::Stage;
+use crate::services::jobs::JobContext;
 use crate::state::SharedState;
 
-pub const STAGE: Stage = Stage {
+use super::common::stage;
+
+// Nightly + manual. Not chained after a scan: the detached scan-time pass covers
+// that, and racing it would double-ffprobe the same files.
+stage! {
     short: "probe",
-    key: "pipeline.probe",
     subject_kind: "file",
     concurrency: 4,
     pause_for_playback: false,
-    enumerate,
-    process,
-};
-
-/// Nightly + manual. Not chained after a scan: the detached scan-time pass covers
-/// that, and racing it would double-ffprobe the same files.
-pub const SPEC: Builtin = Builtin {
-    key: JobKey("pipeline.probe"),
-    category: Category::Pipeline,
     schedule: Some("0 1 * * *"),
     triggers: &[],
-    run,
-};
-
-fn run(ctx: &JobContext) -> Result<()> {
-    crate::services::pipeline::dispatcher::run(&STAGE, ctx)
 }
 
 /// Every file, signed by `mtime:size` (a replaced file re-probes).

@@ -10,13 +10,12 @@ use crate::domain::metadata::{CastMember, CrewMember};
 use crate::model::RequestKind;
 
 use super::client::{curl_json, API, IMG};
+use super::common::{build_cast, build_crew, RawCreatedBy, RawCredits};
 
 /// How many top-billed cast / similar titles to keep on a discovery detail.
 const MAX_CAST: usize = 12;
 const MAX_CREW: usize = 6;
 const MAX_SIMILAR: usize = 12;
-/// TMDB crew jobs surfaced on the discovery detail (authorship roles, ranked).
-const KEY_CREW_JOBS: &[&str] = &["Director", "Creator", "Writer", "Screenplay", "Story"];
 
 /// One search/trending hit, unflagged.
 #[derive(Debug, Clone)]
@@ -188,8 +187,8 @@ pub fn detail(
         })
         .collect();
     let (raw_cast, raw_crew) = d.credits.map(|c| (c.cast, c.crew)).unwrap_or_default();
-    let cast = map_cast(raw_cast);
-    let crew = map_crew(raw_crew, d.created_by);
+    let cast = build_cast(raw_cast, MAX_CAST, true);
+    let crew = build_crew(raw_crew, d.created_by, MAX_CREW);
     // `recommendations` is a `movie` detail even when appended to a `tv` detail,
     // so the media_type is implied by the parent title's kind.
     let similar = d
@@ -272,42 +271,6 @@ fn typed_release(block: &ReleaseDatesCountry, want: u32) -> Option<String> {
 /// Truncate a TMDB date/datetime ("2024-02-27T00:00:00.000Z") to `YYYY-MM-DD`.
 fn ymd(s: &str) -> Option<String> {
     s.get(..10).map(str::to_string)
-}
-
-/// Top-billed cast (TMDB orders by `order` ascending; sort defensively), capped.
-fn map_cast(mut raw: Vec<RawCast>) -> Vec<CastMember> {
-    raw.sort_by_key(|m| m.order.unwrap_or(u32::MAX));
-    raw.into_iter()
-        .filter(|m| !m.name.is_empty())
-        .take(MAX_CAST)
-        .map(|m| CastMember {
-            name: m.name,
-            character: m.character.filter(|s| !s.is_empty()),
-            profile_url: m.profile_path.map(|p| format!("{IMG}/w185{p}")),
-        })
-        .collect()
-}
-
-/// Authorship crew (directors/creators first), one row per person, capped. TV
-/// series carry their creators in the top-level `created_by` block instead.
-fn map_crew(crew: Vec<RawCrew>, created_by: Vec<RawCreatedBy>) -> Vec<CrewMember> {
-    let rank = |job: &str| KEY_CREW_JOBS.iter().position(|j| *j == job).unwrap_or(usize::MAX);
-    let mut candidates: Vec<(usize, CrewMember)> = crew
-        .into_iter()
-        .filter(|c| !c.name.is_empty() && KEY_CREW_JOBS.contains(&c.job.as_str()))
-        .map(|c| (rank(&c.job), CrewMember { name: c.name, job: c.job, profile_url: None }))
-        .collect();
-    for cb in created_by.into_iter().filter(|c| !c.name.is_empty()) {
-        candidates.push((rank("Creator"), CrewMember { name: cb.name, job: "Creator".into(), profile_url: None }));
-    }
-    candidates.sort_by_key(|(r, _)| *r);
-    let mut seen = std::collections::HashSet::new();
-    candidates
-        .into_iter()
-        .filter(|(_, m)| seen.insert(m.name.clone()))
-        .map(|(_, m)| m)
-        .take(MAX_CREW)
-        .collect()
 }
 
 /// Map one raw TMDB row (search / trending / recommendation) into a hit;
@@ -449,41 +412,6 @@ struct DetailResp {
 }
 
 #[derive(Debug, Deserialize)]
-struct RawCredits {
-    #[serde(default)]
-    cast: Vec<RawCast>,
-    #[serde(default)]
-    crew: Vec<RawCrew>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawCast {
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    character: Option<String>,
-    #[serde(default)]
-    profile_path: Option<String>,
-    #[serde(default)]
-    order: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawCrew {
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    job: String,
-}
-
-/// TV `created_by` block (top-level on series details) the show's creators.
-#[derive(Debug, Deserialize)]
-struct RawCreatedBy {
-    #[serde(default)]
-    name: String,
-}
-
-#[derive(Debug, Deserialize)]
 struct RawGenre {
     name: String,
 }
@@ -577,14 +505,14 @@ mod tests {
         let d: DetailResp = serde_json::from_str(raw).unwrap();
 
         let (raw_cast, raw_crew) = d.credits.map(|c| (c.cast, c.crew)).unwrap_or_default();
-        let cast = map_cast(raw_cast);
+        let cast = build_cast(raw_cast, MAX_CAST, true);
         // Sorted by `order`; empty characters dropped; profile URL absolutized.
         assert_eq!(cast[0].name, "First");
         assert_eq!(cast[0].character.as_deref(), Some("A"));
         assert_eq!(cast[0].profile_url.as_deref(), Some("https://image.tmdb.org/t/p/w185/a.jpg"));
         assert_eq!(cast[2].character, None);
 
-        let crew = map_crew(raw_crew, d.created_by);
+        let crew = build_crew(raw_crew, d.created_by, MAX_CREW);
         // Non-authorship jobs (Editor) dropped; directors rank first.
         assert_eq!(crew[0].name, "Denis");
         assert!(crew.iter().all(|c| c.name != "Editor Ed"));
@@ -654,7 +582,7 @@ mod tests {
             "credits": {"cast": [], "crew": []}
         }"#;
         let d: DetailResp = serde_json::from_str(raw).unwrap();
-        let crew = map_crew(d.credits.map(|c| c.crew).unwrap_or_default(), d.created_by);
+        let crew = build_crew(d.credits.map(|c| c.crew).unwrap_or_default(), d.created_by, MAX_CREW);
         assert_eq!(crew.len(), 1);
         assert_eq!(crew[0].name, "Dan Erickson");
         assert_eq!(crew[0].job, "Creator");

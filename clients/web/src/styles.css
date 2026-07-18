@@ -12,6 +12,7 @@
    page's grid template) never get emitted and the layout breaks. (Runtime .tar
    modules ship their own CSS instead - see the shared entry above.) */
 @source "../../../packages/admin-kit/src/**/*.{ts,tsx}";
+@source "../../../packages/ui/src/components/**/*.{ts,tsx}";
 @source "../../../packages/ui/src/player/**/*.{ts,tsx}";
 @source "../../../server/modules/*/ui/src/**/*.{ts,tsx}";
 
