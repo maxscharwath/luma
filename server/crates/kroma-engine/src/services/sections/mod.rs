@@ -418,4 +418,57 @@ mod tests {
         assert_eq!(last_title(&pool, "a").as_deref(), Some("Title a"));
         assert!(last_title(&pool, "ghost").is_none());
     }
+
+    // ----- SharedState-backed home build. The no-op embedder yields no semantic
+    // rows (for-you / because / ai / themed resolve to nothing), so the assertions
+    // target the deterministic SQL-sourced rows (trending, recently-added) + a
+    // direct push of a curated row. --------------------------------------------
+
+    use crate::test_support;
+
+    #[test]
+    fn build_home_emits_the_recently_added_row_and_no_thin_rows() {
+        let state = test_support::test_state();
+        let ids: Vec<String> = (0..6).map(|i| format!("m{i}")).collect();
+        let refs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+        seed_movies(&state.db, &refs);
+        // A recent play so `Context` resolves a last-played + watch history and the
+        // "because you watched" branch actually runs (it adds no row under the
+        // no-op embedder, but its query path is exercised).
+        test_support::seed_play(&state, "u1", "m0", test_support::now_secs());
+
+        let sections = build_home(&state, &state.db, "en", "u1");
+
+        // The recently-added row is the deterministic, SQL-sourced row that does not
+        // depend on the embedder (nor on POW(), which trending needs and the bundled
+        // test SQLite lacks). It carries every seeded title.
+        let recent = sections.iter().find(|s| s.id == "recent").expect("recent row present");
+        assert_eq!(recent.items.len(), 6);
+        // The quality gate means every emitted row clears MIN_ITEMS (nothing thin).
+        assert!(sections.iter().all(|s| s.items.len() >= MIN_ITEMS));
+    }
+
+    #[test]
+    fn push_curated_rows_resolves_membership_into_a_section() {
+        let state = test_support::test_state();
+        let ids = ["a", "b", "c", "d", "e"];
+        seed_movies(&state.db, &ids);
+        let row = crate::db::CuratedRow {
+            key: "dir-spotlight".into(),
+            rank: 0,
+            source: "llm".into(),
+            item_ids: ids.iter().map(|s| s.to_string()).collect(),
+            titles: HashMap::from([("en".to_string(), "Director Spotlight".to_string())]),
+            reasons: HashMap::from([("en".to_string(), "great films".to_string())]),
+        };
+        crate::db::set_curated(&state.db, &[row]).unwrap();
+
+        let mut b = Builder { pool: &state.db, sections: Vec::new(), seen: HashSet::new() };
+        push_curated_rows(&mut b, &state.db, "en", MAX_SECTIONS);
+        assert_eq!(b.sections.len(), 1);
+        assert_eq!(b.sections[0].id, "curated:dir-spotlight");
+        assert_eq!(b.sections[0].title, "Director Spotlight");
+        assert_eq!(b.sections[0].reason.as_deref(), Some("great films"));
+        assert_eq!(b.sections[0].items.len(), 5);
+    }
 }

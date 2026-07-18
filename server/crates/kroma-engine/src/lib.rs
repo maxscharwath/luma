@@ -31,6 +31,12 @@ pub mod ports;
 pub mod services;
 pub mod state;
 
+/// Shared `#[cfg(test)]` harness: a minimal real [`state::SharedState`] plus small
+/// catalog/ledger seeding helpers, for the services whose logic only runs against
+/// a full app state (pipeline dispatcher/reprocess/elements, sections, jobs).
+#[cfg(test)]
+pub(crate) mod test_support;
+
 /// Process start time, for the admin uptime readout. Seeded on first call
 /// (from `main`), read by [`infra::metrics`].
 static PROCESS_START: OnceLock<Instant> = OnceLock::new();

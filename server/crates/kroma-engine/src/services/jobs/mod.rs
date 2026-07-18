@@ -742,4 +742,103 @@ mod tests {
         m.register_remote("mod.job", Category::Recommendations, Some("0 9 * * *".into()), run2);
         assert_eq!(m.resolve("mod.job"), Some(JobKey("mod.job")));
     }
+
+    // ----- End-to-end trigger against a full SharedState. A registered *remote*
+    // job (registrable post-construction, unlike a built-in) is triggered and its
+    // recorded run row + status asserted. The handlers return immediately, so no
+    // unbounded work is spawned. --------------------------------------------------
+
+    use crate::test_support;
+
+    /// Poll (bounded) until the manager has no running job, so the spawned blocking
+    /// worker has finished recording its run.
+    async fn wait_idle(mgr: &Arc<JobManager>) {
+        for _ in 0..300 {
+            if mgr.running_count() == 0 {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("job run did not finish within the timeout");
+    }
+
+    #[tokio::test]
+    async fn trigger_runs_a_job_to_success_and_records_the_run() {
+        let state = test_support::test_state();
+        let run: RemoteRun = Arc::new(|ctx: &JobContext| {
+            ctx.info("did the work");
+            Ok(())
+        });
+        state.jobs.register_remote("test.remote.ok", Category::Maintenance, None, run);
+
+        let run_id =
+            state.jobs.trigger(state.clone(), JobKey("test.remote.ok"), "manual").expect("triggered");
+        wait_idle(&state.jobs).await;
+
+        let runs = db::list_job_runs(&state.db, "test.remote.ok", 10).unwrap();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].id, run_id);
+        assert_eq!(runs[0].status, "success");
+        assert!(runs[0].finished_at.is_some());
+        // The slot was released after the run finished.
+        assert_eq!(state.jobs.running_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn trigger_records_a_failed_run_with_its_message() {
+        let state = test_support::test_state();
+        let run: RemoteRun = Arc::new(|_ctx: &JobContext| Err(anyhow::anyhow!("kaput")));
+        state.jobs.register_remote("test.remote.err", Category::Maintenance, None, run);
+
+        state.jobs.trigger(state.clone(), JobKey("test.remote.err"), "manual").expect("triggered");
+        wait_idle(&state.jobs).await;
+
+        let runs = db::list_job_runs(&state.db, "test.remote.err", 10).unwrap();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].status, "failed");
+        assert!(runs[0].error.as_deref().unwrap().contains("kaput"));
+    }
+
+    #[tokio::test]
+    async fn trigger_rejects_a_second_run_while_one_is_in_flight() {
+        let state = test_support::test_state();
+        // A handler that blocks until released, so the first run is provably still
+        // in flight when the second trigger is attempted.
+        let gate = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let g = gate.clone();
+        let run: RemoteRun = Arc::new(move |_ctx: &JobContext| {
+            while !g.load(std::sync::atomic::Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Ok(())
+        });
+        state.jobs.register_remote("test.remote.slow", Category::Maintenance, None, run);
+
+        state.jobs.trigger(state.clone(), JobKey("test.remote.slow"), "manual").expect("first run");
+        // Second trigger while the first holds the one-run-per-key slot.
+        let second = state.jobs.trigger(state.clone(), JobKey("test.remote.slow"), "manual");
+        assert_eq!(second, Err(TriggerError::AlreadyRunning));
+        // Release the handler and let it drain.
+        gate.store(true, std::sync::atomic::Ordering::Relaxed);
+        wait_idle(&state.jobs).await;
+    }
+
+    #[test]
+    fn trigger_unknown_job_is_rejected() {
+        let state = test_support::test_state();
+        assert_eq!(
+            state.jobs.trigger(state.clone(), JobKey("does.not.exist"), "manual"),
+            Err(TriggerError::Unknown)
+        );
+    }
+
+    #[test]
+    fn chain_after_does_not_fire_dependents_on_non_success() {
+        let state = test_support::test_state();
+        // A failed / cancelled upstream must not start any chained job. No built-in
+        // depends on this key either, so the count stays at zero (no spawn happens).
+        chain_after(&state.jobs, &state, JobKey("test.remote.ok"), "test.remote.ok", "failed");
+        chain_after(&state.jobs, &state, JobKey("test.remote.ok"), "test.remote.ok", "cancelled");
+        assert_eq!(state.jobs.running_count(), 0);
+    }
 }

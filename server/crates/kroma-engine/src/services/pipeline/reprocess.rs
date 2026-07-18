@@ -421,4 +421,127 @@ mod tests {
         let eps = show_episodes(&pool, "s1").unwrap();
         assert_eq!(eps.len(), 3, "all episodes across both seasons are flattened");
     }
+
+    // ----- SharedState-backed paths: the ledger effects of a whole-element or
+    // per-stage reprocess. These enqueue tasks + invalidate caches but do NOT
+    // trigger the drains (the pub `reprocess`/`stage_for` success path spawns real
+    // ffmpeg stage drains via `state.jobs.trigger`, so only their pre-trigger
+    // ledger effects and error branches are asserted here). ------------------------
+
+    use crate::test_support;
+
+    #[test]
+    fn reprocess_item_movie_queues_all_five_stages() {
+        let state = test_support::test_state();
+        test_support::seed_movie(&state, "m1"); // one item + one file
+        let mut subjects = 0usize;
+        let stages = reprocess_item(&state, &state.db, "m1", now_ms(), &mut subjects).unwrap();
+        // 1 file (probe) + storyboard + subtitles + metadata + embed = 5 subjects.
+        assert_eq!(subjects, 5);
+        assert_eq!(
+            stages,
+            vec![
+                "pipeline.probe",
+                "pipeline.metadata",
+                "pipeline.storyboard",
+                "pipeline.subtitles",
+                "pipeline.embed",
+            ]
+        );
+        for stage in ["probe", "metadata", "storyboard", "subtitles", "embed"] {
+            assert_eq!(pending(&state.db, stage), 1, "{stage} queued one HIGH task");
+        }
+    }
+
+    #[test]
+    fn reprocess_item_episode_queues_probe_storyboard_subtitles_and_markers() {
+        let state = test_support::test_state();
+        test_support::seed_show_episode(&state, "sh1", "ep1");
+        let mut subjects = 0usize;
+        let stages = reprocess_item(&state, &state.db, "ep1", now_ms(), &mut subjects).unwrap();
+        // 1 file (probe) + storyboard + subtitles + the season markers key.
+        assert_eq!(subjects, 4);
+        assert_eq!(
+            stages,
+            vec!["pipeline.probe", "pipeline.storyboard", "pipeline.subtitles", "pipeline.markers"]
+        );
+        assert_eq!(pending(&state.db, "markers"), 1, "the episode's season key is queued");
+        // Episodes carry no item-level metadata/embed row.
+        assert_eq!(pending(&state.db, "metadata"), 0);
+        assert_eq!(pending(&state.db, "embed"), 0);
+    }
+
+    #[test]
+    fn reprocess_item_unknown_id_errors() {
+        let state = test_support::test_state();
+        let mut subjects = 0usize;
+        assert!(reprocess_item(&state, &state.db, "ghost", now_ms(), &mut subjects).is_err());
+    }
+
+    #[test]
+    fn reprocess_show_queues_show_and_episode_subjects() {
+        let state = test_support::test_state();
+        test_support::seed_show_episode(&state, "sh1", "ep1");
+        let mut subjects = 0usize;
+        let stages = reprocess_show(&state, &state.db, "sh1", now_ms(), &mut subjects).unwrap();
+        // metadata + embed (show) + markers (season) + probe + storyboard + subtitles (ep).
+        assert_eq!(subjects, 6);
+        assert_eq!(
+            stages,
+            vec![
+                "pipeline.probe",
+                "pipeline.metadata",
+                "pipeline.storyboard",
+                "pipeline.subtitles",
+                "pipeline.markers",
+                "pipeline.embed",
+            ]
+        );
+        // Show-level metadata/embed target the show id; the rest target the episode.
+        assert_eq!(pending(&state.db, "metadata"), 1);
+        assert_eq!(pending(&state.db, "embed"), 1);
+        assert_eq!(pending(&state.db, "markers"), 1);
+        assert_eq!(pending(&state.db, "probe"), 1);
+        assert_eq!(pending(&state.db, "storyboard"), 1);
+        assert_eq!(pending(&state.db, "subtitles"), 1);
+    }
+
+    #[test]
+    fn reprocess_show_unknown_id_errors() {
+        let state = test_support::test_state();
+        let mut subjects = 0usize;
+        assert!(reprocess_show(&state, &state.db, "ghost", now_ms(), &mut subjects).is_err());
+    }
+
+    #[test]
+    fn stage_storyboard_fans_show_to_episodes_and_targets_item_directly() {
+        let state = test_support::test_state();
+        test_support::seed_show_episode(&state, "sh1", "ep1");
+        test_support::seed_movie(&state, "m1");
+        // A show-level retry fans out to each episode (one storyboard task).
+        stage_storyboard(&state, &state.db, "show", "sh1", now_ms()).unwrap();
+        assert_eq!(pending(&state.db, "storyboard"), 1);
+        // An item-level retry queues that item directly (now two distinct subjects).
+        stage_storyboard(&state, &state.db, "item", "m1", now_ms()).unwrap();
+        assert_eq!(pending(&state.db, "storyboard"), 2);
+    }
+
+    #[test]
+    fn stage_subtitles_fans_show_to_episodes_and_targets_item_directly() {
+        let state = test_support::test_state();
+        test_support::seed_show_episode(&state, "sh1", "ep1");
+        test_support::seed_movie(&state, "m1");
+        stage_subtitles(&state, &state.db, "show", "sh1", now_ms()).unwrap();
+        assert_eq!(pending(&state.db, "subtitles"), 1);
+        stage_subtitles(&state, &state.db, "item", "m1", now_ms()).unwrap();
+        assert_eq!(pending(&state.db, "subtitles"), 2);
+    }
+
+    #[test]
+    fn reprocess_and_stage_for_reject_unknown_kinds_before_triggering() {
+        let state = test_support::test_state();
+        // Unknown element kind / unknown stage bail before any drain is triggered.
+        assert!(reprocess(&state, "bogus", "x").is_err());
+        assert!(stage_for(&state, "item", "x", "bogus-stage").is_err());
+    }
 }

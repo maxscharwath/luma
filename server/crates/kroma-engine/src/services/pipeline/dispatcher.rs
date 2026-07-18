@@ -372,4 +372,132 @@ mod tests {
         // A different stage's queue is independent.
         assert_eq!(pending_count(&pool, "metadata").unwrap(), 0);
     }
+
+    // ----- SharedState-backed helpers (process_batch / worker / wait_while_held /
+    // emit_stats), driven with a trivial in-memory Stage so no ffmpeg/enumerate work
+    // runs. The infinite `run`/`drain_loop` are deliberately NOT exercised. --------
+
+    use crate::state::SharedState;
+    use crate::test_support;
+
+    fn enum_empty(_s: &SharedState) -> Result<Vec<(String, String)>> {
+        Ok(Vec::new())
+    }
+    fn process_ok(_ctx: &JobContext, _id: &str) -> Result<()> {
+        Ok(())
+    }
+    fn process_fail(_ctx: &JobContext, id: &str) -> Result<()> {
+        anyhow::bail!("boom: {id}")
+    }
+    fn process_panic(_ctx: &JobContext, _id: &str) -> Result<()> {
+        panic!("kaboom")
+    }
+    /// A stage with a caller-chosen `process`; everything else is inert.
+    fn test_stage(process: fn(&JobContext, &str) -> Result<()>) -> Stage {
+        Stage {
+            short: "teststage",
+            key: "pipeline.teststage",
+            subject_kind: "file",
+            concurrency: 3,
+            pause_for_playback: false,
+            enumerate: enum_empty,
+            process,
+        }
+    }
+
+    #[test]
+    fn process_batch_records_one_ok_result_per_task() {
+        let state = test_support::test_state();
+        let ctx = JobContext::for_test(state);
+        let batch: Vec<(String, String)> =
+            (0..3).map(|i| (format!("f{i}"), "sig".to_string())).collect();
+        let results = process_batch(&test_stage(process_ok), &ctx, &batch);
+        // One result per claimed subject, each recorded done (no error).
+        assert_eq!(results.len(), 3);
+        assert!(results.iter().all(|r| r.error.is_none()));
+        let ids: std::collections::HashSet<_> = results.iter().map(|r| r.id.clone()).collect();
+        assert_eq!(ids, ["f0", "f1", "f2"].iter().map(|s| s.to_string()).collect());
+    }
+
+    #[test]
+    fn process_batch_surfaces_error_and_caught_panic() {
+        let state = test_support::test_state();
+        let ctx = JobContext::for_test(state);
+
+        // A returned Err is recorded with its message.
+        let failed = process_batch(&test_stage(process_fail), &ctx, &[("f1".into(), "s".into())]);
+        assert_eq!(failed.len(), 1);
+        assert!(failed[0].error.as_deref().unwrap().contains("boom: f1"));
+
+        // A panic in `process` is caught and recorded like an Err, never unwinding
+        // out of the scoped worker (silence the panic hook so the caught panic
+        // doesn't spam the test output).
+        let prev = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let panicked = process_batch(&test_stage(process_panic), &ctx, &[("f2".into(), "s".into())]);
+        std::panic::set_hook(prev);
+        assert_eq!(panicked.len(), 1);
+        assert_eq!(panicked[0].error.as_deref(), Some("panicked during processing"));
+    }
+
+    #[test]
+    fn process_task_worker_drains_the_batch_cooperatively() {
+        let state = test_support::test_state();
+        let ctx = JobContext::for_test(state);
+        let batch: Vec<(String, String)> =
+            (0..4).map(|i| (format!("f{i}"), "sig".to_string())).collect();
+        let next = AtomicUsize::new(0);
+        let paused = AtomicBool::new(false);
+        let slots: Vec<Mutex<Option<db::pipeline::TaskResult>>> =
+            (0..batch.len()).map(|_| Mutex::new(None)).collect();
+        let stage = test_stage(process_ok);
+        // A single worker pulls every index off the shared cursor until drained.
+        process_task_worker(&next, &batch, &ctx, &paused, &slots, &stage);
+        let filled = slots.iter().filter(|m| m.lock().unwrap().is_some()).count();
+        assert_eq!(filled, 4);
+        assert!(next.load(Ordering::Relaxed) >= 4);
+    }
+
+    #[test]
+    fn wait_while_held_returns_immediately_when_not_held() {
+        let state = test_support::test_state();
+        let ctx = JobContext::for_test(state);
+        let paused = AtomicBool::new(false);
+        // Nothing held (no admin pause, playback ignored) -> returns at once and
+        // leaves the local CAS flag cleared.
+        wait_while_held(&ctx, &paused, false);
+        assert!(!paused.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn wait_while_held_exits_on_cancel_even_while_paused() {
+        use crate::services::jobs::RunHandle;
+        let state = test_support::test_state();
+        let handle = std::sync::Arc::new(RunHandle::new("r".into(), "k".into()));
+        let ctx = JobContext::from_handle(state.clone(), handle.clone());
+        // Hold the whole pipeline, then request cancel: the cancel check wins, so
+        // the call returns instead of parking forever on the paused poll loop.
+        state.jobs.set_pipeline_paused(true);
+        handle.request_cancel();
+        let paused = AtomicBool::new(false);
+        wait_while_held(&ctx, &paused, false); // must not hang
+    }
+
+    #[test]
+    fn emit_stats_publishes_stage_counts_from_the_ledger() {
+        let state = test_support::test_state();
+        let ctx = JobContext::for_test(state.clone());
+        // One pending + one failed ledger task for the stage.
+        db::pipeline::enqueue(&state.db, "teststage", "file", "a", 0, now_ms()).unwrap();
+        test_support::seed_task(&state, "teststage", "file", "b", "failed", Some("x"));
+        // Subscribe first: publish is a no-op with zero subscribers.
+        let mut rx = state.events.subscribe();
+        emit_stats(&test_stage(process_ok), &ctx);
+        let msg = rx.try_recv().expect("pipeline.stats event published");
+        assert!(msg.contains("pipeline.stats"), "event type: {msg}");
+        assert!(msg.contains("teststage"));
+        // The event carries the ledger's counts (camelCase single words unchanged).
+        assert!(msg.contains("\"pending\":1"), "counts: {msg}");
+        assert!(msg.contains("\"failed\":1"), "counts: {msg}");
+    }
 }

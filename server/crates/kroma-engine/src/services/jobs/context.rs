@@ -63,6 +63,21 @@ impl JobContext {
         Self { state, handle }
     }
 
+    /// Test-only: build a context around a caller-owned run handle so
+    /// `&SharedState`-dependent services (the pipeline dispatcher) can be
+    /// exercised without going through [`super::JobManager::trigger`]. Keeping the
+    /// handle lets a test drive cancellation (`handle.request_cancel()`).
+    #[cfg(test)]
+    pub(crate) fn from_handle(state: SharedState, handle: Arc<RunHandle>) -> Self {
+        Self { state, handle }
+    }
+
+    /// Test-only convenience: a context wrapping a fresh, non-cancelled handle.
+    #[cfg(test)]
+    pub(crate) fn for_test(state: SharedState) -> Self {
+        Self::from_handle(state, Arc::new(RunHandle::new("test-run".into(), "test.job".into())))
+    }
+
     /// Whether an admin has requested cancellation. Long jobs should poll this
     /// between units of work and return early (returning `Ok(())` → the run is
     /// recorded as `cancelled`).

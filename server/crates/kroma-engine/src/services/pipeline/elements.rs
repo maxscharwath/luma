@@ -567,4 +567,77 @@ mod tests {
         assert!(matches_filter(&el, &f("attention", "all", ""), ""));
         assert!(!matches_filter(&row("film", "ok"), &f("attention", "all", ""), ""));
     }
+
+    // ----- list(): the full SharedState-backed grouped view over a seeded catalog
+    // + ledger. --------------------------------------------------------------------
+
+    use crate::test_support;
+
+    fn all_filter() -> Filter {
+        Filter { status: "all".into(), kind: "all".into(), query: String::new(), page: 0, limit: 50 }
+    }
+
+    #[test]
+    fn list_groups_catalog_and_overlays_the_ledger() {
+        let state = test_support::test_state();
+        test_support::seed_movie(&state, "m1");
+        test_support::seed_show_episode(&state, "sh1", "ep1");
+        // A failed metadata ledger row must drive the movie's overall to "failed"
+        // and surface its error in the drawer/list.
+        test_support::seed_task(&state, "metadata", "item", "m1", "failed", Some("meta boom"));
+
+        let page = list(&state, &all_filter()).unwrap();
+
+        // A row per movie + per episode + per show.
+        assert_eq!(page.total, 3);
+        assert_eq!(page.counts.total, 3);
+        assert_eq!((page.counts.film, page.counts.series, page.counts.episode), (1, 1, 1));
+        // The movie is failed; the episode (unprobed) and the show (no metadata yet)
+        // are pending. Nothing is ok/running.
+        assert_eq!(page.counts.failed, 1);
+        assert_eq!(page.counts.pending, 2);
+        assert_eq!((page.counts.ok, page.counts.running), (0, 0));
+
+        // The movie row carries the failed metadata treatment + its error message.
+        let movie = page.elements.iter().find(|e| e.id == "m1").expect("movie row present");
+        assert_eq!(movie.kind, "film");
+        assert_eq!(movie.overall, "failed");
+        let meta = movie.treatments.iter().find(|t| t.key == "metadata").unwrap();
+        assert_eq!(meta.status, "failed");
+        assert_eq!(meta.error.as_deref(), Some("meta boom"));
+
+        // The show row exposes its episode aggregate.
+        let show = page.elements.iter().find(|e| e.id == "sh1").expect("show row present");
+        assert_eq!(show.kind, "series");
+        assert_eq!(show.ep_stats.as_ref().unwrap().episodes, 1);
+    }
+
+    #[test]
+    fn list_applies_kind_and_status_filters_with_full_catalog_counts() {
+        let state = test_support::test_state();
+        test_support::seed_movie(&state, "m1");
+        test_support::seed_show_episode(&state, "sh1", "ep1");
+        test_support::seed_task(&state, "metadata", "item", "m1", "failed", Some("x"));
+
+        // status=failed keeps only the movie, but the counts still cover the whole
+        // (unfiltered) catalog.
+        let failed = list(
+            &state,
+            &Filter { status: "failed".into(), kind: "all".into(), query: String::new(), page: 0, limit: 50 },
+        )
+        .unwrap();
+        assert_eq!(failed.total, 1);
+        assert_eq!(failed.elements.len(), 1);
+        assert_eq!(failed.elements[0].id, "m1");
+        assert_eq!(failed.counts.total, 3, "counts are over the full catalog, not the filtered page");
+
+        // kind=film keeps only the movie row.
+        let films = list(
+            &state,
+            &Filter { status: "all".into(), kind: "film".into(), query: String::new(), page: 0, limit: 50 },
+        )
+        .unwrap();
+        assert_eq!(films.total, 1);
+        assert!(films.elements.iter().all(|e| e.kind == "film"));
+    }
 }
