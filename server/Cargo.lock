@@ -2943,6 +2943,7 @@ dependencies = [
  "time",
  "tiny-skia",
  "tokio",
+ "tower",
  "tower-http 0.7.0",
  "tracing",
  "tracing-appender",

@@ -255,6 +255,12 @@ openssl = { version = "0.10", features = ["vendored"] }
 # real build, not only when dev-deps happen to pull it in.
 uuid = { workspace = true, features = ["v5"] }
 
+# Integration tests for the HTTP API layer (src/api/*): drive the real axum
+# router in-process with `tower::ServiceExt::oneshot`. `tower` is a dev-only dep
+# (the binary itself only needs `tower-http`).
+[dev-dependencies]
+tower = { workspace = true }
+
 # musl's malloc serializes under our thread mix (tokio + rayon + candle + tantivy);
 # mimalloc removes that contention. Linux-only; macOS dev keeps the system
 # allocator. See the #[global_allocator] in main.rs.

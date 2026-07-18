@@ -34,6 +34,18 @@ mod suggest;
 mod themes;
 mod util;
 
+// Integration-test harness + suites for the HTTP handler layer. `test_support`
+// builds a fully wired router over a temp DB (see its docs); the `it_*` modules
+// drive real endpoints through it. All `#[cfg(test)]`, so nothing ships.
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod it_auth;
+#[cfg(test)]
+mod it_content;
+#[cfg(test)]
+mod it_admin;
+
 use std::sync::Arc;
 
 use axum::extract::{Path, Request, State};
