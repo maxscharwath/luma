@@ -276,3 +276,149 @@ pub fn record(pool: &Pool, s: &Session) {
 fn unix_now() -> i64 {
     time::OffsetDateTime::now_utc().unix_timestamp()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_pool() -> Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-playback-reg-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    fn ping(session_id: &str, pos: i64, state: &str) -> Ping {
+        Ping {
+            session_id: session_id.into(),
+            item_id: "item1".into(),
+            position_ms: pos,
+            duration_ms: Some(100_000),
+            state: state.into(),
+            mode: "direct".into(),
+            player: "web".into(),
+            device: "Chrome".into(),
+            audio: None,
+            subtitle: None,
+        }
+    }
+
+    #[test]
+    fn upsert_creates_then_refreshes() {
+        let reg = Registry::new();
+        assert!(reg.upsert(ping("s1", 1000, "playing"), Some("u1".into()), "Alice".into(), "1.2.3.4".into(), "WAN".into(), None));
+        // Second ping for the same id is NOT new; volatile fields refresh.
+        assert!(!reg.upsert(ping("s1", 5000, "paused"), Some("u1".into()), "Alice".into(), "1.2.3.4".into(), "LAN".into(), None));
+        let list = reg.list();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].position_ms, 5000);
+        assert_eq!(list[0].state, "paused");
+        assert_eq!(list[0].network, "LAN");
+        assert!(reg.contains("s1"));
+        assert!(!reg.contains("nope"));
+    }
+
+    #[test]
+    fn upsert_updates_audio_and_subtitle_labels() {
+        let reg = Registry::new();
+        reg.upsert(ping("s1", 0, "playing"), None, "Anon".into(), "ip".into(), "LAN".into(), None);
+        let mut p = ping("s1", 10, "playing");
+        p.audio = Some("English 5.1".into());
+        p.subtitle = Some("French".into());
+        reg.upsert(p, None, "Anon".into(), "ip".into(), "LAN".into(), None);
+        let s = &reg.list()[0];
+        assert_eq!(s.audio_label, "English 5.1");
+        assert_eq!(s.subtitle, "French");
+    }
+
+    #[test]
+    fn remove_returns_session() {
+        let reg = Registry::new();
+        reg.upsert(ping("s1", 0, "playing"), None, "u".into(), "ip".into(), "LAN".into(), None);
+        let removed = reg.remove("s1");
+        assert!(removed.is_some());
+        assert_eq!(removed.unwrap().id, "s1");
+        assert!(reg.remove("s1").is_none());
+        assert!(reg.list().is_empty());
+    }
+
+    #[test]
+    fn terminate_removes_and_blocks_regrace() {
+        let reg = Registry::new();
+        reg.upsert(ping("s1", 0, "playing"), None, "u".into(), "ip".into(), "LAN".into(), None);
+        let ended = reg.terminate("s1");
+        assert!(ended.is_some());
+        assert!(reg.is_recently_terminated("s1"));
+        assert!(!reg.is_recently_terminated("other"));
+        // Terminating a missing session yields None but still records the id.
+        assert!(reg.terminate("ghost").is_none());
+        assert!(reg.is_recently_terminated("ghost"));
+    }
+
+    #[test]
+    fn user_online_reflects_live_sessions() {
+        let reg = Registry::new();
+        assert!(!reg.user_online("u1"));
+        reg.upsert(ping("s1", 0, "playing"), Some("u1".into()), "u".into(), "ip".into(), "LAN".into(), None);
+        assert!(reg.user_online("u1"));
+        assert!(!reg.user_online("u2"));
+    }
+
+    #[test]
+    fn list_sorts_newest_started_first() {
+        let reg = Registry::new();
+        reg.upsert(ping("old", 0, "playing"), None, "u".into(), "ip".into(), "LAN".into(), None);
+        reg.upsert(ping("new", 0, "playing"), None, "u".into(), "ip".into(), "LAN".into(), None);
+        // Force distinct started_at values (same-second inserts would tie).
+        {
+            let mut map = reg.inner.write().unwrap();
+            map.get_mut("old").unwrap().started_at = 100;
+            map.get_mut("new").unwrap().started_at = 200;
+        }
+        let list = reg.list();
+        assert_eq!(list[0].id, "new");
+        assert_eq!(list[1].id, "old");
+    }
+
+    #[test]
+    fn stale_sessions_are_filtered_and_drained() {
+        let reg = Registry::new();
+        reg.upsert(ping("live", 0, "playing"), None, "u".into(), "ip".into(), "LAN".into(), None);
+        reg.upsert(ping("dead", 0, "playing"), Some("u9".into()), "u".into(), "ip".into(), "LAN".into(), None);
+        // Age out "dead" past the TTL.
+        {
+            let mut map = reg.inner.write().unwrap();
+            map.get_mut("dead").unwrap().last_seen = Instant::now() - Duration::from_secs(120);
+        }
+        // list() hides it; user_online is false for the dead session's user.
+        assert_eq!(reg.list().len(), 1);
+        assert!(!reg.user_online("u9"));
+        // drain_stale removes and returns it.
+        let drained = reg.drain_stale();
+        assert_eq!(drained.len(), 1);
+        assert_eq!(drained[0].id, "dead");
+        assert!(reg.contains("live"));
+        assert!(!reg.contains("dead"));
+    }
+
+    #[test]
+    fn record_appends_to_play_history() {
+        let pool = test_pool();
+        let reg = Registry::new();
+        reg.upsert(ping("s1", 0, "playing"), Some("u1".into()), "Alice".into(), "ip".into(), "LAN".into(), None);
+        let session = reg.remove("s1").unwrap();
+        record(&pool, &session);
+        let count: i64 = pool
+            .get()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM play_history", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn unix_now_is_positive() {
+        assert!(unix_now() > 1_600_000_000);
+    }
+}

@@ -36,7 +36,7 @@ pub fn call<B: serde::Serialize, T: serde::de::DeserializeOwned>(
     out.map_err(|e| anyhow!(e))
 }
 
-/// Like [`call`] but the provider returns `T` directly (no `Result` envelope) —
+/// Like [`call`] but the provider returns `T` directly (no `Result` envelope),
 /// used for port methods that return `Option<_>` / infallible values. Any
 /// transport error maps to the caller's own fallback (usually `None`). `pub` so
 /// composition-root adapters for engine-side ports (the embedder client) reuse it
@@ -66,3 +66,29 @@ pub use indexer::{
 };
 pub use torznab::{torznab_routes, TorznabClient};
 pub use vpn::{downloadvpn_routes, vpnproxy_routes, DownloadVpnClient, VpnProxyClient};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A resolver that reports the provider as not running, so `call` / `call_raw`
+    /// short-circuit before any network I/O.
+    fn offline() -> Resolver {
+        Arc::new(|| None)
+    }
+
+    #[test]
+    fn call_errors_when_provider_absent() {
+        let err = call::<_, serde_json::Value>(&offline(), "any/path", &serde_json::json!({}))
+            .unwrap_err();
+        assert!(err.to_string().contains("provider module not running"));
+    }
+
+    #[test]
+    fn call_raw_errors_when_provider_absent() {
+        let err =
+            call_raw::<_, serde_json::Value>(&offline(), "any/path", &serde_json::json!({}))
+                .unwrap_err();
+        assert!(err.to_string().contains("provider module not running"));
+    }
+}

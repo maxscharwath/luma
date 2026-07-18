@@ -1,4 +1,4 @@
-//! The `TorznabPort` bridge (stateless — no `HostCtx`, the cleanest port).
+//! The `TorznabPort` bridge (stateless, no `HostCtx`, the cleanest port).
 
 use std::sync::Arc;
 
@@ -78,5 +78,82 @@ impl TorznabPort for TorznabClient {
             "torznab/search",
             &serde_json::json!({ "endpoint": endpoint, "query": query, "caps": caps }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct OkTz;
+    impl TorznabPort for OkTz {
+        fn caps(&self, _endpoint: &IndexerEndpoint) -> anyhow::Result<Caps> {
+            Ok(Caps { search_tmdb: true, ..Default::default() })
+        }
+        fn search(
+            &self,
+            _endpoint: &IndexerEndpoint,
+            _query: &Query,
+            _caps: &Caps,
+        ) -> anyhow::Result<Vec<Release>> {
+            Ok(vec![Release { title: "R".into(), guid: "g".into(), ..Default::default() }])
+        }
+    }
+
+    struct ErrTz;
+    impl TorznabPort for ErrTz {
+        fn caps(&self, _endpoint: &IndexerEndpoint) -> anyhow::Result<Caps> {
+            Err(anyhow::anyhow!("boom"))
+        }
+        fn search(
+            &self,
+            _endpoint: &IndexerEndpoint,
+            _query: &Query,
+            _caps: &Caps,
+        ) -> anyhow::Result<Vec<Release>> {
+            Err(anyhow::anyhow!("boom"))
+        }
+    }
+
+    fn endpoint() -> IndexerEndpoint {
+        IndexerEndpoint { url: "http://jackett".into(), api_key: "k".into(), categories: vec![2000] }
+    }
+
+    fn offline() -> Resolver {
+        Arc::new(|| None)
+    }
+
+    #[tokio::test]
+    async fn caps_handler_ok_and_err() {
+        let ok: Arc<dyn TorznabPort> = Arc::new(OkTz);
+        let Json(res) = caps_h(Extension(ok), Json(endpoint())).await;
+        assert!(res.unwrap().search_tmdb);
+
+        let err: Arc<dyn TorznabPort> = Arc::new(ErrTz);
+        let Json(res) = caps_h(Extension(err), Json(endpoint())).await;
+        assert_eq!(res.unwrap_err(), "boom");
+    }
+
+    #[tokio::test]
+    async fn search_handler_returns_releases() {
+        let engine: Arc<dyn TorznabPort> = Arc::new(OkTz);
+        let req = SearchReq {
+            endpoint: endpoint(),
+            query: Query::Episode { tmdb_id: Some(1), title: "T".into(), season: 1, episode: 2 },
+            caps: Caps::default(),
+        };
+        let Json(res) = search_h(Extension(engine), Json(req)).await;
+        let releases = res.unwrap();
+        assert_eq!(releases.len(), 1);
+        assert_eq!(releases[0].guid, "g");
+    }
+
+    #[test]
+    fn client_offline_errors() {
+        let c = TorznabClient::new(offline());
+        assert!(c.caps(&endpoint()).is_err());
+        assert!(c
+            .search(&endpoint(), &Query::Movie { tmdb_id: None, imdb_id: None, title: "T".into(), year: None }, &Caps::default())
+            .is_err());
     }
 }

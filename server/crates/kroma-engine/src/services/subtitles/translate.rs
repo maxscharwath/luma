@@ -427,4 +427,55 @@ mod tests {
         assert!(s.chars().count() <= 161); // 160 chars + the ellipsis
         assert!(s.ends_with('…'));
     }
+
+    fn backend(label: &str, reply: std::result::Result<String, ()>) -> Backend {
+        Backend { label: label.to_string(), client: Arc::new(FakeLlm { reply }), token_cap: 8192 }
+    }
+
+    #[test]
+    fn translate_one_uses_first_backend_when_it_works() {
+        let backends = vec![backend("a", Ok("1. Bonjour\n2. Salut".into())), backend("b", Err(()))];
+        let active = AtomicUsize::new(0);
+        let batch = [cue("t0", "Hello"), cue("t1", "Hi")];
+        let out = translate_one(&backends, &active, &batch, "French").unwrap();
+        assert_eq!(out, vec![Some("Bonjour".to_string()), Some("Salut".to_string())]);
+        assert_eq!(active.load(Ordering::Relaxed), 0); // stayed on the primary
+    }
+
+    #[test]
+    fn translate_one_fails_over_and_sticks() {
+        let backends = vec![backend("a", Err(())), backend("b", Ok("1. Bonjour\n2. Salut".into()))];
+        let active = AtomicUsize::new(0);
+        let batch = [cue("t0", "Hello"), cue("t1", "Hi")];
+        let out = translate_one(&backends, &active, &batch, "French").unwrap();
+        assert_eq!(out[0].as_deref(), Some("Bonjour"));
+        assert_eq!(active.load(Ordering::Relaxed), 1); // switched to the working backend
+    }
+
+    #[test]
+    fn translate_one_errors_when_all_backends_fail() {
+        let backends = vec![backend("a", Err(())), backend("b", Err(()))];
+        let active = AtomicUsize::new(0);
+        let batch = [cue("t0", "Hello")];
+        let err = translate_one(&backends, &active, &batch, "French").unwrap_err();
+        assert!(err.contains("LLM request failed"), "unexpected: {err}");
+    }
+
+    fn test_pool() -> crate::db::Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-subs-translate-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    #[test]
+    fn translate_vtt_errors_when_no_provider_configured() {
+        let pool = test_pool();
+        let s = Settings::load(&pool); // no LLM providers
+        let reg = std::sync::Arc::new(crate::services::subtitles::progress::GenRegistry::default());
+        let handle = reg.start("item1", "translate", Some("French".into()));
+        let err = translate_vtt(&s, "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n", "French", &handle).unwrap_err();
+        assert!(err.contains("no LLM provider"), "unexpected: {err}");
+    }
 }

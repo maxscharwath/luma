@@ -92,3 +92,17 @@ pub(super) fn run(ctx: &JobContext) -> Result<()> {
 fn short_id(id: &str) -> &str {
     &id[..id.len().min(8)]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::short_id;
+
+    #[test]
+    fn short_id_truncates_to_eight_bytes() {
+        assert_eq!(short_id("0123456789abcdef"), "01234567");
+        // Ids at or under 8 bytes are returned whole.
+        assert_eq!(short_id("abc"), "abc");
+        assert_eq!(short_id("01234567"), "01234567");
+        assert_eq!(short_id(""), "");
+    }
+}

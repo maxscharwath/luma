@@ -286,4 +286,78 @@ mod tests {
         let out = truncate("Amélie Poulain Deluxe", 8);
         assert!(out.is_char_boundary(out.len()) && out.ends_with("..."));
     }
+
+    #[test]
+    fn truncation_tiny_budget_is_partial_ellipsis() {
+        // Budget at or below the ellipsis length yields a (possibly partial) ellipsis.
+        assert_eq!(truncate("abcdef", 3), "...");
+        assert_eq!(truncate("abcdef", 2), "..");
+        assert_eq!(truncate("abcdef", 1), ".");
+        // A negative tail keep respects UTF-8 boundaries too.
+        let tail = truncate("héllo wörld tail", -7);
+        assert!(tail.starts_with("...") && tail.is_char_boundary(tail.len()));
+    }
+
+    #[test]
+    fn title_the_handles_all_articles() {
+        assert_eq!(title_the("An Officer and a Gentleman"), "Officer and a Gentleman, An");
+        // No leading article: unchanged.
+        assert_eq!(title_the("Blade Runner"), "Blade Runner");
+        // First-character bucket uses the sort title (article moved to the end).
+        assert_eq!(first_character("A Bug's Life"), "B");
+        assert_eq!(first_character("2001: A Space Odyssey"), "2");
+        assert_eq!(first_character(""), "");
+    }
+
+    #[test]
+    fn clean_title_drops_curly_quotes_without_gaps() {
+        assert_eq!(clean_title("It\u{2019}s Complicated"), "Its Complicated");
+        assert_eq!(clean_title("Who? What! Why."), "Who What Why");
+    }
+
+    #[test]
+    fn number_token_without_pad_and_unknown_token() {
+        let c = ctx();
+        // No pad spec => plain number.
+        assert_eq!(render("S{season}", &NameContext { season: Some(4), ..Default::default() }), "S4");
+        // Unknown token resolves to empty (and its decoration is dropped).
+        assert_eq!(render("{Totally Unknown}", &c), "");
+        assert_eq!(render("[{Totally Unknown}]", &c), "");
+        // Year with no value renders empty.
+        assert_eq!(render("{Release Year}", &NameContext::default()), "");
+    }
+
+    #[test]
+    fn language_tokens_all_and_subtitle_spec() {
+        // AudioLanguagesAll keeps a sole-English track (unlike AudioLanguages).
+        let sole_en = NameContext { audio_languages: vec!["EN".into()], ..Default::default() };
+        assert_eq!(render("{MediaInfo AudioLanguages}", &sole_en), "");
+        assert_eq!(render("{MediaInfo AudioLanguagesAll}", &sole_en), "[EN]");
+        // Subtitle languages honor an include+exclude spec.
+        let subs = NameContext {
+            subtitle_languages: vec!["EN".into(), "FR".into(), "DE".into()],
+            ..Default::default()
+        };
+        assert_eq!(render("{MediaInfo SubtitleLanguages:EN+FR}", &subs), "[EN+FR]");
+        assert_eq!(render("{MediaInfo SubtitleLanguages:-EN}", &subs), "[FR+DE]");
+    }
+
+    #[test]
+    fn langs_include_and_exclude_together() {
+        let all = ["EN".to_string(), "FR".to_string(), "DE".to_string()];
+        // Include narrows, exclude then removes from the narrowed set.
+        assert_eq!(langs(&all, Some("EN+FR+-FR"), true), "[EN]");
+        // An empty filtered list yields no tag at all.
+        assert_eq!(langs(&all, Some("JA"), true), "");
+        // Empty spec is treated as no spec.
+        assert_eq!(langs(&all, Some(""), true), "[EN+FR+DE]");
+    }
+
+    #[test]
+    fn string_token_truncation_spec() {
+        let c = NameContext { title: "A Very Long Movie Title Here".into(), ..Default::default() };
+        assert_eq!(render("{Movie Title:13}", &c), "A Very Lon...");
+        // A zero spec is not a truncation (and not a pad): value unchanged.
+        assert_eq!(render("{Movie Title:0}", &c), "A Very Long Movie Title Here");
+    }
 }

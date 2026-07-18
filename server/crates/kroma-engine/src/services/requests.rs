@@ -857,4 +857,315 @@ mod tests {
         assert!((1..=12).contains(&m));
         assert!((1..=31).contains(&d));
     }
+
+    // ----- DB-backed matcher tests (a minimal in-process HostCtx double) ----------
+
+    /// A tiny [`HostCtx`] over a real temp DB pool: enough for the availability
+    /// matcher + ledger flips, which only touch `db()`, `publish()` (counted) and
+    /// `trigger_job()` (no-op). Everything else is unused here.
+    struct TestHost {
+        db: db::Pool,
+        data_dir: std::path::PathBuf,
+        tmdb: Option<String>,
+        published: std::sync::atomic::AtomicUsize,
+    }
+
+    impl TestHost {
+        fn new() -> Self {
+            static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let path =
+                std::env::temp_dir().join(format!("kroma-requests-{}-{n}.db", std::process::id()));
+            let _ = std::fs::remove_file(&path);
+            Self {
+                db: db::init(&path).unwrap(),
+                data_dir: std::env::temp_dir(),
+                tmdb: Some("test-key".into()),
+                published: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+
+        fn publishes(&self) -> usize {
+            self.published.load(std::sync::atomic::Ordering::Relaxed)
+        }
+    }
+
+    impl HostCtx for TestHost {
+        fn db(&self) -> &db::Pool {
+            &self.db
+        }
+        fn data_dir(&self) -> &std::path::Path {
+            &self.data_dir
+        }
+        fn require(&self, _u: &User, _p: Permission) -> Result<(), axum::response::Response> {
+            Ok(())
+        }
+        fn require_any_admin(&self, _u: &User) -> Result<(), axum::response::Response> {
+            Ok(())
+        }
+        fn lerr(&self, _u: &User, _s: axum::http::StatusCode, _k: &str) -> axum::response::Response {
+            unimplemented!("not exercised by the matcher tests")
+        }
+        fn setting_str(&self, _k: &str, d: &str) -> String {
+            d.to_string()
+        }
+        fn setting_bool(&self, _k: &str, d: bool) -> bool {
+            d
+        }
+        fn setting_i64(&self, _k: &str, d: i64) -> i64 {
+            d
+        }
+        fn set_settings(&self, _p: std::collections::BTreeMap<String, serde_json::Value>) {}
+        fn publish(&self, _e: Event) {
+            self.published.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        fn trigger_job(&self, _k: &'static str, _r: &'static str) {}
+        fn module_enabled(&self, _id: &str) -> bool {
+            false
+        }
+        fn library_folders(&self) -> Vec<kroma_module_host::LibraryFolders> {
+            Vec::new()
+        }
+        fn tmdb_api_key(&self) -> Option<String> {
+            self.tmdb.clone()
+        }
+        fn metadata_language(&self) -> String {
+            "en-US".into()
+        }
+        fn get_service(
+            &self,
+            _t: std::any::TypeId,
+        ) -> Option<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
+            None
+        }
+    }
+
+    fn exec(host: &TestHost, sql: &str) {
+        host.db.get().unwrap().execute(sql, []).unwrap();
+    }
+
+    fn seed_library(host: &TestHost) {
+        exec(host, "INSERT OR IGNORE INTO libraries (id,name,kind,path,added_at) VALUES ('lib1','L','mixed','/x','now')");
+    }
+
+    fn seed_movie_item(host: &TestHost, item_id: &str, tmdb: u64) {
+        seed_library(host);
+        exec(host, &format!("INSERT INTO items (id,kind,title,container,library,added_at) VALUES ('{item_id}','movie','T','mkv','lib1','now')"));
+        exec(host, &format!("INSERT INTO metadata_core (subject_kind,subject_id,tmdb_id,updated_at) VALUES ('item','{item_id}',{tmdb},0)"));
+    }
+
+    fn seed_show(host: &TestHost, show_id: &str, tmdb: u64, present: &[(u32, u32)]) {
+        seed_library(host);
+        exec(host, &format!("INSERT INTO shows (id,library,title,added_at) VALUES ('{show_id}','lib1','Show','now')"));
+        exec(host, &format!("INSERT INTO metadata_core (subject_kind,subject_id,tmdb_id,updated_at) VALUES ('show','{show_id}',{tmdb},0)"));
+        for (s, e) in present {
+            exec(host, &format!("INSERT INTO items (id,kind,title,container,library,show_id,season,episode,added_at) VALUES ('{show_id}-s{s}e{e}','episode','E','mkv','lib1','{show_id}',{s},{e},'now')"));
+        }
+    }
+
+    fn insert_req(host: &TestHost, id: &str, kind: RequestKind, tmdb: u64, status: RequestStatus) {
+        db::insert_request(
+            host.db(),
+            &db::NewRequest {
+                id: id.into(),
+                kind,
+                tmdb_id: tmdb,
+                title: "T".into(),
+                year: Some(2020),
+                poster_url: None,
+                seasons: None,
+                episodes: None,
+                status,
+                requested_by: None,
+            },
+            now_ms(),
+        )
+        .unwrap();
+    }
+
+    fn wanted(id: &str, req_id: &str, season: Option<u32>, episode: Option<u32>, air: Option<&str>, status: &str) -> db::WantedRow {
+        db::WantedRow {
+            id: id.into(),
+            request_id: req_id.into(),
+            kind: if season.is_some() { "episode".into() } else { "movie".into() },
+            tmdb_id: 100,
+            imdb_id: None,
+            title: "T".into(),
+            year: None,
+            season,
+            episode,
+            air_date: air.map(str::to_string),
+            status: status.into(),
+            last_search_at: None,
+        }
+    }
+
+    fn status_of_req(host: &TestHost, id: &str) -> RequestStatus {
+        let conn = host.db().get().unwrap();
+        db::get_request(&conn, id).unwrap().unwrap().status
+    }
+
+    #[test]
+    fn match_one_movie_flips_wanted_and_request_to_available() {
+        let host = TestHost::new();
+        seed_movie_item(&host, "m1", 603);
+        insert_req(&host, "r1", RequestKind::Movie, 603, RequestStatus::Approved);
+        db::replace_wanted(host.db(), "r1", &[wanted("w1", "r1", None, None, None, "wanted")], now_ms())
+            .unwrap();
+
+        let status = match_one(&host, "r1").unwrap();
+        assert_eq!(status, Some(RequestStatus::Available));
+        assert_eq!(status_of_req(&host, "r1"), RequestStatus::Available);
+        let conn = host.db().get().unwrap();
+        assert_eq!(db::wanted_for_request(&conn, "r1").unwrap()[0].status, "available");
+    }
+
+    #[test]
+    fn match_one_movie_absent_from_catalog_is_no_judgement() {
+        let host = TestHost::new();
+        // No catalog item for tmdb 999 -> matcher cannot decide.
+        insert_req(&host, "r1", RequestKind::Movie, 999, RequestStatus::Approved);
+        assert_eq!(match_one(&host, "r1").unwrap(), None);
+        assert_eq!(status_of_req(&host, "r1"), RequestStatus::Approved);
+    }
+
+    #[test]
+    fn match_one_show_available_when_all_aired_episodes_present() {
+        let host = TestHost::new();
+        seed_show(&host, "s1", 1396, &[(1, 1), (1, 2)]);
+        insert_req(&host, "r1", RequestKind::Show, 1396, RequestStatus::Approved);
+        db::replace_wanted(
+            host.db(),
+            "r1",
+            &[
+                wanted("w1", "r1", Some(1), Some(1), Some("2020-01-01"), "wanted"),
+                wanted("w2", "r1", Some(1), Some(2), Some("2020-01-02"), "wanted"),
+            ],
+            now_ms(),
+        )
+        .unwrap();
+
+        assert_eq!(match_one(&host, "r1").unwrap(), Some(RequestStatus::Available));
+        assert_eq!(status_of_req(&host, "r1"), RequestStatus::Available);
+    }
+
+    #[test]
+    fn match_one_show_partial_when_some_episodes_missing() {
+        let host = TestHost::new();
+        // Only episode 1 is on disk; both are aired and wanted.
+        seed_show(&host, "s1", 1396, &[(1, 1)]);
+        insert_req(&host, "r1", RequestKind::Show, 1396, RequestStatus::Approved);
+        db::replace_wanted(
+            host.db(),
+            "r1",
+            &[
+                wanted("w1", "r1", Some(1), Some(1), Some("2020-01-01"), "wanted"),
+                wanted("w2", "r1", Some(1), Some(2), Some("2020-01-02"), "wanted"),
+            ],
+            now_ms(),
+        )
+        .unwrap();
+
+        assert_eq!(match_one(&host, "r1").unwrap(), Some(RequestStatus::PartiallyAvailable));
+        assert_eq!(status_of_req(&host, "r1"), RequestStatus::PartiallyAvailable);
+    }
+
+    #[test]
+    fn match_one_show_pending_without_ledger_is_no_judgement() {
+        let host = TestHost::new();
+        seed_show(&host, "s1", 1396, &[(1, 1)]);
+        // A pending show with no wanted ledger yields no verdict.
+        insert_req(&host, "r1", RequestKind::Show, 1396, RequestStatus::Pending);
+        assert_eq!(match_one(&host, "r1").unwrap(), None);
+    }
+
+    #[test]
+    fn on_download_imported_flips_grabbed_rows_to_available() {
+        let host = TestHost::new();
+        insert_req(&host, "r1", RequestKind::Movie, 603, RequestStatus::Approved);
+        db::replace_wanted(host.db(), "r1", &[wanted("w1", "r1", None, None, None, "grabbed")], now_ms())
+            .unwrap();
+
+        on_download_imported(&host, "r1").unwrap();
+        let conn = host.db().get().unwrap();
+        assert_eq!(db::wanted_for_request(&conn, "r1").unwrap()[0].status, "available");
+        drop(conn);
+        assert_eq!(status_of_req(&host, "r1"), RequestStatus::Available);
+        assert!(host.publishes() >= 1, "an available flip publishes an update");
+    }
+
+    #[test]
+    fn on_download_imported_unknown_request_is_noop() {
+        let host = TestHost::new();
+        on_download_imported(&host, "ghost").unwrap();
+        assert_eq!(host.publishes(), 0);
+    }
+
+    #[test]
+    fn availability_pass_checks_nonterminal_and_counts_changes() {
+        let host = TestHost::new();
+        // A movie that will match (Approved -> Available: a change).
+        seed_movie_item(&host, "m1", 603);
+        insert_req(&host, "r1", RequestKind::Movie, 603, RequestStatus::Approved);
+        db::replace_wanted(host.db(), "r1", &[wanted("w1", "r1", None, None, None, "wanted")], now_ms())
+            .unwrap();
+        // A show not in the library (no verdict -> checked but unchanged).
+        insert_req(&host, "r2", RequestKind::Show, 1396, RequestStatus::Approved);
+        // A denied request is skipped entirely.
+        insert_req(&host, "r3", RequestKind::Movie, 700, RequestStatus::Denied);
+
+        let summary = availability_pass(&host).unwrap();
+        assert_eq!(summary.checked, 2, "denied request excluded from the pass");
+        assert_eq!(summary.changed, 1, "only the movie flipped");
+        assert_eq!(status_of_req(&host, "r1"), RequestStatus::Available);
+    }
+
+    #[test]
+    fn build_wanted_rows_from_movie_makes_one_row_with_release_gate() {
+        let host = TestHost::new();
+        let request = req(RequestKind::Movie, RequestStatus::Approved);
+        let detail = raw_detail(Some("tt0133093"), Some("2020-01-01"));
+        let rows = build_wanted_rows_from(&host, &request, &detail).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].kind, "movie");
+        assert_eq!(rows[0].tmdb_id, request.tmdb_id);
+        assert_eq!(rows[0].imdb_id.as_deref(), Some("tt0133093"));
+        assert_eq!(rows[0].air_date.as_deref(), Some("2020-01-01"));
+        assert_eq!(rows[0].status, "wanted");
+    }
+
+    #[test]
+    fn build_wanted_rows_from_show_with_empty_seasons_bails() {
+        let host = TestHost::new();
+        // A show ask naming an empty explicit season set targets nothing, so no
+        // TMDB season calls happen and the builder refuses an empty ledger.
+        let mut request = req(RequestKind::Show, RequestStatus::Approved);
+        request.seasons = Some(Vec::new());
+        let detail = raw_detail(None, None);
+        assert!(build_wanted_rows_from(&host, &request, &detail).is_err());
+    }
+
+    fn raw_detail(imdb: Option<&str>, avail: Option<&str>) -> discover::DiscoverRawDetail {
+        discover::DiscoverRawDetail {
+            kind: RequestKind::Movie,
+            tmdb_id: 42,
+            title: "T".into(),
+            year: Some(2020),
+            poster_url: None,
+            backdrop_url: None,
+            overview: None,
+            tagline: None,
+            genres: Vec::new(),
+            rating: None,
+            runtime_min: None,
+            imdb_id: imdb.map(str::to_string),
+            seasons: Vec::new(),
+            cast: Vec::new(),
+            crew: Vec::new(),
+            similar: Vec::new(),
+            status: None,
+            next_air: None,
+            available_date: avail.map(str::to_string),
+        }
+    }
 }

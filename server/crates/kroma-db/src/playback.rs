@@ -564,4 +564,192 @@ mod tests {
         assert!(next_episode(&pool, "e3").unwrap().is_none());
         assert!(next_episode(&pool, "m1").unwrap().is_none());
     }
+
+    /// Insert a movie item so `progress`'s items FK is satisfied.
+    fn seed_movie(pool: &Pool, id: &str) {
+        pool.get()
+            .unwrap()
+            .execute(
+                "INSERT INTO items (id,kind,title,container,library,added_at) \
+                 VALUES (?1,'movie','T','mkv','lib','t')",
+                params![id],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn progress_upsert_get_list_delete() {
+        let (pool, uid) = pool_with_user(); // has item m1
+        seed_movie(&pool, "m2");
+        seed_movie(&pool, "m3");
+
+        // Nothing saved yet.
+        assert!(get_progress(&pool, &uid, "m1").unwrap().is_none());
+        assert!(list_progress(&pool, &uid).unwrap().is_empty());
+
+        // Insert path.
+        upsert_progress(&pool, &uid, "m1", 1000, Some(2000)).unwrap();
+        let p = get_progress(&pool, &uid, "m1").unwrap().unwrap();
+        assert_eq!(p.item_id, "m1");
+        assert_eq!(p.position_ms, 1000);
+        assert_eq!(p.duration_ms, Some(2000));
+
+        // ON CONFLICT update path: new position, duration cleared to NULL, still one row.
+        upsert_progress(&pool, &uid, "m1", 5000, None).unwrap();
+        let p = get_progress(&pool, &uid, "m1").unwrap().unwrap();
+        assert_eq!(p.position_ms, 5000);
+        assert_eq!(p.duration_ms, None);
+        assert_eq!(list_progress(&pool, &uid).unwrap().len(), 1);
+
+        // list_progress is newest (updated_at DESC) first; control timestamps for a
+        // deterministic order (RFC3339 text sorts chronologically).
+        upsert_progress(&pool, &uid, "m2", 100, Some(1000)).unwrap();
+        upsert_progress(&pool, &uid, "m3", 200, Some(1000)).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            for (id, at) in [
+                ("m1", "2021-01-01T00:00:00Z"),
+                ("m2", "2021-01-03T00:00:00Z"),
+                ("m3", "2021-01-02T00:00:00Z"),
+            ] {
+                conn.execute(
+                    "UPDATE progress SET updated_at=?2 WHERE item_id=?1",
+                    params![id, at],
+                )
+                .unwrap();
+            }
+        }
+        let ids: Vec<String> =
+            list_progress(&pool, &uid).unwrap().into_iter().map(|p| p.item_id).collect();
+        assert_eq!(ids, vec!["m2".to_string(), "m3".to_string(), "m1".to_string()]);
+
+        // Delete one; deleting a missing id is a harmless no-op.
+        delete_progress(&pool, &uid, "m2").unwrap();
+        let ids: Vec<String> =
+            list_progress(&pool, &uid).unwrap().into_iter().map(|p| p.item_id).collect();
+        assert_eq!(ids, vec!["m3".to_string(), "m1".to_string()]);
+        delete_progress(&pool, &uid, "does-not-exist").unwrap();
+        assert_eq!(list_progress(&pool, &uid).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn continue_watching_filters_and_orders() {
+        let (pool, uid) = pool_with_user(); // m1 already an item
+        for id in ["low", "done", "nodur"] {
+            seed_movie(&pool, id);
+        }
+        {
+            let conn = pool.get().unwrap();
+            // (item, position, duration, updated_at)
+            let rows: [(&str, i64, Option<i64>, &str); 4] = [
+                // Resumable, older.
+                ("nodur", 30_000, None, "2021-01-01T00:00:00Z"),
+                // Resumable, newer -> should come first.
+                ("m1", 20_000, Some(100_000), "2021-01-02T00:00:00Z"),
+                // Below the 15s floor -> excluded.
+                ("low", 5_000, Some(100_000), "2021-01-03T00:00:00Z"),
+                // Past 95% -> counts as finished -> excluded.
+                ("done", 96_000, Some(100_000), "2021-01-04T00:00:00Z"),
+            ];
+            for (id, pos, dur, at) in rows {
+                conn.execute(
+                    "INSERT INTO progress (user_id,item_id,position_ms,duration_ms,updated_at) \
+                     VALUES (?1,?2,?3,?4,?5)",
+                    params![uid, id, pos, dur, at],
+                )
+                .unwrap();
+            }
+        }
+
+        let cw = continue_watching(&pool, &uid).unwrap();
+        let ids: Vec<&str> = cw.iter().map(|c| c.item.id.as_str()).collect();
+        // Only the two resumable rows, newest-first (m1 then nodur).
+        assert_eq!(ids, vec!["m1", "nodur"]);
+        assert_eq!(cw[0].position_ms, 20_000);
+        assert_eq!(cw[0].duration_ms, Some(100_000));
+        assert_eq!(cw[1].position_ms, 30_000);
+        assert_eq!(cw[1].duration_ms, None);
+    }
+
+    #[test]
+    fn continue_watching_episode_borrows_show_artwork() {
+        let (pool, uid) = pool_with_user();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute(
+                "INSERT INTO shows (id,library,title,metadata,added_at) VALUES ('s1','lib','Show',?1,'t')",
+                params![r#"{"tmdbId":10,"genres":[],"tmdbUrl":"http://tmdb/show","posterUrl":"show-poster.jpg","backdropUrl":"show-backdrop.jpg"}"#],
+            )
+            .unwrap();
+            // Episode carries only its own still as backdrop, no poster of its own.
+            conn.execute(
+                "INSERT INTO items (id,kind,title,container,library,show_id,season,episode,metadata,added_at) \
+                 VALUES ('e1','episode','Ep','mkv','lib','s1',1,1,?1,'t')",
+                params![r#"{"tmdbId":11,"genres":[],"tmdbUrl":"http://tmdb/ep","backdropUrl":"episode-still.jpg"}"#],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO progress (user_id,item_id,position_ms,duration_ms,updated_at) \
+                 VALUES (?1,'e1',20000,100000,'2021-01-01T00:00:00Z')",
+                params![uid],
+            )
+            .unwrap();
+        }
+
+        let cw = continue_watching(&pool, &uid).unwrap();
+        assert_eq!(cw.len(), 1);
+        let meta = cw[0].item.metadata.as_ref().expect("episode inherits show metadata");
+        // Poster comes from the show; backdrop keeps the episode-specific still.
+        assert_eq!(meta.poster_url.as_deref(), Some("show-poster.jpg"));
+        assert_eq!(meta.backdrop_url.as_deref(), Some("episode-still.jpg"));
+    }
+
+    /// Show `sid` with `n` episodes `{prefix}1..{prefix}n`.
+    fn seed_show(pool: &Pool, sid: &str, prefix: &str, n: i64) {
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO shows (id,library,title,added_at) VALUES (?1,'lib','Show','t')",
+            params![sid],
+        )
+        .unwrap();
+        for e in 1..=n {
+            conn.execute(
+                "INSERT INTO items (id,kind,title,container,library,show_id,season,episode,added_at) \
+                 VALUES (?1,'episode','Ep','mkv','lib',?2,1,?3,'t')",
+                params![format!("{prefix}{e}"), sid, e],
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn show_progress_and_one_compute_percent() {
+        let (pool, uid) = pool_with_user();
+        seed_show(&pool, "s1", "e", 4); // e1..e4
+        seed_show(&pool, "s2", "f", 2); // f1..f2 (untouched)
+        seed_show(&pool, "s3", "g", 2); // g1..g2 (fully watched)
+
+        // s1: two watched + one in-progress at 0.4 -> (2 + 0.4)/4 = 60%.
+        mark_watched(&pool, &uid, "e1").unwrap();
+        mark_watched(&pool, &uid, "e2").unwrap();
+        upsert_progress(&pool, &uid, "e3", 24_000, Some(60_000)).unwrap();
+
+        // s3: both episodes watched -> 100%.
+        mark_watched(&pool, &uid, "g1").unwrap();
+        mark_watched(&pool, &uid, "g2").unwrap();
+
+        let map = show_progress(&pool, &uid).unwrap();
+        assert_eq!(map.get("s1"), Some(&60));
+        assert_eq!(map.get("s3"), Some(&100));
+        // s2 has no progress -> excluded (0% rows are dropped).
+        assert_eq!(map.get("s2"), None);
+        // Movies are never series-progress rows.
+        assert_eq!(map.get("m1"), None);
+
+        // Single-show variant agrees, and is None for no-progress / unknown shows.
+        assert_eq!(show_progress_one(&pool, &uid, "s1").unwrap(), Some(60));
+        assert_eq!(show_progress_one(&pool, &uid, "s3").unwrap(), Some(100));
+        assert_eq!(show_progress_one(&pool, &uid, "s2").unwrap(), None);
+        assert_eq!(show_progress_one(&pool, &uid, "no-such-show").unwrap(), None);
+    }
 }

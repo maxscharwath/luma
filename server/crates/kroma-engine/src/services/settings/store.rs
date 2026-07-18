@@ -267,3 +267,109 @@ fn defaults() -> BTreeMap<String, Value> {
     m.insert("libraries".into(), json!(null));
     m
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_pool() -> Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-settings-store-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    #[test]
+    fn defaults_carry_known_keys() {
+        let d = defaults();
+        assert_eq!(d.get("serverName"), Some(&json!("KROMA")));
+        assert_eq!(d.get("moduleStates"), Some(&json!({})));
+        assert_eq!(d.get("watchIntervalSecs"), Some(&json!(-1)));
+        assert_eq!(d.get("llmTemperature"), Some(&json!(0.7)));
+        assert!(d.get("nonexistentKey").is_none());
+    }
+
+    #[test]
+    fn get_falls_back_to_default_then_null() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        // A known key with no persisted row reads its built-in default.
+        assert_eq!(s.get("serverName"), json!("KROMA"));
+        // An unknown key is neither stored nor defaulted -> Null.
+        assert_eq!(s.get("totallyUnknown"), Value::Null);
+    }
+
+    #[test]
+    fn typed_getters_coerce_and_fall_back() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        // bool
+        assert!(s.get_bool("watchAutoScan", false)); // default true
+        assert!(!s.get_bool("anonStats", true)); // default false
+        assert!(s.get_bool("missingBool", true)); // missing -> fallback
+        // serverName is a string, not a bool -> fallback
+        assert!(s.get_bool("serverName", true));
+        // str
+        assert_eq!(s.get_str("serverName", "x"), "KROMA");
+        assert_eq!(s.get_str("anonStats", "fb"), "fb"); // non-string -> fallback
+        assert_eq!(s.get_str("missingStr", "fb"), "fb");
+        // i64: numeric default, string-numeric parse, non-numeric fallback
+        assert_eq!(s.get_i64("watchIntervalSecs", 99), -1); // default -1
+        assert_eq!(s.get_i64("maxConcurrent", 0), 8); // default "8" string parsed
+        assert_eq!(s.get_i64("serverName", 42), 42); // "KROMA" not numeric -> fallback
+        assert_eq!(s.get_i64("missingI64", 7), 7);
+    }
+
+    #[test]
+    fn set_patch_keeps_known_skips_unknown_and_persists() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        let mut patch = BTreeMap::new();
+        patch.insert("serverName".to_string(), json!("MyBox"));
+        patch.insert("bogusKey".to_string(), json!(123));
+        let mut written = s.set_patch(&pool, patch);
+        written.sort();
+        assert_eq!(written, vec!["serverName".to_string()]); // bogusKey dropped
+        assert_eq!(s.get("serverName"), json!("MyBox"));
+        // bogus key never entered the store.
+        assert_eq!(s.get("bogusKey"), Value::Null);
+        // Persisted: a fresh load from the same DB reflects the change.
+        let s2 = Settings::load(&pool);
+        assert_eq!(s2.get("serverName"), json!("MyBox"));
+    }
+
+    #[test]
+    fn update_json_read_modify_writes_known_key_only() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        // watchIntervalSecs default -1 -> +5 = 4.
+        s.update_json(&pool, "watchIntervalSecs", |v| json!(v.as_i64().unwrap_or(0) + 5));
+        assert_eq!(s.get_i64("watchIntervalSecs", 0), 4);
+        // persisted
+        assert_eq!(Settings::load(&pool).get_i64("watchIntervalSecs", 0), 4);
+        // Unknown key: no-op, stays Null.
+        s.update_json(&pool, "notAKey", |_| json!("x"));
+        assert_eq!(s.get("notAKey"), Value::Null);
+    }
+
+    #[test]
+    fn reload_picks_up_direct_db_writes() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        assert_eq!(s.get("serverName"), json!("KROMA"));
+        // Write straight to the DB (bypassing set_patch), then reload.
+        crate::db::settings_set(&pool, "serverName", &json!("Restored")).unwrap();
+        s.reload(&pool);
+        assert_eq!(s.get("serverName"), json!("Restored"));
+    }
+
+    #[test]
+    fn cloned_handle_shares_the_same_map() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        let clone = s.clone();
+        s.set_patch(&pool, BTreeMap::from([("serverName".to_string(), json!("Shared"))]));
+        assert_eq!(clone.get("serverName"), json!("Shared"));
+    }
+}

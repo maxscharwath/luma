@@ -260,3 +260,129 @@ impl Handle {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reg() -> Arc<GenRegistry> {
+        Arc::new(GenRegistry::default())
+    }
+
+    #[test]
+    fn overall_maps_stages_to_a_single_bar() {
+        assert_eq!(overall("model", 0, 0), 0.04);
+        assert_eq!(overall("extract", 0, 0), 0.10);
+        assert_eq!(overall("done", 1, 1), 1.0);
+        assert_eq!(overall("queued", 0, 0), 0.0);
+        // transcribe: 0.10 head + 0.88 * frac.
+        assert!((overall("transcribe", 1, 2) - (0.10 + 0.88 * 0.5)).abs() < 1e-6);
+        // frac clamps to 1, so transcribe tops out at 0.10 + 0.88 = 0.98.
+        assert!((overall("transcribe", 5, 1) - 0.98).abs() < 1e-6);
+        // translate maps frac straight onto the bar, capped at 0.99.
+        assert_eq!(overall("translate", 5, 1), 0.99);
+        // total 0 -> frac 0.
+        assert!((overall("transcribe", 3, 0) - 0.10).abs() < 1e-6);
+    }
+
+    #[test]
+    fn start_assigns_sequential_ids() {
+        let r = reg();
+        let h0 = r.start("item1", "transcribe", Some("French".into()));
+        let h1 = r.start("item1", "translate", Some("English".into()));
+        assert_eq!(h0.id(), "gen0");
+        assert_eq!(h1.id(), "gen1");
+    }
+
+    #[test]
+    fn views_for_filters_by_item_and_orders_by_start() {
+        let r = reg();
+        let _a = r.start("itemA", "transcribe", None);
+        let _b = r.start("itemB", "transcribe", None);
+        let _c = r.start("itemA", "translate", Some("French".into()));
+        let views = r.views_for("itemA");
+        assert_eq!(views.len(), 2);
+        // creation order preserved (gen0 then gen2).
+        assert_eq!(views[0].id, "gen0");
+        assert_eq!(views[1].id, "gen2");
+        assert_eq!(views[0].status, "running");
+    }
+
+    #[test]
+    fn handle_stage_progress_and_view() {
+        let r = reg();
+        let h = r.start("item1", "transcribe", Some("French".into()));
+        h.stage("transcribe");
+        h.progress(1, 2);
+        let v = &r.views_for("item1")[0];
+        assert_eq!(v.stage, "transcribe");
+        assert!((v.progress - (0.10 + 0.88 * 0.5)).abs() < 1e-6);
+        assert_eq!(v.status, "running");
+        // eta is Some while progress is inside (0.04, 0.999).
+        assert!(v.eta_sec.is_some());
+    }
+
+    #[test]
+    fn handle_done_sets_terminal_snapshot() {
+        let r = reg();
+        let h = r.start("item1", "transcribe", None);
+        h.done("dl-123");
+        let v = &r.views_for("item1")[0];
+        assert_eq!(v.status, "done");
+        assert_eq!(v.stage, "done");
+        assert_eq!(v.progress, 1.0);
+        assert_eq!(v.sub_id.as_deref(), Some("dl-123"));
+        assert!(v.eta_sec.is_none()); // not running
+    }
+
+    #[test]
+    fn handle_fail_sets_error() {
+        let r = reg();
+        let h = r.start("item1", "translate", None);
+        h.progress(1, 4);
+        h.stage("translate");
+        h.progress(1, 4);
+        h.fail("provider down");
+        let v = &r.views_for("item1")[0];
+        assert_eq!(v.status, "error");
+        assert_eq!(v.error.as_deref(), Some("provider down"));
+    }
+
+    #[test]
+    fn cancel_sets_flag_and_reports_found() {
+        let r = reg();
+        let h = r.start("item1", "transcribe", None);
+        assert!(!h.cancelled());
+        assert!(r.cancel(h.id()));
+        assert!(h.cancelled());
+        assert!(h.cancel_flag().load(Ordering::Relaxed));
+        // Unknown id -> false.
+        assert!(!r.cancel("nope"));
+    }
+
+    #[test]
+    fn find_running_matches_and_ignores_finished() {
+        let r = reg();
+        let h = r.start("item1", "translate", Some("French".into()));
+        assert_eq!(r.find_running("item1", "translate", "French").as_deref(), Some("gen0"));
+        assert!(r.find_running("item1", "translate", "English").is_none());
+        assert!(r.find_running("other", "translate", "French").is_none());
+        // Once finished it is no longer "running".
+        h.done("x");
+        assert!(r.find_running("item1", "translate", "French").is_none());
+    }
+
+    #[test]
+    fn views_for_prunes_finished_after_linger() {
+        let r = reg();
+        let h = r.start("item1", "transcribe", None);
+        h.done("x");
+        // Age the finished timestamp beyond LINGER.
+        {
+            let mut map = r.inner.lock().unwrap();
+            let e = map.get_mut("gen0").unwrap();
+            e.finished = Some(Instant::now() - LINGER - Duration::from_secs(5));
+        }
+        assert!(r.views_for("item1").is_empty());
+    }
+}

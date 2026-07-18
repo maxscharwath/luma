@@ -205,3 +205,147 @@ pub trait DownloadClientHost: Send + Sync {
     /// Remove a download sub-engine `kind` (its module was disabled).
     fn unregister_engine(&self, kind: &str);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A no-op engine so the registry has something to build.
+    struct Stub;
+    impl DownloadClient for Stub {
+        fn kind(&self) -> &'static str {
+            "stub"
+        }
+        fn test(&self) -> anyhow::Result<String> {
+            Ok("v1".into())
+        }
+        fn add(&self, _req: &AddTorrentReq) -> anyhow::Result<String> {
+            Ok("ref".into())
+        }
+        fn status(&self, _client_ref: &str) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(None)
+        }
+        fn pause(&self, _client_ref: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn resume(&self, _client_ref: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn remove(&self, _client_ref: &str, _delete_data: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn def(kind: &str) -> ClientDef {
+        ClientDef {
+            kind: kind.into(),
+            url: String::new(),
+            username: String::new(),
+            password: String::new(),
+        }
+    }
+
+    fn ctx() -> DownloadClientCtx<'static> {
+        DownloadClientCtx { rqbit: None, state_dir: std::path::Path::new("/tmp") }
+    }
+
+    #[test]
+    fn magnet_info_hash_v1_hex() {
+        let uri = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=movie";
+        assert_eq!(
+            magnet_info_hash(uri).as_deref(),
+            Some("0123456789abcdef0123456789abcdef01234567")
+        );
+    }
+
+    #[test]
+    fn magnet_info_hash_is_case_insensitive() {
+        // The scheme + hash are upper-cased; the result is normalized to lowercase.
+        let uri = "MAGNET:?XT=URN:BTIH:0123456789ABCDEF0123456789ABCDEF01234567";
+        assert_eq!(
+            magnet_info_hash(uri).as_deref(),
+            Some("0123456789abcdef0123456789abcdef01234567")
+        );
+    }
+
+    #[test]
+    fn magnet_info_hash_base32_len_32() {
+        let uri = "magnet:?xt=urn:btih:abcdefghijklmnopqrstuvwxyz234567";
+        assert_eq!(
+            magnet_info_hash(uri).as_deref(),
+            Some("abcdefghijklmnopqrstuvwxyz234567")
+        );
+    }
+
+    #[test]
+    fn magnet_info_hash_rejects_bad_input() {
+        // No xt parameter.
+        assert_eq!(magnet_info_hash("magnet:?dn=nothing"), None);
+        assert_eq!(magnet_info_hash(""), None);
+        // Wrong length (neither 40 nor 32).
+        assert_eq!(magnet_info_hash("magnet:?xt=urn:btih:deadbeef"), None);
+        // Stops at the first non-alphanumeric, leaving an invalid length.
+        assert_eq!(magnet_info_hash("magnet:?xt=urn:btih:-&dn=x"), None);
+    }
+
+    #[test]
+    fn registry_register_build_and_unregister() {
+        let mut reg = DownloadClientRegistry::default();
+        assert!(reg.kinds().is_empty());
+
+        // Chainable registration.
+        reg.register("rqbit", |_def, _ctx| Ok(Box::new(Stub) as Box<dyn DownloadClient>))
+            .register("qbittorrent", |_def, _ctx| Ok(Box::new(Stub) as Box<dyn DownloadClient>));
+        let mut kinds = reg.kinds();
+        kinds.sort_unstable();
+        assert_eq!(kinds, vec!["qbittorrent", "rqbit"]);
+
+        // Build a known kind.
+        let engine = reg.build(&def("rqbit"), &ctx()).expect("known kind builds");
+        assert_eq!(engine.kind(), "stub");
+
+        // Unknown kind errors with a helpful message.
+        let err = reg.build(&def("transmission"), &ctx()).err().unwrap();
+        assert!(err.to_string().contains("unknown download client kind"));
+
+        // Unregister removes the kind.
+        reg.unregister("rqbit");
+        assert_eq!(reg.kinds(), vec!["qbittorrent"]);
+        assert!(reg.build(&def("rqbit"), &ctx()).is_err());
+    }
+
+    #[test]
+    fn registry_register_replaces_existing_kind() {
+        let mut reg = DownloadClientRegistry::default();
+        reg.register("k", |_, _| Err(anyhow::anyhow!("first")));
+        reg.register("k", |_, _| Ok(Box::new(Stub) as Box<dyn DownloadClient>));
+        // The second factory wins.
+        assert!(reg.build(&def("k"), &ctx()).is_ok());
+        assert_eq!(reg.kinds(), vec!["k"]);
+    }
+
+    #[test]
+    fn default_trait_methods_on_engine() {
+        // list_files is unsupported by default; reannounce is a no-op Ok.
+        assert!(Stub.list_files("magnet:?x", None).is_err());
+        assert!(Stub.reannounce("ref").is_ok());
+    }
+
+    #[test]
+    fn torrent_state_serde_is_lowercase() {
+        assert_eq!(serde_json::to_string(&TorrentState::Downloading).unwrap(), "\"downloading\"");
+        assert_eq!(serde_json::to_string(&TorrentState::Queued).unwrap(), "\"queued\"");
+        let s: TorrentState = serde_json::from_str("\"seeding\"").unwrap();
+        assert_eq!(s, TorrentState::Seeding);
+    }
+
+    #[test]
+    fn torrent_file_entry_round_trips() {
+        let e = TorrentFileEntry { index: 3, path: "a/b.mkv".into(), size_bytes: 42 };
+        let json = serde_json::to_string(&e).unwrap();
+        let back: TorrentFileEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.index, 3);
+        assert_eq!(back.path, "a/b.mkv");
+        assert_eq!(back.size_bytes, 42);
+    }
+}

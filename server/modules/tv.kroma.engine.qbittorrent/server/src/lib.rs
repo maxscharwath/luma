@@ -279,5 +279,61 @@ mod tests {
         let dir = std::path::Path::new("/tmp");
         assert_eq!(cookie_jar_path(dir, &a), cookie_jar_path(dir, &a));
         assert_ne!(cookie_jar_path(dir, &a), cookie_jar_path(dir, &b));
+        // Same URL, different user -> a distinct jar.
+        let c = ClientDef { username: "other".into(), ..a.clone() };
+        assert_ne!(cookie_jar_path(dir, &a), cookie_jar_path(dir, &c));
+        // The tag is a 16-hex suffix on the `qbit-` prefix.
+        let name = cookie_jar_path(dir, &a).file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("qbit-") && name.ends_with(".cookies"));
+    }
+
+    #[test]
+    fn state_mapping_covers_every_qbit_state() {
+        // Explicit error / paused / completed / seeding / queued mappings.
+        assert_eq!(state_of("error", 0.5), TorrentState::Error);
+        assert_eq!(state_of("missingFiles", 0.5), TorrentState::Error);
+        assert_eq!(state_of("pausedDL", 0.3), TorrentState::Paused);
+        assert_eq!(state_of("stoppedDL", 0.3), TorrentState::Paused);
+        assert_eq!(state_of("pausedUP", 1.0), TorrentState::Completed);
+        assert_eq!(state_of("stoppedUP", 1.0), TorrentState::Completed);
+        for s in ["uploading", "stalledUP", "queuedUP", "forcedUP"] {
+            assert_eq!(state_of(s, 1.0), TorrentState::Seeding, "{s}");
+        }
+        for s in ["checkingDL", "checkingUP", "checkingResumeData", "metaDL", "queuedDL", "allocating"] {
+            assert_eq!(state_of(s, 0.0), TorrentState::Queued, "{s}");
+        }
+        // Unknown state falls back on progress: complete -> seeding, else downloading.
+        assert_eq!(state_of("downloading", 0.5), TorrentState::Downloading);
+        assert_eq!(state_of("weird", 1.0), TorrentState::Seeding);
+        assert_eq!(state_of("weird", 0.99), TorrentState::Downloading);
+    }
+
+    #[test]
+    fn new_trims_trailing_slash_from_base() {
+        let def = ClientDef {
+            kind: "qbittorrent".into(),
+            url: "http://host:8080/".into(),
+            username: "u".into(),
+            password: "p".into(),
+        };
+        let q = QBittorrent::new(&def, std::path::PathBuf::from("/tmp/j.cookies"));
+        assert_eq!(q.base, "http://host:8080");
+        assert_eq!(q.username, "u");
+        assert_eq!(q.password, "p");
+    }
+
+    #[test]
+    fn magnet_hash_extraction() {
+        // 40-char hex info-hash, returned lowercased.
+        let h = magnet_info_hash("magnet:?xt=urn:btih:ABCDEF0123456789ABCDEF0123456789ABCDEF01&dn=x");
+        assert_eq!(h.as_deref(), Some("abcdef0123456789abcdef0123456789abcdef01"));
+        // 32-char base32 info-hash is also accepted.
+        assert_eq!(
+            magnet_info_hash("magnet:?xt=urn:btih:ABCDEFGHIJKLMNOPQRSTUVWXYZ234567").as_deref(),
+            Some("abcdefghijklmnopqrstuvwxyz234567")
+        );
+        // A plain http URL / a wrong-length hash -> None.
+        assert_eq!(magnet_info_hash("http://x/a.torrent"), None);
+        assert_eq!(magnet_info_hash("magnet:?xt=urn:btih:tooShort"), None);
     }
 }

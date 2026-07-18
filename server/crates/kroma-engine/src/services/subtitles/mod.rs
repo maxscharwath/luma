@@ -253,4 +253,59 @@ mod tests {
         assert_eq!(lang_to_code("es"), Some("es"));
         assert_eq!(lang_to_code("Klingon"), None);
     }
+
+    #[test]
+    fn lang_codes_cover_many_names_and_codes() {
+        assert_eq!(lang_to_code("  DEUTSCH "), Some("de"));
+        assert_eq!(lang_to_code("italiano"), Some("it"));
+        assert_eq!(lang_to_code("Japonais"), Some("ja"));
+        assert_eq!(lang_to_code("zh"), Some("zh"));
+        assert_eq!(lang_to_code("russe"), Some("ru"));
+        assert_eq!(lang_to_code("português"), Some("pt"));
+        assert_eq!(lang_to_code(""), None);
+    }
+
+    #[test]
+    fn gen_mode_parse_and_provider() {
+        assert_eq!(GenMode::parse("translate"), GenMode::Translate);
+        assert_eq!(GenMode::parse("transcribe"), GenMode::Transcribe);
+        assert_eq!(GenMode::parse("anything-else"), GenMode::Transcribe);
+        assert_eq!(GenMode::Transcribe.provider(), "whisper");
+        assert_eq!(GenMode::Translate.provider(), "translate");
+    }
+
+    #[test]
+    fn quality_parse_and_model() {
+        assert_eq!(Quality::parse("fast"), Quality::Fast);
+        assert_eq!(Quality::parse("accurate"), Quality::Accurate);
+        assert_eq!(Quality::parse("balanced"), Quality::Balanced);
+        assert_eq!(Quality::parse("bogus"), Quality::Balanced);
+        assert_eq!(Quality::Fast.model(), "openai/whisper-tiny");
+        assert_eq!(Quality::Balanced.model(), "openai/whisper-base");
+        assert_eq!(Quality::Accurate.model(), "openai/whisper-small");
+    }
+
+    #[test]
+    fn to_vtt_strips_bom_and_converts_srt_commas() {
+        let srt = "\u{feff}1\n00:00:01,000 --> 00:00:04,000\nLine one\nLine two\n";
+        let vtt = to_vtt(srt);
+        assert!(vtt.starts_with("WEBVTT"));
+        assert!(vtt.contains("00:00:01.000 --> 00:00:04.000"));
+        assert!(vtt.contains("Line one"));
+        assert!(vtt.contains("Line two"));
+    }
+
+    #[test]
+    fn to_vtt_passthrough_after_bom() {
+        let with_bom = "\u{feff}WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n";
+        // BOM stripped, already-WEBVTT passes through unchanged.
+        assert_eq!(to_vtt(with_bom), "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n");
+    }
+
+    #[test]
+    fn stable_id_distinguishes_item_and_provider() {
+        assert_ne!(stable_id("a", "whisper", "French"), stable_id("b", "whisper", "French"));
+        assert_ne!(stable_id("a", "whisper", "French"), stable_id("a", "translate", "French"));
+        assert!(stable_id("a", "whisper", "French").starts_with("dl"));
+    }
 }

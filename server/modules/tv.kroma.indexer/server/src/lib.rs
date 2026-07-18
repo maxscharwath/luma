@@ -346,3 +346,153 @@ fn release_to_port(r: Release) -> kroma_module_sdk::ports::Release {
         details_url: r.details_url,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ----- Query::keywords --------------------------------------------------------
+
+    #[test]
+    fn keywords_render_per_query_kind() {
+        assert_eq!(
+            Query::Movie { tmdb_id: None, imdb_id: None, title: "Dune".into(), year: Some(2021) }
+                .keywords(),
+            "Dune 2021"
+        );
+        assert_eq!(
+            Query::Movie { tmdb_id: None, imdb_id: None, title: "Heat".into(), year: None }
+                .keywords(),
+            "Heat"
+        );
+        assert_eq!(
+            Query::Episode { tmdb_id: None, title: "Breaking Bad".into(), season: 1, episode: 2 }
+                .keywords(),
+            "Breaking Bad S01E02"
+        );
+        assert_eq!(
+            Query::Season { tmdb_id: None, title: "Breaking Bad".into(), season: 3 }.keywords(),
+            "Breaking Bad S03"
+        );
+        assert_eq!(Query::Text { query: "free text".into() }.keywords(), "free text");
+    }
+
+    // ----- Caps::from_definition --------------------------------------------------
+
+    fn def_with_modes(modes_yaml: &str) -> Definition {
+        let yaml = format!(
+            r#"
+id: t
+name: The Tracker
+caps:
+  modes:
+{modes_yaml}
+search:
+  rows:
+    selector: "tr"
+"#
+        );
+        crate::definition::parse(yaml.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn caps_from_definition_reads_modes() {
+        let def = def_with_modes(
+            "    movie-search: [q, imdbid, tmdbid]\n    tv-search: [q, season, tmdbid]",
+        );
+        let caps = Caps::from_definition(&def);
+        assert!(caps.search_imdb);
+        assert!(caps.search_tmdb);
+        assert!(caps.tv_search_tmdb);
+        assert!(caps.tv_search_season);
+        assert_eq!(caps.server_title.as_deref(), Some("The Tracker"));
+    }
+
+    #[test]
+    fn caps_from_definition_search_mode_fallback() {
+        // The generic `search` mode also grants imdb/tmdb id search.
+        let def = def_with_modes("    search: [q, imdbid, tmdbid]");
+        let caps = Caps::from_definition(&def);
+        assert!(caps.search_imdb && caps.search_tmdb);
+        // No tv-search mode -> tv flags stay off.
+        assert!(!caps.tv_search_tmdb && !caps.tv_search_season);
+    }
+
+    #[test]
+    fn caps_from_definition_no_modes_all_false() {
+        let def = def_with_modes("    search: [q]");
+        let caps = Caps::from_definition(&def);
+        assert!(!caps.search_imdb && !caps.search_tmdb);
+        assert!(!caps.tv_search_tmdb && !caps.tv_search_season);
+        assert_eq!(caps.server_title.as_deref(), Some("The Tracker"));
+    }
+
+    // ----- query / release converters ---------------------------------------------
+
+    #[test]
+    fn to_native_query_maps_all_shapes() {
+        use kroma_module_sdk::ports::Query as PQ;
+        assert_eq!(
+            to_native_query(&PQ::Movie {
+                tmdb_id: Some(603),
+                imdb_id: Some("tt0133093".into()),
+                title: "The Matrix".into(),
+                year: Some(1999),
+            }),
+            Query::Movie {
+                tmdb_id: Some(603),
+                imdb_id: Some("tt0133093".into()),
+                title: "The Matrix".into(),
+                year: Some(1999),
+            }
+        );
+        assert_eq!(
+            to_native_query(&PQ::Episode {
+                tmdb_id: Some(1),
+                title: "S".into(),
+                season: 2,
+                episode: 5,
+            }),
+            Query::Episode { tmdb_id: Some(1), title: "S".into(), season: 2, episode: 5 }
+        );
+        assert_eq!(
+            to_native_query(&PQ::Season { tmdb_id: None, title: "S".into(), season: 4 }),
+            Query::Season { tmdb_id: None, title: "S".into(), season: 4 }
+        );
+    }
+
+    #[test]
+    fn release_to_port_keeps_shared_fields() {
+        let r = Release {
+            title: "T".into(),
+            guid: "g".into(),
+            link: Some("l".into()),
+            magnet: Some("m".into()),
+            info_hash: Some("h".into()),
+            size_bytes: Some(5),
+            seeders: Some(3),
+            leechers: Some(1),
+            grabs: Some(9),
+            tmdb_id: Some(2),
+            imdb_id: Some("tt1".into()),
+            published_at: Some("d".into()),
+            details_url: Some("u".into()),
+            categories: vec![2040],
+            download_volume_factor: Some(0.5),
+            upload_volume_factor: Some(1.0),
+        };
+        let p = release_to_port(r);
+        assert_eq!(p.title, "T");
+        assert_eq!(p.guid, "g");
+        assert_eq!(p.link.as_deref(), Some("l"));
+        assert_eq!(p.magnet.as_deref(), Some("m"));
+        assert_eq!(p.info_hash.as_deref(), Some("h"));
+        assert_eq!(p.size_bytes, Some(5));
+        assert_eq!(p.seeders, Some(3));
+        assert_eq!(p.leechers, Some(1));
+        assert_eq!(p.tmdb_id, Some(2));
+        assert_eq!(p.imdb_id.as_deref(), Some("tt1"));
+        assert_eq!(p.published_at.as_deref(), Some("d"));
+        assert_eq!(p.details_url.as_deref(), Some("u"));
+    }
+}

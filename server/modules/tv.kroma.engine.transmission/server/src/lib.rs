@@ -287,6 +287,17 @@ mod tests {
     }
 
     #[test]
+    fn base64_extra_vectors_and_padding() {
+        // Canonical RFC 4648 test vectors.
+        assert_eq!(base64(b"Man"), "TWFu");
+        assert_eq!(base64(b"hello world"), "aGVsbG8gd29ybGQ=");
+        assert_eq!(base64(b"any carnal pleasure."), "YW55IGNhcm5hbCBwbGVhc3VyZS4=");
+        // All-bits-set uses the tail of the alphabet ('/'), single zero byte pads.
+        assert_eq!(base64(&[0xFF, 0xFF, 0xFF]), "////");
+        assert_eq!(base64(&[0x00]), "AA==");
+    }
+
+    #[test]
     fn url_normalization_appends_rpc_path() {
         let def = |url: &str| ClientDef {
             kind: "transmission".into(),
@@ -299,5 +310,29 @@ mod tests {
             Transmission::new(&def("http://nas:9091/transmission/rpc")).url,
             "http://nas:9091/transmission/rpc"
         );
+        // A trailing slash is trimmed before the rpc path is appended.
+        assert_eq!(
+            Transmission::new(&def("http://nas:9091/")).url,
+            "http://nas:9091/transmission/rpc"
+        );
+        // ...and an already-suffixed URL with a trailing slash is left as the path.
+        assert_eq!(
+            Transmission::new(&def("http://nas:9091/transmission/rpc/")).url,
+            "http://nas:9091/transmission/rpc"
+        );
+    }
+
+    #[test]
+    fn new_stores_credentials() {
+        let t = Transmission::new(&ClientDef {
+            kind: "transmission".into(),
+            url: "http://nas:9091".into(),
+            username: "admin".into(),
+            password: "secret".into(),
+        });
+        assert_eq!(t.username, "admin");
+        assert_eq!(t.password, "secret");
+        // The session id starts empty (populated by the 409 handshake).
+        assert!(t.session_id.lock().unwrap().is_empty());
     }
 }

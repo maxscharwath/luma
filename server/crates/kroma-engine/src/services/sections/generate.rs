@@ -211,4 +211,63 @@ mod tests {
         assert!(user.contains("Blade Runner"));
         assert!(user.contains("Previous taste profile"));
     }
+
+    #[test]
+    fn build_prompt_omits_blank_previous_profile_and_uses_french() {
+        let clusters = vec![Cluster { ids: vec![], titles: vec![], genres: vec![], keywords: vec![] }];
+        let (system, user) = build_prompt("fr", Some("   "), &clusters);
+        assert!(system.contains("French"));
+        assert!(!user.contains("Previous taste profile")); // blank prev skipped
+        let (_s, user2) = build_prompt("de", None, &clusters);
+        assert!(!user2.contains("Previous taste profile"));
+    }
+
+    #[test]
+    fn slug_handles_edges() {
+        assert_eq!(slug("Neon Noir Nights"), "neon-noir-nights");
+        assert_eq!(slug("  --Hello, World!! --"), "hello-world");
+        assert_eq!(slug("café déjà"), "caf-d-j"); // non-ascii chars act as separators
+        assert_eq!(slug("!!!"), "");
+        assert_eq!(slug(""), "");
+    }
+
+    #[test]
+    fn extract_json_finds_object_or_none() {
+        assert_eq!(extract_json("prefix {\"a\":1} suffix"), Some("{\"a\":1}"));
+        assert!(extract_json("no braces").is_none());
+        assert!(extract_json("}before{").is_none()); // end <= start
+    }
+
+    #[test]
+    fn language_name_maps_en_else_french() {
+        assert_eq!(language_name("en"), "English");
+        assert_eq!(language_name("fr"), "French");
+        assert_eq!(language_name("xx"), "French");
+    }
+
+    #[test]
+    fn parse_response_caps_at_max_sections() {
+        let mut secs = String::new();
+        for i in 0..10 {
+            secs.push_str(&format!("{{\"title\":\"Row {i}\",\"query\":\"vibe {i} words here\"}},"));
+        }
+        let reply = format!("{{\"sections\":[{}]}}", secs.trim_end_matches(','));
+        let (_, sections) = parse_response(&reply).unwrap();
+        assert_eq!(sections.len(), MAX_SECTIONS);
+    }
+
+    #[test]
+    fn parse_response_errors_without_json() {
+        assert!(parse_response("no json here").is_err());
+    }
+
+    #[test]
+    fn load_returns_empty_when_no_taste_row() {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-gen-load-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let pool = crate::db::init(&path).unwrap();
+        assert!(load(&pool, "nobody").is_empty());
+    }
 }

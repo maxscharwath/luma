@@ -414,4 +414,172 @@ mod tests {
         assert_eq!(rows[0].item_ids, ["a", "b", "c", "d", "e"]); // "zzz" not in catalog
         assert_eq!(rows[0].key, "nolan");
     }
+
+    fn meta(rating: f32, genres: &[&str], directors: &[&str]) -> crate::model::Metadata {
+        crate::model::Metadata {
+            provider: "tmdb",
+            tmdb_id: 1,
+            imdb_id: None,
+            title: None,
+            tagline: None,
+            overview: None,
+            release_date: None,
+            genres: genres.iter().map(|s| s.to_string()).collect(),
+            rating: Some(rating),
+            poster_url: None,
+            backdrop_url: None,
+            logo_url: None,
+            theme_url: None,
+            cast: Vec::new(),
+            crew: directors
+                .iter()
+                .map(|d| crate::model::CrewMember { name: d.to_string(), job: "Director".to_string(), profile_url: None })
+                .collect(),
+            keywords: Vec::new(),
+            tvdb_id: None,
+            tmdb_url: String::new(),
+        }
+    }
+
+    fn item(id: &str, title: &str, kind: Kind, m: Option<crate::model::Metadata>) -> MediaItem {
+        MediaItem {
+            id: id.into(),
+            title: title.into(),
+            kind,
+            year: Some(2001),
+            duration_ms: None,
+            container: String::new(),
+            video: None,
+            audio: None,
+            audio_tracks: Vec::new(),
+            subtitles: Vec::new(),
+            library: "lib".into(),
+            show_id: None,
+            show_title: None,
+            season: None,
+            episode: None,
+            episode_end: None,
+            episode_title: None,
+            rel_path: None,
+            added_at: "t".into(),
+            metadata: m,
+            abs_path: None,
+            files: Vec::new(),
+            default_file_id: None,
+            markers: Vec::new(),
+            audio_analysis: None,
+        }
+    }
+
+    #[test]
+    fn build_catalog_skips_episodes_and_flattens_shows() {
+        let items = vec![
+            item("m1", "Movie One", Kind::Movie, Some(meta(8.0, &["Drama"], &["Kubrick"]))),
+            item("e1", "Episode", Kind::Episode, None), // skipped
+            item("v1", "Clip", Kind::Video, None), // kept (not an episode)
+        ];
+        let shows = vec![Show {
+            id: "s1".into(),
+            title: "Show One".into(),
+            year: Some(2010),
+            library: "lib".into(),
+            season_count: 1,
+            episode_count: 3,
+            video: None,
+            added_at: "t".into(),
+            metadata: Some(meta(7.5, &["Comedy"], &["Someone"])),
+            progress: None,
+        }];
+        let cat = build_catalog(&items, &shows);
+        let ids: Vec<&str> = cat.iter().map(|e| e.id.as_str()).collect();
+        assert!(ids.contains(&"m1"));
+        assert!(ids.contains(&"v1"));
+        assert!(ids.contains(&"s1"));
+        assert!(!ids.contains(&"e1")); // episode excluded
+        let m1 = cat.iter().find(|e| e.id == "m1").unwrap();
+        assert_eq!(m1.rating, 8.0);
+        assert_eq!(m1.directors, vec!["Kubrick"]);
+        // No metadata -> zeroed bits.
+        let v1 = cat.iter().find(|e| e.id == "v1").unwrap();
+        assert_eq!(v1.rating, 0.0);
+        assert!(v1.genres.is_empty());
+    }
+
+    #[test]
+    fn prune_for_prompt_sorts_by_rating_then_year_and_truncates() {
+        let cat = vec![
+            entry_year("a", "A", 5.0, 1990),
+            entry_year("b", "B", 9.0, 2000),
+            entry_year("c", "C", 9.0, 2020), // same rating as b, newer year
+            entry_year("d", "D", 1.0, 2024),
+        ];
+        let pruned = prune_for_prompt(&cat, 3);
+        let ids: Vec<&str> = pruned.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, vec!["c", "b", "a"]); // 9.0/2020, 9.0/2000, 5.0, and "d" truncated
+    }
+
+    #[test]
+    fn normalize_title_and_strip_year() {
+        assert_eq!(normalize_title("Le Parrain (1972)"), "leparrain");
+        assert_eq!(normalize_title("Le Parrain"), "leparrain");
+        // Punctuation and separators are stripped; letters lowercased.
+        assert_eq!(normalize_title("The Godfather: Part II"), "thegodfatherpartii");
+        // A bare-number title keeps its digits (only a parenthesized year is dropped).
+        assert_eq!(normalize_title("1917"), "1917");
+        assert_eq!(strip_year("Alien (1979)"), "Alien");
+        assert_eq!(strip_year("Se7en"), "Se7en");
+        // Non-4-digit parenthetical is not treated as a year.
+        assert_eq!(strip_year("Movie (12)"), "Movie (12)");
+    }
+
+    #[test]
+    fn extract_json_array_handles_fences_and_missing() {
+        assert_eq!(extract_json_array("noise [1,2] tail"), Some("[1,2]"));
+        assert_eq!(extract_json_array("```json\n[{}]\n```"), Some("[{}]"));
+        assert!(extract_json_array("no array here").is_none());
+        assert!(extract_json_array("]before[").is_none()); // end <= start
+    }
+
+    #[test]
+    fn parse_curate_rejects_non_array() {
+        assert!(parse_curate("just prose, no json").is_err());
+    }
+
+    #[test]
+    fn resolve_members_dedups_within_a_collection() {
+        // Same id twice in members -> counted once.
+        let specs = parse_curate(
+            r#"[{"title":{"en":"Dup"},"members":["a","a","b","c","d","e"]}]"#,
+        )
+        .unwrap();
+        let cat: Vec<CatalogEntry> = ["a", "b", "c", "d", "e"].iter().map(|id| entry(id, id, 1.0, "")).collect();
+        let (rows, _) = resolve_members_by_id(&specs, &cat);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].item_ids.len(), 5); // "a" deduped
+    }
+
+    #[test]
+    fn prompts_mention_locales_and_min_items() {
+        let cat = vec![entry("a", "A", 1.0, "")];
+        let refs: Vec<&CatalogEntry> = cat.iter().collect();
+        let (system, user) = build_curate_prompt(&refs);
+        assert!(system.contains("\"en\":string"));
+        assert!(system.contains("\"fr\":string"));
+        assert!(user.contains("A ("));
+        let (tsystem, _tuser) = tool_curate_prompt();
+        assert!(tsystem.contains("list_genres"));
+        assert!(tsystem.contains("catalog **ids**"));
+    }
+
+    // Extra helper: a catalog entry with an explicit year (the base `entry` fixes 2000).
+    fn entry_year(id: &str, title: &str, rating: f32, year: u32) -> CatalogEntry {
+        CatalogEntry {
+            id: id.into(),
+            title: title.into(),
+            year: Some(year),
+            rating,
+            genres: vec!["Drama".into()],
+            directors: vec![],
+        }
+    }
 }

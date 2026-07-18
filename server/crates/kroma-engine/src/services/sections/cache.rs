@@ -114,3 +114,83 @@ impl Default for VectorCache {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cache_with(v: Vec<(String, Vec<f32>)>) -> VectorCache {
+        let c = VectorCache::new();
+        *c.snap.write().unwrap() = Arc::new(v);
+        c
+    }
+
+    fn vecs() -> Vec<(String, Vec<f32>)> {
+        vec![
+            ("a".into(), vec![1.0, 0.0]),
+            ("b".into(), vec![0.0, 1.0]),
+            ("c".into(), vec![0.6, 0.8]),
+            ("bad".into(), vec![1.0, 0.0, 0.0]), // wrong dimension
+        ]
+    }
+
+    #[test]
+    fn new_cache_is_empty() {
+        let c = VectorCache::new();
+        assert!(c.vectors_for(&["a".into()]).is_empty());
+        assert!(c.nearest(&[1.0, 0.0], 5, &HashSet::new()).is_empty());
+        assert!(c.similar("a", 5).is_empty());
+        assert!(c.for_you(&["a".into()], 5).is_empty());
+    }
+
+    #[test]
+    fn vectors_for_returns_requested_ids() {
+        let c = cache_with(vecs());
+        let got = c.vectors_for(&["a".into(), "c".into(), "missing".into()]);
+        let ids: Vec<&str> = got.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "c"]); // follows snapshot order, missing skipped
+    }
+
+    #[test]
+    fn nearest_ranks_by_cosine_and_filters() {
+        let c = cache_with(vecs());
+        let out = c.nearest(&[1.0, 0.0], 2, &HashSet::new());
+        // "a" (1.0) then "c" (0.6); "b" (0.0) drops out of the top 2; "bad" dim-mismatched.
+        let ids: Vec<&str> = out.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "c"]);
+        assert!((out[0].1 - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn nearest_honours_exclude() {
+        let c = cache_with(vecs());
+        let mut ex = HashSet::new();
+        ex.insert("a");
+        let out = c.nearest(&[1.0, 0.0], 5, &ex);
+        let ids: Vec<&str> = out.iter().map(|(id, _)| id.as_str()).collect();
+        assert!(!ids.contains(&"a"));
+        assert_eq!(ids, vec!["c", "b"]); // 0.6 then 0.0
+    }
+
+    #[test]
+    fn similar_excludes_seed_and_handles_missing() {
+        let c = cache_with(vecs());
+        let out = c.similar("a", 5);
+        let ids: Vec<&str> = out.iter().map(|(id, _)| id.as_str()).collect();
+        assert!(!ids.contains(&"a"));
+        assert_eq!(ids, vec!["c", "b"]);
+        // Unknown seed -> empty.
+        assert!(c.similar("zzz", 5).is_empty());
+    }
+
+    #[test]
+    fn for_you_builds_centroid_and_excludes_watched() {
+        let c = cache_with(vecs());
+        let out = c.for_you(&["a".into()], 5);
+        let ids: Vec<&str> = out.iter().map(|(id, _)| id.as_str()).collect();
+        assert!(!ids.contains(&"a")); // watched excluded
+        assert_eq!(ids.first(), Some(&"c")); // nearest to [1,0]
+        // No embeddable watched ids -> empty (count 0).
+        assert!(c.for_you(&["zzz".into()], 5).is_empty());
+    }
+}

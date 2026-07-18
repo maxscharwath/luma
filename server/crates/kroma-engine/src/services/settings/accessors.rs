@@ -214,3 +214,194 @@ pub fn all_folders(settings: &Settings, config: &crate::config::Config) -> Vec<P
         .flat_map(|d| d.folders.into_iter().map(PathBuf::from))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_pool() -> Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-settings-acc-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    fn settings(pool: &Pool) -> Settings {
+        Settings::load(pool)
+    }
+
+    /// A Config with explicit fields (avoids reading the process env).
+    fn test_config() -> crate::config::Config {
+        crate::config::Config {
+            host: "0.0.0.0".to_string(),
+            port: 4040,
+            media_dirs: Vec::new(),
+            movies_dirs: Vec::new(),
+            series_dirs: Vec::new(),
+            data_dir: PathBuf::from("/tmp/kroma-data"),
+            tmdb_api_key: None,
+            tmdb_language: "en-US".to_string(),
+            tmdb_enrich: false,
+            web_url: None,
+            web_dir: None,
+        }
+    }
+
+    #[test]
+    fn local_networks_splits_default_and_custom() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        // default
+        let nets = local_networks(&s);
+        assert!(nets.contains(&"192.168.0.0/16".to_string()));
+        assert_eq!(nets.len(), 3);
+        // custom: comma AND space separated, empties dropped
+        s.set_patch(&pool, BTreeMap::from([("localNetworks".to_string(), json!("10.0.0.0/8,  172.16.0.0/12 ,"))]));
+        let nets = local_networks(&s);
+        assert_eq!(nets, vec!["10.0.0.0/8".to_string(), "172.16.0.0/12".to_string()]);
+    }
+
+    #[test]
+    fn server_name_defaults_and_guards_blank() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        assert_eq!(server_name(&s), "KROMA");
+        s.set_patch(&pool, BTreeMap::from([("serverName".to_string(), json!("Home"))]));
+        assert_eq!(server_name(&s), "Home");
+        s.set_patch(&pool, BTreeMap::from([("serverName".to_string(), json!("   "))]));
+        assert_eq!(server_name(&s), "KROMA"); // blank -> fallback
+    }
+
+    #[test]
+    fn max_transcodes_parses_and_clamps() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        assert_eq!(max_transcodes(&s), 8); // default "8"
+        s.set_patch(&pool, BTreeMap::from([("maxConcurrent".to_string(), json!("12"))]));
+        assert_eq!(max_transcodes(&s), 12);
+        s.set_patch(&pool, BTreeMap::from([("maxConcurrent".to_string(), json!(0))]));
+        assert_eq!(max_transcodes(&s), 1); // clamped up
+        s.set_patch(&pool, BTreeMap::from([("maxConcurrent".to_string(), json!(999))]));
+        assert_eq!(max_transcodes(&s), 32); // clamped down
+    }
+
+    #[test]
+    fn media_workers_explicit_and_auto() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        // default 0 -> auto capacity (cores-1, floored at 1)
+        assert!(media_workers(&s) >= 1);
+        s.set_patch(&pool, BTreeMap::from([("mediaConcurrency".to_string(), json!("4"))]));
+        assert_eq!(media_workers(&s), 4);
+        s.set_patch(&pool, BTreeMap::from([("mediaConcurrency".to_string(), json!(99))]));
+        assert_eq!(media_workers(&s), 32); // clamped
+    }
+
+    #[test]
+    fn transcode_cache_limit_parses_decimal_and_unlimited() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        assert_eq!(transcode_cache_limit_bytes(&s), 20_000_000_000); // default "20 Go"
+        s.set_patch(&pool, BTreeMap::from([("transcodeCacheLimit".to_string(), json!("1.5 Go"))]));
+        assert_eq!(transcode_cache_limit_bytes(&s), 1_500_000_000);
+        s.set_patch(&pool, BTreeMap::from([("transcodeCacheLimit".to_string(), json!("Illimité"))]));
+        assert_eq!(transcode_cache_limit_bytes(&s), 0); // non-numeric -> unlimited
+        s.set_patch(&pool, BTreeMap::from([("transcodeCacheLimit".to_string(), json!("0 Go"))]));
+        assert_eq!(transcode_cache_limit_bytes(&s), 0);
+    }
+
+    #[test]
+    fn simple_bool_and_url_accessors() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        assert!(!theme_songs_enabled(&s));
+        assert!(!remote_access_enabled(&s));
+        assert_eq!(public_url(&s), "");
+        assert_eq!(remote_access_token(&s), "");
+        s.set_patch(&pool, BTreeMap::from([
+            ("themeSongs".to_string(), json!(true)),
+            ("remoteAccess".to_string(), json!(true)),
+            ("remoteUrl".to_string(), json!("https://kroma.example.com/")),
+            ("remoteAccessToken".to_string(), json!("secret")),
+        ]));
+        assert!(theme_songs_enabled(&s));
+        assert!(remote_access_enabled(&s));
+        assert_eq!(public_url(&s), "https://kroma.example.com"); // trailing slash trimmed
+        assert_eq!(remote_access_token(&s), "secret");
+    }
+
+    #[test]
+    fn metadata_language_falls_back_to_config() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        let cfg = test_config();
+        assert_eq!(metadata_language(&s, &cfg), "en-US"); // unset -> config
+        s.set_patch(&pool, BTreeMap::from([("tmdbLanguage".to_string(), json!("fr-FR"))]));
+        assert_eq!(metadata_language(&s, &cfg), "fr-FR");
+    }
+
+    #[test]
+    fn set_remote_config_merges_token() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        set_remote_config(&s, &pool, true, "  https://a.b/  ", Some("tok1"));
+        assert!(remote_access_enabled(&s));
+        assert_eq!(public_url(&s), "https://a.b");
+        assert_eq!(remote_access_token(&s), "tok1");
+        // None keeps the stored token.
+        set_remote_config(&s, &pool, false, "https://a.b", None);
+        assert!(!remote_access_enabled(&s));
+        assert_eq!(remote_access_token(&s), "tok1");
+    }
+
+    #[test]
+    fn library_defs_seed_from_config_when_unset() {
+        let pool = test_pool();
+        let s = settings(&pool); // libraries default null
+        let mut cfg = test_config();
+        cfg.movies_dirs = vec![PathBuf::from("/media/films")];
+        cfg.series_dirs = vec![PathBuf::from("/media/series")];
+        cfg.media_dirs = vec![PathBuf::from("/media/Misc")];
+        let defs = library_defs(&s, &cfg);
+        assert_eq!(defs.len(), 3);
+        assert_eq!(defs[0].name, "Films");
+        assert_eq!(defs[0].kind, "movies");
+        assert_eq!(defs[1].name, "Séries");
+        assert_eq!(defs[1].kind, "shows");
+        // untyped media dir seeds a library named after the folder, empty kind
+        assert_eq!(defs[2].name, "Misc");
+        assert!(defs[2].kind.is_empty());
+    }
+
+    #[test]
+    fn library_defs_round_trip_persisted() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        let cfg = test_config();
+        let defs = vec![LibraryDef {
+            id: "lib1".to_string(),
+            name: "Cinema".to_string(),
+            kind: "movies".to_string(),
+            folders: vec!["/a".to_string(), "/b".to_string()],
+            auto_scan: false,
+        }];
+        set_library_defs(&s, &pool, &defs);
+        let got = library_defs(&s, &cfg);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].name, "Cinema");
+        assert!(!got[0].auto_scan);
+        // all_folders flattens
+        let folders = all_folders(&s, &cfg);
+        assert_eq!(folders, vec![PathBuf::from("/a"), PathBuf::from("/b")]);
+    }
+
+    #[test]
+    fn library_def_auto_scan_defaults_true_on_deserialize() {
+        // A def JSON without autoScan defaults to true.
+        let d: LibraryDef =
+            serde_json::from_value(json!({"id":"x","name":"N","folders":["/f"]})).unwrap();
+        assert!(d.auto_scan);
+        assert!(d.kind.is_empty());
+    }
+}

@@ -263,3 +263,72 @@ impl Builder<'_> {
 fn last_title(pool: &Pool, id: &str) -> Option<String> {
     db::items_by_ids(pool, &[id]).ok()?.into_iter().next().map(|i| i.title)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn test_pool() -> Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-sections-mod-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    #[test]
+    fn unscored_wraps_ids_with_zero_score() {
+        let out = unscored(vec!["a".into(), "b".into()]);
+        assert_eq!(out, vec![("a".to_string(), 0.0), ("b".to_string(), 0.0)]);
+    }
+
+    #[test]
+    fn pick_lang_prefers_locale_then_en_then_any() {
+        let mut m = HashMap::new();
+        m.insert("fr".to_string(), "Bonjour".to_string());
+        m.insert("en".to_string(), "Hello".to_string());
+        assert_eq!(pick_lang(&m, "fr").as_deref(), Some("Bonjour"));
+        // Missing locale -> English fallback.
+        assert_eq!(pick_lang(&m, "de").as_deref(), Some("Hello"));
+        // Only a non-en language present -> any value.
+        let mut only_fr = HashMap::new();
+        only_fr.insert("fr".to_string(), "Salut".to_string());
+        assert_eq!(pick_lang(&only_fr, "en").as_deref(), Some("Salut"));
+        // Empty -> None.
+        assert!(pick_lang(&HashMap::new(), "en").is_none());
+    }
+
+    fn curated(key: &str) -> crate::db::CuratedRow {
+        crate::db::CuratedRow {
+            key: key.to_string(),
+            rank: 0,
+            source: "llm".to_string(),
+            item_ids: vec!["x".to_string()],
+            titles: HashMap::from([("en".to_string(), format!("Title {key}"))]),
+            reasons: HashMap::from([("en".to_string(), "because".to_string())]),
+        }
+    }
+
+    #[test]
+    fn curated_rows_returns_capped_window() {
+        let pool = test_pool();
+        let rows = vec![curated("a"), curated("b"), curated("c"), curated("d")];
+        crate::db::set_curated(&pool, &rows).unwrap();
+        let out = curated_rows(&pool, "en");
+        // MAX_CURATED (3) of the 4 stored rows.
+        assert_eq!(out.len(), 3);
+        // Each entry carries a localized title + reason.
+        for (_key, title, reason, ids) in &out {
+            assert!(title.starts_with("Title "));
+            assert_eq!(reason.as_deref(), Some("because"));
+            assert_eq!(ids, &vec!["x".to_string()]);
+        }
+    }
+
+    #[test]
+    fn curated_rows_empty_without_data() {
+        let pool = test_pool();
+        assert!(curated_rows(&pool, "en").is_empty());
+    }
+}

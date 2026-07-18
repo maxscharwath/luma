@@ -144,3 +144,105 @@ pub fn set_llm(
     patch.insert("llmApiKey".to_string(), json!(""));
     settings.set_patch(pool, patch);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_pool() -> Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-settings-llm-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    fn settings(pool: &Pool) -> Settings {
+        Settings::load(pool)
+    }
+
+    fn provider(id: &str, key: &str) -> LlmProvider {
+        LlmProvider {
+            id: id.to_string(),
+            name: format!("Name-{id}"),
+            provider: "openai".to_string(),
+            base_url: "http://x".to_string(),
+            model: "m".to_string(),
+            api_key: key.to_string(),
+            temperature: 0.5,
+            max_tokens: 500,
+            reasoning: false,
+        }
+    }
+
+    #[test]
+    fn providers_empty_when_nothing_configured() {
+        let pool = test_pool();
+        assert!(llm_providers(&settings(&pool)).is_empty());
+        assert!(default_provider(&settings(&pool)).is_none());
+        assert!(ordered_providers(&settings(&pool)).is_empty());
+    }
+
+    #[test]
+    fn providers_migrate_from_flat_keys() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        s.set_patch(&pool, BTreeMap::from([
+            ("llmModel".to_string(), json!("qwen2.5")),
+            ("llmBaseUrl".to_string(), json!("http://localhost:11434/v1")),
+            ("llmProvider".to_string(), json!("openai")),
+        ]));
+        let list = llm_providers(&s);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, "default");
+        assert_eq!(list[0].model, "qwen2.5");
+        assert_eq!(list[0].base_url, "http://localhost:11434/v1");
+    }
+
+    #[test]
+    fn set_llm_persists_and_default_selection() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        set_llm(&s, &pool, true, vec![provider("a", "k1"), provider("b", "k2")], "b");
+        let list = llm_providers(&s);
+        assert_eq!(list.len(), 2);
+        // default_provider resolves to id "b"
+        assert_eq!(default_provider(&s).unwrap().id, "b");
+        // ordered_providers puts the default first
+        let ordered = ordered_providers(&s);
+        assert_eq!(ordered[0].id, "b");
+        assert_eq!(ordered[1].id, "a");
+        // flat keys are consumed (cleared)
+        assert_eq!(s.get_str("llmModel", "x"), "");
+    }
+
+    #[test]
+    fn default_provider_falls_back_to_first_when_id_missing() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        set_llm(&s, &pool, true, vec![provider("a", "k1"), provider("b", "k2")], "nonexistent");
+        // No provider matches "nonexistent" -> first configured.
+        assert_eq!(default_provider(&s).unwrap().id, "a");
+    }
+
+    #[test]
+    fn set_llm_secret_merge_keeps_stored_key_on_blank() {
+        let pool = test_pool();
+        let s = settings(&pool);
+        set_llm(&s, &pool, true, vec![provider("a", "secret-key")], "a");
+        // Re-save the same provider with a BLANK api key -> stored key is retained.
+        set_llm(&s, &pool, true, vec![provider("a", "")], "a");
+        let list = llm_providers(&s);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].api_key, "secret-key");
+    }
+
+    #[test]
+    fn llm_provider_serde_defaults() {
+        let p: LlmProvider = serde_json::from_value(json!({"id":"x"})).unwrap();
+        assert_eq!(p.provider, "openai");
+        assert!((p.temperature - 0.7).abs() < 1e-6);
+        assert_eq!(p.max_tokens, 900);
+        assert!(!p.reasoning);
+    }
+}

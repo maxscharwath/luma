@@ -234,4 +234,46 @@ mod tests {
         counts.insert("comedy".to_string(), 8);
         assert_eq!(top_n(counts, 2), vec!["comedy", "action"]);
     }
+
+    #[test]
+    fn top_n_ties_break_by_name() {
+        let mut counts = HashMap::new();
+        counts.insert("zeta".to_string(), 3);
+        counts.insert("alpha".to_string(), 3);
+        // Equal counts -> alphabetical.
+        assert_eq!(top_n(counts, 2), vec!["alpha", "zeta"]);
+    }
+
+    #[test]
+    fn mean_averages_then_normalizes() {
+        let a = vec![2.0f32, 0.0];
+        let b = vec![0.0f32, 2.0];
+        let m = mean(&[a.as_slice(), b.as_slice()]);
+        // mean = [1,1], normalized -> [0.707..,0.707..]
+        assert!((m[0] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+        assert!((m[1] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn mean_of_nothing_is_empty() {
+        assert!(mean(&[]).is_empty());
+    }
+
+    fn test_pool() -> Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-taste-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    #[test]
+    fn cluster_empty_when_too_little_history() {
+        let pool = test_pool();
+        let cache = VectorCache::new(); // no embeddings loaded
+        // No watched ids, and even if there were the cache is empty -> below MIN_WATCHED.
+        assert!(cluster(&pool, &cache, &[], 3).is_empty());
+        let watched: Vec<String> = (0..3).map(|i| format!("id{i}")).collect();
+        assert!(cluster(&pool, &cache, &watched, 3).is_empty());
+    }
 }

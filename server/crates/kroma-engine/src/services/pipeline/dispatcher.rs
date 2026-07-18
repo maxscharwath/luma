@@ -343,4 +343,33 @@ mod tests {
         assert_eq!(hold_reason(true), "paused (pipeline held by admin)");
         assert_eq!(hold_reason(false), "playback active, pausing (playback has priority)");
     }
+
+    #[test]
+    fn fmt_dur_boundaries() {
+        // Exact one-second and one-minute boundaries flip units.
+        assert_eq!(fmt_dur(Duration::from_secs(1)), "1.0 s");
+        assert_eq!(fmt_dur(Duration::from_secs(60)), "1 min 00 s");
+        assert_eq!(fmt_dur(Duration::from_secs(3600)), "1 h 00 min");
+    }
+
+    fn test_pool() -> db::Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-disp-test-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        db::init(&path).unwrap()
+    }
+
+    #[test]
+    fn pending_count_sums_pending_and_running() {
+        let pool = test_pool();
+        // An empty ledger for a stage counts zero.
+        assert_eq!(pending_count(&pool, "probe").unwrap(), 0);
+        // Freshly-enqueued tasks are pending, so they are counted.
+        db::pipeline::enqueue(&pool, "probe", "file", "f1", 100, now_ms()).unwrap();
+        db::pipeline::enqueue(&pool, "probe", "file", "f2", 100, now_ms()).unwrap();
+        assert_eq!(pending_count(&pool, "probe").unwrap(), 2);
+        // A different stage's queue is independent.
+        assert_eq!(pending_count(&pool, "metadata").unwrap(), 0);
+    }
 }

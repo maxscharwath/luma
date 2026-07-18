@@ -185,3 +185,23 @@ fn interleave<T>(mut a: impl Iterator<Item = T>, mut b: impl Iterator<Item = T>)
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::interleave;
+
+    #[test]
+    fn interleave_alternates_and_drains_the_longer_side() {
+        // Equal length: strict a, b, a, b.
+        assert_eq!(interleave([1, 2].into_iter(), [3, 4].into_iter()), vec![1, 3, 2, 4]);
+        // Longer left tail is appended one per remaining step.
+        assert_eq!(interleave([1, 2, 3].into_iter(), [9].into_iter()), vec![1, 9, 2, 3]);
+        // Longer right tail likewise.
+        assert_eq!(interleave([1].into_iter(), [7, 8, 9].into_iter()), vec![1, 7, 8, 9]);
+        // Either side empty degenerates to the other in order.
+        assert_eq!(interleave(std::iter::empty(), [1, 2].into_iter()), vec![1, 2]);
+        assert_eq!(interleave([1, 2].into_iter(), std::iter::empty()), vec![1, 2]);
+        // Both empty.
+        assert!(interleave(std::iter::empty::<i32>(), std::iter::empty()).is_empty());
+    }
+}

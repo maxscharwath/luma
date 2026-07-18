@@ -96,3 +96,91 @@ fn process(ctx: &JobContext, subject_id: &str) -> Result<()> {
     crate::services::markers::job::detect_season(ctx, season)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::season_signature;
+    use crate::model::{Kind, MediaItem, Season};
+
+    /// A bare episode item; only the fields `season_signature` reads
+    /// (`abs_path`, `duration_ms`) vary per test.
+    fn episode(abs_path: Option<&str>, duration_ms: Option<u64>) -> MediaItem {
+        MediaItem {
+            id: "e".into(),
+            title: "E".into(),
+            kind: Kind::Episode,
+            year: None,
+            duration_ms,
+            container: "mkv".into(),
+            video: None,
+            audio: None,
+            audio_tracks: Vec::new(),
+            subtitles: Vec::new(),
+            library: "lib1".into(),
+            show_id: Some("s1".into()),
+            show_title: Some("Show".into()),
+            season: Some(1),
+            episode: Some(1),
+            episode_end: None,
+            episode_title: None,
+            rel_path: None,
+            added_at: "now".into(),
+            metadata: None,
+            abs_path: abs_path.map(str::to_string),
+            files: Vec::new(),
+            default_file_id: None,
+            markers: Vec::new(),
+            audio_analysis: None,
+        }
+    }
+
+    fn season(episodes: Vec<MediaItem>) -> Season {
+        Season { number: 1, episodes, cast: Vec::new() }
+    }
+
+    #[test]
+    fn season_signature_none_without_probed_episodes() {
+        // No abs_path or a zero/missing duration means "not yet probed".
+        assert_eq!(season_signature("chapters", &season(vec![episode(None, Some(1000))])), None);
+        assert_eq!(
+            season_signature("chapters", &season(vec![episode(Some("/x.mkv"), None)])),
+            None
+        );
+        assert_eq!(
+            season_signature("chapters", &season(vec![episode(Some("/x.mkv"), Some(0))])),
+            None
+        );
+        assert_eq!(season_signature("chapters", &season(vec![])), None);
+    }
+
+    #[test]
+    fn season_signature_unreadable_file_collapses_to_sentinel() {
+        // A playable episode pointing at a missing path stats as unreadable, so the
+        // whole season collapses to the UNREADABLE sentinel (reconcile leaves it be).
+        let sig = season_signature(
+            "chapters",
+            &season(vec![episode(Some("/no/such/kroma/file.mkv"), Some(1000))]),
+        );
+        assert_eq!(sig.as_deref(), Some(crate::db::pipeline::UNREADABLE_SIG));
+    }
+
+    #[test]
+    fn season_signature_hashes_readable_files_and_depends_on_mode() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQ: AtomicU32 = AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-seasonsig-{}-{n}.mkv", std::process::id()));
+        std::fs::write(&path, b"hello").unwrap();
+        let abs = path.to_string_lossy().to_string();
+
+        let s = season(vec![episode(Some(&abs), Some(1000))]);
+        let a = season_signature("chapters", &s).unwrap();
+        // A real, readable file yields a stable non-sentinel hash.
+        assert_ne!(a, crate::db::pipeline::UNREADABLE_SIG);
+        assert_eq!(a, season_signature("chapters", &s).unwrap());
+        // The detection mode is folded into the signature, so it changes with mode.
+        assert_ne!(a, season_signature("silence", &s).unwrap());
+
+        let _ = std::fs::remove_file(&path);
+    }
+}

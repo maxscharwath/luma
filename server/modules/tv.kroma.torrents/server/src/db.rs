@@ -433,3 +433,394 @@ pub fn delete_download_row(pool: &Pool, id: &str) -> Result<bool> {
     let conn = pool.get()?;
     Ok(conn.execute("DELETE FROM downloads WHERE id = ?1", params![id])? > 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static SEQ: AtomicU32 = AtomicU32::new(0);
+
+    /// A fresh temp DB with the core schema (via `init`, so the `requests` table
+    /// the downloads FK points at exists) plus this module's own tables applied.
+    fn test_db() -> Pool {
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("kroma-torrents-test-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let pool = init(&path).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            apply_migrations(&conn, MIGRATIONS).unwrap();
+        }
+        pool
+    }
+
+    fn client(id: &str, priority: i32, enabled: bool, created_at: i64) -> DownloadClientRow {
+        DownloadClientRow {
+            id: id.into(),
+            kind: "rqbit".into(),
+            name: format!("Client {id}"),
+            url: "http://host".into(),
+            username: "user".into(),
+            password: "secret".into(),
+            enabled,
+            priority,
+            created_at,
+        }
+    }
+
+    fn download(id: &str, status: &str, grabbed_at: i64) -> DownloadRow {
+        DownloadRow {
+            id: id.into(),
+            client_id: "embedded".into(),
+            client_ref: String::new(),
+            request_id: None,
+            kind: "movie".into(),
+            tmdb_id: 42,
+            title: Some("Dune".into()),
+            year: Some(2021),
+            season: None,
+            episodes: None,
+            release_title: format!("Rel.{id}.mkv"),
+            indexer_id: None,
+            info_hash: None,
+            magnet_or_url: format!("magnet:?xt=urn:btih:{id}"),
+            size_bytes: Some(1024),
+            score: Some(5),
+            score_breakdown: None,
+            status: status.into(),
+            progress: 0.0,
+            save_path: None,
+            imported_paths: None,
+            error: None,
+            grabbed_at,
+            completed_at: None,
+            imported_at: None,
+            details_url: None,
+            only_files: None,
+        }
+    }
+
+    /// Seed a bare `requests` row so a download's `request_id` FK is satisfiable.
+    fn seed_request(pool: &Pool, id: &str) {
+        pool.get()
+            .unwrap()
+            .execute(
+                "INSERT INTO requests (id,kind,tmdb_id,title,status,created_at,updated_at) \
+                 VALUES (?1,'movie',1,'T','pending',0,0)",
+                params![id],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn download_clients_crud_and_ordering() {
+        let pool = test_db();
+        {
+            let conn = pool.get().unwrap();
+            // Empty DB: nothing to list / find / prefer.
+            assert!(list_download_clients(&conn).unwrap().is_empty());
+            assert!(get_download_client(&conn, "c1").unwrap().is_none());
+            assert!(preferred_download_client(&conn).unwrap().is_none());
+        }
+
+        insert_download_client(&pool, &client("c1", 10, true, 100)).unwrap();
+        insert_download_client(&pool, &client("c2", 20, true, 200)).unwrap();
+        insert_download_client(&pool, &client("c3", 20, false, 150)).unwrap();
+
+        {
+            let conn = pool.get().unwrap();
+            // ORDER BY priority DESC, created_at ASC: c3 (20,150), c2 (20,200), c1 (10).
+            let ids: Vec<String> =
+                list_download_clients(&conn).unwrap().into_iter().map(|c| c.id).collect();
+            assert_eq!(ids, vec!["c3".to_string(), "c2".to_string(), "c1".to_string()]);
+
+            let c2 = get_download_client(&conn, "c2").unwrap().unwrap();
+            assert_eq!(c2.name, "Client c2");
+            assert_eq!(c2.password, "secret");
+            assert!(get_download_client(&conn, "missing").unwrap().is_none());
+
+            // Preferred = first ENABLED by priority (disabled c3 is skipped).
+            assert_eq!(preferred_download_client(&conn).unwrap().unwrap().id, "c2");
+        }
+
+        // INSERT OR IGNORE: re-inserting an existing id keeps the original row.
+        insert_download_client(&pool, &client("c1", 99, false, 999)).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let c1 = get_download_client(&conn, "c1").unwrap().unwrap();
+            assert_eq!(c1.priority, 10);
+            assert_eq!(c1.name, "Client c1");
+        }
+
+        // Partial update: name/enabled/priority change; password None keeps the secret.
+        assert!(update_download_client(
+            &pool,
+            "c1",
+            Some("Renamed"),
+            None,
+            None,
+            None,
+            Some(false),
+            Some(50),
+        )
+        .unwrap());
+        {
+            let conn = pool.get().unwrap();
+            let c1 = get_download_client(&conn, "c1").unwrap().unwrap();
+            assert_eq!(c1.name, "Renamed");
+            assert!(!c1.enabled);
+            assert_eq!(c1.priority, 50);
+            assert_eq!(c1.password, "secret"); // unchanged
+            assert_eq!(c1.url, "http://host"); // unchanged
+        }
+        // Password can be updated when Some is passed.
+        assert!(update_download_client(&pool, "c1", None, None, None, Some("newpass"), None, None)
+            .unwrap());
+        {
+            let conn = pool.get().unwrap();
+            assert_eq!(get_download_client(&conn, "c1").unwrap().unwrap().password, "newpass");
+        }
+        // Updating an unknown id affects no rows.
+        assert!(!update_download_client(&pool, "missing", Some("x"), None, None, None, None, None)
+            .unwrap());
+
+        assert!(delete_download_client(&pool, "c1").unwrap());
+        assert!(!delete_download_client(&pool, "c1").unwrap()); // already gone
+        {
+            let conn = pool.get().unwrap();
+            assert!(get_download_client(&conn, "c1").unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn downloads_insert_get_list_roundtrip() {
+        let pool = test_db();
+
+        let mut d1 = download("d1", "queued", 10);
+        d1.episodes = Some(vec![1, 2, 3]);
+        d1.only_files = Some(vec![0, 2]);
+        d1.season = Some(2);
+        d1.size_bytes = Some(2048);
+        d1.tmdb_id = 99;
+        insert_download(&pool, &d1).unwrap();
+        insert_download(&pool, &download("d2", "downloading", 20)).unwrap();
+        insert_download(&pool, &download("d3", "seeding", 30)).unwrap();
+
+        let conn = pool.get().unwrap();
+
+        // Field round-trip incl. JSON-encoded episodes / only_files.
+        let got = get_download(&conn, "d1").unwrap().unwrap();
+        assert_eq!(got.episodes, Some(vec![1, 2, 3]));
+        assert_eq!(got.only_files, Some(vec![0, 2]));
+        assert_eq!(got.season, Some(2));
+        assert_eq!(got.size_bytes, Some(2048));
+        assert_eq!(got.tmdb_id, 99);
+        assert_eq!(got.status, "queued");
+        assert_eq!(got.title.as_deref(), Some("Dune"));
+        // Columns not written by insert default to NULL.
+        assert!(got.imported_paths.is_none());
+        assert!(got.completed_at.is_none());
+
+        assert!(get_download(&conn, "missing").unwrap().is_none());
+
+        // Newest-first (grabbed_at DESC), honouring the limit.
+        let ids: Vec<String> =
+            list_downloads(&conn, 2).unwrap().into_iter().map(|d| d.id).collect();
+        assert_eq!(ids, vec!["d3".to_string(), "d2".to_string()]);
+        let ids: Vec<String> =
+            list_downloads(&conn, 10).unwrap().into_iter().map(|d| d.id).collect();
+        assert_eq!(ids, vec!["d3".to_string(), "d2".to_string(), "d1".to_string()]);
+    }
+
+    #[test]
+    fn active_completed_and_dedup_queries() {
+        let pool = test_db();
+        for (id, status, at) in [
+            ("d_q", "queued", 10),
+            ("d_d", "downloading", 20),
+            ("d_s", "seeding", 30),
+            ("d_p", "paused", 40),
+            ("d_c", "completed", 50),
+            ("d_f", "failed", 60),
+            ("d_r", "removed", 70),
+            ("d_i", "imported", 80),
+        ] {
+            insert_download(&pool, &download(id, status, at)).unwrap();
+        }
+        let conn = pool.get().unwrap();
+
+        // Non-terminal set, ordered by grabbed_at ASC.
+        let active: Vec<String> =
+            active_downloads(&conn).unwrap().into_iter().map(|d| d.id).collect();
+        assert_eq!(active, vec!["d_q".to_string(), "d_d".into(), "d_s".into(), "d_p".into()]);
+
+        let completed: Vec<String> =
+            completed_downloads(&conn).unwrap().into_iter().map(|d| d.id).collect();
+        assert_eq!(completed, vec!["d_c".to_string()]);
+
+        // by_url: a live download matches; a failed one and an unknown url do not.
+        assert_eq!(
+            active_download_by_url(&conn, "magnet:?xt=urn:btih:d_d").unwrap().map(|d| d.id),
+            Some("d_d".to_string())
+        );
+        assert!(active_download_by_url(&conn, "magnet:?xt=urn:btih:d_f").unwrap().is_none());
+        assert!(active_download_by_url(&conn, "magnet:?xt=urn:btih:none").unwrap().is_none());
+    }
+
+    #[test]
+    fn other_active_download_with_ref_dedups_by_engine_ref() {
+        let pool = test_db();
+        let mut a = download("a", "downloading", 10);
+        a.client_ref = "ref-a".into();
+        let mut b = download("b", "downloading", 20);
+        b.client_ref = "ref-a".into();
+        let mut c = download("c", "failed", 30);
+        c.client_ref = "ref-b".into();
+        insert_download(&pool, &a).unwrap();
+        insert_download(&pool, &b).unwrap();
+        insert_download(&pool, &c).unwrap();
+
+        let conn = pool.get().unwrap();
+        // Another live row shares ref-a; the excluded id is itself.
+        assert_eq!(
+            other_active_download_with_ref(&conn, "a", "ref-a").unwrap().map(|d| d.id),
+            Some("b".to_string())
+        );
+        // An empty ref never matches.
+        assert!(other_active_download_with_ref(&conn, "a", "").unwrap().is_none());
+        // A terminal (failed) row is not a live duplicate.
+        assert!(other_active_download_with_ref(&conn, "x", "ref-b").unwrap().is_none());
+    }
+
+    #[test]
+    fn download_lifecycle_mutations() {
+        let pool = test_db();
+        insert_download(&pool, &download("d1", "queued", 10)).unwrap();
+
+        activate_download(&pool, "d1", "cref").unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.status, "downloading");
+            assert_eq!(d.client_ref, "cref");
+        }
+
+        update_download_progress(&pool, "d1", "downloading", 0.5, Some("/dl/path"), None).unwrap();
+        // Later tick with save_path None must not wipe the known path (COALESCE).
+        update_download_progress(&pool, "d1", "seeding", 0.9, None, Some("warn")).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.status, "seeding");
+            assert!((d.progress - 0.9).abs() < 1e-9);
+            assert_eq!(d.save_path.as_deref(), Some("/dl/path"));
+            assert_eq!(d.error.as_deref(), Some("warn"));
+        }
+
+        mark_download_completed(&pool, "d1", 12_345).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.status, "completed");
+            assert!((d.progress - 1.0).abs() < 1e-9);
+            assert_eq!(d.completed_at, Some(12_345));
+        }
+
+        mark_download_imported(&pool, "d1", &["/lib/a.mkv".to_string()], 67_890).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.status, "imported");
+            assert_eq!(d.imported_paths, Some(vec!["/lib/a.mkv".to_string()]));
+            assert_eq!(d.imported_at, Some(67_890));
+            assert!(d.error.is_none());
+        }
+
+        reset_download_for_retry(&pool, "d1").unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.status, "queued");
+            assert_eq!(d.client_ref, "");
+            assert!(d.error.is_none());
+            assert!((d.progress - 0.0).abs() < 1e-9);
+            assert!(d.completed_at.is_none());
+            assert!(d.imported_at.is_none());
+            assert!(d.imported_paths.is_none());
+        }
+
+        // set_download_ref attaches an engine ref without touching status.
+        set_download_ref(&pool, "d1", "r2").unwrap();
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.client_ref, "r2");
+            assert_eq!(d.status, "queued");
+        }
+
+        // set_download_status: sets error, then a None error is a COALESCE keep.
+        assert!(set_download_status(&pool, "d1", "paused", Some("pz")).unwrap());
+        assert!(set_download_status(&pool, "d1", "downloading", None).unwrap());
+        {
+            let conn = pool.get().unwrap();
+            let d = get_download(&conn, "d1").unwrap().unwrap();
+            assert_eq!(d.status, "downloading");
+            assert_eq!(d.error.as_deref(), Some("pz"));
+        }
+        assert!(!set_download_status(&pool, "missing", "x", None).unwrap());
+
+        assert!(delete_download_row(&pool, "d1").unwrap());
+        assert!(!delete_download_row(&pool, "d1").unwrap());
+        {
+            let conn = pool.get().unwrap();
+            assert!(get_download(&conn, "d1").unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn requests_with_active_downloads_rollup() {
+        let pool = test_db();
+        seed_request(&pool, "req1");
+        seed_request(&pool, "req2");
+
+        // req1: one live + one completed (+ a failed row that must be ignored).
+        let mut a = download("a", "downloading", 10);
+        a.request_id = Some("req1".into());
+        a.progress = 0.5;
+        let mut b = download("b", "completed", 20);
+        b.request_id = Some("req1".into());
+        b.progress = 1.0;
+        let mut c = download("c", "failed", 30);
+        c.request_id = Some("req1".into());
+        c.progress = 0.9;
+        // req2: only a live row.
+        let mut e = download("e", "downloading", 40);
+        e.request_id = Some("req2".into());
+        e.progress = 0.2;
+        // Orphan (no request) never appears.
+        let f = download("f", "downloading", 50);
+        for d in [a, b, c, e, f] {
+            insert_download(&pool, &d).unwrap();
+        }
+
+        let conn = pool.get().unwrap();
+        let by_req: std::collections::HashMap<String, ActiveDownload> =
+            requests_with_active_downloads(&conn)
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.request_id.clone(), r))
+                .collect();
+        assert_eq!(by_req.len(), 2);
+
+        let r1 = &by_req["req1"];
+        assert!(r1.importing); // MAX(status='completed') = 1
+        // AVG over live+completed only (the failed row is excluded): (0.5 + 1.0)/2.
+        assert!((r1.progress - 0.75).abs() < 1e-9);
+
+        let r2 = &by_req["req2"];
+        assert!(!r2.importing);
+        assert!((r2.progress - 0.2).abs() < 1e-9);
+    }
+}

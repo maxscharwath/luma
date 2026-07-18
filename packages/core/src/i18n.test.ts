@@ -42,12 +42,12 @@ describe('normalizeLocale', () => {
 });
 
 describe('detectLocale', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('prefers an explicit valid preference', () => {
     expect(detectLocale('en')).toBe('en');
     expect(detectLocale('fr-CH')).toBe('fr');
   });
-
-  afterEach(() => vi.unstubAllGlobals());
 
   it('falls back to the default locale when navigator has no supported locale', () => {
     // Bun provides a navigator.language that varies by machine/CI, so stub it

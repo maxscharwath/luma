@@ -134,3 +134,47 @@ fn human_bytes(bytes: u64) -> String {
         format!("{size:.1} {}", UNITS[unit])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_limit_bytes_reads_leading_gigabytes() {
+        assert_eq!(parse_limit_bytes("80 Go"), Some(80_000_000_000));
+        assert_eq!(parse_limit_bytes("256 Go"), Some(256_000_000_000));
+        // Non-numeric / zero / empty labels mean "unlimited" -> no budget.
+        assert_eq!(parse_limit_bytes("Illimité"), None);
+        assert_eq!(parse_limit_bytes("0 Go"), None);
+        assert_eq!(parse_limit_bytes(""), None);
+    }
+
+    #[test]
+    fn human_bytes_scales_units() {
+        assert_eq!(human_bytes(0), "0 B");
+        assert_eq!(human_bytes(512), "512 B");
+        assert_eq!(human_bytes(1024), "1.0 KB");
+        assert_eq!(human_bytes(1536), "1.5 KB");
+        assert_eq!(human_bytes(1024 * 1024), "1.0 MB");
+        assert_eq!(human_bytes(1_500_000_000), "1.4 GB");
+    }
+
+    #[test]
+    fn dir_size_sums_files_recursively_and_zero_when_missing() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQ: AtomicU32 = AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("kroma-dirsize-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // A path that does not exist sums to zero.
+        assert_eq!(dir_size(&dir), 0);
+
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("a.bin"), b"abc").unwrap(); // 3 bytes
+        std::fs::write(dir.join("sub/b.bin"), b"hello").unwrap(); // 5 bytes
+        assert_eq!(dir_size(&dir), 8);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

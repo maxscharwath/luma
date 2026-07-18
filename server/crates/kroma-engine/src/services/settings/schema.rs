@@ -194,3 +194,126 @@ fn public_address(config: &crate::config::Config) -> String {
         .clone()
         .unwrap_or_else(|| format!(":{}", config.port))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn test_pool() -> crate::db::Pool {
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("kroma-settings-schema-{}-{n}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::init(&path).unwrap()
+    }
+
+    fn test_config() -> crate::config::Config {
+        crate::config::Config {
+            host: "0.0.0.0".to_string(),
+            port: 4040,
+            media_dirs: Vec::new(),
+            movies_dirs: Vec::new(),
+            series_dirs: Vec::new(),
+            data_dir: PathBuf::from("/data"),
+            tmdb_api_key: None,
+            tmdb_language: "en-US".to_string(),
+            tmdb_enrich: false,
+            web_url: None,
+            web_dir: None,
+        }
+    }
+
+    fn find_row<'a>(groups: &'a [SettingGroup], key: &str) -> Option<&'a SettingRow> {
+        groups.iter().flat_map(|g| &g.rows).find(|r| r.key == key)
+    }
+
+    #[test]
+    fn general_view_overlays_stored_value_and_version() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        s.set_patch(&pool, std::collections::BTreeMap::from([("serverName".to_string(), json!("MyBox"))]));
+        let groups = groups("general", &s, &test_config(), "en");
+        assert_eq!(groups.len(), 2);
+        assert_eq!(find_row(&groups, "serverName").unwrap().value, json!("MyBox"));
+        // version is a computed read-only row from the crate version.
+        let ver = find_row(&groups, "version").unwrap();
+        assert_eq!(ver.kind, "value");
+        assert_eq!(ver.value, json!(env!("CARGO_PKG_VERSION")));
+        // introDetection is a select with the expected options.
+        let intro = find_row(&groups, "introDetection").unwrap();
+        assert_eq!(intro.kind, "select");
+        assert_eq!(intro.options, vec!["off", "chapters", "fingerprint"]);
+    }
+
+    #[test]
+    fn network_view_public_address_from_port_or_web_url() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        // No web_url -> ":<port>".
+        let groups = groups("network", &s, &test_config(), "en");
+        assert_eq!(find_row(&groups, "publicAddress").unwrap().value, json!(":4040"));
+        assert_eq!(find_row(&groups, "port").unwrap().value, json!("4040"));
+        // With web_url set.
+        let mut cfg = test_config();
+        cfg.web_url = Some("https://kroma.example.com".to_string());
+        let groups = super::groups("network", &s, &cfg, "en");
+        assert_eq!(find_row(&groups, "publicAddress").unwrap().value, json!("https://kroma.example.com"));
+    }
+
+    #[test]
+    fn transcoder_view_transcode_dir() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        let groups = groups("transcoder", &s, &test_config(), "en");
+        let dir = find_row(&groups, "transcodeDir").unwrap();
+        assert_eq!(dir.value, json!("/data/hls"));
+        let mc = find_row(&groups, "maxConcurrent").unwrap();
+        assert!(mc.options.contains(&"8".to_string()));
+    }
+
+    #[test]
+    fn acquisition_view_library_options_include_auto() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        let mut cfg = test_config();
+        cfg.movies_dirs = vec![PathBuf::from("/media/films")];
+        let groups = groups("acquisition", &s, &cfg, "en");
+        assert_eq!(groups.len(), 3);
+        let movie_lib = find_row(&groups, "acqMovieLibrary").unwrap();
+        assert_eq!(movie_lib.options.first().map(String::as_str), Some("Auto"));
+        assert!(movie_lib.options.contains(&"Films".to_string()));
+    }
+
+    #[test]
+    fn vpn_view_and_unknown_view() {
+        let pool = test_pool();
+        let s = Settings::load(&pool);
+        let cfg = test_config();
+        let vpn = groups("vpn", &s, &cfg, "en");
+        assert_eq!(vpn.len(), 1);
+        assert!(find_row(&vpn, "vpnKillSwitch").is_some());
+        // Unknown view -> no groups.
+        assert!(groups("does-not-exist", &s, &cfg, "en").is_empty());
+    }
+
+    #[test]
+    fn row_builder_shapes_options_and_fields() {
+        let r = row("k", "Label".to_string(), Some("d".to_string()), "select", &["a", "b"], json!(1), true);
+        assert_eq!(r.key, "k");
+        assert_eq!(r.label, "Label");
+        assert_eq!(r.desc.as_deref(), Some("d"));
+        assert_eq!(r.kind, "select");
+        assert_eq!(r.options, vec!["a".to_string(), "b".to_string()]);
+        assert!(r.applied);
+    }
+
+    #[test]
+    fn public_address_and_transcode_dir_helpers() {
+        let mut cfg = test_config();
+        assert_eq!(public_address(&cfg), ":4040");
+        cfg.web_url = Some("https://x.y".to_string());
+        assert_eq!(public_address(&cfg), "https://x.y");
+        assert_eq!(transcode_dir(&cfg), "/data/hls");
+    }
+}

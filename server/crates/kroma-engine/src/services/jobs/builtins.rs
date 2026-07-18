@@ -137,8 +137,25 @@ pub(crate) fn snippet(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::JOBS;
+    use super::{snippet, JOBS};
     use std::collections::HashSet;
+
+    #[test]
+    fn snippet_collapses_whitespace_and_caps_length() {
+        // Runs of any whitespace collapse to single spaces, edges trimmed.
+        assert_eq!(snippet("  hello   world \n foo "), "hello world foo");
+        assert_eq!(snippet(""), "");
+        assert_eq!(snippet("   \t\n  "), "");
+        // A very long reply is capped at 500 chars plus a single ellipsis.
+        let long = "word ".repeat(600); // 600 words -> well over 500 chars
+        let s = snippet(&long);
+        assert_eq!(s.chars().count(), 501);
+        assert!(s.ends_with('…'));
+        // A short reply is returned intact (no ellipsis).
+        let short = snippet("just a few words");
+        assert_eq!(short, "just a few words");
+        assert!(!short.ends_with('…'));
+    }
 
     /// Keys are unique (also a compile-time guard, see [`super::NO_DUPLICATE_KEYS`])
     /// and shaped like the dotted `group.action` the DB / URL / i18n expect. A

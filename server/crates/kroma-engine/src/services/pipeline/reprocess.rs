@@ -308,4 +308,64 @@ mod tests {
         stage_markers(&pool, "item", "ghost-item", 1_000).unwrap();
         assert_eq!(pending(&pool, "markers"), 0);
     }
+
+    fn seed_library(pool: &db::Pool) {
+        pool.get()
+            .unwrap()
+            .execute(
+                "INSERT INTO libraries (id,name,kind,path,added_at) VALUES ('lib1','L','shows','/x','now')",
+                [],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn stage_probe_queues_one_task_per_file_of_the_item() {
+        let pool = test_pool();
+        seed_library(&pool);
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO items (id,kind,title,container,library,added_at) VALUES ('it1','movie','T','mkv','lib1','now')",
+            [],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO files (id,item_id,abs_path) VALUES ('f1','it1','/a/1.mkv')", []).unwrap();
+        conn.execute("INSERT INTO files (id,item_id,abs_path) VALUES ('f2','it1','/a/2.mkv')", []).unwrap();
+        drop(conn);
+
+        stage_probe(&pool, "item", "it1", 1_000).unwrap();
+        assert_eq!(pending(&pool, "probe"), 2);
+        // An item with no files queues nothing.
+        stage_probe(&pool, "item", "ghost", 1_000).unwrap();
+        assert_eq!(pending(&pool, "probe"), 2);
+    }
+
+    #[test]
+    fn show_episodes_flattens_seasons_and_is_empty_for_unknown() {
+        let pool = test_pool();
+        assert!(show_episodes(&pool, "no-such-show").unwrap().is_empty());
+
+        seed_library(&pool);
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO shows (id,library,title,added_at) VALUES ('s1','lib1','Show','now')",
+            [],
+        )
+        .unwrap();
+        for (id, season, ep) in [("e1", 1, 1), ("e2", 1, 2), ("e3", 2, 1)] {
+            // Test-controlled literal ints; no user input, so inline them.
+            conn.execute(
+                &format!(
+                    "INSERT INTO items (id,kind,title,container,library,show_id,season,episode,added_at) \
+                     VALUES ('{id}','episode','E','mkv','lib1','s1',{season},{ep},'now')"
+                ),
+                [],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let eps = show_episodes(&pool, "s1").unwrap();
+        assert_eq!(eps.len(), 3, "all episodes across both seasons are flattened");
+    }
 }

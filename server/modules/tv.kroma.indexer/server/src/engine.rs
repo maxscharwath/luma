@@ -568,6 +568,7 @@ pub fn parse_size(s: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn size_parsing() {
@@ -603,5 +604,607 @@ mod tests {
         assert_eq!(parse_int("12 seeders"), Some(12));
         assert_eq!(parse_int("none"), None);
         assert_eq!(parse_int(""), None);
+    }
+
+    // ----- fixtures ---------------------------------------------------------------
+
+    fn build_def(yaml: &str) -> Definition {
+        crate::definition::parse(yaml.as_bytes()).expect("definition fixture must parse")
+    }
+
+    fn cfg(base: &str) -> IndexerConfig {
+        IndexerConfig { base_url: base.to_string(), settings: std::collections::HashMap::new() }
+    }
+
+    // ----- to_release -------------------------------------------------------------
+
+    fn cat_def() -> Definition {
+        build_def(
+            r#"
+id: t
+name: T
+caps:
+  categorymappings:
+    - {id: "100", cat: "Movies/HD"}
+    - {id: "200", cat: "TV/HD"}
+search:
+  rows:
+    selector: "tr"
+"#,
+        )
+    }
+
+    #[test]
+    fn to_release_maps_every_field() {
+        let def = cat_def();
+        let cfg = cfg("https://site.to/");
+        let mut r: HashMap<String, String> = HashMap::new();
+        r.insert("title".into(), "Cool.Movie.2020.1080p".into());
+        r.insert("details".into(), "/torrent/42".into());
+        r.insert("download".into(), "/dl/42.torrent".into());
+        r.insert("size".into(), "1.5 GB".into());
+        r.insert("seeders".into(), "1,024".into());
+        r.insert("leechers".into(), "12".into());
+        r.insert("grabs".into(), "5".into());
+        r.insert("category".into(), "100".into());
+        r.insert("imdbid".into(), "0133093".into());
+        r.insert("tmdbid".into(), "603".into());
+        r.insert("date".into(), "2020-01-02".into());
+        r.insert("infohash".into(), "DEADBEEF".into());
+        r.insert("downloadvolumefactor".into(), "0.5".into());
+        r.insert("uploadvolumefactor".into(), "1".into());
+
+        let rel = to_release(&def, &cfg, &r);
+        assert_eq!(rel.title, "Cool.Movie.2020.1080p");
+        assert_eq!(rel.details_url.as_deref(), Some("https://site.to/torrent/42"));
+        assert_eq!(rel.link.as_deref(), Some("https://site.to/dl/42.torrent"));
+        assert_eq!(rel.magnet, None);
+        assert_eq!(rel.size_bytes, Some(1_610_612_736));
+        assert_eq!(rel.seeders, Some(1024));
+        assert_eq!(rel.leechers, Some(12));
+        assert_eq!(rel.grabs, Some(5));
+        assert_eq!(rel.categories, vec![2040]);
+        assert_eq!(rel.imdb_id.as_deref(), Some("tt0133093"));
+        assert_eq!(rel.tmdb_id, Some(603));
+        assert_eq!(rel.published_at.as_deref(), Some("2020-01-02"));
+        assert_eq!(rel.info_hash.as_deref(), Some("DEADBEEF"));
+        assert_eq!(rel.download_volume_factor, Some(0.5));
+        assert_eq!(rel.upload_volume_factor, Some(1.0));
+        // No explicit guid: falls back to the details URL.
+        assert_eq!(rel.guid, "https://site.to/torrent/42");
+    }
+
+    #[test]
+    fn to_release_download_magnet_and_guid_fallbacks() {
+        let def = cat_def();
+        let cfg = cfg("https://site.to/");
+
+        // A magnet in `download` lands in `magnet`, never `link`.
+        let mut r: HashMap<String, String> = HashMap::new();
+        r.insert("title".into(), "Only Title".into());
+        r.insert("download".into(), "magnet:?xt=urn:btih:ABC".into());
+        let rel = to_release(&def, &cfg, &r);
+        assert_eq!(rel.magnet.as_deref(), Some("magnet:?xt=urn:btih:ABC"));
+        assert_eq!(rel.link, None);
+        // No guid + no details: guid falls back to the title.
+        assert_eq!(rel.guid, "Only Title");
+        // Unmapped/empty category -> no categories.
+        assert!(rel.categories.is_empty());
+
+        // Explicit guid wins; an already-tt imdbid is not double-prefixed; an
+        // explicit `magnet` key is kept when `download` is also a magnet.
+        let mut r2: HashMap<String, String> = HashMap::new();
+        r2.insert("title".into(), "T".into());
+        r2.insert("guid".into(), "the-guid".into());
+        r2.insert("magnet".into(), "magnet:?xt=urn:btih:KEEP".into());
+        r2.insert("download".into(), "magnet:?xt=urn:btih:OTHER".into());
+        r2.insert("imdbid".into(), "tt42".into());
+        let rel2 = to_release(&def, &cfg, &r2);
+        assert_eq!(rel2.guid, "the-guid");
+        assert_eq!(rel2.magnet.as_deref(), Some("magnet:?xt=urn:btih:KEEP"));
+        assert_eq!(rel2.imdb_id.as_deref(), Some("tt42"));
+    }
+
+    #[test]
+    fn to_release_download_absolute_url_kept() {
+        let def = cat_def();
+        let cfg = cfg("https://site.to/");
+        let mut r: HashMap<String, String> = HashMap::new();
+        r.insert("title".into(), "T".into());
+        r.insert("download".into(), "https://cdn.example/x.torrent".into());
+        let rel = to_release(&def, &cfg, &r);
+        assert_eq!(rel.link.as_deref(), Some("https://cdn.example/x.torrent"));
+    }
+
+    // ----- parse_html -------------------------------------------------------------
+
+    #[test]
+    fn parse_html_extracts_rows() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps:
+  categorymappings:
+    - {id: "1", cat: "Movies/HD"}
+search:
+  rows:
+    selector: "table.results tr.torrent"
+  fields:
+    title:
+      selector: "td.name a"
+    details:
+      selector: "td.name a"
+      attribute: href
+    download:
+      selector: "td.name a"
+      attribute: href
+    size:
+      selector: "td.size"
+    seeders:
+      selector: "td.seeders"
+    category:
+      text: "1"
+"#,
+        );
+        let cfg = cfg("https://site.to/");
+        let body = r#"
+          <table class="results">
+            <tr class="torrent">
+              <td class="name"><a href="/t/1">Cool Movie 2020</a></td>
+              <td class="size">1.5 GB</td>
+              <td class="seeders">10</td>
+            </tr>
+            <tr class="torrent">
+              <td class="name"><a href="/t/2">Other Show</a></td>
+              <td class="size">700 MB</td>
+              <td class="seeders">3</td>
+            </tr>
+          </table>
+        "#;
+        let rels = parse_html(&def, &cfg, body).unwrap();
+        assert_eq!(rels.len(), 2);
+        assert_eq!(rels[0].title, "Cool Movie 2020");
+        assert_eq!(rels[0].details_url.as_deref(), Some("https://site.to/t/1"));
+        assert_eq!(rels[0].link.as_deref(), Some("https://site.to/t/1"));
+        assert_eq!(rels[0].size_bytes, Some(1_610_612_736));
+        assert_eq!(rels[0].seeders, Some(10));
+        assert_eq!(rels[0].categories, vec![2040]);
+        assert_eq!(rels[1].seeders, Some(3));
+    }
+
+    #[test]
+    fn parse_html_skips_required_miss_and_honors_optional_default() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "tr.r"
+  fields:
+    title:
+      selector: "td.title"
+    size:
+      selector: "td.size"
+      default: "2 GB"
+    seeders:
+      selector: "td.seeders"
+      optional: true
+    grabs:
+      selector: "td.grabs"
+"#,
+        );
+        let cfg = cfg("https://x/");
+        let body = r#"
+          <table>
+            <tr class="r"><td class="title">Good</td><td class="grabs">7</td></tr>
+            <tr class="r"><td class="title">NoGrabs</td></tr>
+          </table>
+        "#;
+        let rels = parse_html(&def, &cfg, body).unwrap();
+        // Second row misses the required (non-optional, no-default) `grabs`: dropped.
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].title, "Good");
+        // `size` fell back to its default; `seeders` was optional -> empty -> None.
+        assert_eq!(rels[0].size_bytes, Some(2 * 1024 * 1024 * 1024));
+        assert_eq!(rels[0].seeders, None);
+        assert_eq!(rels[0].grabs, Some(7));
+    }
+
+    #[test]
+    fn parse_html_case_switch_selects_category() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps:
+  categorymappings:
+    - {id: "1", cat: "Movies/HD"}
+search:
+  rows:
+    selector: "tr.r"
+  fields:
+    title:
+      selector: "td.title"
+    category:
+      case:
+        "td.hd": "1"
+        "*": "9999"
+"#,
+        );
+        let cfg = cfg("https://x/");
+        let body = r#"
+          <table>
+            <tr class="r"><td class="title">A</td><td class="hd">HD</td></tr>
+            <tr class="r"><td class="title">B</td></tr>
+          </table>
+        "#;
+        let rels = parse_html(&def, &cfg, body).unwrap();
+        // Row A hits the `td.hd` case -> id 1 -> Movies/HD (2040).
+        assert_eq!(rels[0].categories, vec![2040]);
+        // Row B hits `*` -> id 9999, unmapped -> no categories.
+        assert!(rels[1].categories.is_empty());
+    }
+
+    #[test]
+    fn parse_html_without_rows_selector_errors() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows: {}
+"#,
+        );
+        let err = parse_html(&def, &cfg("https://x/"), "<html></html>").unwrap_err();
+        assert!(err.to_string().contains("no rows selector"), "{err}");
+    }
+
+    // ----- parse_json -------------------------------------------------------------
+
+    #[test]
+    fn parse_json_dotted_paths_and_scalars() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "$.data.torrents"
+  fields:
+    title:
+      selector: "name"
+    size:
+      selector: "size"
+    seeders:
+      selector: "seeders"
+"#,
+        );
+        let cfg = cfg("https://x/");
+        let body = r#"{"data":{"torrents":[
+          {"name":"Rel One 1080p","size":123456,"seeders":42},
+          {"name":"Rel Two 720p","size":999,"seeders":1}
+        ]}}"#;
+        let rels = parse_json(&def, &cfg, body).unwrap();
+        assert_eq!(rels.len(), 2);
+        assert_eq!(rels[0].title, "Rel One 1080p");
+        assert_eq!(rels[0].size_bytes, Some(123456));
+        assert_eq!(rels[0].seeders, Some(42));
+        assert_eq!(rels[1].seeders, Some(1));
+    }
+
+    #[test]
+    fn parse_json_single_object_row_and_case() {
+        // A rows selector resolving to a single object yields one row.
+        let obj_def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "result"
+  fields:
+    title:
+      selector: "name"
+"#,
+        );
+        let rels = parse_json(&obj_def, &cfg("https://x/"), r#"{"result":{"name":"Solo 1080p"}}"#).unwrap();
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].title, "Solo 1080p");
+
+        // JSON `case`: a truthy sub-path hits, else the `*` default.
+        let case_def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "items"
+  fields:
+    title:
+      selector: "name"
+    seeders:
+      case:
+        has: "9"
+        "*": "0"
+"#,
+        );
+        let body = r#"{"items":[{"name":"A 1080p","has":true},{"name":"B 720p"}]}"#;
+        let rels = parse_json(&case_def, &cfg("https://x/"), body).unwrap();
+        assert_eq!(rels[0].seeders, Some(9));
+        assert_eq!(rels[1].seeders, Some(0));
+    }
+
+    #[test]
+    fn parse_json_missing_rows_returns_empty() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "$.nope"
+  fields:
+    title:
+      selector: "name"
+"#,
+        );
+        let rels = parse_json(&def, &cfg("https://x/"), r#"{"data":1}"#).unwrap();
+        assert!(rels.is_empty());
+    }
+
+    // ----- json helpers -----------------------------------------------------------
+
+    #[test]
+    fn json_get_resolves_paths() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"a":{"b":[10,20,{"c":"deep"}]}}"#).unwrap();
+        assert_eq!(json_get(&v, "$.a.b[0]").unwrap().as_i64(), Some(10));
+        assert_eq!(json_get(&v, "a.b[1]").unwrap().as_i64(), Some(20));
+        assert_eq!(json_get(&v, "a.b[2].c").unwrap().as_str(), Some("deep"));
+        assert!(json_get(&v, "a.x").is_none());
+        assert!(json_get(&v, "a.b[9]").is_none());
+        // Empty / bare-$ path resolves to the whole value.
+        assert!(std::ptr::eq(json_get(&v, "").unwrap(), &v));
+        assert!(std::ptr::eq(json_get(&v, "$").unwrap(), &v));
+    }
+
+    #[test]
+    fn json_scalar_string_and_truthy() {
+        use serde_json::json;
+        assert_eq!(json_scalar_string(&json!("hi")), "hi");
+        assert_eq!(json_scalar_string(&json!(42)), "42");
+        assert_eq!(json_scalar_string(&json!(true)), "true");
+        assert_eq!(json_scalar_string(&serde_json::Value::Null), "");
+        assert_eq!(json_scalar_string(&json!([1, 2])), "[1,2]");
+
+        assert!(!json_truthy(&serde_json::Value::Null));
+        assert!(json_truthy(&json!(true)) && !json_truthy(&json!(false)));
+        assert!(json_truthy(&json!("x")) && !json_truthy(&json!("")));
+        assert!(json_truthy(&json!(5)) && !json_truthy(&json!(0)));
+        assert!(json_truthy(&json!([1])) && !json_truthy(&json!([])));
+        assert!(json_truthy(&json!({"a":1})) && !json_truthy(&json!({})));
+    }
+
+    // ----- parse_xml --------------------------------------------------------------
+
+    const XML_FEED: &str = r#"<?xml version="1.0"?>
+      <rss xmlns:torznab="http://torznab.com/">
+      <channel>
+        <item>
+          <title>Obsession 2026 1080p</title>
+          <guid>abc123</guid>
+          <category>2000</category>
+          <torznab:attr name="seeders" value="305"/>
+          <torznab:attr name="size" value="2314321864"/>
+        </item>
+        <item>
+          <title>Other 720p</title>
+          <guid>def456</guid>
+          <category>2000</category>
+          <torznab:attr name="seeders" value="7"/>
+          <torznab:attr name="size" value="1000"/>
+        </item>
+      </channel>
+      </rss>"#;
+
+    #[test]
+    fn parse_xml_extracts_items_and_attrs() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps:
+  categorymappings:
+    - {id: "2000", cat: "Movies"}
+search:
+  rows:
+    selector: "item"
+  fields:
+    title:
+      selector: "title"
+    guid:
+      selector: "guid"
+    category:
+      selector: "category"
+    seeders:
+      selector: "[name=seeders]"
+      attribute: value
+    size:
+      selector: "[name=size]"
+      attribute: value
+"#,
+        );
+        let rels = parse_xml(&def, &cfg("https://x/"), XML_FEED).unwrap();
+        assert_eq!(rels.len(), 2);
+        assert_eq!(rels[0].title, "Obsession 2026 1080p");
+        assert_eq!(rels[0].guid, "abc123");
+        assert_eq!(rels[0].seeders, Some(305));
+        assert_eq!(rels[0].size_bytes, Some(2_314_321_864));
+        assert_eq!(rels[0].categories, vec![2000]);
+        assert_eq!(rels[1].seeders, Some(7));
+    }
+
+    #[test]
+    fn parse_xml_case_switch() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "item"
+  fields:
+    title:
+      selector: "title"
+    seeders:
+      case:
+        "[name=seeders]": "100"
+        "*": "0"
+"#,
+        );
+        let rels = parse_xml(&def, &cfg("https://x/"), XML_FEED).unwrap();
+        // Both items carry a seeders attr -> the case hit fires (constant 100).
+        assert_eq!(rels[0].seeders, Some(100));
+        assert_eq!(rels[1].seeders, Some(100));
+    }
+
+    // ----- build_requests / query_attributes --------------------------------------
+
+    #[test]
+    fn build_requests_get_movie_with_imdb_and_categories() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps:
+  categorymappings:
+    - {id: "42", cat: "Movies/HD"}
+  modes:
+    search: [q]
+    movie-search: [q, imdbid, tmdbid]
+search:
+  paths:
+    - path: "/search?q={{ .Keywords }}"
+      inputs:
+        cat: "{{ join .Categories \",\" }}"
+  inputs:
+    imdb: "{{ .Query.IMDBID }}"
+  rows:
+    selector: "tr"
+"#,
+        );
+        let cfg = cfg("https://site.to/");
+        let q = Query::Movie {
+            tmdb_id: None,
+            imdb_id: Some("tt0133093".into()),
+            title: "The Matrix".into(),
+            year: Some(1999),
+        };
+        let reqs = build_requests(&def, &cfg, &q, &[2000]);
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].url, "https://site.to/search?q=The Matrix 1999");
+        assert_eq!(reqs[0].method, "get");
+        assert_eq!(reqs[0].response_kind, "html");
+        // query_attributes rendered `.Query.IMDBID`; categories mapped to id 42.
+        assert!(reqs[0].inputs.contains(&("imdb".to_string(), "tt0133093".to_string())));
+        assert!(reqs[0].inputs.contains(&("cat".to_string(), "42".to_string())));
+    }
+
+    #[test]
+    fn build_requests_post_json_path() {
+        let def = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  paths:
+    - path: /api
+      method: POST
+      response:
+        type: json
+  rows:
+    selector: "$.rows"
+"#,
+        );
+        let reqs = build_requests(&def, &cfg("https://api.x/"), &Query::Text { query: "hi".into() }, &[]);
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].url, "https://api.x/api");
+        assert_eq!(reqs[0].method, "post");
+        assert_eq!(reqs[0].response_kind, "json");
+    }
+
+    // ----- preprocess / uses_xpath ------------------------------------------------
+
+    #[test]
+    fn preprocess_noop_and_filtered() {
+        let plain = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "tr"
+"#,
+        );
+        assert_eq!(preprocess(&plain, &cfg("https://x/"), "body"), "body");
+
+        let filtered = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  preprocessingfilters:
+    - name: re_replace
+      args: ["^junk", ""]
+  rows:
+    selector: "tr"
+"#,
+        );
+        assert_eq!(preprocess(&filtered, &cfg("https://x/"), "junkREST"), "REST");
+    }
+
+    #[test]
+    fn uses_xpath_detection() {
+        let css = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "tr.torrent"
+  fields:
+    title:
+      selector: "a"
+"#,
+        );
+        assert!(!uses_xpath(&css));
+
+        let xpath = build_def(
+            r#"
+id: t
+name: T
+caps: {}
+search:
+  rows:
+    selector: "//tr[@class='torrent']"
+  fields:
+    title:
+      selector: "a"
+"#,
+        );
+        assert!(uses_xpath(&xpath));
     }
 }

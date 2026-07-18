@@ -174,3 +174,106 @@ fn tracks(list: Vec<AudioStream>) -> Vec<AudioStream> {
 fn sub(language: Option<&str>, codec: &str) -> SubtitleTrack {
     SubtitleTrack { language: language.map(Into::into), codec: codec.into() }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn demo_data_has_expected_shape() {
+        let data = demo_data();
+        assert_eq!(data.libraries.len(), 2);
+        assert_eq!(data.shows.len(), 2);
+        assert_eq!(data.items.len(), 10); // 6 movies + 4 episodes
+        let movies = data.items.iter().filter(|i| i.kind == Kind::Movie).count();
+        let episodes = data.items.iter().filter(|i| i.kind == Kind::Episode).count();
+        assert_eq!(movies, 6);
+        assert_eq!(episodes, 4);
+    }
+
+    #[test]
+    fn libraries_are_typed_with_item_counts() {
+        let data = demo_data();
+        let films = data.libraries.iter().find(|l| l.name == "Films (Démo)").unwrap();
+        let series = data.libraries.iter().find(|l| l.name == "Séries (Démo)").unwrap();
+        assert_eq!(films.kind, LibraryKind::Movies);
+        assert_eq!(films.item_count, 6);
+        assert_eq!(series.kind, LibraryKind::Shows);
+        assert_eq!(series.item_count, 4);
+    }
+
+    #[test]
+    fn shows_carry_season_and_episode_counts() {
+        let data = demo_data();
+        for s in &data.shows {
+            assert_eq!(s.season_count, 1);
+            assert_eq!(s.episode_count, 2);
+        }
+        assert!(data.shows.iter().any(|s| s.title == "Planet Earth II"));
+        assert!(data.shows.iter().any(|s| s.title == "The Office"));
+    }
+
+    #[test]
+    fn every_item_has_one_synthetic_file() {
+        let data = demo_data();
+        for it in &data.items {
+            assert!(it.default_file_id.is_some());
+            assert_eq!(it.files.len(), 1);
+            let f = &it.files[0];
+            assert_eq!(it.default_file_id.as_deref(), Some(f.id.as_str()));
+            assert!(f.abs_path.as_deref().unwrap().starts_with("demo://"));
+            assert!(f.probed);
+        }
+    }
+
+    #[test]
+    fn movie_audio_tracks_are_indexed_with_first_default() {
+        let data = demo_data();
+        let br = data.items.iter().find(|i| i.title == "Blade Runner 2049").unwrap();
+        assert_eq!(br.audio_tracks.len(), 3);
+        for (i, a) in br.audio_tracks.iter().enumerate() {
+            assert_eq!(a.index, i as u32);
+            assert_eq!(a.default, i == 0);
+        }
+        // Representative audio mirrors the first track.
+        assert_eq!(br.audio.as_ref().unwrap().codec, br.audio_tracks[0].codec);
+    }
+
+    #[test]
+    fn episodes_carry_show_grouping_and_default_sub() {
+        let data = demo_data();
+        let ep = data.items.iter().find(|i| i.episode_title.as_deref() == Some("Islands")).unwrap();
+        assert_eq!(ep.kind, Kind::Episode);
+        assert_eq!(ep.season, Some(1));
+        assert_eq!(ep.episode, Some(1));
+        assert_eq!(ep.show_title.as_deref(), Some("Planet Earth II"));
+        assert!(ep.show_id.is_some());
+        assert!(ep.subtitles.iter().any(|s| s.language.as_deref() == Some("eng")));
+    }
+
+    #[test]
+    fn tracks_helper_assigns_sequential_indices() {
+        let out = tracks(vec![audio("eac3", 6, Some("eng")), audio("aac", 2, Some("fra"))]);
+        assert_eq!(out[0].index, 0);
+        assert!(out[0].default);
+        assert_eq!(out[1].index, 1);
+        assert!(!out[1].default);
+    }
+
+    #[test]
+    fn show_id_is_deterministic_and_case_insensitive() {
+        assert_eq!(show_id("lib", "The Office"), show_id("lib", "the office"));
+        assert_ne!(show_id("lib", "The Office"), show_id("other", "The Office"));
+    }
+
+    #[test]
+    fn video_and_sub_helpers() {
+        let v = video("hevc", 3840, 2160, true, 10).unwrap();
+        assert_eq!(v.codec, "hevc");
+        assert_eq!(v.width, Some(3840));
+        assert!(v.hdr);
+        let s = sub(Some("fra"), "subrip");
+        assert_eq!(s.language.as_deref(), Some("fra"));
+        assert_eq!(s.codec, "subrip");
+    }
+}

@@ -342,4 +342,102 @@ mod tests {
 
         std::env::remove_var("KROMA_WALK_THREADS");
     }
+
+    fn temp_scan_dir() -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQ: AtomicU32 = AtomicU32::new(0);
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("kroma-scanroot-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn scan_root_groups_movies_and_episodes_and_skips_noise() {
+        let root = temp_scan_dir();
+        // One movie (year in filename), a show with two episodes in its own folder,
+        // a non-video file, and a hidden dir that must be pruned from the descent.
+        std::fs::write(root.join("The Matrix (1999).mkv"), b"x").unwrap();
+        let show_dir = root.join("Breaking Bad");
+        std::fs::create_dir_all(&show_dir).unwrap();
+        std::fs::write(show_dir.join("Breaking Bad S01E01.mkv"), b"x").unwrap();
+        std::fs::write(show_dir.join("Breaking Bad S01E02.mkv"), b"x").unwrap();
+        std::fs::write(root.join("poster.jpg"), b"x").unwrap();
+        let hidden = root.join(".hidden");
+        std::fs::create_dir_all(&hidden).unwrap();
+        std::fs::write(hidden.join("Ghost (2000).mkv"), b"x").unwrap();
+
+        let mut items: HashMap<String, MediaItem> = HashMap::new();
+        let mut shows: HashMap<String, Show> = HashMap::new();
+        let mut mtimes: HashMap<String, Option<i64>> = HashMap::new();
+        let mut lib_item_ids = std::collections::HashSet::new();
+        let mut movie_seen = false;
+        let mut episode_seen = false;
+
+        scan_root(
+            "lib1",
+            &root,
+            &mut items,
+            &mut shows,
+            &mut mtimes,
+            &mut lib_item_ids,
+            &mut movie_seen,
+            &mut episode_seen,
+        );
+
+        assert!(movie_seen);
+        assert!(episode_seen);
+        // 1 movie + 2 episodes = 3 logical items; jpg and hidden dir ignored.
+        assert_eq!(items.len(), 3, "movie + 2 episodes, noise excluded");
+        assert_eq!(shows.len(), 1, "both episodes grouped under one show");
+        assert_eq!(lib_item_ids.len(), 3);
+        assert_eq!(mtimes.len(), 3, "an mtime is recorded per scanned file");
+
+        let movie = items.values().find(|i| i.kind == Kind::Movie).unwrap();
+        assert_eq!(movie.title, "The Matrix");
+        assert_eq!(movie.year, Some(1999));
+        assert_eq!(movie.files.len(), 1);
+        assert_eq!(movie.library, "lib1");
+
+        let show = shows.values().next().unwrap();
+        assert_eq!(show.title, "Breaking Bad");
+        let episodes: Vec<&MediaItem> =
+            items.values().filter(|i| i.kind == Kind::Episode).collect();
+        assert_eq!(episodes.len(), 2);
+        assert!(episodes.iter().all(|e| e.show_id.as_deref() == Some(show.id.as_str())));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn scan_root_untitled_movie_gets_placeholder_title() {
+        let root = temp_scan_dir();
+        // A bare numeric/year-only name parses to an empty movie title, which
+        // index_parsed replaces with "Untitled".
+        std::fs::write(root.join("1999.mkv"), b"x").unwrap();
+
+        let mut items: HashMap<String, MediaItem> = HashMap::new();
+        let mut shows: HashMap<String, Show> = HashMap::new();
+        let mut mtimes: HashMap<String, Option<i64>> = HashMap::new();
+        let mut lib_item_ids = std::collections::HashSet::new();
+        let mut movie_seen = false;
+        let mut episode_seen = false;
+        scan_root(
+            "lib1",
+            &root,
+            &mut items,
+            &mut shows,
+            &mut mtimes,
+            &mut lib_item_ids,
+            &mut movie_seen,
+            &mut episode_seen,
+        );
+
+        assert!(movie_seen);
+        assert!(!episode_seen);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items.values().next().unwrap().title, "Untitled");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

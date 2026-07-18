@@ -463,6 +463,85 @@ mod tests {
     }
 
     #[test]
+    fn item_treatments_film_carries_five_stages_with_ledger_and_artifacts() {
+        use std::collections::{HashMap, HashSet};
+        let probed: HashSet<String> = ["m1".to_string()].into_iter().collect();
+        let markset: HashSet<String> = HashSet::new();
+        let vecset: HashSet<String> = ["m1".to_string()].into_iter().collect();
+        let empty: Ledger = HashMap::new();
+        // A failed metadata ledger row surfaces its error; other stages fall back
+        // to artifact/assume-done.
+        let meta_l: Ledger =
+            [("m1".to_string(), ("failed".to_string(), Some("boom".to_string())))].into_iter().collect();
+        let show_poster: HashMap<&str, Option<String>> = HashMap::new();
+        let lg = Ledgers {
+            probed: &probed,
+            markset: &markset,
+            vecset: &vecset,
+            meta_l: &meta_l,
+            story_l: &empty,
+            subs_l: &empty,
+            embed_l: &empty,
+            mark_l: &empty,
+            show_poster: &show_poster,
+        };
+
+        let mut movie = raw_item("film");
+        movie.id = "m1".into();
+        movie.poster = Some("p.jpg".into());
+        let (treatments, kind, poster) = item_treatments(&movie, &lg);
+        assert_eq!(kind, "film");
+        assert_eq!(poster.as_deref(), Some("p.jpg"));
+        // Film row: probe / metadata / storyboard / subtitles / embed.
+        let keys: Vec<&str> = treatments.iter().map(|t| t.key.as_str()).collect();
+        assert_eq!(keys, vec!["probe", "metadata", "storyboard", "subtitles", "embed"]);
+        let by = |k: &str| treatments.iter().find(|t| t.key == k).unwrap();
+        assert_eq!(by("probe").status, "done"); // in probed set
+        assert_eq!(by("metadata").status, "failed");
+        assert_eq!(by("metadata").error.as_deref(), Some("boom"));
+        assert_eq!(by("embed").status, "done"); // in vecset
+        assert_eq!(by("storyboard").status, "done"); // no ledger, assume_done
+    }
+
+    #[test]
+    fn item_treatments_episode_has_four_stages_and_show_poster() {
+        use std::collections::{HashMap, HashSet};
+        let probed: HashSet<String> = HashSet::new();
+        let markset: HashSet<String> = HashSet::new();
+        let vecset: HashSet<String> = HashSet::new();
+        let empty: Ledger = HashMap::new();
+        let show_poster: HashMap<&str, Option<String>> =
+            [("s1", Some("show.jpg".to_string()))].into_iter().collect();
+        let lg = Ledgers {
+            probed: &probed,
+            markset: &markset,
+            vecset: &vecset,
+            meta_l: &empty,
+            story_l: &empty,
+            subs_l: &empty,
+            embed_l: &empty,
+            mark_l: &empty,
+            show_poster: &show_poster,
+        };
+
+        let mut ep = raw_item("episode");
+        ep.id = "e1".into();
+        ep.show_id = Some("s1".into());
+        ep.season = Some(1);
+        let (treatments, kind, poster) = item_treatments(&ep, &lg);
+        assert_eq!(kind, "episode");
+        // The episode inherits its show's poster.
+        assert_eq!(poster.as_deref(), Some("show.jpg"));
+        let keys: Vec<&str> = treatments.iter().map(|t| t.key.as_str()).collect();
+        assert_eq!(keys, vec!["probe", "storyboard", "subtitles", "markers"]);
+        let by = |k: &str| treatments.iter().find(|t| t.key == k).unwrap();
+        // No ledger + no probe artifact -> probe pending; storyboard/subtitles/markers assume done.
+        assert_eq!(by("probe").status, "pending");
+        assert_eq!(by("storyboard").status, "done");
+        assert_eq!(by("markers").status, "done");
+    }
+
+    #[test]
     fn matches_filter_query_kind_and_status() {
         let f = |status: &str, kind: &str, query: &str| Filter {
             status: status.into(),

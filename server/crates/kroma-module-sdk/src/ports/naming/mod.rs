@@ -547,4 +547,249 @@ mod tests {
         assert_eq!(sanitize("Trailing dots..."), "Trailing dots");
         assert_eq!(sanitize("Trailing space "), "Trailing space");
     }
+
+    #[test]
+    fn sanitize_collapses_control_and_whitespace() {
+        // Control characters become spaces, then runs collapse to one.
+        assert_eq!(sanitize("a\tb\nc"), "a b c");
+        assert_eq!(sanitize("  many   spaces  "), "many spaces");
+        assert_eq!(sanitize(""), "");
+    }
+
+    #[test]
+    fn quality_full_variants() {
+        let base = NameContext {
+            source: Some("Bluray".into()),
+            resolution: Some("1080p".into()),
+            ..Default::default()
+        };
+        assert_eq!(base.quality_full(), "Bluray-1080p");
+        assert_eq!(base.quality_title(), "Bluray-1080p");
+
+        let proper = NameContext { proper: true, ..base.clone() };
+        assert_eq!(proper.quality_full(), "Bluray-1080p Proper");
+        // A proper release still reports the bare title without the tag.
+        assert_eq!(proper.quality_title(), "Bluray-1080p");
+
+        let repack = NameContext { repack: true, ..base.clone() };
+        assert_eq!(repack.quality_full(), "Bluray-1080p Repack");
+
+        // Proper wins over repack when (implausibly) both are set.
+        let both = NameContext { proper: true, repack: true, ..base };
+        assert_eq!(both.quality_full(), "Bluray-1080p Proper");
+    }
+
+    #[test]
+    fn quality_title_partial_and_empty() {
+        let source_only = NameContext { source: Some("WEBDL".into()), ..Default::default() };
+        assert_eq!(source_only.quality_title(), "WEBDL");
+
+        let res_only = NameContext { resolution: Some("720p".into()), ..Default::default() };
+        assert_eq!(res_only.quality_title(), "720p");
+
+        let empty = NameContext::default();
+        assert_eq!(empty.quality_title(), "");
+        assert_eq!(empty.quality_full(), "");
+
+        // No source/resolution but a proper tag: trims to the bare word.
+        let proper_only = NameContext { proper: true, ..Default::default() };
+        assert_eq!(proper_only.quality_full(), "Proper");
+    }
+
+    #[test]
+    fn casing_from_and_as_key_round_trip() {
+        assert_eq!(Casing::from_key("upper"), Casing::Upper);
+        assert_eq!(Casing::from_key("UPPERCASE"), Casing::Upper);
+        assert_eq!(Casing::from_key("  Lower  "), Casing::Lower);
+        assert_eq!(Casing::from_key("lowercase"), Casing::Lower);
+        assert_eq!(Casing::from_key("default"), Casing::Default);
+        assert_eq!(Casing::from_key("nonsense"), Casing::Default);
+        assert_eq!(Casing::from_key(""), Casing::Default);
+
+        for c in [Casing::Upper, Casing::Lower, Casing::Default] {
+            assert_eq!(Casing::from_key(c.as_key()), c);
+        }
+        assert_eq!(Casing::default(), Casing::Default);
+    }
+
+    #[test]
+    fn resolution_from_width_buckets() {
+        assert_eq!(resolution_from_width(None), None);
+        assert_eq!(resolution_from_width(Some(0)), None);
+        assert_eq!(resolution_from_width(Some(639)), None);
+        assert_eq!(resolution_from_width(Some(-10)), None);
+        assert_eq!(resolution_from_width(Some(640)).as_deref(), Some("480p"));
+        assert_eq!(resolution_from_width(Some(1199)).as_deref(), Some("480p"));
+        assert_eq!(resolution_from_width(Some(1200)).as_deref(), Some("720p"));
+        assert_eq!(resolution_from_width(Some(1699)).as_deref(), Some("720p"));
+        assert_eq!(resolution_from_width(Some(1700)).as_deref(), Some("1080p"));
+        assert_eq!(resolution_from_width(Some(3399)).as_deref(), Some("1080p"));
+        assert_eq!(resolution_from_width(Some(3400)).as_deref(), Some("2160p"));
+        assert_eq!(resolution_from_width(Some(7680)).as_deref(), Some("2160p"));
+    }
+
+    #[test]
+    fn codec_label_maps_known_and_passes_through() {
+        assert_eq!(codec_label(Some("HEVC")).as_deref(), Some("x265"));
+        assert_eq!(codec_label(Some("h265")).as_deref(), Some("x265"));
+        assert_eq!(codec_label(Some("x265")).as_deref(), Some("x265"));
+        assert_eq!(codec_label(Some("AVC")).as_deref(), Some("x264"));
+        assert_eq!(codec_label(Some("h264")).as_deref(), Some("x264"));
+        assert_eq!(codec_label(Some("x264")).as_deref(), Some("x264"));
+        assert_eq!(codec_label(Some("AV1")).as_deref(), Some("AV1"));
+        // Unknown codec passes through lowercased.
+        assert_eq!(codec_label(Some("VP9")).as_deref(), Some("vp9"));
+        assert_eq!(codec_label(None), None);
+    }
+
+    #[test]
+    fn audio_channels_label_layouts() {
+        assert_eq!(audio_channels_label(None), None);
+        assert_eq!(audio_channels_label(Some(0)), None);
+        assert_eq!(audio_channels_label(Some(1)).as_deref(), Some("1.0"));
+        assert_eq!(audio_channels_label(Some(2)).as_deref(), Some("2.0"));
+        assert_eq!(audio_channels_label(Some(3)).as_deref(), Some("2.1"));
+        assert_eq!(audio_channels_label(Some(6)).as_deref(), Some("5.1"));
+        assert_eq!(audio_channels_label(Some(7)).as_deref(), Some("6.1"));
+        assert_eq!(audio_channels_label(Some(8)).as_deref(), Some("7.1"));
+        // Unmapped counts fall back to `N.0`.
+        assert_eq!(audio_channels_label(Some(4)).as_deref(), Some("4.0"));
+        assert_eq!(audio_channels_label(Some(5)).as_deref(), Some("5.0"));
+    }
+
+    #[test]
+    fn audio_codec_label_maps_and_uppercases() {
+        assert_eq!(audio_codec_label(Some("aac")).as_deref(), Some("AAC"));
+        assert_eq!(audio_codec_label(Some("AC-3")).as_deref(), Some("AC3"));
+        assert_eq!(audio_codec_label(Some("ac3")).as_deref(), Some("AC3"));
+        assert_eq!(audio_codec_label(Some("e-ac-3")).as_deref(), Some("EAC3"));
+        assert_eq!(audio_codec_label(Some("eac3")).as_deref(), Some("EAC3"));
+        assert_eq!(audio_codec_label(Some("dts")).as_deref(), Some("DTS"));
+        assert_eq!(audio_codec_label(Some("TrueHD")).as_deref(), Some("TrueHD"));
+        assert_eq!(audio_codec_label(Some("flac")).as_deref(), Some("FLAC"));
+        assert_eq!(audio_codec_label(Some("opus")).as_deref(), Some("Opus"));
+        assert_eq!(audio_codec_label(Some("mp3")).as_deref(), Some("MP3"));
+        assert_eq!(audio_codec_label(Some("vorbis")).as_deref(), Some("Vorbis"));
+        // Unknown codec uppercases.
+        assert_eq!(audio_codec_label(Some("wma")).as_deref(), Some("WMA"));
+        assert_eq!(audio_codec_label(Some("")), None);
+        assert_eq!(audio_codec_label(None), None);
+    }
+
+    #[test]
+    fn dynamic_range_priority() {
+        assert_eq!(dynamic_range(false, false), None);
+        assert_eq!(dynamic_range(true, false).as_deref(), Some("HDR"));
+        assert_eq!(dynamic_range(false, true).as_deref(), Some("DV"));
+        // Dolby Vision wins over a plain HDR flag.
+        assert_eq!(dynamic_range(true, true).as_deref(), Some("DV"));
+    }
+
+    #[test]
+    fn lang_code_normalizes_and_rejects() {
+        assert_eq!(lang_code("eng").as_deref(), Some("EN"));
+        assert_eq!(lang_code("EN").as_deref(), Some("EN"));
+        assert_eq!(lang_code("  fra  ").as_deref(), Some("FR"));
+        assert_eq!(lang_code("deu").as_deref(), Some("DE"));
+        assert_eq!(lang_code("jpn").as_deref(), Some("JA"));
+        assert_eq!(lang_code("zho").as_deref(), Some("ZH"));
+        assert_eq!(lang_code("nld").as_deref(), Some("NL"));
+        // Unknown 3-letter tag keeps the first two letters, upper-cased.
+        assert_eq!(lang_code("swe").as_deref(), Some("SW"));
+        // Single-char tag has no 2-byte slice: falls back to the whole word.
+        assert_eq!(lang_code("x").as_deref(), Some("X"));
+        for junk in ["", "und", "unknown", "mis", "zxx", "  "] {
+            assert_eq!(lang_code(junk), None, "{junk:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn lang_list_dedupes_in_order() {
+        let out = lang_list(["eng", "en", "fre", "und", "xx", "fre"]);
+        assert_eq!(out, vec!["EN".to_string(), "FR".to_string(), "XX".to_string()]);
+        assert!(lang_list(std::iter::empty::<&str>()).is_empty());
+        assert!(lang_list(["und", "zxx"]).is_empty());
+    }
+
+    #[test]
+    fn quality_from_parsed_maps_every_variant() {
+        use crate::scene::{Codec, ParsedRelease, Res, Source};
+        let mk = |r, c, s| ParsedRelease {
+            resolution: Some(r),
+            codec: Some(c),
+            source: Some(s),
+            ..Default::default()
+        };
+        assert_eq!(
+            quality_from_parsed(&mk(Res::R720, Codec::H264, Source::BluRay)),
+            (Some("720p".into()), Some("x264".into()), Some("Bluray".into()))
+        );
+        assert_eq!(
+            quality_from_parsed(&mk(Res::R1080, Codec::Av1, Source::WebDl)),
+            (Some("1080p".into()), Some("AV1".into()), Some("WEBDL".into()))
+        );
+        assert_eq!(
+            quality_from_parsed(&mk(Res::R2160, Codec::Xvid, Source::WebRip)),
+            (Some("2160p".into()), Some("Xvid".into()), Some("WEBRip".into()))
+        );
+        assert_eq!(
+            quality_from_parsed(&mk(Res::R2160, Codec::Hevc, Source::Remux)),
+            (Some("2160p".into()), Some("x265".into()), Some("Remux".into()))
+        );
+        // Remaining source variants.
+        let hdtv = ParsedRelease { source: Some(Source::Hdtv), ..Default::default() };
+        assert_eq!(quality_from_parsed(&hdtv).2.as_deref(), Some("HDTV"));
+        let cam = ParsedRelease { source: Some(Source::Cam), ..Default::default() };
+        assert_eq!(quality_from_parsed(&cam).2.as_deref(), Some("Cam"));
+        // Nothing parsed => all None.
+        assert_eq!(quality_from_parsed(&ParsedRelease::default()), (None, None, None));
+    }
+
+    #[test]
+    fn render_cleans_empty_delimiters() {
+        let ctx = NameContext { title: "Show".into(), ..Default::default() };
+        // Empty parens and brackets from missing tokens are dropped.
+        assert_eq!(render("{Movie Title} ({Release Year})", &ctx), "Show");
+        assert_eq!(render("{Movie Title} [{Resolution}]", &ctx), "Show");
+        assert_eq!(render("{Movie Title} ({Release Year}) [{Resolution}]", &ctx), "Show");
+        // The "- -" collapse branch (two empty segments around separators).
+        assert_eq!(render("{Movie Title} - {Episode Title} - {Resolution}", &ctx), "Show");
+        // A purely empty render.
+        assert_eq!(render("({Release Year})", &NameContext::default()), "");
+    }
+
+    #[test]
+    fn file_component_falls_back_when_name_empty() {
+        // A template that renders empty (no resolution) must not produce a
+        // dangling ".mkv" file; it falls back to "file.mkv".
+        let tpl = NamingTemplates {
+            movie_folder: String::new(),
+            movie_file: "{Resolution}".into(),
+            series_folder: String::new(),
+            season_folder: String::new(),
+            episode_file: String::new(),
+            case: Casing::Default,
+        };
+        let p = tpl.movie_rel_path(&NameContext::default(), "mkv");
+        assert_eq!(p.to_str().unwrap(), "file.mkv");
+    }
+
+    #[test]
+    fn episode_path_skips_empty_season_folder() {
+        let tpl = NamingTemplates {
+            movie_folder: String::new(),
+            movie_file: String::new(),
+            series_folder: "{Series Title}".into(),
+            season_folder: String::new(),
+            episode_file: "{Episode Title}".into(),
+            case: Casing::Default,
+        };
+        let ctx = NameContext {
+            title: "Show".into(),
+            episode_title: Some("Pilot".into()),
+            ..Default::default()
+        };
+        let p = tpl.episode_rel_path(&ctx, "mkv");
+        assert_eq!(p.to_str().unwrap(), "Show/Pilot.mkv");
+    }
 }

@@ -84,4 +84,61 @@ mod tests {
         assert_eq!(newznab_id("Audio/Lossless"), 3000);
         assert_eq!(newznab_id("Something/Weird"), 8000);
     }
+
+    #[test]
+    fn parent_buckets_and_exact_subcategories() {
+        // Coarse parent buckets for the non-movie/TV families.
+        assert_eq!(newznab_id("Console/Wii"), 1000);
+        assert_eq!(newznab_id("PC/Games"), 4000);
+        assert_eq!(newznab_id("XXX/HD"), 6000);
+        assert_eq!(newznab_id("Books/EBook"), 7000);
+        assert_eq!(newznab_id("Other/Misc"), 8000);
+        // Exact 4K alias + a few TV/Movies sub-buckets.
+        assert_eq!(newznab_id("Movies/4K"), 2045);
+        assert_eq!(newznab_id("Movies/UHD"), 2045);
+        assert_eq!(newznab_id("TV/UHD"), 5045);
+        assert_eq!(newznab_id("TV"), 5000);
+        // Leading/trailing whitespace is trimmed before matching.
+        assert_eq!(newznab_id("  Movies/HD  "), 2040);
+    }
+
+    fn def_with_mappings() -> Definition {
+        let yaml = r#"
+id: t
+name: T
+caps:
+  categorymappings:
+    - {id: "100", cat: "Movies/HD"}
+    - {id: "101", cat: "Movies/UHD"}
+    - {id: "200", cat: "TV/HD"}
+    - {id: "300", cat: "Audio"}
+search:
+  rows:
+    selector: "tr"
+"#;
+        crate::definition::parse(yaml.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn tracker_ids_pull_in_whole_parent_bucket() {
+        let def = def_with_mappings();
+        // Wanting the Movies parent (2000) pulls in every 2xxx mapping, sorted +
+        // deduped; the TV and Audio mappings are excluded.
+        let ids = tracker_ids_for(&def, &[2000]);
+        assert_eq!(ids, vec!["100".to_string(), "101".to_string()]);
+        // An exact leaf id (2040 = Movies/HD) matches its mapping via the bucket.
+        let leaf = tracker_ids_for(&def, &[2040]);
+        assert!(leaf.contains(&"100".to_string()));
+        // Nothing wanted -> nothing requested.
+        assert!(tracker_ids_for(&def, &[]).is_empty());
+    }
+
+    #[test]
+    fn tracker_id_back_to_newznab() {
+        let def = def_with_mappings();
+        assert_eq!(newznab_for_tracker_id(&def, "200"), Some(5040));
+        assert_eq!(newznab_for_tracker_id(&def, "300"), Some(3000));
+        // An id with no mapping resolves to nothing.
+        assert_eq!(newznab_for_tracker_id(&def, "999"), None);
+    }
 }
