@@ -9,6 +9,11 @@ import {
   selectEngine,
 } from '@kroma/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  getWebEnginePref,
+  setWebEnginePref,
+  type WebEnginePref,
+} from '#web/features/playback/engine-pref';
 import { preferredAudioIndex } from '#web/features/playback/track-prefs';
 import {
   attachMediaSource,
@@ -132,15 +137,21 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   // (an over-optimistic capability probe, a quirky file), we drop to the HLS
   // master at the same position instead of dying with a black screen.
   const [forceHls, setForceHls] = useState(false);
+  // Manual engine override (Settings → "Moteur de lecture"). `remux` behaves like
+  // the direct-play safety net (always the HLS master); `direct` forces the bare
+  // `<video src>` (still guarded by the decode-error fallback below); `auto` defers
+  // to the runtime-cap decision.
+  const [enginePref, setEnginePrefState] = useState<WebEnginePref>(getWebEnginePref);
   const decision = useMemo<EngineDecision>(() => {
-    if (forceHls) {
+    if (forceHls || enginePref === 'remux') {
       return {
         kind: 'web-mse',
         aacMaster: masterNeedsAac(item, env.safari ? SAFARI_CAPS : MSE_CAPS),
       };
     }
+    if (enginePref === 'direct') return { kind: 'direct', aacMaster: false };
     return selectEngine(item, env);
-  }, [item, env, forceHls]);
+  }, [item, env, forceHls, enginePref]);
   const hlsRef = useRef<import('hls.js').default | null>(null);
 
   // The absolute-position offset: `absolute = baseSec + video.currentTime`. For
@@ -420,10 +431,25 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     [decision.kind, baseSec],
   );
 
+  // Switch the playback engine (Settings). Persist + re-anchor at the current
+  // absolute position so the new pipeline attaches there (a brief reload, like a
+  // seek); clear any stale direct-play fallback.
+  const setEnginePref = useCallback(
+    (p: WebEnginePref) => {
+      setWebEnginePref(p);
+      setForceHls(false);
+      setEnginePrefState(p);
+      setAnchor(Math.max(0, Math.floor(baseSec + (videoRef.current?.currentTime ?? 0))));
+    },
+    [baseSec],
+  );
+
   return {
     videoRef,
     containerRef,
     barRef,
+    enginePref,
+    setEnginePref,
     playing,
     waiting,
     ready,

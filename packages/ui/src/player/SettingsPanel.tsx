@@ -6,6 +6,7 @@ import {
   IconAudioFilter,
   IconAudioTrack,
   IconBack,
+  IconGear,
   IconLoop,
   IconQuality,
   IconSpeed,
@@ -27,7 +28,15 @@ import type { PlayerController, PlayerSub } from './types';
 import { useListFocus } from './useListFocus';
 
 // Sub-views the menu can open; toggles (loop/statistics) act in place.
-type View = 'menu' | 'quality' | 'audio' | 'audioFilter' | 'subtitles' | 'appearance' | 'speed';
+type View =
+  | 'menu'
+  | 'quality'
+  | 'engine'
+  | 'audio'
+  | 'audioFilter'
+  | 'subtitles'
+  | 'appearance'
+  | 'speed';
 
 interface SettingsPanelProps {
   controller: PlayerController;
@@ -110,6 +119,17 @@ export const SettingsPanel = forwardRef<PanelHandle, SettingsPanelProps>(functio
       value: curQuality?.label,
       activate: () => setView('quality'),
     },
+    ...(c.engines?.length
+      ? [
+          {
+            id: 'engine' as const,
+            icon: <IconGear />,
+            label: t('playbackEngine.title'),
+            value: c.engines.find((e) => e.id === c.engineId)?.label,
+            activate: () => setView('engine'),
+          },
+        ]
+      : []),
     {
       id: 'audio',
       icon: <IconAudioTrack />,
@@ -240,6 +260,16 @@ export const SettingsPanel = forwardRef<PanelHandle, SettingsPanelProps>(functio
             qualities={c.qualities}
             current={c.qualityId}
             onSelect={(id) => c.setQuality(id)}
+            onBack={backToMenu}
+          />
+        ) : null}
+        {view === 'engine' && c.engines ? (
+          // Engine options share the quality picker's shape (single-select id/label).
+          <QualityPanel
+            ref={subRef}
+            qualities={c.engines}
+            current={c.engineId ?? ''}
+            onSelect={(id) => c.setEngine?.(id)}
             onBack={backToMenu}
           />
         ) : null}

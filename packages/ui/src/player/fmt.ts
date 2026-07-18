@@ -23,3 +23,23 @@ export function clamp01(n: number): number {
 export function pct(value: number, total: number): number {
   return total > 0 ? clamp01(value / total) * 100 : 0;
 }
+
+/**
+ * Perceptual volume taper. Human loudness is roughly logarithmic, so a LINEAR
+ * fader spends most of its travel in the already-loud range and barely resolves
+ * the quiet end. We map the slider POSITION to the actual audio amplitude with a
+ * power curve (gamma), giving fine control down low; the fill + thumb use the
+ * inverse so the handle still tracks the pointer 1:1. Gamma 3 (cubic) is a
+ * natural default - the midpoint sits at ~0.125 amplitude.
+ */
+export const VOLUME_GAMMA = 3;
+
+/** Slider position [0,1] → audio volume [0,1] (perceptual). */
+export function sliderToVolume(position: number): number {
+  return clamp01(position) ** VOLUME_GAMMA;
+}
+
+/** Audio volume [0,1] → slider position [0,1] (inverse of {@link sliderToVolume}). */
+export function volumeToSlider(volume: number): number {
+  return clamp01(volume) ** (1 / VOLUME_GAMMA);
+}

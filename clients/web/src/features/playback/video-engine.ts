@@ -11,6 +11,7 @@
 // fresh remux at the target, ready in ~1s).
 
 import type { AudioTrack, EngineDecision } from '@kroma/core';
+import type { WebEnginePref } from '#web/features/playback/engine-pref';
 import { kromaClient, type MovieView } from '#web/shared/lib/api';
 
 type HlsInstance = import('hls.js').default;
@@ -33,6 +34,10 @@ export interface VideoPlayback {
   /** True when audio/video is delivered via the HLS master (hls.js / native HLS)
    * rather than a plain direct-play `<video src>`. */
   useHls: boolean;
+  /** The manual engine override (Settings): `auto` | `direct` | `remux`. */
+  enginePref: WebEnginePref;
+  /** Set the engine override (persists + re-anchors to apply it live). */
+  setEnginePref: (p: WebEnginePref) => void;
   /** Every audio track, for the picker. */
   audioTracks: AudioTrack[];
   /** Index of the currently-selected audio track (audio-relative). */

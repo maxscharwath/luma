@@ -7,6 +7,7 @@ import {
   useT,
 } from '@kroma/ui';
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { WebEnginePref } from '#web/features/playback/engine-pref';
 import { useVideoPlayback } from '#web/features/playback/use-video-playback';
 import { useWebSubtitles } from '#web/features/playback/use-web-subtitles';
 import { buildWebStats } from '#web/features/playback/web-stats';
@@ -67,6 +68,32 @@ export function useWebController(item: MovieView): WebController {
     if (s != null) pb.seekTo(s);
   }, [pb]);
 
+  // Native Picture-in-Picture (the browser's own floating window). The <video>
+  // is keyed by anchor+audio, so the pip listeners rebind to each fresh element.
+  const [pipActive, setPipActive] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: anchor/audioIndex are intentional remount triggers, not read values. The <video> is keyed by anchor+audio, so re-anchoring / switching audio mounts a fresh element the pip listeners must rebind to. Depending on `pb` itself would rerun on every render.
+  useEffect(() => {
+    const v = pb.videoRef.current;
+    if (!v) return;
+    const onEnter = () => setPipActive(true);
+    const onLeave = () => setPipActive(false);
+    v.addEventListener('enterpictureinpicture', onEnter);
+    v.addEventListener('leavepictureinpicture', onLeave);
+    return () => {
+      v.removeEventListener('enterpictureinpicture', onEnter);
+      v.removeEventListener('leavepictureinpicture', onLeave);
+    };
+  }, [pb.anchor, pb.audioIndex, pb.videoRef]);
+  const togglePip = useCallback(() => {
+    const v = pb.videoRef.current;
+    if (!document.pictureInPictureEnabled || !v) return;
+    if (document.pictureInPictureElement) {
+      void document.exitPictureInPicture().catch(() => undefined);
+    } else {
+      void v.requestPictureInPicture().catch(() => undefined);
+    }
+  }, [pb.videoRef]);
+
   // Natural-end nonce (autoplay trigger), rebinding on remount.
   const [endedNonce, setEndedNonce] = useState(0);
   // biome-ignore lint/correctness/useExhaustiveDependencies: anchor/audioIndex are intentional remount triggers, not read values. The <video> is keyed by anchor+audio, so re-anchoring / switching audio mounts a fresh element the `ended` listener must rebind to. Depending on `pb` itself would rerun on every render.
@@ -121,6 +148,17 @@ export function useWebController(item: MovieView): WebController {
     return [{ id: 'auto', label: `${t('player.qualityAuto')}${badgeSuffix}` }];
   }, [item.video, t]);
 
+  // Manual engine override (web has two real pipelines: bare <video> direct-play
+  // vs the server HLS remux). `auto` defers to the runtime-cap decision.
+  const engines = useMemo(
+    () => [
+      { id: 'auto', label: t('playbackEngine.auto') },
+      { id: 'direct', label: t('playbackEngine.webview') },
+      { id: 'remux', label: t('playbackEngine.remux') },
+    ],
+    [t],
+  );
+
   const controller: PlayerController = {
     cur: pb.cur,
     dur: pb.dur,
@@ -154,11 +192,15 @@ export function useWebController(item: MovieView): WebController {
     qualities,
     qualityId: 'auto',
     setQuality: () => undefined,
+    engines,
+    engineId: pb.enginePref,
+    // ids come from `engines` above, so the cast to the narrow union is safe.
+    setEngine: (id: string) => pb.setEnginePref(id as WebEnginePref),
     audioFilter: filter.mode,
     setAudioFilter: filter.setMode,
     audioFilterSupported: filter.supported,
-    pipActive: false,
-    togglePip: () => undefined,
+    pipActive,
+    togglePip,
     fullscreen: pb.fs,
     toggleFullscreen: pb.toggleFullscreen,
     getStats,

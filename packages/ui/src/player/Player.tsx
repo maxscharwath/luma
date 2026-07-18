@@ -15,8 +15,7 @@ import { ChapterProgressBar } from './ChapterProgressBar';
 import { ControlCluster } from './ControlCluster';
 import { CreditsCard, type CreditsCardItem } from './CreditsCard';
 import { currentChapter, normalizeChapters } from './chapters';
-import { endsAtClock } from './fmt';
-import { IconBack10, IconFullscreenExit, IconPause, IconPlay } from './icons';
+import { clamp01, endsAtClock, sliderToVolume, volumeToSlider } from './fmt';
 import type { PanelHandle } from './nav';
 import { SettingsPanel } from './SettingsPanel';
 import { SkipIntroButton } from './SkipIntroButton';
@@ -74,22 +73,17 @@ function initialSettingsView(overlay: string | null): 'audio' | 'subtitles' | 'm
   return 'menu';
 }
 
-// The stage scales/translates (transform-origin + transform) for a smooth shrink:
-// settings -> a rounded card on the left; PiP -> a bottom-right window. Native TV
-// planes can't be transformed, so those never shrink (settingsShrink stays false).
-function stageTransformFor(pipOpen: boolean, settingsShrink: boolean): CSSProperties {
-  if (pipOpen) {
-    return {
-      transformOrigin: '100% 100%',
-      transform: 'translate(-24px,-24px) scale(0.2)',
-      borderRadius: 18,
-    };
-  }
+// The stage scales/translates (transform-origin + transform) for a smooth shrink
+// into a rounded card on the left when the settings panel opens. Native TV planes
+// can't be transformed, so those never shrink (settingsShrink stays false). PiP is
+// the browser's own floating window (web), so it needs no in-page transform.
+function stageTransformFor(settingsShrink: boolean): CSSProperties {
   if (settingsShrink) {
     return {
       transformOrigin: '0 50%',
       transform: 'translate(3vw,0) scale(0.5)',
-      borderRadius: 22,
+      // The card is drawn at scale 0.5, so the on-screen radius is half this.
+      borderRadius: 48,
     };
   }
   return { transformOrigin: '0 50%', transform: 'none', borderRadius: 0 };
@@ -102,17 +96,15 @@ function deriveChrome(
   nav: ReturnType<typeof usePlayerNav>,
   c: PlayerController,
   props: Readonly<PlayerProps>,
-  pipOpen: boolean,
 ) {
   const settingsOpen =
     nav.overlay === 'settings' || nav.overlay === 'audio' || nav.overlay === 'subtitles';
   const sheetOpen = nav.overlay === 'sheet';
   const settingsShrink = settingsOpen && c.surface === 'video';
-  const shrunk = settingsShrink || pipOpen;
   const hasUpNext = props.upNext.nextEpisodes.length + props.upNext.recommendations.length > 0;
-  const peekVisible = nav.revealed && hasUpNext && !shrunk && !nav.overlay;
-  const chromeShown = nav.revealed && !nav.overlay && !pipOpen;
-  return { settingsOpen, sheetOpen, settingsShrink, shrunk, peekVisible, chromeShown };
+  const peekVisible = nav.revealed && hasUpNext && !settingsShrink && !nav.overlay;
+  const chromeShown = nav.revealed && !nav.overlay;
+  return { settingsOpen, sheetOpen, settingsShrink, peekVisible, chromeShown };
 }
 
 /** Credits card key routing: Left/Right swap Play/Cancel focus, OK fires the
@@ -189,7 +181,6 @@ export function Player(props: Readonly<PlayerProps>) {
   const locale = useLocale();
 
   const [statsOn, setStatsOn] = useState(false);
-  const [pipOpen, setPipOpen] = useState(false);
   const panelRef = useRef<PanelHandle>(null);
   const locked = Boolean(props.terminated);
 
@@ -219,9 +210,10 @@ export function Player(props: Readonly<PlayerProps>) {
     seekNudge: (d) => c.skip(d * 10),
     onNext: () => props.onPlayNext?.(),
     hasNext: Boolean(props.onPlayNext),
-    volumeNudge: (d) => c.setVolume(Math.max(0, Math.min(1, c.volume + d * 0.05))),
+    // Step in perceptual slider space so a nudge feels even across the range.
+    volumeNudge: (d) => c.setVolume(sliderToVolume(clamp01(volumeToSlider(c.volume) + d * 0.05))),
     toggleMute: c.toggleMute,
-    togglePip: () => setPipOpen((p) => !p),
+    togglePip: c.togglePip,
     toggleFullscreen: c.toggleFullscreen,
     onExit: props.onClose,
   });
@@ -245,12 +237,15 @@ export function Player(props: Readonly<PlayerProps>) {
     credits: { active: credits.show, onKey: creditsKey },
   });
 
-  const { settingsOpen, sheetOpen, settingsShrink, shrunk, peekVisible, chromeShown } =
-    deriveChrome(nav, c, props, pipOpen);
+  const { settingsOpen, sheetOpen, settingsShrink, peekVisible, chromeShown } = deriveChrome(
+    nav,
+    c,
+    props,
+  );
   const initialView = initialSettingsView(nav.overlay);
   // Subtitles live inside the stage, so they scale WITH the video (stay in the
   // card, §5).
-  const stage = stageTransformFor(pipOpen, settingsShrink);
+  const stage = stageTransformFor(settingsShrink);
   const endsAt = c.dur ? endsAtClock(Math.max(0, c.dur - c.cur) * 1000, locale) : '';
   // The top bar + transport hide while a panel / PiP owns the screen, and whenever
   // the chrome auto-hides.
@@ -263,16 +258,17 @@ export function Player(props: Readonly<PlayerProps>) {
       className={`fixed inset-0 z-60 ${c.surface === 'video' ? 'bg-black' : 'bg-transparent'} ${nav.revealed ? '' : 'cursor-none'}`}
       onPointerMove={input.onPointerMove}
     >
-      {/* stage: video + subtitles, transformed together for settings / PiP.
-          role="button" (not a native <button>): it wraps the <video> surface +
-          subtitles + spinner, which a button may not contain, and legacy-TV
-          webviews render it more reliably. Keyboard parity via onStageKeyDown. */}
+      {/* stage: video + subtitles, transformed together to shrink into the
+          settings card. role="button" (not a native <button>): it wraps the
+          <video> surface + subtitles + spinner, which a button may not contain,
+          and legacy-TV webviews render it more reliably. Keyboard parity via
+          onStageKeyDown. */}
       {/* biome-ignore lint/a11y/useSemanticElements: a native <button> can't wrap the video/subtitle/spinner surface; keyboard parity is provided. */}
       <div
         role="button"
         tabIndex={0}
         aria-label={c.playing ? t('player.pause') : t('player.play')}
-        className={`absolute inset-0 z-[2] overflow-hidden transition-[transform,border-radius,box-shadow] duration-[420ms] ease-[cubic-bezier(.22,1,.36,1)] ${shrunk ? 'bg-black shadow-pop' : 'bg-transparent'}`}
+        className={`absolute inset-0 z-[2] overflow-hidden transition-[transform,border-radius,box-shadow] duration-[420ms] ease-[cubic-bezier(.22,1,.36,1)] ${settingsShrink ? 'bg-black shadow-pop [&>video]:object-cover' : 'bg-transparent [&>video]:object-contain'}`}
         style={stage}
         onClick={input.onStageClick}
         onKeyDown={input.onStageKeyDown}
@@ -285,35 +281,16 @@ export function Player(props: Readonly<PlayerProps>) {
           subtitles={c.subtitles}
           activeIndex={c.subtitleIndex}
           appearance={props.appearance}
-          raised={nav.revealed && !pipOpen}
+          raised={nav.revealed}
         />
         {/* Buffering spinner lives INSIDE the stage so it shrinks with the video
-            into the settings card / PiP window (not floating over the full page). */}
+            into the settings card (not floating over the full page). */}
         {c.waiting && !locked ? (
           <div className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center">
             <div className="h-14 w-14 rounded-full border-[3px] border-[rgba(255,255,255,0.2)] border-t-accent [animation:kpl-spin_0.9s_linear_infinite]" />
           </div>
         ) : null}
       </div>
-
-      {/* PiP: dim the rest + mini controls over the floating video */}
-      {pipOpen ? (
-        <>
-          <div className="absolute inset-0 z-[1] bg-[rgba(0,0,0,0.6)]" />
-          <PipControls
-            playing={c.playing}
-            title={props.title}
-            subtitle={props.subtitle}
-            onBack10={() => c.skip(-10)}
-            onTogglePlay={c.togglePlay}
-            onExpand={() => setPipOpen(false)}
-            onClose={props.onClose}
-            playLabel={c.playing ? t('player.pause') : t('player.play')}
-            expandLabel={t('player.pipExpand')}
-            closeLabel={t('common.close')}
-          />
-        </>
-      ) : null}
 
       {/* skip intro (§13) */}
       {props.intro ? (
@@ -363,10 +340,14 @@ export function Player(props: Readonly<PlayerProps>) {
         onPlay={(item) => props.onPlayItem?.(item)}
       />
 
-      {/* bottom chrome: chapter bar + control cluster */}
+      {/* bottom chrome: chapter bar + control cluster. The gradient stays anchored
+          to the screen bottom (never floated up), and the controls are lifted
+          above the up-next peek with padding instead - so the peek (higher
+          z-index) overlays the gradient's dark foot seamlessly rather than the
+          gradient ending in a hard shadow band just above the peek. */}
       <div
-        className={`absolute inset-x-0 z-[15] bg-[linear-gradient(0deg,rgba(0,0,0,0.82),transparent)] px-[34px] pt-20 pb-7 transition-[bottom,opacity] duration-300 ${chromeFade}`}
-        style={{ bottom: peekVisible ? 118 : 0 }}
+        className={`absolute inset-x-0 bottom-0 z-[15] bg-[linear-gradient(0deg,rgba(0,0,0,0.82),transparent)] px-[34px] pt-20 transition-[padding,opacity] duration-300 ${chromeFade}`}
+        style={{ paddingBottom: peekVisible ? 146 : 28 }}
       >
         <ChapterProgressBar
           cur={c.cur}
@@ -389,7 +370,7 @@ export function Player(props: Readonly<PlayerProps>) {
           playing={c.playing}
           muted={c.muted}
           volume={c.volume}
-          pipActive={pipOpen}
+          pipActive={c.pipActive}
           fullscreen={c.fullscreen}
           onActivate={nav.activate}
           onFocus={nav.focusControl}
@@ -415,88 +396,5 @@ export function Player(props: Readonly<PlayerProps>) {
       {props.terminated}
       {props.children}
     </div>
-  );
-}
-
-/** Mini controls overlaid on the bottom-right floating video during PiP (§12). */
-function PipControls({
-  playing,
-  title,
-  subtitle,
-  onBack10,
-  onTogglePlay,
-  onExpand,
-  onClose,
-  playLabel,
-  expandLabel,
-  closeLabel,
-}: Readonly<{
-  playing: boolean;
-  title: string;
-  subtitle?: string;
-  onBack10: () => void;
-  onTogglePlay: () => void;
-  onExpand: () => void;
-  onClose: () => void;
-  playLabel: string;
-  expandLabel: string;
-  closeLabel: string;
-}>) {
-  return (
-    <div className="absolute right-6 bottom-6 z-[3] h-[216px] w-96 overflow-hidden rounded-[18px]">
-      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2.5 p-3">
-        <div className="min-w-0">
-          <div className="truncate font-sans text-[15px] font-bold text-white [text-shadow:0_1px_6px_rgba(0,0,0,0.8)]">
-            {title}
-          </div>
-          {subtitle ? (
-            <div className="truncate font-sans text-[12px] font-semibold text-[rgba(255,255,255,0.78)] [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
-              {subtitle}
-            </div>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          aria-label={closeLabel}
-          onClick={onClose}
-          className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-[rgba(0,0,0,0.55)] text-white outline-none"
-        >
-          <IconFullscreenExit size={16} />
-        </button>
-      </div>
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-[22px] bg-[linear-gradient(0deg,rgba(0,0,0,0.6),transparent)] p-4">
-        <PipBtn label="10" onClick={onBack10}>
-          <IconBack10 size={18} />
-        </PipBtn>
-        <button
-          type="button"
-          aria-label={playLabel}
-          onClick={onTogglePlay}
-          className="flex h-[50px] w-[50px] cursor-pointer items-center justify-center rounded-full border-none bg-accent text-accent-ink outline-none"
-        >
-          {playing ? <IconPause size={21} /> : <IconPlay size={23} />}
-        </button>
-        <PipBtn label={expandLabel} onClick={onExpand}>
-          <IconFullscreenExit size={18} />
-        </PipBtn>
-      </div>
-    </div>
-  );
-}
-
-function PipBtn({
-  label,
-  onClick,
-  children,
-}: Readonly<{ label: string; onClick: () => void; children: ReactNode }>) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      className="flex h-[38px] w-[38px] cursor-pointer items-center justify-center rounded-full border-none bg-[rgba(0,0,0,0.5)] text-white outline-none"
-    >
-      {children}
-    </button>
   );
 }

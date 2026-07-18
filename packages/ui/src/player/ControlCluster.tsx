@@ -1,6 +1,6 @@
 import { type ReactNode, type PointerEvent as ReactPointerEvent, useCallback, useRef } from 'react';
 import { useT } from '../i18n';
-import { clamp01 } from './fmt';
+import { clamp01, sliderToVolume, volumeToSlider } from './fmt';
 import {
   IconAudioTrack,
   IconBack10,
@@ -268,6 +268,10 @@ function VolumeControl({
 }>) {
   const trackRef = useRef<HTMLButtonElement>(null);
   const level = muted ? 0 : volume;
+  // The fill/thumb track the perceptual slider position, not the raw amplitude,
+  // so the handle sits under the pointer while the audio follows the loudness
+  // curve (a linear fader would look wrong against a tapered volume).
+  const sliderPos = muted ? 0 : volumeToSlider(volume);
   let volIcon: ReactNode;
   if (level === 0) volIcon = <IconMute size={24} />;
   else if (level < 0.5) volIcon = <IconVolLow size={24} />;
@@ -278,7 +282,7 @@ function VolumeControl({
       const el = trackRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      onVolume(clamp01((clientX - r.left) / r.width));
+      onVolume(sliderToVolume(clamp01((clientX - r.left) / r.width)));
     },
     [onVolume],
   );
@@ -323,11 +327,11 @@ function VolumeControl({
         <div className="relative h-1.5 w-full rounded-full bg-[rgba(255,255,255,0.22)]">
           <div
             className="absolute inset-y-0 left-0 rounded-full bg-accent"
-            style={{ width: `${level * 100}%` }}
+            style={{ width: `${sliderPos * 100}%` }}
           />
           <div
             className="absolute top-1/2 h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
-            style={{ left: `${level * 100}%` }}
+            style={{ left: `${sliderPos * 100}%` }}
           />
         </div>
       </button>

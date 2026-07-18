@@ -52,6 +52,13 @@ export interface PlayerQuality {
   label: string;
 }
 
+/** A playback-engine choice (§5 Settings, web only): Auto / Direct / Remux. Same
+ *  shape as a quality option, so the picker component is shared. */
+export interface PlayerEngineOption {
+  id: string;
+  label: string;
+}
+
 /** One chapter segment on the progress bar (§1). */
 export interface Chapter {
   startMs: number;
@@ -137,6 +144,13 @@ export interface PlayerController {
   qualities: PlayerQuality[];
   qualityId: string;
   setQuality(id: string): void;
+
+  // ---- playback engine (web: manual override of the auto direct/HLS decision).
+  //      Absent on platforms with no in-player picker (e.g. TV, which offers the
+  //      engine in its profile menu), so the Settings row hides itself. ----
+  engines?: PlayerEngineOption[];
+  engineId?: string;
+  setEngine?(id: string): void;
 
   // ---- audio filter / normalizer ----
   audioFilter: AudioFilterMode;

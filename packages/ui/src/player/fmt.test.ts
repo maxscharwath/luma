@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clamp01, endsAtClock, pct } from './fmt';
+import { clamp01, endsAtClock, pct, sliderToVolume, volumeToSlider } from './fmt';
 
 afterEach(() => vi.useRealTimers());
 
@@ -61,5 +61,28 @@ describe('pct', () => {
   it('is safe (0) when total is zero or negative', () => {
     expect(pct(5, 0)).toBe(0);
     expect(pct(5, -1)).toBe(0);
+  });
+});
+
+describe('perceptual volume curve', () => {
+  it('pins the endpoints and tapers the middle below linear', () => {
+    expect(sliderToVolume(0)).toBe(0);
+    expect(sliderToVolume(1)).toBe(1);
+    // A centred slider yields a much quieter amplitude than a linear 0.5.
+    expect(sliderToVolume(0.5)).toBeCloseTo(0.125, 5);
+  });
+
+  it('round-trips through the inverse', () => {
+    for (const v of [0, 0.125, 0.4, 0.8, 1]) {
+      expect(volumeToSlider(sliderToVolume(v))).toBeCloseTo(v, 5);
+    }
+    expect(volumeToSlider(0.125)).toBeCloseTo(0.5, 5);
+  });
+
+  it('clamps out-of-range inputs', () => {
+    expect(sliderToVolume(-1)).toBe(0);
+    expect(sliderToVolume(2)).toBe(1);
+    expect(volumeToSlider(-1)).toBe(0);
+    expect(volumeToSlider(2)).toBe(1);
   });
 });

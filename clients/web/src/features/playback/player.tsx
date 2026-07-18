@@ -105,7 +105,18 @@ export function Player({
       autoPlay
       playsInline
       crossOrigin="anonymous"
-      style={{ width: '100%', height: '100%', background: '#000', objectFit: 'contain' }}
+      // object-fit is set by the stage (contain normally, cover when it shrinks
+      // into the settings card so the picture fills the rounded corners instead
+      // of leaving black letterbox bars). borderRadius: inherit so the video
+      // clips ITSELF to the card radius - a parent overflow-hidden + border-radius
+      // does not clip a child <video> once the parent is transformed (WebKit /
+      // Chromium), so the radius must live on the element.
+      style={{
+        width: '100%',
+        height: '100%',
+        background: '#000',
+        borderRadius: 'inherit',
+      }}
     >
       {/* Captions render out-of-band via the shared SubtitleRenderer; this empty
           default track satisfies the captions requirement without adding cues. */}
