@@ -128,15 +128,17 @@ export function TvPlayer() {
 
   let surface: ReactNode;
   if (pb.surface === 'avplay') {
+    // NO child text: AVPlay renders the video to a hardware plane, not into this
+    // <object>'s box, so any fallback children (e.g. the title) would render
+    // VISIBLY over the plane - a static title stuck top-left on every file.
+    // aria-label carries the accessible name without drawing anything.
     surface = (
       <object
         ref={pb.objectRef}
         type="application/avplayer"
         style={{ width: '100%', height: '100%' }}
         aria-label={item.title}
-      >
-        {item.title}
-      </object>
+      />
     );
   } else if (pb.surface === 'mpv' || pb.surface === 'exo') {
     surface = <div style={{ width: '100%', height: '100%' }} role="img" aria-label={item.title} />;
