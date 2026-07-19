@@ -284,7 +284,12 @@ export function Player(props: Readonly<PlayerProps>) {
   const initialView = initialSettingsView(nav.overlay);
   // Subtitles live inside the stage, so they scale WITH the video (stay in the
   // card, §5).
-  const stage = stageTransformFor(settingsShrink);
+  // Transform the stage for a native shrink too: the video is a hardware plane
+  // (moved separately via setPlaneRect), but the stage's OTHER children - the
+  // buffering spinner + our subtitle overlay - must ride down into the same card
+  // instead of staying full-screen. (The transparent native surface placeholder
+  // rides along harmlessly; the plane is placed by its own display rect.)
+  const stage = stageTransformFor(settingsShrink || nativeShrink);
   const endsAt = c.dur ? endsAtClock(Math.max(0, c.dur - c.cur) * 1000, locale) : '';
   // The top bar + transport hide while a panel / PiP owns the screen, and whenever
   // the chrome auto-hides.

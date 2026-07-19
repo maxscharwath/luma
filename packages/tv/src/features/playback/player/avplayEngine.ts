@@ -169,6 +169,13 @@ export class AvplayEngine extends BaseTvEngine {
   play(): void {
     try {
       this.api.play();
+      // Some firmwares only honor silent-subtitle once PLAYING; re-assert it here
+      // too so the file's embedded text track never surfaces (title/caption).
+      try {
+        this.api.setSilentSubtitle(true);
+      } catch {
+        /* optional */
+      }
       this.paused = false;
       this.listeners.onPlay();
     } catch {
