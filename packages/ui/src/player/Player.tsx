@@ -95,6 +95,11 @@ function stageTransformFor(settingsShrink: boolean): CSSProperties {
 const CARD_RECT: PlaneRect = { x: 0.03, y: 0.25, w: 0.5, h: 0.5 };
 const FULL_RECT: PlaneRect = { x: 0, y: 0, w: 1, h: 1 };
 const SHRINK_MS = 380;
+// Resizing a hardware video plane (AVPlay setDisplayRect / ExoPlayer SurfaceView)
+// is EXPENSIVE, so cap the native resizes to ~30fps instead of every rAF frame -
+// the difference from 60fps is imperceptible for a 380ms move but roughly halves
+// the compositor load that made the effect lag on real TVs.
+const PLANE_STEP_MS = 32;
 const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 function lerpRect(a: PlaneRect, b: PlaneRect, t: number): PlaneRect {
   return {
@@ -108,17 +113,18 @@ function lerpRect(a: PlaneRect, b: PlaneRect, t: number): PlaneRect {
 /**
  * Shrink a NATIVE video plane (AVPlay / mpv / ExoPlayer) between fullscreen and
  * the settings card. A hardware plane behind the page can't be CSS-transformed
- * like an in-page <video>, so we tween its display rect via `setPlaneRect` and
- * return the current rect for a rounded black mask drawn over the surround.
- * `null` while fullscreen, and a no-op when there's no plane to drive (web).
+ * like an in-page <video>, so we tween its display rect via `setPlaneRect`,
+ * THROTTLED (the resize is the costly part). The rounded black surround is a
+ * separate, geometry-static CSS mask that only fades opacity, so nothing repaints
+ * a full-screen box-shadow every frame. A no-op when there's no plane (web).
  */
 function useNativePlaneShrink(
   active: boolean,
   setPlaneRect: PlayerController['setPlaneRect'],
-): PlaneRect | null {
-  const [overlay, setOverlay] = useState<PlaneRect | null>(null);
+): void {
   const cur = useRef<PlaneRect>(FULL_RECT);
   const raf = useRef(0);
+  const lastApplied = useRef(0);
   const apply = useRef(setPlaneRect);
   apply.current = setPlaneRect;
   useEffect(() => {
@@ -126,20 +132,21 @@ function useNativePlaneShrink(
     const to = active ? CARD_RECT : FULL_RECT;
     const from = cur.current;
     const start = performance.now();
+    lastApplied.current = 0;
     cancelAnimationFrame(raf.current);
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / SHRINK_MS);
-      const r = lerpRect(from, to, easeOutCubic(t));
-      cur.current = r;
-      apply.current?.(r);
-      setOverlay(active || t < 1 ? r : null);
+      cur.current = lerpRect(from, to, easeOutCubic(t));
+      // Throttle the native resize; always apply the final frame exactly.
+      if (t >= 1 || now - lastApplied.current >= PLANE_STEP_MS) {
+        lastApplied.current = now;
+        apply.current?.(t >= 1 && !active ? null : cur.current);
+      }
       if (t < 1) raf.current = requestAnimationFrame(tick);
-      else if (!active) apply.current?.(null);
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [active]);
-  return overlay;
 }
 
 /** Derived chrome-visibility flags, kept out of the component to stay flat. The
@@ -197,7 +204,10 @@ function playerInputHandlers(
 ) {
   return {
     onPointerMove: (e: React.PointerEvent) => {
-      if (e.pointerType !== 'touch') nav.poke();
+      // Only a real fine pointer reveals the chrome. On TVs (flags.pointer false)
+      // a magic-remote cursor emits phantom pointermove events that would keep the
+      // chrome pinned open; the D-pad drives reveal there instead.
+      if (flags.pointer && e.pointerType !== 'touch') nav.poke();
     },
     onStageClick: () => {
       if (!locked) {
@@ -300,7 +310,8 @@ export function Player(props: Readonly<PlayerProps>) {
   // black mask over the surround. Web / HTML `<video>` surfaces stay on the CSS
   // path (nativeShrink is false / setPlaneRect absent).
   const nativeShrink = settingsOpen && c.surface !== 'video';
-  const planeMask = useNativePlaneShrink(nativeShrink, c.setPlaneRect);
+  const hasPlane = c.surface !== 'video' && Boolean(c.setPlaneRect);
+  useNativePlaneShrink(nativeShrink, c.setPlaneRect);
   const initialView = initialSettingsView(nav.overlay);
   // Subtitles live inside the stage, so they scale WITH the video (stay in the
   // card, §5).
@@ -353,18 +364,22 @@ export function Player(props: Readonly<PlayerProps>) {
 
       {/* Native-plane shrink mask: the plane itself moves via setPlaneRect; this
           rounds the card corners + blacks out the surround (a hardware plane has
-          no CSS radius). Sits below the settings panel so the panel stays on top. */}
-      {planeMask ? (
+          no CSS radius). Geometry is STATIC (fixed at the card) - only opacity
+          fades - so the full-screen box-shadow rasterizes once and composites,
+          instead of repainting every frame (that was a big part of the lag). Sits
+          below the settings panel so the panel stays on top. */}
+      {hasPlane ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute z-[3]"
+          className="pointer-events-none absolute z-[3] transition-opacity duration-[380ms] ease-out"
           style={{
-            left: `${planeMask.x * 100}%`,
-            top: `${planeMask.y * 100}%`,
-            width: `${planeMask.w * 100}%`,
-            height: `${planeMask.h * 100}%`,
+            left: `${CARD_RECT.x * 100}%`,
+            top: `${CARD_RECT.y * 100}%`,
+            width: `${CARD_RECT.w * 100}%`,
+            height: `${CARD_RECT.h * 100}%`,
             borderRadius: 24,
             boxShadow: '0 0 0 100vmax #000',
+            opacity: nativeShrink ? 1 : 0,
           }}
         />
       ) : null}

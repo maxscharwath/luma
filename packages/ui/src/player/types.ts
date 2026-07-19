@@ -20,10 +20,19 @@ export interface PlayerFlags {
   pip: boolean;
   /** Fullscreen toggle (web). A TV is already fullscreen. */
   fullscreen: boolean;
+  /** A fine pointer drives the chrome (reveal-on-move). Off on TVs: a Samsung /
+   *  magic-remote cursor emits phantom `pointermove` events that would otherwise
+   *  keep the chrome (title + controls) revealed forever instead of auto-hiding. */
+  pointer: boolean;
 }
 
-export const WEB_FLAGS: PlayerFlags = { volume: true, pip: true, fullscreen: true };
-export const TV_FLAGS: PlayerFlags = { volume: false, pip: false, fullscreen: false };
+export const WEB_FLAGS: PlayerFlags = { volume: true, pip: true, fullscreen: true, pointer: true };
+export const TV_FLAGS: PlayerFlags = {
+  volume: false,
+  pip: false,
+  fullscreen: false,
+  pointer: false,
+};
 
 /** A subtitle track as the chrome needs it (embedded, downloaded or AI-made). */
 export interface PlayerSub {

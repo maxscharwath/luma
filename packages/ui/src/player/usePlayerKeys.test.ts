@@ -115,11 +115,11 @@ describe('usePlayerKeys letter/space transport shortcuts', () => {
   });
 
   it('"f" toggles fullscreen only when the fullscreen flag is on', () => {
-    const on = setup({ flags: { volume: true, pip: true, fullscreen: true } });
+    const on = setup({ flags: { volume: true, pip: true, fullscreen: true, pointer: true } });
     on.press({ key: 'f' });
     expect(on.params.controller.toggleFullscreen).toHaveBeenCalledTimes(1);
 
-    const off = setup({ flags: { volume: true, pip: true, fullscreen: false } });
+    const off = setup({ flags: { volume: true, pip: true, fullscreen: false, pointer: true } });
     off.press({ key: 'f' });
     expect(off.params.controller.toggleFullscreen).not.toHaveBeenCalled();
   });

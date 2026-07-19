@@ -1,6 +1,7 @@
 import { audioSupport, type MediaItem, playerSubtitle, type Translate } from '@kroma/core';
 import { Player, TV_FLAGS, type UpNextItem, useSubtitleAppearance, useT } from '@kroma/ui';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEnv } from '#tv/app/providers/env';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { BackChevron, StopGlyph } from '#tv/features/playback/player/icons';
 import { FOCUS_RING } from '#tv/features/playback/player/playerStyles';
@@ -36,6 +37,10 @@ export function TvPlayer() {
   const { item } = useParams('player');
   const client = useClient();
   const t = useT();
+  // Reveal-on-pointer only when a REAL fine pointer drives this shell (desktop /
+  // magic-remote); a plain TV has no pointer, so the chrome auto-hides on idle.
+  const { pointer } = useEnv();
+  const playerFlags = useMemo(() => ({ ...TV_FLAGS, pointer }), [pointer]);
 
   const { controller, pb, subtitleGen } = useTvController(client, item);
   const [appearance, setAppearance] = useSubtitleAppearance();
@@ -146,7 +151,7 @@ export function TvPlayer() {
   return (
     <Player
       controller={controller}
-      flags={TV_FLAGS}
+      flags={playerFlags}
       title={item.title}
       subtitle={subtitle}
       warn={warn}

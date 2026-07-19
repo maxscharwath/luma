@@ -246,7 +246,7 @@ export class AvplayEngine extends BaseTvEngine {
 
   /** Shrink/restore the hardware video plane (fraction-rect → 1920x1080 px). */
   setRect(rect: PlaneRect | null): void {
-    this.displayRect = rect
+    const next = rect
       ? {
           x: Math.round(rect.x * AVPLAY_W),
           y: Math.round(rect.y * AVPLAY_H),
@@ -254,9 +254,13 @@ export class AvplayEngine extends BaseTvEngine {
           h: Math.round(rect.h * AVPLAY_H),
         }
       : { x: 0, y: 0, w: AVPLAY_W, h: AVPLAY_H };
+    const p = this.displayRect;
+    // Skip a redundant resize (the throttled tween settles on the same px for
+    // several frames) - each setDisplayRect hits the hardware compositor.
+    if (next.x === p.x && next.y === p.y && next.w === p.w && next.h === p.h) return;
+    this.displayRect = next;
     try {
-      const r = this.displayRect;
-      this.api.setDisplayRect(r.x, r.y, r.w, r.h);
+      this.api.setDisplayRect(next.x, next.y, next.w, next.h);
     } catch {
       /* transient (mid-prepare); re-applied on the next open() */
     }
