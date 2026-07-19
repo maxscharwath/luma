@@ -48,7 +48,7 @@ export function TvGenreGrid() {
       ...shows.filter((s) => hasGenre(s, name)).map((s) => ({ item: s, card: showCard(s) })),
     ];
     const cmp = compareTitles(SORT);
-    return tagged.sort((a, b) => cmp(a.item, b.item)).map((x) => x.card);
+    return [...tagged].sort((a, b) => cmp(a.item, b.item)).map((x) => x.card);
   }, [movies, shows, name, client, nav]);
 
   return (

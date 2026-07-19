@@ -59,7 +59,7 @@ function GenrePage() {
         .map((s) => ({ entry: { kind: 'show' as const, show: s }, item: s })),
     ];
     const cmp = compareTitles(sort);
-    return matched.sort((a, b) => cmp(a.item, b.item)).map((x) => x.entry);
+    return [...matched].sort((a, b) => cmp(a.item, b.item)).map((x) => x.entry);
   }, [movies, shows, genre, sort]);
 
   return (
