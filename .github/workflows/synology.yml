@@ -147,6 +147,10 @@ jobs:
   docker:
     name: Docker image (from the .spk payload)
     needs: build
+    # `changes` is skipped on tag pushes, and that "skipped" propagates through
+    # `build` to this job unless we override the default success() gate. Run
+    # whenever `build` actually succeeded (tags + relevant main pushes).
+    if: always() && !cancelled() && needs.build.result == 'success'
     permissions:
       contents: read
       packages: write # push the Docker image to ghcr
@@ -205,7 +209,10 @@ jobs:
   # tag -> attach the .spk + sidecar to that version's GitHub Release.
   publish-stable:
     name: Attach .spk to the release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # See the docker job: guard with always()/needs.build so the skipped `changes`
+    # job on tag pushes does not skip this attach (the bug that left v0.1.25/0.1.26
+    # releases without a .spk, freezing the package source at 0.1.24).
+    if: always() && !cancelled() && needs.build.result == 'success' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     permissions:
       contents: write # create/update the release + upload assets
@@ -229,7 +236,7 @@ jobs:
   # canary version + md5 without downloading the .spk.
   publish-nightly:
     name: Publish nightly prerelease
-    if: github.ref == 'refs/heads/main'
+    if: always() && !cancelled() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
     needs: build
     permissions:
       contents: write # create/update the rolling nightly release + assets
