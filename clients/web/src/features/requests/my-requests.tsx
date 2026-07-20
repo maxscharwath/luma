@@ -154,7 +154,7 @@ function RequestRow({
         className="flex min-w-0 flex-1 items-center gap-4 text-left"
       >
         <div
-          className="h-[68px] w-[46px] flex-[0_0_46px] overflow-hidden rounded-lg"
+          className="relative h-[68px] w-[46px] flex-[0_0_46px] overflow-hidden rounded-lg"
           style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
         >
           <Image src={poster} fit="cover" fill />

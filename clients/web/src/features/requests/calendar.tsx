@@ -123,7 +123,7 @@ function CalendarRow({
       className="group flex items-center gap-4 rounded-2xl border border-border bg-surface-1 p-3 text-left transition-colors hover:border-white/20 hover:bg-white/2"
     >
       <div
-        className="h-[60px] w-[40px] flex-[0_0_40px] overflow-hidden rounded-lg"
+        className="relative h-[60px] w-[40px] flex-[0_0_40px] overflow-hidden rounded-lg"
         style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
       >
         <Image src={poster} fit="cover" fill />

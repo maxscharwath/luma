@@ -81,7 +81,7 @@ export function MissingGroupCard({
           className="group/head flex min-w-0 flex-1 items-center gap-3.5 text-left"
         >
           <div
-            className="h-[52px] w-[36px] flex-[0_0_36px] overflow-hidden rounded-md"
+            className="relative h-[52px] w-[36px] flex-[0_0_36px] overflow-hidden rounded-md"
             style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
           >
             <Image src={poster} fit="cover" fill />
