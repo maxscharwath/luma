@@ -32,6 +32,12 @@ const COLLAPSE_OVER = 12;
 /** How many rows a collapsed list keeps visible. */
 const COLLAPSED_ROWS = 10;
 
+/** The group's missing EPISODE rows (a movie group has none of its own). */
+function episodesOf(group: MissingGroup): CalendarEntry[] {
+  if (group.kind === 'movie') return [];
+  return group.items.filter((i) => i.season != null && i.episode != null);
+}
+
 export function MissingGroupCard({
   group,
   canManage,
@@ -52,23 +58,14 @@ export function MissingGroupCard({
   onOpen: () => void;
 }>) {
   const t = useT();
-  const locale = useLocale();
-  const [expanded, setExpanded] = useState(false);
   const [c1, c2] = posterColors(String(group.tmdbId));
   const poster = sizedImageUrl(group.posterUrl, 92);
 
-  const isMovie = group.kind === 'movie';
-  const episodes = isMovie ? [] : group.items.filter((i) => i.season != null && i.episode != null);
-  const collapsed = !expanded && episodes.length > COLLAPSE_OVER;
-  const visible = collapsed ? episodes.slice(0, COLLAPSED_ROWS) : episodes;
-
+  const episodes = episodesOf(group);
   const groupBusy = group.items.some((i) => busyKeys.has(epKey(i)));
   const allPicked = group.items.length > 0 && group.items.every((e) => selected.has(epKey(e)));
   // A gap is actionable by any requester; a request needs manage.
   const canAct = group.requestId ? canManage : true;
-
-  // Movies carry their release info on the header line (they have no rows).
-  const movieRel = isMovie ? relativeAirDate(group.items[0]?.airDate ?? null, locale) : '';
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-surface-1">
@@ -94,17 +91,7 @@ export function MissingGroupCard({
               {group.title}
             </div>
             <div className="mt-0.5 truncate text-[12.5px] font-semibold text-dim">
-              {isMovie ? (
-                <>
-                  <span className="text-[#EFB661]">{t('requests.missingMovie')}</span>
-                  {group.year ? <span> · {group.year}</span> : null}
-                  {movieRel ? <span> · {movieRel}</span> : null}
-                </>
-              ) : (
-                <span className="text-[#EFB661]">
-                  {t('requests.missingCount', { count: episodes.length })}
-                </span>
-              )}
+              <GroupMeta group={group} episodeCount={episodes.length} />
             </div>
           </div>
         </button>
@@ -125,35 +112,91 @@ export function MissingGroupCard({
           </button>
         ) : null}
       </div>
-      {episodes.length > 0 ? (
-        <ul className="divide-y divide-white/[0.04]">
-          {visible.map((e) => (
-            <EpisodeRow
-              key={epKey(e)}
-              entry={e}
-              canAct={canAct}
-              busy={busyKeys.has(epKey(e))}
-              picked={selected.has(epKey(e))}
-              onToggle={() => onToggleRow(epKey(e))}
-              onSearch={() => onSearch([e])}
-            />
-          ))}
-          {episodes.length > COLLAPSE_OVER ? (
-            <li>
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="w-full px-3.5 py-2.5 text-left text-[12.5px] font-bold text-dim hover:text-accent"
-              >
-                {collapsed
-                  ? t('requests.showMore', { count: episodes.length - COLLAPSED_ROWS })
-                  : t('requests.showLess')}
-              </button>
-            </li>
-          ) : null}
-        </ul>
-      ) : null}
+      <EpisodeList
+        entries={episodes}
+        canAct={canAct}
+        busyKeys={busyKeys}
+        selected={selected}
+        onToggleRow={onToggleRow}
+        onSearch={onSearch}
+      />
     </section>
+  );
+}
+
+/** The header's second line: a movie's release info, or the series' missing
+ * count (a movie group has no rows, so it carries its date here). */
+function GroupMeta({
+  group,
+  episodeCount,
+}: Readonly<{ group: MissingGroup; episodeCount: number }>) {
+  const t = useT();
+  const locale = useLocale();
+  if (group.kind !== 'movie') {
+    return (
+      <span className="text-[#EFB661]">{t('requests.missingCount', { count: episodeCount })}</span>
+    );
+  }
+  const rel = relativeAirDate(group.items[0]?.airDate ?? null, locale);
+  return (
+    <>
+      <span className="text-[#EFB661]">{t('requests.missingMovie')}</span>
+      {group.year ? <span> · {group.year}</span> : null}
+      {rel ? <span> · {rel}</span> : null}
+    </>
+  );
+}
+
+/** The group's missing-episode rows. A long list keeps only its first
+ * {@link COLLAPSED_ROWS} rows until the "show more" toggle expands it. */
+function EpisodeList({
+  entries,
+  canAct,
+  busyKeys,
+  selected,
+  onToggleRow,
+  onSearch,
+}: Readonly<{
+  entries: CalendarEntry[];
+  canAct: boolean;
+  busyKeys: Set<string>;
+  selected: Set<string>;
+  onToggleRow: (key: string) => void;
+  onSearch: (items: CalendarEntry[]) => void;
+}>) {
+  const t = useT();
+  const [expanded, setExpanded] = useState(false);
+  if (entries.length === 0) return null;
+
+  const collapsed = !expanded && entries.length > COLLAPSE_OVER;
+  const visible = collapsed ? entries.slice(0, COLLAPSED_ROWS) : entries;
+  return (
+    <ul className="divide-y divide-white/[0.04]">
+      {visible.map((e) => (
+        <EpisodeRow
+          key={epKey(e)}
+          entry={e}
+          canAct={canAct}
+          busy={busyKeys.has(epKey(e))}
+          picked={selected.has(epKey(e))}
+          onToggle={() => onToggleRow(epKey(e))}
+          onSearch={() => onSearch([e])}
+        />
+      ))}
+      {entries.length > COLLAPSE_OVER ? (
+        <li>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="w-full px-3.5 py-2.5 text-left text-[12.5px] font-bold text-dim hover:text-accent"
+          >
+            {collapsed
+              ? t('requests.showMore', { count: entries.length - COLLAPSED_ROWS })
+              : t('requests.showLess')}
+          </button>
+        </li>
+      ) : null}
+    </ul>
   );
 }
 

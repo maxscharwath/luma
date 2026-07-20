@@ -176,7 +176,7 @@ function searchLook(layout: KeyboardLayoutPref) {
   const wide = letterRows.some((r) => r.length > 6);
   return {
     letterRows,
-    lastRow: letterRows[letterRows.length - 1] ?? [],
+    lastRow: letterRows.at(-1) ?? [],
     wide,
     cell: `flex cursor-pointer items-center justify-center rounded-xl bg-[rgba(255,255,255,0.05)] font-sans font-bold text-text transition-transform focus:scale-[1.08] focus:bg-accent focus:text-accent-ink ${
       wide ? 'h-12 w-11 flex-none text-[19px]' : 'h-14 flex-1 text-[22px]'

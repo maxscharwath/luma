@@ -34,6 +34,10 @@ function toggleKeys(prev: Set<string>, keys: string[], pick: boolean): Set<strin
   return n;
 }
 
+/** State of the "search all" button: idle, in flight, or fired (the grabs run
+ * server-side, so "done" only means the batch was started). */
+type SearchAllState = 'idle' | 'busy' | 'done';
+
 /** Fold the flat, title-sorted entries into one group per title (keyed by the
  * request, or the tmdb id for a library-scan gap that has no request yet). */
 function groupByTitle(entries: CalendarEntry[]): MissingGroup[] {
@@ -72,7 +76,7 @@ export function MissingPage() {
   const groups = useMemo(() => groupByTitle(entries ?? []), [entries]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set()); // row keys in flight
-  const [searchAll, setSearchAll] = useState<'idle' | 'busy' | 'done'>('idle');
+  const [searchAll, setSearchAll] = useState<SearchAllState>('idle');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: query.queryKey });
 
@@ -127,8 +131,6 @@ export function MissingPage() {
       .catch(() => setSearchAll('idle'));
   };
 
-  const selectedCount = selected.size;
-
   return (
     <main className={PAGE_MAIN}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -137,33 +139,13 @@ export function MissingPage() {
           <p className={PAGE_SUBTITLE}>{t('requests.missingSubtitle')}</p>
         </div>
         {groups.length > 0 ? (
-          <div className="mt-1 flex items-center gap-2">
-            {canManage && selectedCount > 0 ? (
-              <button
-                type="button"
-                onClick={searchSelected}
-                className="inline-flex items-center gap-2 rounded-xl border border-accent/40 bg-accent-soft px-4 py-2.5 text-[13.5px] font-bold text-accent hover:bg-accent/15"
-              >
-                <IconSearch size={16} stroke={2.2} />
-                {t('requests.searchSelected', { count: selectedCount })}
-              </button>
-            ) : null}
-            {canManage ? (
-              <button
-                type="button"
-                disabled={searchAll !== 'idle'}
-                onClick={onSearchAll}
-                className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-bold text-accent-ink hover:bg-accent-hover disabled:opacity-60"
-              >
-                {searchAll === 'busy' ? (
-                  <IconLoader2 size={16} stroke={2.2} className="animate-spin" />
-                ) : (
-                  <IconSearch size={16} stroke={2.2} />
-                )}
-                {t(searchAll === 'done' ? 'requests.searchStarted' : 'requests.searchAll')}
-              </button>
-            ) : null}
-          </div>
+          <MissingActions
+            canManage={canManage}
+            selectedCount={selected.size}
+            searchAll={searchAll}
+            onSearchSelected={searchSelected}
+            onSearchAll={onSearchAll}
+          />
         ) : null}
       </div>
 
@@ -216,5 +198,62 @@ export function MissingPage() {
         ))}
       </div>
     </main>
+  );
+}
+
+/** The page's toolbar: "search selected" (only while rows are picked) and
+ * "search all". Both are manage-only; a requester just sees the list. */
+function MissingActions({
+  canManage,
+  selectedCount,
+  searchAll,
+  onSearchSelected,
+  onSearchAll,
+}: Readonly<{
+  canManage: boolean;
+  selectedCount: number;
+  searchAll: SearchAllState;
+  onSearchSelected: () => void;
+  onSearchAll: () => void;
+}>) {
+  const t = useT();
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      {canManage && selectedCount > 0 ? (
+        <button
+          type="button"
+          onClick={onSearchSelected}
+          className="inline-flex items-center gap-2 rounded-xl border border-accent/40 bg-accent-soft px-4 py-2.5 text-[13.5px] font-bold text-accent hover:bg-accent/15"
+        >
+          <IconSearch size={16} stroke={2.2} />
+          {t('requests.searchSelected', { count: selectedCount })}
+        </button>
+      ) : null}
+      {canManage ? <SearchAllButton state={searchAll} onClick={onSearchAll} /> : null}
+    </div>
+  );
+}
+
+/** "Search all missing": fires one server-side batch, then reads as started
+ * (the grabs land asynchronously, the list refreshes a few seconds later). */
+function SearchAllButton({
+  state,
+  onClick,
+}: Readonly<{ state: SearchAllState; onClick: () => void }>) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      disabled={state !== 'idle'}
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-bold text-accent-ink hover:bg-accent-hover disabled:opacity-60"
+    >
+      {state === 'busy' ? (
+        <IconLoader2 size={16} stroke={2.2} className="animate-spin" />
+      ) : (
+        <IconSearch size={16} stroke={2.2} />
+      )}
+      {t(state === 'done' ? 'requests.searchStarted' : 'requests.searchAll')}
+    </button>
   );
 }

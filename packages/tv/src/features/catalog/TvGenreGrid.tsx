@@ -1,24 +1,20 @@
-import {
-  compareTitles,
-  hasGenre,
-  type MediaItem,
-  posterColors,
-  type Show,
-  type SortMode,
-} from '@kroma/core';
+import { compareTitles, hasGenre, posterColors, type SortMode } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
-import { AmbientBackdrop } from '#tv/features/catalog/home/AmbientBackdrop';
+import {
+  AmbientBackdrop,
+  type CatalogEntry as Entry,
+  entryBackdrop,
+  entryPoster,
+} from '#tv/features/catalog/home/AmbientBackdrop';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
 
 // Best-known titles first (rating, then year) the same ranking as the person grid.
 const SORT: SortMode = 'rating';
-
-type Entry = { kind: 'movie'; item: MediaItem } | { kind: 'show'; item: Show };
 
 /** Every movie + show in one genre (reached from {@link TvGenres}). Filters the
  * already-loaded catalogue locally, ranked best-rated first, with the browse
@@ -49,7 +45,7 @@ export function TvGenreGrid() {
       entries.map((e) => ({
         id: e.item.id,
         title: e.item.title,
-        poster: e.kind === 'movie' ? client.posterFor(e.item) : client.showPosterFor(e.item),
+        poster: entryPoster(client, e),
         colors: posterColors(e.item.id),
         progress: e.kind === 'show' ? (e.item.progress ?? null) : null,
         onClick: () =>
@@ -63,12 +59,7 @@ export function TvGenreGrid() {
     () => entries.find((e) => e.item.id === focusId) ?? entries[0] ?? null,
     [entries, focusId],
   );
-  const backdrop = focused
-    ? (client.backdropFor(focused.item) ??
-      (focused.kind === 'movie'
-        ? client.posterFor(focused.item)
-        : client.showPosterFor(focused.item)))
-    : null;
+  const backdrop = entryBackdrop(client, focused);
 
   return (
     <div className="fixed inset-0 isolate flex flex-col overflow-hidden bg-bg animate-[tv-fade-in_0.3s_ease]">

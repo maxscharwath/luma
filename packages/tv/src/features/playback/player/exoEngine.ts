@@ -77,25 +77,9 @@ export class ExoEngine extends BaseTvEngine {
         this.onLoaded();
         break;
       case 'time':
-        if (typeof e.sec === 'number') {
-          this.elSec = e.sec;
-          this.listeners.onTime(this.position());
-        }
-        break;
       case 'duration':
-        // Direct mode: the player's duration is the real absolute runtime. Master
-        // mode: the remux restarts at 0, so it is only the remaining tail - keep
-        // the catalogue total.
-        if (typeof e.sec === 'number' && e.sec > 0 && this.mode === 'direct') {
-          this.durSec = e.sec;
-          this.listeners.onDuration(this.durSec);
-        }
-        break;
       case 'buffered':
-        if (typeof e.sec === 'number') {
-          this.bufSec = e.sec;
-          this.listeners.onBuffered(this.baseSec + e.sec);
-        }
+        if (typeof e.sec === 'number') this.onClock(e.t, e.sec);
         break;
       case 'state':
         this.paused = e.playing !== true;
@@ -117,6 +101,30 @@ export class ExoEngine extends BaseTvEngine {
         break;
       case 'error':
         this.fail();
+        break;
+    }
+  }
+
+  /** The three time-valued events, in player-clock seconds (master mode adds the
+   * anchor back where the value must be absolute). */
+  private onClock(t: string, sec: number): void {
+    switch (t) {
+      case 'time':
+        this.elSec = sec;
+        this.listeners.onTime(this.position());
+        break;
+      case 'buffered':
+        this.bufSec = sec;
+        this.listeners.onBuffered(this.baseSec + sec);
+        break;
+      case 'duration':
+        // Direct mode: the player's duration is the real absolute runtime. Master
+        // mode: the remux restarts at 0, so it is only the remaining tail - keep
+        // the catalogue total.
+        if (sec > 0 && this.mode === 'direct') {
+          this.durSec = sec;
+          this.listeners.onDuration(this.durSec);
+        }
         break;
     }
   }

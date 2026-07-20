@@ -8,9 +8,12 @@
 // so that decision stays with them.
 
 /** Is `name` present on the global object? The TV platforms inject their bridge
- * objects there (`tizen`, `webOS`), which is a positive signal on its own. */
+ * objects there (`tizen`, `webOS`), which is a positive signal on its own. The
+ * cast is read into a local first: this is a plain lookup on an untyped bag, not
+ * a narrowing of `globalThis` itself. */
 function hasGlobal(name: string): boolean {
-  return (globalThis as Record<string, unknown>)[name] !== undefined;
+  const globals = globalThis as Record<string, unknown>;
+  return globals[name] !== undefined;
 }
 
 /** Samsung Tizen: the UA carries "Tizen" and the platform injects the `tizen`

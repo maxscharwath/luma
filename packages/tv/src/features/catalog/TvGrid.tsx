@@ -1,14 +1,10 @@
 import {
   collectGenres,
-  formatRuntime,
   hasGenre,
   type MediaItem,
   type MessageKey,
   posterColors,
-  qualityBadge,
-  qualityBadgeForVideo,
   type Show,
-  SORT_MODES,
   type SortMode,
   sortTitles,
 } from '@kroma/core';
@@ -19,31 +15,35 @@ import { useMyList } from '#tv/app/providers/mylist';
 import { useWatched } from '#tv/app/providers/watched';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
-import { AmbientBackdrop } from '#tv/features/catalog/home/AmbientBackdrop';
+import {
+  AmbientBackdrop,
+  type CatalogEntry as Entry,
+  entryBackdrop,
+  entryPoster,
+} from '#tv/features/catalog/home/AmbientBackdrop';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
-import { badgeClasses } from '#tv/shared/TvMedia';
+import { BrowseFilters, BrowseHeader } from '#tv/features/catalog/TvBrowseHeader';
 
-const SORT_LABEL_KEY: Record<SortMode, MessageKey> = {
-  added: 'browse.sort.added',
-  release: 'browse.sort.release',
-  title: 'browse.sort.title',
-  rating: 'browse.sort.rating',
+/** The section label over the grid, one key per section. */
+const LABEL_KEY: Record<'films' | 'series' | 'mylist', MessageKey> = {
+  films: 'nav.films',
+  series: 'nav.series',
+  mylist: 'nav.myList',
 };
 
-// Compact filter chip: translucent over the ambient art, amber when active.
-// rgba() literal (not a `/opacity` modifier) for the legacy webOS tier.
-const CHIP_CLS =
-  'shrink-0 cursor-pointer rounded-full border-none bg-[rgba(255,255,255,0.08)] px-3.5 py-1.5 font-sans text-[13px] font-semibold text-muted transition-transform focus:scale-[1.06] aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink';
-
-/** One browse entry a film or a series with the fields the header reads. */
-type Entry = { kind: 'movie'; item: MediaItem } | { kind: 'show'; item: Show };
-
-/** Meta line under the focused title: year · runtime|seasons · lead genres. */
-function entryLine(e: Entry, seasons: string | null): string {
-  const mid = e.kind === 'movie' ? formatRuntime(e.item.durationMs) : seasons;
-  const genres = e.item.metadata?.genres?.slice(0, 2) ?? [];
-  return [e.item.year ? String(e.item.year) : null, mid, ...genres].filter(Boolean).join(' · ');
+/** One kind's base list for the active section, before genre filter + sort: the
+ * whole catalogue in its own section, nothing in the other one, and the saved
+ * titles in Ma liste. */
+function sectionList<T extends MediaItem | Show>(
+  items: T[],
+  own: boolean,
+  other: boolean,
+  myList: { has: (id: string) => boolean },
+): T[] {
+  if (own) return items;
+  if (other) return [];
+  return items.filter((it) => myList.has(it.id));
 }
 
 /**
@@ -79,17 +79,14 @@ export function TvGrid() {
     setFocusId(null);
   }, [kind]);
 
-  // Base lists for the active section, before genre filter + sort.
-  const baseMovies = useMemo(() => {
-    if (isFilms) return movies;
-    if (isSeries) return [];
-    return movies.filter((m) => myList.has(m.id));
-  }, [isFilms, isSeries, movies, myList]);
-  const baseShows = useMemo(() => {
-    if (isSeries) return shows;
-    if (isFilms) return [];
-    return shows.filter((s) => myList.has(s.id));
-  }, [isFilms, isSeries, shows, myList]);
+  const baseMovies = useMemo(
+    () => sectionList(movies, isFilms, isSeries, myList),
+    [isFilms, isSeries, movies, myList],
+  );
+  const baseShows = useMemo(
+    () => sectionList(shows, isSeries, isFilms, myList),
+    [isFilms, isSeries, shows, myList],
+  );
 
   const genres = useMemo(
     () => collectGenres([...baseMovies, ...baseShows]),
@@ -109,7 +106,7 @@ export function TvGrid() {
       entries.map((e) => ({
         id: e.item.id,
         title: e.item.title,
-        poster: e.kind === 'movie' ? client.posterFor(e.item) : client.showPosterFor(e.item),
+        poster: entryPoster(client, e),
         colors: posterColors(e.item.id),
         watched: watched.has(e.item.id),
         progress: e.kind === 'show' ? (e.item.progress ?? null) : null,
@@ -126,108 +123,32 @@ export function TvGrid() {
     () => entries.find((e) => e.item.id === focusId) ?? entries[0] ?? null,
     [entries, focusId],
   );
-  const backdrop = focused
-    ? (client.backdropFor(focused.item) ??
-      (focused.kind === 'movie'
-        ? client.posterFor(focused.item)
-        : client.showPosterFor(focused.item)))
-    : null;
-  let badge: string | null = null;
-  if (focused) {
-    badge =
-      focused.kind === 'movie'
-        ? qualityBadge(focused.item)
-        : qualityBadgeForVideo(focused.item.video);
-  }
-
-  let label: string;
-  if (isFilms) label = t('nav.films');
-  else if (isSeries) label = t('nav.series');
-  else label = t('nav.myList');
   const hasItems = baseMovies.length + baseShows.length > 0;
   const empty = kind === 'mylist' && cards.length === 0;
 
   return (
     <div className="fixed inset-0 isolate flex flex-col overflow-hidden bg-bg">
       <AmbientBackdrop
-        src={backdrop}
+        src={entryBackdrop(client, focused)}
         colors={focused ? posterColors(focused.item.id) : ['#1c1c22', '#0a0a0c']}
       />
       <TvTopNav active={kind} />
 
-      {/* Fixed-height header (justify-end) so the grid never reflows as the
-          focus echo swaps titles; one truncated line keeps that guarantee. */}
-      <header className="flex h-52 shrink-0 flex-col justify-end px-16">
-        <div className="mb-2 font-sans text-[13px] font-bold uppercase tracking-[0.22em] text-accent">
-          {label}
-          {hasItems ? <span className="text-dim"> · {cards.length}</span> : null}
-        </div>
-        {focused ? (
-          <div key={focused.item.id} className="animate-[tv-fade-in_0.25s_ease]">
-            <h1 className="m-0 max-w-240 truncate font-display text-[clamp(30px,4.8vh,46px)] font-bold leading-[1.05] tracking-[-0.02em]">
-              {focused.item.title}
-            </h1>
-            <div className="mt-1.5 flex items-center gap-2.5 font-sans text-[15px] font-semibold text-muted">
-              {focused.item.metadata?.rating ? (
-                <span className="font-bold text-accent">
-                  {focused.item.metadata.rating.toFixed(1)}★
-                </span>
-              ) : null}
-              <span>
-                {entryLine(
-                  focused,
-                  focused.kind === 'show'
-                    ? t('content.seasonCount', { count: focused.item.seasonCount })
-                    : null,
-                )}
-              </span>
-              {badge ? <span className={badgeClasses(badge)}>{badge}</span> : null}
-            </div>
-          </div>
-        ) : null}
-      </header>
+      <BrowseHeader
+        label={t(LABEL_KEY[kind])}
+        count={cards.length}
+        hasItems={hasItems}
+        focused={focused}
+      />
 
       {hasItems ? (
-        <div className="scrollbar-none flex shrink-0 items-center gap-2 overflow-x-auto px-16 py-3">
-          {SORT_MODES.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              data-focus=""
-              aria-current={mode === sort}
-              onClick={() => setSort(mode)}
-              className={CHIP_CLS}
-            >
-              {t(SORT_LABEL_KEY[mode])}
-            </button>
-          ))}
-          {genres.length > 0 ? (
-            <>
-              <span className="mx-1 h-5 w-px shrink-0 bg-[rgba(255,255,255,0.14)]" />
-              <button
-                type="button"
-                data-focus=""
-                aria-current={!genre}
-                onClick={() => setGenre(undefined)}
-                className={CHIP_CLS}
-              >
-                {t('browse.allGenres')}
-              </button>
-              {genres.map((g) => (
-                <button
-                  key={g.name}
-                  type="button"
-                  data-focus=""
-                  aria-current={g.name === genre}
-                  onClick={() => setGenre(g.name)}
-                  className={CHIP_CLS}
-                >
-                  {g.name}
-                </button>
-              ))}
-            </>
-          ) : null}
-        </div>
+        <BrowseFilters
+          sort={sort}
+          onSort={setSort}
+          genres={genres}
+          genre={genre}
+          onGenre={setGenre}
+        />
       ) : null}
 
       {empty ? (

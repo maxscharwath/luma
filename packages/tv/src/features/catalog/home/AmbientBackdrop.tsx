@@ -1,4 +1,4 @@
-import { sizedImageUrl } from '@kroma/core';
+import { type KromaClient, type MediaItem, type Show, sizedImageUrl } from '@kroma/core';
 import { useEffect, useState } from 'react';
 import { TvArt } from '#tv/shared/TvMedia';
 
@@ -46,7 +46,7 @@ interface AmbientLayer {
  * Returns `prev` untouched when there is nothing to do, so React can skip the
  * re-render. */
 function collapse(prev: AmbientLayer[]): AmbientLayer[] {
-  const last = prev[prev.length - 1];
+  const last = prev.at(-1);
   if (!last) return prev;
   if (prev.length === 1 && !last.enter) return prev;
   return [last.enter ? { ...last, enter: false } : last];
@@ -78,7 +78,7 @@ export function AmbientBackdrop({
   // biome-ignore lint/correctness/useExhaustiveDependencies: colors is read as a snapshot when the settled src changes (it is the matching fallback gradient), not a trigger of its own.
   useEffect(() => {
     setLayers((prev) =>
-      prev[prev.length - 1]?.src === settled
+      prev.at(-1)?.src === settled
         ? prev
         : [...prev.slice(-1), { src: settled, colors, enter: true }],
     );
@@ -96,4 +96,23 @@ export function AmbientBackdrop({
       <div className={VEIL} />
     </div>
   );
+}
+
+// ----- the art one catalogue entry contributes -------------------------------
+
+/** One browse entry, a film or a series, with the fields the grids and the art
+ * helpers below read. Shared by every screen that lists both kinds at once. */
+export type CatalogEntry = { kind: 'movie'; item: MediaItem } | { kind: 'show'; item: Show };
+
+/** The entry's poster (films and series resolve theirs from different endpoints). */
+export function entryPoster(client: KromaClient, e: CatalogEntry): string {
+  return e.kind === 'movie' ? client.posterFor(e.item) : client.showPosterFor(e.item);
+}
+
+/** The ambient art for the focused entry: its backdrop, falling back to its
+ * poster, and nothing at all when the view is empty. One spelling of the chain
+ * so every browse screen shows the same picture for the same title. */
+export function entryBackdrop(client: KromaClient, e: CatalogEntry | null): string | null {
+  if (!e) return null;
+  return client.backdropFor(e.item) ?? entryPoster(client, e);
 }

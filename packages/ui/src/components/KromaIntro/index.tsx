@@ -86,7 +86,7 @@ function VideoIntro({
       // A hidden tab defers the media fetch entirely; don't burn the intro
       // while parked in the background, re-check once per safety window.
       const vv = videoRef.current;
-      if (document.hidden && vv && vv.readyState === 0) {
+      if (document.hidden && vv?.readyState === 0) {
         armSafetyRef.current();
         return;
       }
