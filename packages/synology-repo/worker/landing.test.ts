@@ -23,6 +23,18 @@ const catalog = (entries: Entry[]): Catalog => ({
   entries,
 });
 
+describe('renderLanding branding', () => {
+  // Regression: the mark used to be fetched from /icon.png, which the worker
+  // proxied from the repo behind a 24h edge cache. That kept serving the
+  // pre-rebrand logo long after the assets changed, so it is now bundled.
+  it('inlines the brand mark instead of fetching /icon.png', () => {
+    const html = renderLanding(catalog([entry()]), 'https://pkg.kroma.tv');
+    expect(html).toMatch(/rel="icon" href="data:image\/svg\+xml/);
+    expect(html).toMatch(/<h1><svg[^>]*aria-label="KROMA"/);
+    expect(html).not.toContain('/icon.png');
+  });
+});
+
 describe('renderLanding', () => {
   it('renders the package-source URL, version, size and a row per entry', () => {
     const html = renderLanding(catalog([entry()]), 'https://pkg.kroma.tv');

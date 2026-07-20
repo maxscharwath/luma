@@ -107,4 +107,28 @@ describe('module-registry worker', () => {
   it('exports the default repo', () => {
     expect(DEFAULT_REPO).toBe('maxscharwath/kroma');
   });
+
+  // Regression: every unmatched path fell through to the JSON catch-all, so
+  // /favicon.ico answered 200 application/json and browsers kept showing
+  // whatever icon they had cached. The page also carried no mark at all.
+  it('serves the brand mark at /favicon.svg and /favicon.ico, not the catalog', async () => {
+    for (const p of ['/favicon.svg', '/favicon.ico']) {
+      const res = await worker.fetch(req(p), {}, ctx());
+      expect(res.headers.get('content-type')).toBe('image/svg+xml');
+      const body = await res.text();
+      expect(body).toContain('aria-label="KROMA"');
+      expect(body).not.toContain('"schema"');
+    }
+  });
+
+  it('puts the brand mark in the landing page head and heading', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(CATALOG), { status: 200 })),
+    );
+    const res = await worker.fetch(req('/', { headers: { accept: 'text/html' } }), {}, ctx());
+    const html = await res.text();
+    expect(html).toMatch(/rel="icon" href="data:image\/svg\+xml/);
+    expect(html).toMatch(/<h1><svg[^>]*aria-label="KROMA"/);
+  });
 });

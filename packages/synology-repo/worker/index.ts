@@ -11,11 +11,13 @@
  *   GET  /catalog.json  latest stable, DSM catalog shape (static-source compatible)
  *   GET  /nightly.json  nightly channel, DSM catalog shape
  *   GET  /all.json      every entry (machine-readable)
- *   GET  /icon.png      package icon (proxied from the repo)
+ *   GET  /icon.png      package icon (proxied from the repo, for DSM's store row)
+ *   GET  /favicon.svg   the brand mark, bundled (also answers /favicon.ico)
  *
  * Deploy: bunx wrangler deploy   (packages/synology-repo/worker)
  * Optional secret GITHUB_TOKEN (public-repo read) lifts anonymous API limits.
  */
+import { KROMA_MARK_SVG } from './brand';
 import {
   archSupported,
   type Catalog,
@@ -73,15 +75,29 @@ function dsmPackages(catalog: Catalog, params: URLSearchParams, origin: string) 
   return { packages: pick ? [toDsmPackage(pick, origin, catalog.repo)] : [] };
 }
 
-async function icon(repo: string, ctx: ExecCtx): Promise<Response> {
+/** The DSM store thumbnail, proxied from the repo.
+ *
+ * `fresh` skips the cache READ (it still refreshes it). The cache key is the
+ * SOURCE url, not the request, so no client-side query param can bust it: when
+ * the rebrand landed, this kept serving the old logo for a full day with no way
+ * to force it. `GET /icon.png?fresh=1` is that way. */
+async function icon(repo: string, ctx: ExecCtx, fresh = false): Promise<Response> {
   const src = `https://raw.githubusercontent.com/${repo}/main/clients/synology/spk/PACKAGE_ICON_256.PNG`;
   const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
-  const hit = await cache?.match(src);
+  const hit = fresh ? undefined : await cache?.match(src);
   if (hit) return hit;
-  const res = await fetch(src);
+  // Skipping OUR cache is not enough: the subrequest to GitHub is itself edge
+  // cached, so a refresh has to bust that too. GitHub ignores the extra param.
+  const res = await fetch(fresh ? `${src}?cb=${Date.now()}` : src, {
+    cf: { cacheTtl: fresh ? 0 : 300 },
+  } as RequestInit);
   if (!res.ok) return new Response('icon unavailable', { status: 404 });
   const out = new Response(res.body, {
-    headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' },
+    // 1h, not 24h: this is proxied from the repo with no content-derived key,
+    // so the TTL is the ONLY thing bounding how long a superseded logo keeps
+    // being served. A day of that is how the pre-rebrand icon outlived the
+    // rebrand here. DSM only reads it when it draws the store row.
+    headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=3600' },
   });
   if (cache) ctx.waitUntil(cache.put(src, out.clone()));
   return out;
@@ -94,7 +110,16 @@ export default {
     const path = url.pathname.replace(/(^|[^/])\/+$/, '$1') || '/';
 
     if (path === '/ping') return new Response('pong');
-    if (path === '/icon.png') return icon(env.GITHUB_REPO || DEFAULT_REPO, ctx);
+    if (path === '/icon.png') {
+      return icon(env.GITHUB_REPO || DEFAULT_REPO, ctx, url.searchParams.has('fresh'));
+    }
+    // Bundled, not proxied: the tab icon must never depend on a fetch or an
+    // edge cache. Also stops /favicon.ico falling through to the JSON below.
+    if (path === '/favicon.svg' || path === '/favicon.ico') {
+      return new Response(KROMA_MARK_SVG, {
+        headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=3600' },
+      });
+    }
 
     let catalog: Catalog;
     try {

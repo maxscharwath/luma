@@ -60,3 +60,6 @@ scripts/serve-nas.sh
 
 # Test coverage (vitest -> lcov for SonarCloud)
 coverage/
+
+# Brand generator intermediate (input to `bunx tauri icon`, not a shipped asset).
+scripts/brand/tauri-source-1024.png

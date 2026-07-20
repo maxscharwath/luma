@@ -1,6 +1,7 @@
 /** Browser-facing landing page: every published version, both channels, plus
  * the copy-paste package-source URL. Styled to match the static Pages landing
  * (packages/synology-repo/src/landing.template.html). */
+import { KROMA_MARK_DATA_URI, KROMA_MARK_SVG } from './brand';
 import { type Catalog, type Entry, entryVersion } from './catalog';
 
 const esc = (s: string) =>
@@ -30,12 +31,12 @@ export function renderLanding(catalog: Catalog, origin: string): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>KROMA - Synology package source</title>
-<link rel="icon" href="${origin}/icon.png" />
+<link rel="icon" href="${KROMA_MARK_DATA_URI}" />
 <style>
   :root { color-scheme: light dark; }
   body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 720px; margin: 6vh auto; padding: 0 20px; }
   h1 { display: flex; align-items: center; gap: 14px; font-size: 1.7rem; }
-  h1 img { width: 44px; height: 44px; border-radius: 10px; }
+  h1 svg { width: 42px; height: 42px; flex: 0 0 auto; }
   code { background: rgba(127,127,127,.18); padding: .15em .45em; border-radius: 6px; }
   .url { display: block; margin: .6em 0 1.4em; padding: .8em 1em; border-radius: 10px; background: rgba(127,127,127,.12); font-family: ui-monospace, monospace; word-break: break-all; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0 2em; }
@@ -47,7 +48,7 @@ export function renderLanding(catalog: Catalog, origin: string): string {
 </style>
 </head>
 <body>
-<h1><img src="${origin}/icon.png" alt="" />KROMA package source</h1>
+<h1>${KROMA_MARK_SVG}KROMA package source</h1>
 <p>Self-hosted, direct-play HEVC media streaming for Synology DSM 7 (x86_64).</p>
 
 <h2>Install</h2>

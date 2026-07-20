@@ -11,7 +11,10 @@
  *   GET /              browser landing page listing every module; bare URL also
  *                      returns the catalog to non-browser clients
  *   GET /all.json      alias of /modules.json
+ *   GET /favicon.svg   the brand mark (also answers /favicon.ico)
  */
+import { KROMA_MARK_DATA_URI, KROMA_MARK_SVG } from './brand';
+
 export type Env = {
   /** owner/repo the catalog is published on. */
   GITHUB_REPO?: string;
@@ -100,6 +103,17 @@ const esc = (s: string) =>
   );
 const mb = (n?: number) => (n ? `${(n / 1048576).toFixed(1)} MB` : '');
 
+/** The brand mark, served as a real SVG so the tab icon is the current logo. */
+function favicon(): Response {
+  return new Response(KROMA_MARK_SVG, {
+    headers: {
+      'content-type': 'image/svg+xml',
+      // Short: a brand change must not stay pinned at the edge for a day.
+      'cache-control': 'public, max-age=3600',
+    },
+  });
+}
+
 function landing(catalog: Catalog, origin: string, repo: string): string {
   const mods = catalog.modules ?? [];
   const rows = mods
@@ -124,8 +138,11 @@ function landing(catalog: Catalog, origin: string, repo: string): string {
 <html lang="en"><head>
 <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>KROMA modules</title>
+<link rel="icon" href="${KROMA_MARK_DATA_URI}" />
 <style>
   :root { color-scheme: light dark; }
+  h1 { display:flex; align-items:center; gap:14px; }
+  h1 svg { width:38px; height:38px; flex:0 0 auto; }
   body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 760px; margin: 6vh auto; padding: 0 20px; }
   h1 { font-size: 1.7rem; } code { background: rgba(127,127,127,.18); padding: .1em .4em; border-radius: 5px; font-size: .85em; }
   .url { display:block; margin:.6em 0 1.6em; padding:.8em 1em; border-radius:10px; background:rgba(127,127,127,.12); font-family:ui-monospace,monospace; word-break:break-all; }
@@ -135,7 +152,7 @@ function landing(catalog: Catalog, origin: string, repo: string): string {
   footer { margin-top:3em; font-size:.85em; opacity:.6; }
   a { color: inherit; }
 </style></head><body>
-<h1>KROMA modules</h1>
+<h1>${KROMA_MARK_SVG}KROMA modules</h1>
 <p>The module store for KROMA. Add this URL as a registry in <b>Admin → Modules</b>, or browse below.</p>
 <code class="url">${origin}/modules.json</code>
 <p>${mods.length} module${mods.length === 1 ? '' : 's'} available${catalog.generatedAt ? ` · updated ${esc(catalog.generatedAt.slice(0, 10))}` : ''}.</p>
@@ -149,6 +166,10 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/(^|[^/])\/+$/, '$1') || '/';
     if (path === '/ping') return new Response('pong');
+    // Before the catalog load: these must not fall through to the JSON
+    // catch-all below, which used to answer /favicon.ico with 200 + the whole
+    // modules.json (so browsers kept whatever icon they had cached).
+    if (path === '/favicon.svg' || path === '/favicon.ico') return favicon();
 
     let data: { body: string; catalog: Catalog };
     try {
