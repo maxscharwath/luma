@@ -119,11 +119,11 @@ export const UpNextSheet = forwardRef<PanelHandle, UpNextSheetProps>(function Up
         aria-label={t('player.back')}
         tabIndex={-1}
         onClick={onClose}
-        className={`absolute inset-0 z-[43] border-none bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.55)_45%)] transition-opacity duration-[340ms] ${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`absolute inset-0 z-43 border-none bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.55)_45%)] transition-opacity duration-340 ${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
       />
       <div
         ref={scrollRef}
-        className={`absolute inset-x-0 bottom-0 z-[45] h-[82%] overflow-x-hidden bg-[linear-gradient(180deg,transparent,rgba(10,10,12,0.55)_12%,rgba(10,10,12,0.97)_30%)] transition-transform duration-[340ms] ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
+        className={`absolute inset-x-0 bottom-0 z-45 h-[82%] overflow-x-hidden bg-[linear-gradient(180deg,transparent,rgba(10,10,12,0.55)_12%,rgba(10,10,12,0.97)_30%)] transition-transform duration-340 ease-out ${open ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
         style={{ transform: open ? 'translateY(0)' : `translateY(calc(100% - ${PEEK_HEIGHT}px))` }}
       >
         <SheetHeader

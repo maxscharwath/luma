@@ -103,7 +103,7 @@ export function VpnCard() {
       </div>
 
       {test.error || test.result ? (
-        <div className="mt-3 border-t border-white/[0.06] pt-3 text-[12.5px] font-semibold">
+        <div className="mt-3 border-t border-white/6 pt-3 text-[12.5px] font-semibold">
           <TestResultLine test={test} />
         </div>
       ) : null}

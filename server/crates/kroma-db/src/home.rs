@@ -4,9 +4,16 @@
 
 use super::*;
 
-/// Top `n` item ids by recency-weighted play count over the last 30 days a
+/// Top `n` *entity* ids by recency-weighted play count over the last 30 days a
 /// half-life decay so a burst last week outranks a stale all-time favourite.
 /// 604800 s = 1-week half-life; 2592000 s = 30-day window.
+///
+/// An episode play folds into its parent show (`COALESCE(show_id, item_id)`):
+/// the home row hydrates these ids through [`entities_by_ids`], which only knows
+/// how to render movies and shows an episode id would hydrate as a
+/// `SectionItem::Movie` with no poster art (episodes carry none, only the show
+/// does) and route to the wrong page. Folding also aggregates every episode of a
+/// binged show into one trending entry instead of a row of near-duplicate cards.
 ///
 /// The decay is `1 / 2^weeks` computed with a left shift on *whole* weeks
 /// (integer division), not `POW()`: the bundled SQLite is compiled without
@@ -19,11 +26,12 @@ use super::*;
 pub fn trending_ids(pool: &Pool, n: usize) -> Result<Vec<String>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
-        "SELECT item_id, \
-                SUM(1.0 / (1 << MIN(MAX((strftime('%s','now') - ended_at) / 604800, 0), 62))) AS score \
-         FROM play_history \
-         WHERE item_id IS NOT NULL AND ended_at > strftime('%s','now') - 2592000 \
-         GROUP BY item_id ORDER BY score DESC LIMIT ?1",
+        "SELECT COALESCE(i.show_id, ph.item_id) AS ent_id, \
+                SUM(1.0 / (1 << MIN(MAX((strftime('%s','now') - ph.ended_at) / 604800, 0), 62))) AS score \
+         FROM play_history ph \
+         LEFT JOIN items i ON i.id = ph.item_id \
+         WHERE ph.item_id IS NOT NULL AND ph.ended_at > strftime('%s','now') - 2592000 \
+         GROUP BY ent_id ORDER BY score DESC LIMIT ?1",
     )?;
     let rows = stmt.query_map(params![n as i64], |r| r.get::<_, String>(0))?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
@@ -293,6 +301,26 @@ mod tests {
         assert!(!top.contains(&"seed".to_string()));
         // The limit is honoured.
         assert_eq!(trending_ids(&p, 2).unwrap(), vec!["c1".to_string(), "nogen".to_string()]);
+    }
+
+    #[test]
+    fn trending_folds_episodes_into_their_show() {
+        let p = seeded();
+        {
+            let conn = p.get().unwrap();
+            // A single fresh episode play. 'e1' belongs to show 'sh1'.
+            conn.execute(
+                "INSERT INTO play_history (id,user_id,item_id,kind,title,started_at,ended_at) \
+                 VALUES ('phe','u1','e1','episode','Ep',0,strftime('%s','now'))",
+                [],
+            )
+            .unwrap();
+        }
+        let top = trending_ids(&p, 10).unwrap();
+        // The episode surfaces as its parent show, never as the raw episode id
+        // (episodes have no poster art and route to the wrong page).
+        assert!(top.contains(&"sh1".to_string()));
+        assert!(!top.contains(&"e1".to_string()));
     }
 
     #[test]

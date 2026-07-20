@@ -176,7 +176,7 @@ export function SubtitleRenderer({
   // subtitleCss) keeps hard line breaks in multi-line cues.
   return (
     <div
-      className="pointer-events-none absolute left-0 right-0 z-[3] flex flex-col items-center gap-[7px] px-[8%] text-center transition-[bottom] duration-300"
+      className="pointer-events-none absolute left-0 right-0 z-3 flex flex-col items-center gap-[7px] px-[8%] text-center transition-[bottom] duration-300"
       style={{ bottom: raised ? '17%' : '9%' }}
     >
       <span style={subtitleCss(appearance)}>{text}</span>

@@ -403,7 +403,7 @@ function FileRow({
       : null;
   return (
     <label
-      className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 ${f.isVideo ? 'cursor-pointer hover:bg-white/[0.03]' : 'opacity-45'}`}
+      className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 ${f.isVideo ? 'cursor-pointer hover:bg-white/3' : 'opacity-45'}`}
     >
       <input
         type="checkbox"
@@ -493,7 +493,7 @@ function ResultRow({ r, onPick }: Readonly<{ r: ManualReleaseView; onPick: () =>
     <button
       type="button"
       onClick={onPick}
-      className="flex w-full items-center gap-3 border-b border-white/[0.04] px-3 py-2 text-left last:border-0 hover:bg-white/[0.03]"
+      className="flex w-full items-center gap-3 border-b border-white/4 px-3 py-2 text-left last:border-0 hover:bg-white/3"
     >
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12.5px] font-semibold" title={r.title}>

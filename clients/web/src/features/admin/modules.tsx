@@ -7,6 +7,7 @@
 
 import { sessionToken } from '@kroma/core';
 import { moduleIconUrl } from '@kroma/module-sdk';
+import { Image } from '@kroma/ui';
 import { useRef, useState } from 'react';
 import { type AdminModule, adminApi } from '#web/features/admin/module-api';
 import { ModuleConfigForm } from '#web/features/admin/module-config-form';
@@ -219,13 +220,10 @@ function InstalledCard({
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <img
+        <Image
           src={moduleIconUrl(m.id, apiBase())}
-          alt=""
+          fit="cover"
           className="mt-0.5 h-8 w-8 shrink-0 rounded-lg"
-          onError={(e) => {
-            e.currentTarget.style.visibility = 'hidden';
-          }}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">

@@ -68,7 +68,7 @@ export function FolderPicker({
   }
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-border-strong bg-[#0F0F13]">
+    <div className="overflow-hidden rounded-md border border-border-strong bg-[#0F0F13]">
       <div className="flex items-center gap-2 border-b border-white/6 px-3 py-2.5">
         <button
           type="button"

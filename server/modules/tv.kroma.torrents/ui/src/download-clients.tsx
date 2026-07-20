@@ -103,7 +103,7 @@ export function DownloadClientsSection() {
               </div>
               <Toggle on={c.enabled} onChange={(v) => toggle(c, v)} />
             </div>
-            <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+            <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-white/6 pt-3">
               <TestLine test={tests[c.id]} />
               <div className="flex items-center gap-2">
                 <button

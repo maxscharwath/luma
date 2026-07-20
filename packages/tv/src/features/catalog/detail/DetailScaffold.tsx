@@ -59,7 +59,7 @@ export function TvDetailScaffold({
         </div>
 
         {overview ? (
-          <p className="m-0 mb-6.5 max-w-170 font-sans text-[20px] leading-[1.5] text-[rgba(244,243,240,0.82)] line-clamp-3">
+          <p className="m-0 mb-6.5 max-w-170 font-sans text-[20px] leading-normal text-[rgba(244,243,240,0.82)] line-clamp-3">
             {overview}
           </p>
         ) : null}

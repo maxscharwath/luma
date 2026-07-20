@@ -236,7 +236,7 @@ export function PipelinePage() {
 
       {/* paused banner */}
       {paused ? (
-        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[#F4B642]/30 bg-[#F4B642]/[0.10] px-4 py-2.5 text-[13.5px] font-semibold text-[#F4B642]">
+        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[#F4B642]/30 bg-[#F4B642]/10 px-4 py-2.5 text-[13.5px] font-semibold text-[#F4B642]">
           <IconPlayerPause size={15} stroke={2} />
           {t('pipeline.pausedBanner')}
         </div>
@@ -323,8 +323,8 @@ export function PipelinePage() {
       </div>
 
       {/* table */}
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_150px_132px_46px]">
+      <div className="overflow-hidden rounded-2xl border border-white/8 bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/6 bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_150px_132px_46px]">
           <Head>{t('pipeline.colElement')}</Head>
           <Head className="max-md:hidden">{t('pipeline.treatments')}</Head>
           <Head className="max-md:hidden">{t('pipeline.colStatus')}</Head>
@@ -347,7 +347,7 @@ export function PipelinePage() {
         ) : null}
 
         {rows.length > 0 ? (
-          <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] bg-[#0F0F13] px-5 py-3.5">
+          <div className="flex items-center justify-between gap-4 border-t border-white/6 bg-[#0F0F13] px-5 py-3.5">
             <div className="flex items-center gap-4">
               <span className="text-[12.5px] font-semibold tabular-nums text-white/60">
                 {(start + 1).toLocaleString()}–
@@ -415,7 +415,7 @@ function Pager({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[12.5px] font-semibold ${disabled ? 'cursor-not-allowed border-white/[0.06] bg-[#141419] text-white/[0.28]' : 'border-white/12 bg-[#1A1A20] text-white/80'}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[12.5px] font-semibold ${disabled ? 'cursor-not-allowed border-white/6 bg-[#141419] text-white/[0.28]' : 'border-white/12 bg-[#1A1A20] text-white/80'}`}
     >
       {dir === 'prev' ? <IconChevronLeft size={13} stroke={2.6} /> : null}
       {label}

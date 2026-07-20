@@ -1,3 +1,5 @@
+import { Image } from '@kroma/ui';
+
 /** Layered backdrop + scrims for the cinematic `DetailHero` (movie/series fiche).
  *
  * The hero overlays text on an *unknown* key-art image, so legibility can't rely
@@ -19,10 +21,13 @@
  *     mask is in `rem` at md+ (tracks layout / font-scaling, not viewport
  *     width) and in viewport-proportional `%` below md.
  */
-export function HeroBackdrop({ bg }: Readonly<{ bg: string }>) {
+export function HeroBackdrop({
+  backdrop,
+  gradient,
+}: Readonly<{ backdrop: string | null; gradient: string }>) {
   return (
     <>
-      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: bg }} />
+      <Image src={backdrop} fit="cover" background={gradient} fill />
       <div className="absolute inset-0 bg-[radial-gradient(125%_125%_at_80%_22%,transparent_38%,var(--kroma-bg)_94%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,var(--kroma-bg)_0%,rgba(10,10,12,.74)_22%,rgba(10,10,12,.34)_46%,rgba(10,10,12,.08)_64%,transparent_80%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(0deg,var(--kroma-bg)_3%,transparent_46%)]" />
@@ -31,8 +36,8 @@ export function HeroBackdrop({ bg }: Readonly<{ bg: string }>) {
       <div
         className="absolute inset-0 backdrop-blur-[2px]
           bg-[linear-gradient(to_top,rgba(10,10,12,.58)_0%,rgba(10,10,12,.34)_100%)]
-          [mask-image:linear-gradient(90deg,#000_0%,#000_35%,transparent_100%)]
-          md:[mask-image:linear-gradient(90deg,#000_0rem,#000_22rem,transparent_68rem)]"
+          mask-[linear-gradient(90deg,#000_0%,#000_35%,transparent_100%)]
+          md:mask-[linear-gradient(90deg,#000_0rem,#000_22rem,transparent_68rem)]"
       />
     </>
   );

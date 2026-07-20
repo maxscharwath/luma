@@ -1,19 +1,33 @@
 # syntax=docker/dockerfile:1
 #
-# Runtime-only KROMA image, ASSEMBLED from the already-built Synology .spk
-# payload (static musl kroma-server + web SPA + static ffmpeg/ffprobe) - no
-# compiler in sight, so CI turns the ~13-minute from-source build into a copy +
-# push. Build context = the extracted payload (bin/ web/ ffmpeg/):
+# Runtime-only KROMA image, ASSEMBLED from prebuilt static payloads (musl
+# kroma-server + web SPA + static ffmpeg/ffprobe) - no compiler in sight, so CI
+# turns the ~13-minute from-source build into a copy + push. MULTI-ARCH: the
+# context carries one payload per CPU arch and BuildKit's TARGETARCH picks the
+# right one, so a single build publishes linux/amd64 (from the .spk payload)
+# and linux/arm64 (Raspberry Pi 4/5, ARM servers). Context layout:
 #
-#     tar -xOf kroma-<ver>-x86_64.spk package.tgz | tar -xz -C docker-ctx
+#     docker-ctx/
+#       web/               built web SPA (arch-independent)
+#       amd64/bin/ amd64/ffmpeg/   static x86_64 binaries
+#       arm64/bin/ arm64/ffmpeg/   static aarch64 binaries
+#
+# Assembling it by hand from a .spk (single-arch example):
+#     tar -xOf kroma-<ver>-x86_64.spk package.tgz | tar -xz -C payload
+#     mkdir -p docker-ctx/amd64
+#     mv payload/web docker-ctx/web && mv payload/bin payload/ffmpeg docker-ctx/amd64/
 #     docker build -f server/Dockerfile.runtime -t kroma docker-ctx
 #
-# For a from-source build (no .spk at hand), use server/Dockerfile instead.
-# Run: bind-mount media read-only, a data volume, point KROMA_MEDIA_DIRS at it:
-#     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media:ro \
+# For a from-source build (no payload at hand), use server/Dockerfile instead.
+# Run: a data volume + media bind-mounts, KROMA_MEDIA_DIRS pointing at them.
+# Mount media READ-WRITE if you use the built-in requests/downloads (the import
+# step writes into the library); :ro is fine for a purely pre-existing library:
+#     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media \
 #       -e KROMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/kroma:latest
 
 FROM debian:bookworm-slim
+# Which payload to COPY below; set automatically by BuildKit per platform.
+ARG TARGETARCH
 # curl = TMDB lookups + artwork + the managed-cloudflared download;
 # ca-certificates for outbound TLS. ffmpeg/ffprobe come STATIC from the payload
 # (same builds the NAS runs), and openssl is vendored into the binary.
@@ -21,8 +35,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY bin/kroma-server /usr/local/bin/kroma-server
-COPY ffmpeg/ffmpeg ffmpeg/ffprobe /usr/local/bin/
+COPY ${TARGETARCH}/bin/kroma-server /usr/local/bin/kroma-server
+COPY ${TARGETARCH}/ffmpeg/ffmpeg ${TARGETARCH}/ffmpeg/ffprobe /usr/local/bin/
 COPY web /app/web
 
 # Defaults; override at runtime. Media dirs are intentionally unset (bind-mount +

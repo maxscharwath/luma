@@ -173,7 +173,7 @@ export function TvShowDetail() {
               <button
                 key={s.number}
                 type="button"
-                className="shrink-0 cursor-pointer rounded-full border-none bg-surface-2 px-5 py-2.25 font-sans text-[15px] font-semibold text-muted transition-transform focus:scale-[1.05] aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink"
+                className="shrink-0 cursor-pointer rounded-full border-none bg-surface-2 px-5 py-2.25 font-sans text-[15px] font-semibold text-muted transition-transform focus:scale-[1.05] aria-current:bg-accent aria-current:text-accent-ink"
                 data-focus=""
                 aria-current={s.number === activeSeason?.number}
                 onClick={() => setSeason(s.number)}

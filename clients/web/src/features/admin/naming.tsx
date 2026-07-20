@@ -244,7 +244,7 @@ function RenameSection() {
       <p className="mb-3 text-[13.5px] leading-relaxed text-dim">{t('naming.renameHelp')}</p>
 
       {result ? (
-        <div className="mb-3 rounded-lg border border-white/[0.08] bg-[#121216] px-4 py-2.5 text-[13px] font-semibold text-white/80">
+        <div className="mb-3 rounded-lg border border-white/8 bg-[#121216] px-4 py-2.5 text-[13px] font-semibold text-white/80">
           {result}
         </div>
       ) : null}
@@ -300,7 +300,7 @@ function RenameSection() {
 
 function MoveRow({ from, to }: Readonly<{ from: string; to: string }>): ReactNode {
   return (
-    <div className="flex items-center gap-2 border-b border-white/[0.04] px-3 py-2 text-[11.5px] last:border-0">
+    <div className="flex items-center gap-2 border-b border-white/4 px-3 py-2 text-[11.5px] last:border-0">
       <code className="min-w-0 flex-1 truncate font-mono text-white/45" title={from}>
         {from}
       </code>

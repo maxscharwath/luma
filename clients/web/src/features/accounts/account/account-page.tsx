@@ -157,7 +157,7 @@ function ProfileEditor() {
       </Section>
 
       {/* Sticky save bar batches the editable profile fields above. */}
-      <div className="sticky bottom-0 mt-6 bg-gradient-to-t from-bg via-bg/90 to-transparent pb-5 pt-6">
+      <div className="sticky bottom-0 mt-6 bg-linear-to-t from-bg via-bg/90 to-transparent pb-5 pt-6">
         {dirty || save.status !== 'idle' ? (
           <div className="flex items-center justify-between gap-4 rounded-[14px] border border-border-strong bg-surface-2 py-3 pl-5 pr-3 shadow-pop">
             <div className="flex min-w-0 items-center gap-2.5">

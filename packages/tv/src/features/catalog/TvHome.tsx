@@ -234,7 +234,7 @@ export function TvHome() {
       <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto pb-10">
         {hero && heroId ? (
           <section className="relative h-[64vh] min-h-[520px]">
-            <TvArt src={heroBackdrop} colors={posterColors(heroId)} position="50% 22%" />
+            <TvArt src={heroBackdrop} colors={posterColors(heroId)} position="50% 22%" priority />
             <div className={HERO_VEIL} />
             <div className="absolute bottom-9 left-16 z-2 max-w-205">
               <div className="mb-4 font-sans text-[14px] font-bold uppercase tracking-[0.24em] text-accent">
@@ -254,13 +254,13 @@ export function TvHome() {
                 {heroBadge ? <span className={badgeClasses(heroBadge)}>{heroBadge}</span> : null}
               </div>
               {heroMeta?.overview ? (
-                <p className="m-0 mb-5.5 max-w-180 font-sans text-[clamp(15px,2.3vh,20px)] leading-[1.5] text-[rgba(244,243,240,0.82)] line-clamp-3">
+                <p className="m-0 mb-5.5 max-w-180 font-sans text-[clamp(15px,2.3vh,20px)] leading-normal text-[rgba(244,243,240,0.82)] line-clamp-3">
                   {heroMeta.overview}
                 </p>
               ) : null}
               <div className="flex gap-4.5">
                 <button
-                  className="inline-flex cursor-pointer items-center gap-3 rounded-[13px] bg-accent px-10 py-4.5 font-sans text-[20px] font-bold text-accent-ink transition-transform focus:scale-[1.04]"
+                  className="inline-flex cursor-pointer items-center gap-3 rounded-lg bg-accent px-10 py-4.5 font-sans text-[20px] font-bold text-accent-ink transition-transform focus:scale-[1.04]"
                   data-focus=""
                   type="button"
                   onClick={() =>
@@ -271,7 +271,7 @@ export function TvHome() {
                   {hero.type === 'movie' ? t('player.play') : t('content.moreInfo')}
                 </button>
                 <button
-                  className="inline-flex cursor-pointer items-center gap-3 rounded-[13px] border border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.12)] px-8.5 py-4.5 font-sans text-[20px] font-semibold text-text transition-transform focus:scale-[1.04]"
+                  className="inline-flex cursor-pointer items-center gap-3 rounded-lg border border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.12)] px-8.5 py-4.5 font-sans text-[20px] font-semibold text-text transition-transform focus:scale-[1.04]"
                   data-focus=""
                   type="button"
                   onClick={() => onSelectEntry(hero)}

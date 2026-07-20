@@ -1,5 +1,5 @@
 import { metaLine, posterColors, type Section } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { memo } from 'react';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
@@ -28,9 +28,7 @@ export function Hero({ entry }: Readonly<{ entry: HeroEntry }>) {
   const navigate = useNavigate();
   const media = entry.type === 'movie' ? entry.movie : entry.show;
   const colors = posterColors(media.id);
-  const bg = media.backdrop
-    ? `url("${media.backdrop}")`
-    : `linear-gradient(158deg, ${colors[0]}, ${colors[1]})`;
+  const gradient = `linear-gradient(158deg, ${colors[0]}, ${colors[1]})`;
   const meta = media.metadata;
   const badges = heroBadges(media.video);
   const line =
@@ -41,10 +39,8 @@ export function Hero({ entry }: Readonly<{ entry: HeroEntry }>) {
           .join(' · ');
 
   return (
-    <div
-      className="relative -mx-(--gutter-web) -mt-9 mb-8 flex min-h-[52vw] flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-10 sm:min-h-115 sm:pt-16"
-      style={{ backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center 18%' }}
-    >
+    <div className="relative -mx-(--gutter-web) -mt-9 mb-8 flex min-h-[52vw] flex-col justify-end overflow-hidden px-(--gutter-web) pb-10 pt-10 sm:min-h-115 sm:pt-16">
+      <Image src={media.backdrop} fit="cover" position="center 18%" background={gradient} fill />
       <div className="pointer-events-none absolute inset-0 animate-[kroma-breathe_7s_var(--ease-out)_infinite] bg-[radial-gradient(58%_68%_at_72%_32%,rgba(242,180,66,.16),transparent_62%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,var(--kroma-bg)_6%,rgba(10,10,12,.35)_42%,transparent_64%),linear-gradient(0deg,var(--kroma-bg)_2%,transparent_46%)]" />
 
@@ -165,16 +161,23 @@ export const SectionPoster = memo(function SectionPoster({
     );
   }
   const { item } = entry;
+  // The server wraps play-history-seeded rows (e.g. "Tendances") as `type: 'movie'`
+  // even for episodes, so route those to their parent show like the search results do.
+  const isEpisode = item.kind === 'episode' && !!item.showId;
   return (
     <Poster
       title={item.title}
-      genre={item.metadata?.genres?.[0] ?? t('content.film')}
+      genre={item.metadata?.genres?.[0] ?? t(isEpisode ? 'content.series' : 'content.film')}
       colors={posterColors(item.id)}
       poster={client.posterFor(item)}
       width={width}
       watched={isWatched(item.id)}
       onToggleWatched={() => toggleWatched(item.id)}
-      onClick={() => navigate({ to: '/movie/$id', params: { id: item.id } })}
+      onClick={() =>
+        isEpisode
+          ? navigate({ to: '/show/$id', params: { id: item.showId! } })
+          : navigate({ to: '/movie/$id', params: { id: item.id } })
+      }
     />
   );
 });

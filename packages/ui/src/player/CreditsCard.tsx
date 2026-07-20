@@ -1,3 +1,4 @@
+import { Image } from '../components/Image';
 import { useT } from '../i18n';
 
 /**
@@ -50,16 +51,15 @@ export function CreditsCard({
   const t = useT();
   const progress = total > 0 ? Math.max(0, Math.min(1, secondsLeft / total)) : 0;
   const deg = progress * 360;
-  const thumb = item.posterUrl
-    ? `url("${item.posterUrl}")`
-    : 'linear-gradient(135deg, rgba(244,182,66,0.16), rgba(20,18,22,0.96))';
-
   return (
-    <div className="absolute right-10 bottom-14 z-[38] w-[392px] rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(16,16,20,0.9)] p-5 shadow-[0_26px_64px_rgba(0,0,0,0.62)] backdrop-blur-[26px] [animation:kpl-fade_.3s_ease]">
-      <div
-        className="relative mb-4 h-[150px] overflow-hidden rounded-[14px] bg-cover bg-center"
-        style={{ backgroundImage: thumb }}
-      >
+    <div className="absolute right-10 bottom-14 z-38 w-[392px] rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(16,16,20,0.9)] p-5 shadow-[0_26px_64px_rgba(0,0,0,0.62)] backdrop-blur-[26px] animate-[kpl-fade_.3s_ease]">
+      <div className="relative mb-4 h-[150px] overflow-hidden rounded-[14px]">
+        <Image
+          src={item.posterUrl}
+          fit="cover"
+          background="linear-gradient(135deg, rgba(244,182,66,0.16), rgba(20,18,22,0.96))"
+          fill
+        />
         <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_25%,transparent,rgba(0,0,0,0.5))]" />
         <div
           className="absolute left-3.5 bottom-3.5 flex h-[54px] w-[54px] items-center justify-center rounded-full shadow-[0_6px_18px_rgba(0,0,0,0.5)]"

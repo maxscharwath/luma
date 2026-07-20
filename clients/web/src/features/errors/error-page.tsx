@@ -70,7 +70,7 @@ function ErrorScreen({
         <p className="mt-3 max-w-[380px] text-[14.5px] leading-relaxed text-muted">{t(body)}</p>
 
         {detail ? (
-          <p className="mt-4 max-w-[380px] break-words rounded-md border border-border bg-surface-1 px-3.5 py-2.5 text-[12.5px] font-medium text-dim">
+          <p className="mt-4 max-w-[380px] wrap-break-word rounded-md border border-border bg-surface-1 px-3.5 py-2.5 text-[12.5px] font-medium text-dim">
             {detail}
           </p>
         ) : null}

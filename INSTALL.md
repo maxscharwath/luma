@@ -52,9 +52,10 @@ rolling **desktop auto-update channel** (macOS/Windows/Linux installers + the
 `latest.json` the installed apps poll). It never contains TV packages get
 those from a Build & Release run or a `vX.Y.Z` release.
 
-Install the **server** first (Synology `.spk`, Docker image
-`ghcr.io/<owner>/kroma`, or `cargo` see [server/README.md](server/README.md));
-every client asks for the server address on first launch and remembers it.
+Install the **server** first (Synology `.spk`; the multi-arch Docker image
+`ghcr.io/<owner>/kroma` for x86_64 AND arm64 hosts such as a Raspberry Pi 4/5;
+or `cargo` see [server/README.md](server/README.md)); every client asks for
+the server address on first launch and remembers it.
 
 ---
 

@@ -1,6 +1,7 @@
 import { sizedImageUrl } from '@kroma/core';
+import { Image } from '@kroma/ui';
 import { IconPlayerPlayFilled } from '@tabler/icons-react';
-import { memo, useEffect, useState } from 'react';
+import { memo } from 'react';
 
 /* Shared class strings. Translucency uses literal rgba() arbitrary values (not
    Tailwind's `/opacity`, which compiles to color-mix() unsupported on the
@@ -52,44 +53,38 @@ export function badgeClasses(badge: string | null): string {
 /**
  * Key-art fill: a real `<img>` over a deterministic genre gradient. The gradient
  * shows instantly (and stays as the fallback) while the image loads or if it
- * fails so a tile/hero is never blank, matching the cinematic KROMA look.
+ * fails so a tile/hero is never blank, matching the cinematic KROMA look. The
+ * shared `<Image>` fades the art in on load and cross-fades when `src` changes
+ * (live catalog/art updates).
  */
 export function TvArt({
   src,
   colors,
   alt = '',
   position = '50% 30%',
+  priority = false,
 }: Readonly<{
   src: string | null;
   colors: [string, string];
   alt?: string;
   /** object-position for the artwork (heroes favour the upper third). */
   position?: string;
+  /** Mark this the LCP art (the above-the-fold hero backdrop): load it eagerly
+   *  and hint high fetch priority instead of the default lazy. Use on at most
+   *  one image per screen. */
+  priority?: boolean;
 }>) {
-  const [ok, setOk] = useState(true);
-  // Reset the error flag when the source changes (live catalog/art updates).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-running on `src` change is the whole point (reset the error flag for the new source); the body reads only setOk.
-  useEffect(() => setOk(true), [src]);
-
   return (
-    <div
-      aria-hidden={alt ? undefined : true}
-      className="absolute inset-0"
-      style={{ background: `linear-gradient(158deg, ${colors[0]} 0%, ${colors[1]} 72%)` }}
-    >
-      {src && ok ? (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          onError={() => setOk(false)}
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ objectPosition: position }}
-        />
-      ) : null}
-    </div>
+    <Image
+      src={src}
+      alt={alt}
+      fit="cover"
+      position={position}
+      background={`linear-gradient(158deg, ${colors[0]} 0%, ${colors[1]} 72%)`}
+      loading={priority ? 'eager' : 'lazy'}
+      fetchPriority={priority ? 'high' : undefined}
+      fill
+    />
   );
 }
 

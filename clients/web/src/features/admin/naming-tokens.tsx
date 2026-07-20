@@ -198,7 +198,7 @@ export function NamingTokenModal({
                   key={tokenStr}
                   type="button"
                   onClick={() => onChange(tokenStr)}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left hover:border-accent/50 hover:bg-white/[0.06]"
+                  className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-left hover:border-accent/50 hover:bg-white/6"
                 >
                   <div className="font-mono text-[12px] text-[#86A8FF]">{tokenStr}</div>
                 </button>
@@ -214,7 +214,7 @@ export function NamingTokenModal({
                     key={tok.token}
                     type="button"
                     onClick={() => insert(tok.token)}
-                    className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left hover:border-accent/50 hover:bg-white/[0.06]"
+                    className="rounded-lg border border-white/10 bg-white/3 px-2.5 py-1.5 text-left hover:border-accent/50 hover:bg-white/6"
                   >
                     <div className="truncate font-mono text-[11.5px] font-semibold text-white/80">
                       {tok.token}

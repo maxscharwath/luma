@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  ALL_KEYBOARD_LAYOUTS,
-  getKeyboardLayoutPref,
-  KEYBOARD_LAYOUT_LABEL_KEY,
-  setKeyboardLayoutPref,
-} from './keyboardLayoutPref';
+import { ALL_KEYBOARD_LAYOUTS, KEYBOARD_LAYOUT_LABEL_KEY } from './keyboardLayoutPref';
 
 /** A Map-backed localStorage stand-in. */
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -21,30 +16,40 @@ afterEach(() => {
 });
 
 describe('getKeyboardLayoutPref / setKeyboardLayoutPref', () => {
-  it('defaults to abc when nothing is stored', () => {
-    vi.stubGlobal('localStorage', fakeStorage());
-    expect(getKeyboardLayoutPref()).toBe('abc');
+  // The pref is a reactive store (settings/store.ts) that reads storage ONCE at
+  // module creation and is the in-process source of truth afterwards, so each
+  // test imports a fresh module instance with its storage stub already up.
+  async function fresh(storage: unknown) {
+    vi.resetModules();
+    vi.stubGlobal('localStorage', storage);
+    return import('./keyboardLayoutPref');
+  }
+
+  it('defaults to abc when nothing is stored', async () => {
+    const m = await fresh(fakeStorage());
+    expect(m.getKeyboardLayoutPref()).toBe('abc');
   });
 
-  it('returns a stored valid preference', () => {
-    vi.stubGlobal('localStorage', fakeStorage({ 'kroma:kbd-layout': 'azerty' }));
-    expect(getKeyboardLayoutPref()).toBe('azerty');
+  it('returns a stored valid preference', async () => {
+    const m = await fresh(fakeStorage({ 'kroma:kbd-layout': 'azerty' }));
+    expect(m.getKeyboardLayoutPref()).toBe('azerty');
   });
 
-  it('ignores an unknown stored value', () => {
-    vi.stubGlobal('localStorage', fakeStorage({ 'kroma:kbd-layout': 'dvorak' }));
-    expect(getKeyboardLayoutPref()).toBe('abc');
+  it('ignores an unknown stored value', async () => {
+    const m = await fresh(fakeStorage({ 'kroma:kbd-layout': 'dvorak' }));
+    expect(m.getKeyboardLayoutPref()).toBe('abc');
   });
 
-  it('persists the preference', () => {
+  it('persists the preference', async () => {
     const store = fakeStorage();
-    vi.stubGlobal('localStorage', store);
-    setKeyboardLayoutPref('qwertz');
+    const m = await fresh(store);
+    m.setKeyboardLayoutPref('qwertz');
     expect(store._map.get('kroma:kbd-layout')).toBe('qwertz');
+    expect(m.getKeyboardLayoutPref()).toBe('qwertz');
   });
 
-  it('swallows storage errors on read and write', () => {
-    vi.stubGlobal('localStorage', {
+  it('swallows storage errors on read and write', async () => {
+    const m = await fresh({
       getItem: () => {
         throw new Error('blocked');
       },
@@ -52,8 +57,10 @@ describe('getKeyboardLayoutPref / setKeyboardLayoutPref', () => {
         throw new Error('blocked');
       },
     });
-    expect(getKeyboardLayoutPref()).toBe('abc');
-    expect(() => setKeyboardLayoutPref('qwerty')).not.toThrow();
+    expect(m.getKeyboardLayoutPref()).toBe('abc');
+    expect(() => m.setKeyboardLayoutPref('qwerty')).not.toThrow();
+    // The in-process value holds even when the storage write failed.
+    expect(m.getKeyboardLayoutPref()).toBe('qwerty');
   });
 });
 

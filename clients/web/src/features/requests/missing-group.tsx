@@ -5,7 +5,7 @@
 // page through callbacks; all mutation state lives in `missing.tsx`.
 
 import { type CalendarEntry, episodeTag, posterColors, sizedImageUrl } from '@kroma/core';
-import { useLocale, useT } from '@kroma/ui';
+import { Image, useLocale, useT } from '@kroma/ui';
 import { IconLoader2, IconSearch } from '@tabler/icons-react';
 import { useState } from 'react';
 import { relativeAirDate } from '#web/features/requests/airdate';
@@ -69,7 +69,7 @@ export function MissingGroupCard({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-surface-1">
-      <div className="flex items-center gap-3.5 border-b border-white/[0.06] p-3.5 last:border-b-0">
+      <div className="flex items-center gap-3.5 border-b border-white/6 p-3.5 last:border-b-0">
         {canAct ? (
           <Check on={allPicked} onClick={() => onToggleGroup(!allPicked)} />
         ) : (
@@ -84,7 +84,7 @@ export function MissingGroupCard({
             className="h-[52px] w-[36px] flex-[0_0_36px] overflow-hidden rounded-md"
             style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
           >
-            {poster ? <img src={poster} alt="" className="h-full w-full object-cover" /> : null}
+            <Image src={poster} fit="cover" fill />
           </div>
           <div className="min-w-0">
             <div className="truncate text-[15px] font-bold transition-colors group-hover/head:text-accent">
@@ -171,7 +171,7 @@ function EpisodeList({
   const collapsed = !expanded && entries.length > COLLAPSE_OVER;
   const visible = collapsed ? entries.slice(0, COLLAPSED_ROWS) : entries;
   return (
-    <ul className="divide-y divide-white/[0.04]">
+    <ul className="divide-y divide-white/4">
       {visible.map((e) => (
         <EpisodeRow
           key={epKey(e)}
@@ -220,7 +220,7 @@ function EpisodeRow({
   const rel = relativeAirDate(entry.airDate, locale);
 
   return (
-    <li className="flex items-center gap-3.5 px-3.5 py-2.5 transition-colors hover:bg-white/[0.03]">
+    <li className="flex items-center gap-3.5 px-3.5 py-2.5 transition-colors hover:bg-white/3">
       {canAct ? <Check on={picked} onClick={onToggle} /> : <span className="w-[18px]" />}
       <span className="w-[62px] flex-[0_0_62px] font-mono text-[13px] font-bold text-accent tabular-nums">
         {episodeTag(entry)}

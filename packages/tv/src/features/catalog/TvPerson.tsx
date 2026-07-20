@@ -1,6 +1,6 @@
 import type { Metadata } from '@kroma/core';
 import { creditsPerson, personInvolvement, posterColors, roleLabels } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';
@@ -107,12 +107,7 @@ function PersonAvatar({ photo, name }: Readonly<{ photo: string | null; name: st
     >
       <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_22%,rgba(255,255,255,0.2),transparent_60%)]" />
       {showImg ? (
-        <img
-          src={photo ?? undefined}
-          alt=""
-          onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <Image src={photo} fit="cover" fill onError={() => setFailed(true)} />
       ) : (
         initials(name)
       )}

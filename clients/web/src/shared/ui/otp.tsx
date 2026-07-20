@@ -45,7 +45,7 @@ export function Otp({
       pattern={REGEXP_ONLY_DIGITS}
       aria-label={ariaLabel}
       autoComplete="one-time-code"
-      containerClassName="flex items-center gap-3 has-[:disabled]:opacity-50"
+      containerClassName="flex items-center gap-3 has-disabled:opacity-50"
       render={({ slots }) => (
         <>
           {slots.map((slot, i) => (

@@ -13,6 +13,9 @@ function stubFetch(resp: {
   ok?: boolean;
   status?: number;
   json?: () => unknown;
+  /** Raw body for the text() path. Defaults to the JSON stringified, so an
+   * omitted `text` mirrors a normal JSON response; pass '' for an empty body. */
+  text?: () => string;
   blob?: () => unknown;
 }): { fetch: typeof globalThis.fetch; calls: { url: string; init?: RequestInit }[] } {
   const calls: { url: string; init?: RequestInit }[] = [];
@@ -22,6 +25,9 @@ function stubFetch(resp: {
       ok: resp.ok ?? true,
       status: resp.status ?? 200,
       json: async () => (resp.json ? resp.json() : {}),
+      // requestJson now reads the body via text(); mirror the JSON body unless
+      // the test overrides it (e.g. an empty 202 ack).
+      text: async () => (resp.text ? resp.text() : JSON.stringify(resp.json ? resp.json() : {})),
       blob: async () => (resp.blob ? resp.blob() : new Blob()),
     } as unknown as Response;
   }) as unknown as typeof globalThis.fetch;
@@ -85,6 +91,20 @@ describe('requestJson', () => {
     await expect(
       requestJson(fetch, 'http://nas', 't', 'en', '/progress/x'),
     ).resolves.toBeUndefined();
+  });
+
+  it('returns undefined for a 202 Accepted with an empty body (no JSON parse throw)', async () => {
+    // Regression: the rematch apply returns 202 with an empty body; calling
+    // res.json() on it threw and turned the success into a failure toast.
+    const { fetch } = stubFetch({ status: 202, text: () => '' });
+    await expect(
+      requestJson(fetch, 'http://nas', 't', 'en', '/rematch/movie/x'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('returns undefined for an empty 200 body rather than throwing', async () => {
+    const { fetch } = stubFetch({ status: 200, text: () => '' });
+    await expect(requestJson(fetch, 'http://nas', 't', 'en', '/x')).resolves.toBeUndefined();
   });
 
   it('throws KromaApiError with the parsed error body on a non-2xx', async () => {

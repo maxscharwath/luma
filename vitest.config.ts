@@ -19,6 +19,7 @@ export default defineConfig({
       'packages/*/src/**/*.test.ts',
       'packages/*/worker/**/*.test.ts',
       'clients/web/src/**/*.test.ts',
+      'clients/desktop/src/**/*.test.ts',
     ],
     // Inline zod so Vite resolves it (via the `import` condition -> built
     // index.js) instead of Bun externalizing it and matching zod's `@zod/source`

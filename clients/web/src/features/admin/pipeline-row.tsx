@@ -3,9 +3,8 @@
 // the overall status pill, and a reprocess shortcut.
 
 import type { ElementRow, MessageKey, Translate, Treatment } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconCheck, IconLoader2, IconRefresh, IconX } from '@tabler/icons-react';
-import { useState } from 'react';
 import {
   fmtDur,
   kindMeta,
@@ -55,7 +54,6 @@ function Poster({
   poster,
 }: Readonly<{ id: string; kind: string; seed: string; poster?: string | null }>) {
   const { client } = useAuth();
-  const [broken, setBroken] = useState(false);
   // Prefer the cached TMDB poster; fall back to the by-id endpoint, then the
   // gradient placeholder (onError) if neither has real art.
   const src =
@@ -66,15 +64,7 @@ function Poster({
       style={{ background: posterGrad(seed) }}
       className="relative h-[46px] w-8 flex-[0_0_32px] overflow-hidden rounded-[6px] shadow-[0_5px_14px_rgba(0,0,0,.45)]"
     >
-      {!broken ? (
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          onError={() => setBroken(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : null}
+      <Image src={src} fit="cover" fill />
     </div>
   );
 }
@@ -131,7 +121,7 @@ export function ElementRowView({
     <button
       type="button"
       onClick={onOpen}
-      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-left transition-colors hover:bg-white/[0.028] md:grid-cols-[minmax(0,1fr)_150px_132px_46px]"
+      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/4 px-5 py-3 text-left transition-colors hover:bg-white/[0.028] md:grid-cols-[minmax(0,1fr)_150px_132px_46px]"
     >
       <div className="flex min-w-0 items-center gap-3.5">
         <Poster id={el.id} kind={el.kind} seed={el.title} poster={el.poster} />

@@ -79,8 +79,8 @@ async function sendApiRequest(
 }
 
 /** Authed `GET/POST/…` against `${baseUrl}/api${path}`, parsing the JSON body
- * (or `undefined` on 204). Throws {@link KromaApiError} with the parsed error
- * body on a non-2xx response. */
+ * (or `undefined` when the response carries none). Throws {@link KromaApiError}
+ * with the parsed error body on a non-2xx response. */
 export async function requestJson<T>(
   fetchFn: typeof globalThis.fetch,
   baseUrl: string,
@@ -90,9 +90,14 @@ export async function requestJson<T>(
   init?: RequestInit,
 ): Promise<T> {
   const res = await sendApiRequest(fetchFn, baseUrl, authToken, locale, path, init);
-  // 204 No Content (progress writes) → nothing to parse.
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  // 204/205 carry no body by spec; a 202 Accepted ack (e.g. a rematch that
+  // queues re-enrichment) has an empty body too. Read the body as text and
+  // parse it only when there's something there, so an empty 2xx resolves to
+  // `undefined` instead of `res.json()` throwing "Unexpected end of JSON input"
+  // and turning a success into a spurious error toast.
+  if (res.status === 204 || res.status === 205) return undefined as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /** Like {@link requestJson} but returns the raw body as a `Blob` for file

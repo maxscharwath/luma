@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  availableEngines,
-  ENGINE_LABEL_KEY,
-  type EnginePref,
-  getEnginePref,
-  setEnginePref,
-} from './enginePref';
+import { availableEngines, ENGINE_LABEL_KEY, type EnginePref } from './enginePref';
 
 /** A Map-backed localStorage stand-in. */
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -25,30 +19,40 @@ afterEach(() => {
 });
 
 describe('getEnginePref / setEnginePref', () => {
-  it('defaults to auto when nothing is stored', () => {
-    vi.stubGlobal('localStorage', fakeStorage());
-    expect(getEnginePref()).toBe('auto');
+  // The pref is a reactive store (settings/store.ts) that reads storage ONCE at
+  // module creation and is the in-process source of truth afterwards, so each
+  // test imports a fresh module instance with its storage stub already up.
+  async function fresh(storage: unknown) {
+    vi.resetModules();
+    vi.stubGlobal('localStorage', storage);
+    return import('./enginePref');
+  }
+
+  it('defaults to auto when nothing is stored', async () => {
+    const m = await fresh(fakeStorage());
+    expect(m.getEnginePref()).toBe('auto');
   });
 
-  it('returns a stored valid preference', () => {
-    vi.stubGlobal('localStorage', fakeStorage({ 'kroma:engine': 'avplay' }));
-    expect(getEnginePref()).toBe('avplay');
+  it('returns a stored valid preference', async () => {
+    const m = await fresh(fakeStorage({ 'kroma:engine': 'avplay' }));
+    expect(m.getEnginePref()).toBe('avplay');
   });
 
-  it('ignores an unknown stored value', () => {
-    vi.stubGlobal('localStorage', fakeStorage({ 'kroma:engine': 'bogus' }));
-    expect(getEnginePref()).toBe('auto');
+  it('ignores an unknown stored value', async () => {
+    const m = await fresh(fakeStorage({ 'kroma:engine': 'bogus' }));
+    expect(m.getEnginePref()).toBe('auto');
   });
 
-  it('persists the preference', () => {
+  it('persists the preference', async () => {
     const store = fakeStorage();
-    vi.stubGlobal('localStorage', store);
-    setEnginePref('remux');
+    const m = await fresh(store);
+    m.setEnginePref('remux');
     expect(store._map.get('kroma:engine')).toBe('remux');
+    expect(m.getEnginePref()).toBe('remux');
   });
 
-  it('swallows storage errors on read and write', () => {
-    vi.stubGlobal('localStorage', {
+  it('swallows storage errors on read and write', async () => {
+    const m = await fresh({
       getItem: () => {
         throw new Error('blocked');
       },
@@ -56,8 +60,10 @@ describe('getEnginePref / setEnginePref', () => {
         throw new Error('blocked');
       },
     });
-    expect(getEnginePref()).toBe('auto');
-    expect(() => setEnginePref('mpv')).not.toThrow();
+    expect(m.getEnginePref()).toBe('auto');
+    expect(() => m.setEnginePref('mpv')).not.toThrow();
+    // The in-process value holds even when the storage write failed.
+    expect(m.getEnginePref()).toBe('mpv');
   });
 });
 

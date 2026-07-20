@@ -5,7 +5,7 @@
 
 /** A single pulsing placeholder block. Size/shape via `className` (Tailwind). */
 export function Skeleton({ className = '' }: Readonly<{ className?: string }>) {
-  return <div className={`animate-pulse rounded bg-white/[0.06] ${className}`} />;
+  return <div className={`animate-pulse rounded bg-white/6 ${className}`} />;
 }
 
 /** Admin list/table placeholder: a header bar + evenly spaced rows. */
@@ -35,7 +35,7 @@ export function CardSkeleton({ fields = 4 }: Readonly<{ fields?: number }>) {
       {Array.from({ length: fields }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder fields
         <div key={i} className="space-y-2">
-          <Skeleton className="h-3.5 w-28 bg-white/[0.04]" />
+          <Skeleton className="h-3.5 w-28 bg-white/4" />
           <Skeleton className="h-10 w-full rounded-lg" />
         </div>
       ))}

@@ -273,22 +273,25 @@ Configure via `KROMA_HOST` / `KROMA_PORT` / `KROMA_MEDIA_DIRS` / `KROMA_DATA_DIR
 semantic recommendations are a `--features semantic-embeddings` build (a BERT
 sentence model in `KROMA_EMBED_MODEL_DIR`). **Full reference → [server/README.md](server/README.md).**
 
-## Deploy on a Synology NAS
+## Deploy on a Synology NAS, Docker host or Raspberry Pi
 
-The server ships a multi-stage [Dockerfile](server/Dockerfile) (bundles ffmpeg):
+Synology: install the `.spk` from the package source (see
+[INSTALL.md](INSTALL.md)). Everything else runs the **multi-arch** Docker image
+(`linux/amd64` + `linux/arm64`, so a Raspberry Pi 4/5 on a 64-bit OS works):
 
 ```bash
-docker build -t kroma-server ./server
 docker run -d -p 4040:4040 \
   -e KROMA_MEDIA_DIRS=/media \
-  -v /volume1/video:/media:ro \
+  -v /volume1/video:/media \
   -v kroma-data:/data \
-  kroma-server
+  ghcr.io/maxscharwath/kroma:latest
 ```
 
-Build for the NAS CPU arch `linux/amd64` (Intel/AMD) or `linux/arm64` (ARM) via
-`docker buildx`. Then point each TV/web client at `http://<nas-ip>:4040` on first
-launch (or let auto-discovery find it).
+Mount media read-write if you use the built-in requests/downloads (imports
+write into the library); `/data` holds the DB, caches and download staging.
+Volume details + from-source builds: [server/README.md](server/README.md).
+Then point each TV/web client at `http://<host>:4040` on first launch (or let
+auto-discovery find it).
 
 ## Design system
 

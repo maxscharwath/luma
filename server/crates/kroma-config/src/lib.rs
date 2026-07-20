@@ -35,8 +35,9 @@ pub struct Config {
     /// when a key is present; set `KROMA_TMDB_ENRICH=0` to disable.
     pub tmdb_enrich: bool,
     /// Public base URL of the web app (`KROMA_WEB_URL`), used to build the Quick
-    /// Connect QR target (`<web>/connect?code=…`). `None` → the device shows the
-    /// numeric code only (no QR).
+    /// Connect QR target (`<web>/connect?code=…`). `None` → the admin "Remote
+    /// access" public URL setting is used instead, and with neither the device
+    /// falls back to its own server origin (which serves the SPA in production).
     pub web_url: Option<String>,
     /// Directory of the built web SPA (`KROMA_WEB_DIR`) to serve on the same origin
     /// as the API (the single-binary deploy, e.g. the Synology package). `None` →

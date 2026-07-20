@@ -1,4 +1,5 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
+import { Image } from './Image';
 
 export interface PosterCardProps {
   title: string;
@@ -35,9 +36,7 @@ function PosterCardImpl({
   focusable = false,
   onClick,
 }: Readonly<PosterCardProps>) {
-  const [imgOk, setImgOk] = useState(true);
   const gradient = `linear-gradient(158deg, ${colors[0]} 0%, ${colors[1]} 70%)`;
-  const showImg = Boolean(poster) && imgOk;
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: when onClick is set the card carries role="button", tabIndex and an Enter/Space onKeyDown handler; the rule only fires because that role is applied conditionally.
@@ -62,23 +61,7 @@ function PosterCardImpl({
           boxShadow: 'var(--shadow-card)',
         }}
       >
-        {showImg ? (
-          <img
-            src={poster ?? undefined}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            onError={() => setImgOk(false)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-        ) : null}
+        <Image src={poster} fit="cover" fill />
         <div
           style={{
             position: 'absolute',

@@ -205,7 +205,7 @@ function TrashButton({ label, onClick }: Readonly<{ label: string; onClick: () =
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex flex-none h-9 w-9 items-center justify-center rounded-[10px] border-none cursor-pointer text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.04)]"
+      className="flex flex-none h-9 w-9 items-center justify-center rounded-md border-none cursor-pointer text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.04)]"
     >
       <IconDelete size={16} />
     </button>

@@ -7,8 +7,10 @@
 # under packages/, and the web SPA lives under clients/):
 #     docker build -f server/Dockerfile -t kroma .
 #
-# Run: bind-mount media read-only, a data volume, point KROMA_MEDIA_DIRS at it:
-#     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media:ro \
+# Run: a data volume + media bind-mounts, KROMA_MEDIA_DIRS pointing at them.
+# Mount media READ-WRITE if you use the built-in requests/downloads (the import
+# step writes into the library); :ro is fine for a purely pre-existing library:
+#     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media \
 #       -e KROMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/kroma:latest
 
 # ---- 1) Web SPA (node + bun) -----------------------------------------------

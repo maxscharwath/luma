@@ -9,7 +9,7 @@ import {
   type Translate,
   type VideoTrack,
 } from '@kroma/core';
-import { useT, useThemeAudio } from '@kroma/ui';
+import { Image, useT, useThemeAudio } from '@kroma/ui';
 import {
   IconCheck,
   IconChevronLeft,
@@ -156,7 +156,7 @@ export function DetailHero({
 }: Readonly<DetailHeroProps>) {
   const t = useT();
   const [c1, c2] = posterColors(art.id);
-  const heroBg = art.backdrop ? `url("${art.backdrop}")` : `linear-gradient(135deg, ${c1}, ${c2})`;
+  const heroGradient = `linear-gradient(135deg, ${c1}, ${c2})`;
   const theme = useThemeAudio(themeUrl);
 
   // Direct-play depends on the runtime's codecs (navigator/MediaSource), so it
@@ -170,7 +170,7 @@ export function DetailHero({
 
   return (
     <div className="relative min-h-[62vh]">
-      <HeroBackdrop bg={heroBg} />
+      <HeroBackdrop backdrop={art.backdrop} gradient={heroGradient} />
 
       <button
         type="button"
@@ -191,12 +191,7 @@ export function DetailHero({
           className="relative hidden aspect-2/3 shrink-0 overflow-hidden rounded-[14px] shadow-hero sm:block sm:w-48 md:w-60"
           style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
         >
-          <img
-            src={art.poster}
-            alt=""
-            draggable={false}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
+          <Image src={art.poster} fit="cover" fill />
         </div>
 
         <div className="max-w-170 flex-1 [text-shadow:0_1px_3px_rgba(0,0,0,.5),0_2px_16px_rgba(0,0,0,.55)]">

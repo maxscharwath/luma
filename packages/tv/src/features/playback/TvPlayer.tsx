@@ -188,7 +188,7 @@ export function TvPlayer() {
             <div className="font-display text-[30px] font-bold text-white">
               {t('player.stoppedTitle')}
             </div>
-            <p className="max-w-[42rem] font-sans text-[18px] leading-relaxed text-[rgba(244,243,240,0.72)]">
+            <p className="max-w-2xl font-sans text-[18px] leading-relaxed text-[rgba(244,243,240,0.72)]">
               {pb.terminated || t('player.stoppedDefault')}
             </p>
             <button

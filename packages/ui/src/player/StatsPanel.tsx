@@ -41,7 +41,7 @@ export function StatsPanel({
   for (const e of s.extra ?? []) push(e.label, e.value);
 
   return (
-    <div className="absolute top-[100px] left-[34px] z-20 min-w-[280px] rounded-[14px] border border-[rgba(255,255,255,0.1)] bg-[rgba(8,8,11,0.74)] px-[22px] py-[18px] backdrop-blur-[16px]">
+    <div className="absolute top-[100px] left-[34px] z-20 min-w-[280px] rounded-[14px] border border-[rgba(255,255,255,0.1)] bg-[rgba(8,8,11,0.74)] px-[22px] py-[18px] backdrop-blur-lg">
       <div className="mb-3 flex items-center justify-between gap-6">
         <span className="font-sans text-[11px] font-bold uppercase tracking-[0.16em] text-[rgba(244,243,240,0.5)]">
           {t('stats.title')}

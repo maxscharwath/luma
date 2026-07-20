@@ -3,7 +3,7 @@
 // render the exact same avatar tile + email/username/password inputs, so that
 // block lives here once and is driven by controlled props.
 
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconPlus } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { avatarGradient, initials } from '#web/features/accounts/user-avatar';
@@ -53,7 +53,7 @@ export function RegisterFields({
         aria-label={t('auth.chooseAvatar')}
       >
         {preview ? (
-          <img src={preview} alt="" className="h-full w-full object-cover" />
+          <Image src={preview} fit="cover" fill />
         ) : (
           <div
             className="flex h-full w-full items-center justify-center text-white/85"

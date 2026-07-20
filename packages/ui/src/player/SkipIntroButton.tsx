@@ -22,7 +22,7 @@ export function SkipIntroButton({ visible, focused, onSkip }: Readonly<SkipIntro
     <button
       type="button"
       onClick={onSkip}
-      className={`absolute bottom-[214px] right-[34px] z-30 inline-flex cursor-pointer items-center gap-2.5 rounded-[12px] border border-[rgba(255,255,255,0.22)] px-[22px] py-3.5 font-sans text-[15px] font-bold outline-none backdrop-blur-[16px] transition-[transform,box-shadow,background] duration-150 ease-out [animation:kpl-rise_.3s_ease] ${focused ? focusCls : 'bg-[rgba(20,20,24,0.7)] text-white'}`}
+      className={`absolute bottom-[214px] right-[34px] z-30 inline-flex cursor-pointer items-center gap-2.5 rounded-[12px] border border-[rgba(255,255,255,0.22)] px-[22px] py-3.5 font-sans text-[15px] font-bold outline-none backdrop-blur-lg transition-[transform,box-shadow,background] duration-150 ease-out animate-[kpl-rise_.3s_ease] ${focused ? focusCls : 'bg-[rgba(20,20,24,0.7)] text-white'}`}
     >
       {t('player.skipIntro')}
       <IconForward size={17} />

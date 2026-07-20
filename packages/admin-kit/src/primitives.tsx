@@ -1,6 +1,7 @@
 // Shared presentational primitives for the admin console, matching the
 // "Admin Serveur" design (cards, titled sections, stat cards, toggle/select
 // rows, progress bars, gradient avatars).
+import { Image } from '@kroma/ui';
 import { IconChevronDown } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { resolveImageUrl, useAdminKit } from './context';
@@ -160,17 +161,16 @@ export function Avatar({
   const url = resolveImageUrl(apiBase, avatarUrl ?? undefined);
   return (
     <span
-      className="flex shrink-0 items-center justify-center overflow-hidden bg-cover bg-center font-display font-bold text-white/95"
+      className="relative flex shrink-0 items-center justify-center overflow-hidden font-display font-bold text-white/95"
       style={{
         width: size,
         height: size,
         borderRadius: r,
-        background: url ? undefined : avatarGradient(name),
-        backgroundImage: url ? `url(${url})` : undefined,
+        background: avatarGradient(name),
         fontSize: size * 0.42,
       }}
     >
-      {url ? '' : initial(name)}
+      {url ? <Image src={url} fit="cover" fill /> : initial(name)}
     </span>
   );
 }

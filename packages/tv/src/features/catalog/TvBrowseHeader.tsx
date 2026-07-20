@@ -27,7 +27,7 @@ const SORT_LABEL_KEY: Record<SortMode, MessageKey> = {
 // Compact filter chip: translucent over the ambient art, amber when active.
 // rgba() literal (not a `/opacity` modifier) for the legacy webOS tier.
 const CHIP_CLS =
-  'shrink-0 cursor-pointer rounded-full border-none bg-[rgba(255,255,255,0.08)] px-3.5 py-1.5 font-sans text-[13px] font-semibold text-muted transition-transform focus:scale-[1.06] aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink';
+  'shrink-0 cursor-pointer rounded-full border-none bg-[rgba(255,255,255,0.08)] px-3.5 py-1.5 font-sans text-[13px] font-semibold text-muted transition-transform focus:scale-[1.06] aria-current:bg-accent aria-current:text-accent-ink';
 
 /** Meta line under the focused title: year · runtime|seasons · lead genres. */
 function entryLine(e: CatalogEntry, seasons: string | null): string {

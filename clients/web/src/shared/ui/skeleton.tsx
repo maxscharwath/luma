@@ -32,7 +32,7 @@ export function PosterSkeleton({ width }: Readonly<{ width?: number }>) {
     <div style={{ width: width ?? 'var(--card-w)' }} className="shrink-0">
       <Skeleton className="aspect-2/3 w-full rounded-lg" />
       <Skeleton className="mt-2.5 h-3.5 w-3/4" />
-      <Skeleton className="mt-1.5 h-3 w-1/3 bg-white/[0.04]" />
+      <Skeleton className="mt-1.5 h-3 w-1/3 bg-white/4" />
     </div>
   );
 }

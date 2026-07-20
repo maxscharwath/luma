@@ -39,7 +39,9 @@ function recordingFetch(
       status: r.status ?? 200,
       json: async () => r.json ?? {},
       blob: async () => r.blob ?? new Blob(),
-      text: async () => r.text ?? '',
+      // Mirror a real Response: the text body is the serialized JSON unless a
+      // responder sets `text` explicitly (e.g. to model an empty 2xx body).
+      text: async () => r.text ?? JSON.stringify(r.json ?? {}),
     } as unknown as Response;
   }) as unknown as typeof globalThis.fetch;
   return { fetch, calls };

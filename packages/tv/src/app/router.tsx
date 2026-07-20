@@ -3,6 +3,7 @@ import {
   type ComponentType,
   createContext,
   type ReactNode,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -37,6 +38,9 @@ export interface TvRoutes {
   addProfile: undefined;
   /** Quick Connect code / QR against the active server (signed out). */
   quick: undefined;
+  /** Device-level settings reachable while signed out: language, on-screen
+   * keyboard layout, and the desktop shell's GPU/quit extras. */
+  deviceSettings: undefined;
   /** PIN entry: verify a locked profile, or set/clear the active account's PIN. */
   pin: { intent: 'verify' | 'set' | 'clear'; account?: StoredSession };
   /** Profile menu: language, PIN, switch profile, sign out, forget server. */
@@ -236,5 +240,20 @@ export function TvOutlet() {
   // clean state (engine, resume, progress) instead of inheriting the previous
   // one's. Other screens keep their instance across same-route navigation.
   const key = route.name === 'player' ? `player:${route.params.item.id}` : route.name;
-  return <Screen key={key} />;
+  // The single page landmark. Every screen root is `position:fixed inset-0`, so
+  // this wrapper is layout-neutral (0-height in flow) it exists only to give
+  // assistive tech / Lighthouse the required <main>. The key stays on <Screen>
+  // so a same-route param swap (e.g. up-next) still remounts just the screen.
+  //
+  // <Suspense> catches the lazily-loaded player chunk on the first play; its
+  // fallback is a plain themed black fill (fixed inset-0), which reads as the
+  // player fading up rather than a flash. Non-lazy screens never suspend, so
+  // this is invisible for all of browse.
+  return (
+    <main>
+      <Suspense fallback={<div className="fixed inset-0 bg-bg" />}>
+        <Screen key={key} />
+      </Suspense>
+    </main>
+  );
 }

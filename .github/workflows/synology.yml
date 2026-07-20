@@ -4,8 +4,11 @@ name: Synology
 #   tag vX.Y.Z  -> build the stable .spk + attach it (+ its .info.json sidecar)
 #                  to that GitHub Release
 #   push main   -> build a canary .spk -> rolling `nightly` prerelease
-#   either      -> push the Docker image ASSEMBLED FROM the same static musl
-#                  binary + web SPA (no second Rust compile)
+#   either      -> push the MULTI-ARCH Docker image (linux/amd64 + linux/arm64)
+#                  ASSEMBLED FROM static musl binaries + the web SPA (no
+#                  from-source docker compile): amd64 reuses the .spk payload,
+#                  arm64 comes from its own cross-compile job (Raspberry Pi
+#                  4/5 and other ARM64 hosts)
 #
 # The package source is the DYNAMIC Cloudflare Worker at packages.kroma.tv
 # (packages/synology-repo/worker); it reads releases + the .info.json sidecars
@@ -139,18 +142,97 @@ jobs:
           path: clients/web/dist/client
           if-no-files-found: error
 
-  # The Docker image is ASSEMBLED from the .spk payload (static musl binary +
+  # The arm64 half of the Docker image: same single-binary model as the .spk
+  # (static musl kroma-server + static ffmpeg), cross-compiled in the aarch64
+  # flavor of the exact toolchain image the .spk build uses. No ARM .spk is
+  # published (ARM DSM models are too weak to matter); this payload only feeds
+  # the linux/arm64 image, which covers Raspberry Pi 4/5 and other ARM64 hosts.
+  # The web SPA is arch-independent and reused from the .spk payload.
+  arm64:
+    name: Build arm64 payload
+    needs: changes
+    permissions:
+      contents: read
+    if: >-
+      always() && !cancelled()
+      && (startsWith(github.ref, 'refs/tags/v')
+          || github.event_name == 'workflow_dispatch'
+          || needs.changes.outputs.relevant == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TARGET: aarch64-unknown-linux-musl
+      # Digest-pinned like the x86_64 image in clients/synology/build.sh: a
+      # moving tag swaps rustc underneath and invalidates the cached target dir.
+      RUST_IMAGE: messense/rust-musl-cross:aarch64-musl@sha256:ecae5dd62d1c938c14f8071d36c16fa699860aace03bfb5284fb1216474d2643
+      FFMPEG_URL: https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Same warm-target rationale as the .spk cache above, per-arch key.
+      - name: Cache cargo registry + aarch64 target
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cargo-registry
+            server/target/aarch64-unknown-linux-musl
+          key: synology-arm64-v1-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: |
+            synology-arm64-v1-
+
+      # Mirrors clients/synology/build.sh step 2: server/ -> /home/rust/src
+      # (WORKDIR), packages/ -> /home/rust/packages (i18n.rs include_str!s the
+      # shared locale catalogs from outside server/), cargo registry cached.
+      - name: Cross-compile kroma-server (aarch64 musl)
+        run: |
+          mkdir -p .cargo-registry
+          docker run --rm \
+            -v "$PWD/server":/home/rust/src \
+            -v "$PWD/packages":/home/rust/packages \
+            -v "$PWD/.cargo-registry":/root/.cargo/registry \
+            "$RUST_IMAGE" \
+            cargo build --release --locked --target "$TARGET" --features whisper-local
+
+      # The container runs as root; hand the tree back so actions/cache can save.
+      - name: Fix cache permissions
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" server/target .cargo-registry || true
+
+      - name: Fetch static ffmpeg/ffprobe (arm64)
+        run: |
+          set -euo pipefail
+          curl -fSL --proto '=https' --proto-redir '=https' "$FFMPEG_URL" -o ff.tar.xz
+          mkdir -p ffmpeg-arm64
+          tar xJf ff.tar.xz -C ffmpeg-arm64 --strip-components=1
+
+      - name: Stage the arm64 payload
+        run: |
+          set -euo pipefail
+          mkdir -p payload/bin payload/ffmpeg
+          install -m755 "server/target/$TARGET/release/kroma-server" payload/bin/kroma-server
+          install -m755 ffmpeg-arm64/ffmpeg payload/ffmpeg/ffmpeg
+          install -m755 ffmpeg-arm64/ffprobe payload/ffmpeg/ffprobe
+
+      - name: Upload arm64 payload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-linux-arm64
+          path: payload
+          if-no-files-found: error
+
+  # The Docker image is ASSEMBLED from prebuilt payloads (static musl binaries +
   # web SPA + static ffmpeg), not compiled again: this replaced a ~13-minute
-  # from-source docker.yml build with a copy + push. Runs for main pushes and
-  # tags alike, same tag scheme as before (latest + <version> on main, semver
-  # on tags).
+  # from-source docker.yml build with a copy + push. linux/amd64 reuses the .spk
+  # payload, linux/arm64 the payload from the arm64 job; Dockerfile.runtime
+  # picks per platform via TARGETARCH. Runs for main pushes and tags alike,
+  # same tag scheme as before (latest + <version> on main, semver on tags).
   docker:
-    name: Docker image (from the .spk payload)
-    needs: build
+    name: Docker image (multi-arch, from prebuilt payloads)
+    needs: [build, arm64]
     # `changes` is skipped on tag pushes, and that "skipped" propagates through
     # `build` to this job unless we override the default success() gate. Run
-    # whenever `build` actually succeeded (tags + relevant main pushes).
-    if: always() && !cancelled() && needs.build.result == 'success'
+    # whenever both payload builds actually succeeded (tags + relevant pushes).
+    if: always() && !cancelled() && needs.build.result == 'success' && needs.arm64.result == 'success'
     permissions:
       contents: read
       packages: write # push the Docker image to ghcr
@@ -164,17 +246,32 @@ jobs:
           name: kroma-synology-spk
           path: dist
 
-      - name: Extract the .spk payload
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: kroma-linux-arm64
+          path: arm64-payload
+
+      # Context layout Dockerfile.runtime expects: web/ shared (arch-independent
+      # SPA from the .spk payload) + one bin/ + ffmpeg/ pair per TARGETARCH.
+      - name: Assemble the multi-arch build context
         id: payload
         run: |
           set -euo pipefail
           SPK="$(ls dist/*.spk | head -1)"
-          mkdir -p docker-ctx
-          tar -xOf "$SPK" package.tgz | tar -xz -C docker-ctx
-          ls docker-ctx
+          mkdir -p spk-payload docker-ctx/amd64 docker-ctx/arm64
+          tar -xOf "$SPK" package.tgz | tar -xz -C spk-payload
+          mv spk-payload/web docker-ctx/web
+          mv spk-payload/bin spk-payload/ffmpeg docker-ctx/amd64/
+          mv arm64-payload/bin arm64-payload/ffmpeg docker-ctx/arm64/
+          chmod +x docker-ctx/*/bin/* docker-ctx/*/ffmpeg/*
+          ls -R docker-ctx | head -20
           # INFO version from the filename: kroma-<version>-x86_64.spk
           NAME="$(basename "$SPK")"; V="${NAME#kroma-}"; V="${V%-x86_64.spk}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      # qemu: the runner is amd64; the arm64 leg's RUN steps (apt-get) execute
+      # emulated. The kroma binaries themselves are prebuilt, only COPYed.
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
@@ -201,7 +298,7 @@ jobs:
         with:
           context: docker-ctx
           file: server/Dockerfile.runtime
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

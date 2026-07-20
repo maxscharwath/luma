@@ -121,8 +121,11 @@ jobs:
   # PER TARGET (a sidecar .kmod carries a native binary, so its platform must
   # match the server): each matrix entry cross-compiles the sidecar binaries and
   # suffixes the bundle with the triple; the catalog job below merges every
-  # target into one published index. x86_64 musl is fully static, so the one
-  # build covers the Synology .spk, the Docker image and any x86_64 Linux host.
+  # target into one published index. The musl builds are fully static, so one
+  # build per CPU arch covers everything on Linux: x86_64 musl serves the
+  # Synology .spk, the linux/amd64 Docker image and any x86_64 host; aarch64
+  # musl serves the linux/arm64 Docker image (Raspberry Pi & co) and any ARM64
+  # host.
   #
   # Per-target build strategy:
   #  - linux musl: built INSIDE the same musl cross-toolchain image the Synology
@@ -149,6 +152,11 @@ jobs:
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
             image: messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a
+          # aarch64 flavor of the same cross image: ARM64 Linux hosts (Raspberry
+          # Pi 4/5, ARM servers) + the linux/arm64 half of the Docker image.
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            image: messense/rust-musl-cross:aarch64-musl@sha256:ecae5dd62d1c938c14f8071d36c16fa699860aace03bfb5284fb1216474d2643
           - target: aarch64-apple-darwin
             runner: macos-14
             image: ''

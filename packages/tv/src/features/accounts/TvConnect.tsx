@@ -62,7 +62,7 @@ export function TvConnect() {
           {t('connect.addServerSub')}
         </p>
 
-        <InputGroup className="mb-5 gap-3 rounded-[13px] bg-[#0F0F13] px-5 py-4">
+        <InputGroup className="mb-5 gap-3 rounded-lg bg-[#0F0F13] px-5 py-4">
           <InputGroupAddon>
             <IconWorldSearch size={20} className="text-dim" stroke={1.7} />
           </InputGroupAddon>

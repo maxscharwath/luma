@@ -2,30 +2,20 @@
 // requester, date, status chip, and quick approve/deny on pending rows.
 
 import type { MediaRequest, MessageKey } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconCheck, IconX } from '@tabler/icons-react';
-import { useState } from 'react';
 import { kindMeta, posterGrad } from '#web/features/admin/pipeline-meta';
 import { Avatar } from '#web/features/admin/ui';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 import { seasonsSummary } from '#web/features/requests/status';
 
 function Poster({ req }: Readonly<{ req: MediaRequest }>) {
-  const [broken, setBroken] = useState(false);
   return (
     <div
       style={{ background: posterGrad(req.title) }}
       className="relative h-[46px] w-8 flex-[0_0_32px] overflow-hidden rounded-[6px] shadow-[0_5px_14px_rgba(0,0,0,.45)]"
     >
-      {req.posterUrl && !broken ? (
-        <img
-          src={req.posterUrl}
-          alt=""
-          loading="lazy"
-          onError={() => setBroken(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : null}
+      <Image src={req.posterUrl} fit="cover" fill />
     </div>
   );
 }
@@ -57,7 +47,7 @@ export function RequestRowView({
     <button
       type="button"
       onClick={onOpen}
-      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-left transition-colors hover:bg-white/[0.028] md:grid-cols-[minmax(0,1fr)_190px_110px_132px_76px]"
+      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/4 px-5 py-3 text-left transition-colors hover:bg-white/[0.028] md:grid-cols-[minmax(0,1fr)_190px_110px_132px_76px]"
     >
       <div className="flex min-w-0 items-center gap-3.5">
         <Poster req={req} />

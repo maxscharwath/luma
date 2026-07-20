@@ -54,7 +54,7 @@ export function SearchSelect({
       }}
     >
       <Select.Trigger
-        className={`inline-flex items-center gap-2 rounded-[9px] border border-border-strong bg-surface-2 py-2.25 pl-3.25 pr-3 text-[13.5px] font-semibold text-text outline-none focus:border-accent/60 data-[placeholder]:text-dim ${className}`}
+        className={`inline-flex items-center gap-2 rounded-[9px] border border-border-strong bg-surface-2 py-2.25 pl-3.25 pr-3 text-[13.5px] font-semibold text-text outline-none focus:border-accent/60 data-placeholder:text-dim ${className}`}
       >
         <span className="truncate">
           <Select.Value placeholder={placeholder} />
@@ -68,7 +68,7 @@ export function SearchSelect({
         <Select.Content
           position="popper"
           sideOffset={6}
-          className="z-50 w-[var(--radix-select-trigger-width)] min-w-60 overflow-hidden rounded-[11px] border border-border-strong bg-[#121216] shadow-pop"
+          className="z-50 w-(--radix-select-trigger-width) min-w-60 overflow-hidden rounded-[11px] border border-border-strong bg-[#121216] shadow-pop"
         >
           <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
             <IconSearch size={14} className="shrink-0 text-dim" />
@@ -95,7 +95,7 @@ export function SearchSelect({
                 <Select.Item
                   key={o}
                   value={o}
-                  className="relative flex cursor-pointer select-none items-center rounded-[7px] py-2 pl-3 pr-8 text-[13px] font-medium text-text outline-none data-[highlighted]:bg-white/[.06] data-[state=checked]:text-accent"
+                  className="relative flex cursor-pointer select-none items-center rounded-[7px] py-2 pl-3 pr-8 text-[13px] font-medium text-text outline-none data-highlighted:bg-white/6 data-[state=checked]:text-accent"
                 >
                   <Select.ItemText>{o}</Select.ItemText>
                   <Select.ItemIndicator className="absolute right-2.5">

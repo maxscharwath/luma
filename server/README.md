@@ -215,29 +215,60 @@ curl -s -X POST http://localhost:4040/api/scan
 
 ## Docker
 
-```bash
-# Build
-docker build -t kroma-server .
+The published image is **multi-arch** (`linux/amd64` + `linux/arm64`): the same
+`docker pull` works on an Intel/AMD NAS or server and on ARM64 boards such as a
+**Raspberry Pi 4/5** (64-bit OS required). It bundles the static `kroma-server`
+binary, the web SPA (served on the same port) and static `ffmpeg`/`ffprobe`.
 
-# Run, mounting a media folder read-only and publishing the port.
-docker run --rm \
+```bash
+docker run -d --name kroma \
   -p 4040:4040 \
-  -e KROMA_MEDIA_DIRS=/media/movies \
-  -v /path/on/host/movies:/media/movies:ro \
   -v kroma-data:/data \
-  kroma-server
+  -v /path/on/host/media:/media \
+  -e KROMA_MEDIA_DIRS=/media \
+  ghcr.io/maxscharwath/kroma:latest
 ```
 
-The runtime image installs `ffmpeg` (which provides `ffprobe`).
+Or the same as compose:
 
-### Synology / NAS
+```yaml
+services:
+  kroma:
+    image: ghcr.io/maxscharwath/kroma:latest
+    ports: ["4040:4040"]
+    environment:
+      KROMA_MEDIA_DIRS: /media
+    volumes:
+      - kroma-data:/data
+      - /path/on/host/media:/media
+volumes:
+  kroma-data:
+```
 
-Build or pull the image for your NAS CPU architecture `linux/amd64` for
-Intel/AMD models, `linux/arm64` for ARM models:
+### Volumes: what needs to be writable
+
+- **`/data`** (named volume or bind mount): the SQLite database, caches,
+  installed modules, Whisper models AND the torrent download staging area
+  (`/data/torrents/downloads`). Give it enough space for in-flight downloads,
+  or bind-mount a big disk.
+- **Media mounts**: mount them **read-write** if you use the built-in
+  requests/downloads stack: the import step writes the finished files into the
+  library (hardlink when possible, else reflink/copy, so separate mounts are
+  fine, just slower to import). `:ro` is only safe for a purely pre-existing
+  library you manage yourself.
+
+Tags: `latest` (main), `X.Y.Z` / `X.Y` (releases). Then point every client at
+`http://<host>:4040` (the web app is served there too).
+
+### Building the image yourself
+
+The from-source build needs the **repo root** as context (the server embeds the
+shared locale catalogs from `packages/` and the web SPA from `clients/`):
 
 ```bash
-docker buildx build --platform linux/arm64 -t kroma-server:arm64 .
+docker build -f server/Dockerfile -t kroma .
 ```
 
-Bind-mount your shared folders and point `KROMA_MEDIA_DIRS` at the in-container
-paths, exactly as in the `docker run` example above.
+It builds on either arch natively; use `docker buildx build --platform
+linux/arm64` to cross-build. CI itself assembles the published image from
+prebuilt static payloads instead (see `server/Dockerfile.runtime`).

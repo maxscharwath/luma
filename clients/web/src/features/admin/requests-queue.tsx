@@ -156,8 +156,8 @@ export function RequestsQueuePage() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_110px_132px_76px]">
+      <div className="overflow-hidden rounded-2xl border border-white/8 bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/6 bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_110px_132px_76px]">
           <Head>{t('requests.colTitle')}</Head>
           <Head className="max-md:hidden">{t('requests.colRequester')}</Head>
           <Head className="max-md:hidden">{t('requests.colDate')}</Head>

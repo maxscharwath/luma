@@ -7,7 +7,7 @@ import {
   genreTint,
   sizedImageUrl,
 } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconCategory } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
@@ -85,19 +85,16 @@ function GenreTile({
     <Link
       to="/genre/$genre"
       params={{ genre: genre.name }}
-      className="group relative block aspect-video overflow-hidden rounded-2xl border border-white/[0.06] no-underline transition-colors hover:border-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group relative block aspect-video overflow-hidden rounded-2xl border border-white/6 no-underline transition-colors hover:border-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       style={{ background: `linear-gradient(150deg, ${c1}, ${c2})` }}
     >
-      {backdrop ? (
-        <img
-          src={sizedImageUrl(backdrop, 420) ?? undefined}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          className="absolute inset-0 h-full w-full object-cover object-[50%_25%] transition-transform duration-500 group-hover:scale-105"
-        />
-      ) : null}
+      <Image
+        src={backdrop ? sizedImageUrl(backdrop, 420) : null}
+        fit="cover"
+        position="50% 25%"
+        fill
+        className="transition-transform duration-500 group-hover:scale-105"
+      />
       <div
         className="pointer-events-none absolute inset-0"
         style={{ background: genreTint(genre.name) }}

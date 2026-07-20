@@ -31,7 +31,7 @@ export function ReleaseList({
       {errors.map((e) => (
         <div
           key={e}
-          className="rounded-lg border border-[#F4B642]/25 bg-[#F4B642]/[0.08] px-3 py-2 text-[12px] font-semibold text-[#F4B642]"
+          className="rounded-lg border border-[#F4B642]/25 bg-[#F4B642]/8 px-3 py-2 text-[12px] font-semibold text-[#F4B642]"
         >
           {e}
         </div>
@@ -90,7 +90,7 @@ function ReleaseRow({
 
   return (
     <div
-      className={`rounded-xl border px-3 py-2.5 ${rejectedRow ? 'border-white/[0.05] bg-[#101014] opacity-70' : 'border-white/[0.07] bg-[#121216]'}`}
+      className={`rounded-xl border px-3 py-2.5 ${rejectedRow ? 'border-white/5 bg-[#101014] opacity-70' : 'border-white/[0.07] bg-[#121216]'}`}
     >
       <div className="flex items-center gap-2.5">
         <button
@@ -176,7 +176,7 @@ function ReleaseMeta({ r }: Readonly<{ r: ScoredReleaseView }>) {
 /** The expandable per-release score breakdown (one row per scoring rule). */
 function ScoreBreakdown({ breakdown }: Readonly<{ breakdown: ScoredReleaseView['breakdown'] }>) {
   return (
-    <div className="mt-2 flex flex-col gap-1 border-t border-white/[0.05] pl-[23px] pt-2">
+    <div className="mt-2 flex flex-col gap-1 border-t border-white/5 pl-[23px] pt-2">
       {breakdown.map((l) => (
         <div
           key={`${l.rule}-${l.note}`}

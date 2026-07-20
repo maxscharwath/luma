@@ -116,7 +116,7 @@ export function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors ${on ? active : 'border-white/[0.08] bg-[#15151A] text-white/65'}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors ${on ? active : 'border-white/8 bg-[#15151A] text-white/65'}`}
     >
       {dot ? <span className="h-[7px] w-[7px] rounded-full" style={{ background: dot }} /> : null}
       {label}
@@ -131,13 +131,13 @@ export function Chip({
 export function ConsoleToast({ toast }: Readonly<{ toast: { text: string; on: boolean } }>) {
   return (
     <div
-      className="pointer-events-none fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 transition-all duration-200"
+      className="pointer-events-none fixed bottom-6 left-1/2 z-80 -translate-x-1/2 transition-all duration-200"
       style={{
         opacity: toast.on ? 1 : 0,
         transform: `translateX(-50%) translateY(${toast.on ? 0 : 12}px)`,
       }}
     >
-      <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#1C1C22] px-[18px] py-2.5 shadow-[0_20px_50px_rgba(0,0,0,.55)]">
+      <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#1C1C22] px-[18px] py-2.5 shadow-pop">
         <span className="h-2 w-2 flex-[0_0_8px] rounded-full bg-accent" />
         <span className="text-[13.5px] font-semibold text-white">{toast.text}</span>
       </div>

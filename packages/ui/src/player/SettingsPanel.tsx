@@ -211,7 +211,7 @@ export const SettingsPanel = forwardRef<PanelHandle, SettingsPanelProps>(functio
         role="button"
         tabIndex={0}
         aria-label={t('common.close')}
-        className="absolute inset-y-0 left-0 z-[41] w-[56%] cursor-pointer"
+        className="absolute inset-y-0 left-0 z-41 w-[56%] cursor-pointer"
         onClick={onClose}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

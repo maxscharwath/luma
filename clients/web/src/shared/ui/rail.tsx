@@ -104,7 +104,7 @@ export function Rail({ children, gap = 18, padded = false, label }: Readonly<Rai
         // ring room before the overflow clips them. Non-padded (home) rails inset
         // with `px-4 -mx-4` so the first/last card's ring isn't cropped at the
         // scroll edge while the cards stay aligned with the section heading.
-        className={`flex overflow-x-auto py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+        className={`flex overflow-x-auto py-4 [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden
           ${padded ? 'px-(--gutter-web)' : 'px-4 -mx-4'}`}
         style={{ gap: `${gap}px` }}
       >

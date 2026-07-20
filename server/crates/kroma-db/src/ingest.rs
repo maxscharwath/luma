@@ -129,6 +129,25 @@ pub fn set_show_metadata(pool: &Pool, id: &str, meta: &Metadata) -> Result<()> {
     Ok(())
 }
 
+/// Rewrite a movie's catalog `title` from a *trusted* TMDB match (an operator
+/// correction or an acquisition-hinted import). The column is otherwise the
+/// filename parse; the enrichment pass only calls this when a pin resolved the
+/// title, so a corrected match finally renames the item everywhere (fiche, cards,
+/// search index) without touching the file on disk.
+pub fn set_item_title(pool: &Pool, id: &str, title: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute("UPDATE items SET title = ?2 WHERE id = ?1", params![id, title])?;
+    Ok(())
+}
+
+/// Rewrite a show's catalog `title` from a trusted TMDB match. See
+/// [`set_item_title`].
+pub fn set_show_title(pool: &Pool, id: &str, title: &str) -> Result<()> {
+    let conn = pool.get()?;
+    conn.execute("UPDATE shows SET title = ?2 WHERE id = ?1", params![id, title])?;
+    Ok(())
+}
+
 /// (file_id, abs_path, owning item_id) for every file awaiting an ffprobe pass.
 /// Drives the phase-2 background probing.
 pub fn unprobed_files(pool: &Pool) -> Result<Vec<(String, String, String)>> {
@@ -930,6 +949,38 @@ mod tests {
         assert!(crate::get_item(&p, "m1").unwrap().unwrap().metadata.is_none());
         assert!(crate::metadata_core::get_core(&p, "item", "m1").unwrap().is_none());
         assert!(crate::translations::resolve_one(&p, "item", "m1", "fr").unwrap().is_none());
+    }
+
+    #[test]
+    fn set_item_and_show_title_rename_the_catalog_row() {
+        let p = pool();
+        {
+            let conn = p.get().unwrap();
+            conn.execute(
+                "INSERT INTO libraries (id,name,kind,path,added_at) VALUES ('lib','L','movies','/x','t')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO items (id,kind,title,container,library,added_at) VALUES ('m1','movie','2001','mkv','lib','t')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO shows (id,library,title,added_at) VALUES ('s1','lib','Show','t')",
+                [],
+            )
+            .unwrap();
+        }
+        set_item_title(&p, "m1", "2001: A Space Odyssey").unwrap();
+        set_show_title(&p, "s1", "Severance").unwrap();
+        assert_eq!(crate::get_item(&p, "m1").unwrap().unwrap().title, "2001: A Space Odyssey");
+        let show_title: String = p
+            .get()
+            .unwrap()
+            .query_row("SELECT title FROM shows WHERE id = 's1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(show_title, "Severance");
     }
 
     #[test]

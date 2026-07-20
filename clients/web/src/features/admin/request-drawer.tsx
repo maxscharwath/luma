@@ -11,7 +11,7 @@ import {
   type MessageKey,
   type ScoredReleaseView,
 } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconCheck, IconLoader2, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { kindMeta, posterGrad } from '#web/features/admin/pipeline-meta';
@@ -29,20 +29,12 @@ interface SearchState {
 type GrabbedState = { title: string; error: boolean } | null;
 
 function DrawerPoster({ req }: Readonly<{ req: MediaRequest }>) {
-  const [broken, setBroken] = useState(false);
   return (
     <div
-      className="relative h-[104px] w-[70px] flex-[0_0_70px] overflow-hidden rounded-[10px] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
+      className="relative h-[104px] w-[70px] flex-[0_0_70px] overflow-hidden rounded-md shadow-[0_10px_24px_rgba(0,0,0,.5)]"
       style={{ background: posterGrad(req.title) }}
     >
-      {req.posterUrl && !broken ? (
-        <img
-          src={req.posterUrl}
-          alt=""
-          onError={() => setBroken(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : null}
+      <Image src={req.posterUrl} fit="cover" fill />
     </div>
   );
 }
@@ -71,7 +63,7 @@ function DrawerHeader({ req, onClose }: Readonly<{ req: MediaRequest; onClose: (
         <DrawerPoster req={req} />
         <div className="min-w-0 pt-1">
           <span
-            className="rounded-full px-[9px] py-[3px] text-[9.5px] font-bold uppercase tracking-[.1em]"
+            className="rounded-full px-[9px] py-[3px] text-[9.5px] font-bold uppercase tracking-widest"
             style={{ color: km.color, background: km.bg }}
           >
             {t(`pipeline.type.${km.typeKey}` as MessageKey)}
@@ -111,7 +103,7 @@ function RequesterCard({ req }: Readonly<{ req: MediaRequest }>) {
       </div>
 
       {req.note ? (
-        <div className="mt-4 rounded-lg border border-[#E8536A]/[0.18] bg-[#E8536A]/[0.08] px-[11px] py-2.5 text-[12.5px] leading-[1.45] text-[#EF8091]">
+        <div className="mt-4 rounded-lg border border-[#E8536A]/18 bg-[#E8536A]/8 px-[11px] py-2.5 text-[12.5px] leading-[1.45] text-[#EF8091]">
           {req.note}
         </div>
       ) : null}
@@ -156,13 +148,13 @@ function SearchPanel({
         </button>
       </div>
       {search.error ? (
-        <div className="rounded-lg border border-[#E8536A]/[0.18] bg-[#E8536A]/[0.08] px-3 py-2 text-[12px] font-semibold text-[#EF8091]">
+        <div className="rounded-lg border border-[#E8536A]/18 bg-[#E8536A]/8 px-3 py-2 text-[12px] font-semibold text-[#EF8091]">
           {search.error}
         </div>
       ) : null}
       {grabbed ? (
         <div
-          className={`mb-2 rounded-lg border px-3 py-2 text-[12px] font-semibold ${grabbed.error ? 'border-[#E8536A]/[0.18] bg-[#E8536A]/[0.08] text-[#EF8091]' : 'border-[#46D08D]/25 bg-[#46D08D]/[0.09] text-[#46D08D]'}`}
+          className={`mb-2 rounded-lg border px-3 py-2 text-[12px] font-semibold ${grabbed.error ? 'border-[#E8536A]/18 bg-[#E8536A]/8 text-[#EF8091]' : 'border-[#46D08D]/25 bg-[#46D08D]/9 text-[#46D08D]'}`}
         >
           {grabbed.error ? grabbed.title : `${t('requests.grabbed')} ${grabbed.title}`}
         </div>
@@ -350,10 +342,10 @@ export function RequestDrawer({
         type="button"
         aria-label={t('common.close')}
         onClick={onClose}
-        className={`fixed inset-0 z-[60] bg-[rgba(4,4,6,.6)] backdrop-blur-[2px] transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-60 bg-[rgba(4,4,6,.6)] backdrop-blur-[2px] transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       />
       <aside
-        className="fixed right-0 top-0 z-[61] flex h-screen w-[460px] max-w-full flex-col border-l border-white/[0.09] bg-[#0E0E12] shadow-[-20px_0_60px_rgba(0,0,0,.6)] transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] sm:max-w-[92vw]"
+        className="fixed right-0 top-0 z-61 flex h-screen w-[460px] max-w-full flex-col border-l border-white/9 bg-[#0E0E12] shadow-[-20px_0_60px_rgba(0,0,0,.6)] transition-transform duration-300 ease-out sm:max-w-[92vw]"
         style={{ transform: open ? 'translateX(0)' : 'translateX(105%)' }}
       >
         {req ? (

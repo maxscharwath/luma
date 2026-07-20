@@ -1,6 +1,6 @@
 import { normalizeServerUrl as norm, type StoredSession } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { IconPlus } from '@tabler/icons-react';
+import { IconPlus, IconSettings } from '@tabler/icons-react';
 import { useMemo } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
@@ -132,7 +132,19 @@ export function TvProfiles() {
         </div>
       </div>
 
-      <div className="mt-9 flex items-center gap-4 font-sans text-[14px] font-semibold tracking-[0.03em] text-[rgba(244,243,240,0.4)]">
+      {/* Device settings (language, keyboard, desktop extras) must stay reachable
+          while signed out - there is no profile menu yet. */}
+      <button
+        data-focus=""
+        type="button"
+        onClick={() => nav.go('deviceSettings')}
+        className="mt-10 inline-flex cursor-pointer items-center gap-2.5 rounded-full border border-border bg-[rgba(255,255,255,0.05)] px-4.5 py-2.5 font-sans text-[14px] font-semibold text-[rgba(244,243,240,0.7)] outline-none transition-transform focus:scale-[1.04] focus:border-accent focus:text-text"
+      >
+        <IconSettings size={17} stroke={1.8} />
+        {t('profiles.deviceSettings')}
+      </button>
+
+      <div className="mt-6 flex items-center gap-4 font-sans text-[14px] font-semibold tracking-[0.03em] text-[rgba(244,243,240,0.4)]">
         {t('profiles.navHint')}
       </div>
     </AuthScreen>

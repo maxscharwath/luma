@@ -48,7 +48,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const MENU =
-  'z-50 min-w-[184px] rounded-xl border border-white/[0.10] bg-[#16161C] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.45)]';
+  'z-50 min-w-[184px] rounded-xl border border-white/10 bg-[#16161C] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.45)]';
 
 /** The season/episode pill for the release title (movies get none). */
 function targetPill(dl: DownloadView): string | null {
@@ -91,7 +91,7 @@ export function DownloadRowView({
   const active = status === 'downloading' || status === 'queued';
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/[0.04] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_120px_110px_84px]">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-white/4 px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_120px_110px_84px]">
       <RowTitleCell dl={dl} />
       <RowProgressCell dl={dl} progress={progress} color={color} />
       <RowSpeedCell active={active} stat={stat} />
@@ -125,7 +125,7 @@ function RowTitleCell({ dl }: Readonly<{ dl: DownloadView }>) {
           className="h-11 w-[30px] flex-[0_0_auto] rounded-[3px] bg-white/5 object-cover"
         />
       ) : (
-        <div className="flex h-11 w-[30px] flex-[0_0_auto] items-center justify-center rounded-[3px] bg-white/[0.05]">
+        <div className="flex h-11 w-[30px] flex-[0_0_auto] items-center justify-center rounded-[3px] bg-white/5">
           <IconMovie size={13} className="text-white/25" />
         </div>
       )}
@@ -294,7 +294,7 @@ function RowActionsMenu({
           <button
             type="button"
             aria-label={t('downloads.rowActions')}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/12 bg-[#1A1A20] text-white/70 outline-none transition-colors hover:text-white data-[state=open]:bg-white/[0.08] data-[state=open]:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/12 bg-[#1A1A20] text-white/70 outline-none transition-colors hover:text-white data-[state=open]:bg-white/8 data-[state=open]:text-white"
           >
             <IconDotsVertical size={15} stroke={2} />
           </button>
@@ -381,7 +381,7 @@ function RowMenuItem({
     <DropdownMenu.Item
       disabled={disabled}
       onSelect={onSelect}
-      className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold outline-none transition-colors data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40 ${danger ? 'text-[#EF8091] data-[highlighted]:bg-[#E8536A]/[0.14]' : 'text-white/80 data-[highlighted]:bg-white/[0.07] data-[highlighted]:text-white'}`}
+      className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold outline-none transition-colors data-disabled:cursor-not-allowed data-disabled:opacity-40 ${danger ? 'text-[#EF8091] data-highlighted:bg-[#E8536A]/[0.14]' : 'text-white/80 data-highlighted:bg-white/[0.07] data-highlighted:text-white'}`}
     >
       {icon}
       {label}

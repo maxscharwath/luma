@@ -1,6 +1,7 @@
 // Profile avatars + the deterministic gradient palette and initials fallback,
 // plus the padlock glyph used for PIN-protected profiles.
 
+import { Image } from '@kroma/ui';
 import { useState } from 'react';
 
 // Vivid avatar gradients the same palette across web / TV profile pickers.
@@ -64,12 +65,7 @@ export function ProfileAvatar({
       }}
     >
       {showImg ? (
-        <img
-          src={src ?? undefined}
-          alt=""
-          onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <Image src={src} fit="cover" fill onError={() => setFailed(true)} />
       ) : (
         initials(name)
       )}

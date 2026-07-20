@@ -137,8 +137,8 @@ export default function DownloadsPage() {
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/[0.06] bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_120px_110px_84px]">
+      <div className="overflow-hidden rounded-2xl border border-white/8 bg-[#121216] shadow-[0_10px_28px_rgba(0,0,0,.3)]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-white/6 bg-[#15151A] px-5 py-3 md:grid-cols-[minmax(0,1fr)_190px_120px_110px_84px]">
           <Head>{t('downloads.colRelease')}</Head>
           <Head className="max-md:hidden">{t('downloads.colProgress')}</Head>
           <Head className="max-md:hidden">{t('downloads.colSpeed')}</Head>
@@ -255,8 +255,8 @@ function VpnBanner({
     <div
       className={`mb-4 flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-[13.5px] font-semibold ${
         vpn.connected
-          ? 'border-[#46D08D]/30 bg-[#46D08D]/[0.10] text-[#46D08D]'
-          : 'border-[#F4B642]/30 bg-[#F4B642]/[0.10] text-[#F4B642]'
+          ? 'border-[#46D08D]/30 bg-[#46D08D]/10 text-[#46D08D]'
+          : 'border-[#F4B642]/30 bg-[#F4B642]/10 text-[#F4B642]'
       }`}
     >
       {vpn.connected ? (
@@ -289,7 +289,7 @@ function BulkBtn({
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] bg-white/[0.04] px-3 py-2 text-[12.5px] font-semibold text-white/75 transition-colors hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-[12.5px] font-semibold text-white/75 transition-colors hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>

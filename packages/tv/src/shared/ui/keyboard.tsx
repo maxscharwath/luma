@@ -134,7 +134,7 @@ function UrlKeyboard({
           data-focus=""
           type="button"
           onClick={() => onChange('')}
-          className={`${KB_KEY} h-13 flex-[2] text-[16px]`}
+          className={`${KB_KEY} h-13 flex-2 text-[16px]`}
         >
           ⌧
         </button>
@@ -151,7 +151,7 @@ function UrlKeyboard({
             data-focus=""
             type="button"
             onClick={onSubmit}
-            className="flex h-13 flex-[3] cursor-pointer items-center justify-center rounded-xl bg-accent font-sans text-[17px] font-bold text-accent-ink transition-transform focus:scale-[1.06]"
+            className="flex h-13 flex-3 cursor-pointer items-center justify-center rounded-xl bg-accent font-sans text-[17px] font-bold text-accent-ink transition-transform focus:scale-[1.06]"
           >
             {submitLabel}
           </button>

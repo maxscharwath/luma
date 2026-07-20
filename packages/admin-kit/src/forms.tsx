@@ -47,7 +47,7 @@ export function OptionSelect({
     <RSelect.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
       <RSelect.Trigger
         aria-label={ariaLabel}
-        className={`inline-flex items-center justify-between gap-2 rounded-md border border-border-strong bg-surface-2 px-3.5 py-2.5 text-[14px] font-medium text-text outline-none transition-colors focus:border-accent data-[placeholder]:text-dim disabled:cursor-not-allowed disabled:opacity-60 ${block ? 'w-full' : ''} ${className}`}
+        className={`inline-flex items-center justify-between gap-2 rounded-md border border-border-strong bg-surface-2 px-3.5 py-2.5 text-[14px] font-medium text-text outline-none transition-colors focus:border-accent data-placeholder:text-dim disabled:cursor-not-allowed disabled:opacity-60 ${block ? 'w-full' : ''} ${className}`}
       >
         <span className="truncate">
           <RSelect.Value placeholder={placeholder} />
@@ -61,7 +61,7 @@ export function OptionSelect({
         <RSelect.Content
           position="popper"
           sideOffset={6}
-          className="z-100 max-h-[min(60vh,20rem)] w-[var(--radix-select-trigger-width)] min-w-40 overflow-hidden rounded-[11px] border border-border-strong bg-[#121216] shadow-pop"
+          className="z-100 max-h-[min(60vh,20rem)] w-(--radix-select-trigger-width) min-w-40 overflow-hidden rounded-[11px] border border-border-strong bg-[#121216] shadow-pop"
         >
           <RSelect.Viewport className="p-1.5">
             {options.map((o) => (
@@ -70,7 +70,7 @@ export function OptionSelect({
                 value={o.value}
                 disabled={o.disabled}
                 textValue={o.text ?? (typeof o.label === 'string' ? o.label : undefined)}
-                className="relative flex cursor-pointer select-none items-center rounded-[7px] py-2 pl-3 pr-8 text-[13px] font-medium text-text outline-none data-[disabled]:cursor-not-allowed data-[highlighted]:bg-white/[.06] data-[disabled]:opacity-40 data-[state=checked]:text-accent"
+                className="relative flex cursor-pointer select-none items-center rounded-[7px] py-2 pl-3 pr-8 text-[13px] font-medium text-text outline-none data-disabled:cursor-not-allowed data-highlighted:bg-white/6 data-disabled:opacity-40 data-[state=checked]:text-accent"
               >
                 <RSelect.ItemText>{o.label}</RSelect.ItemText>
                 <RSelect.ItemIndicator className="absolute right-2.5">

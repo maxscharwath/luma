@@ -321,7 +321,7 @@ export function Player(props: Readonly<PlayerProps>) {
         // The stage owns the surface-<video> fill/object-fit (borderRadius: inherit
         // stays inline on each surface so it's guaranteed, not dependent on a
         // generated arbitrary-property class in the legacy-tier TV build).
-        className={`absolute inset-0 z-[2] overflow-hidden transition-[transform,border-radius,box-shadow] duration-[420ms] ease-[cubic-bezier(.22,1,.36,1)] [&>video]:h-full [&>video]:w-full [&>video]:bg-black [&>video]:object-contain ${settingsShrink ? 'bg-black shadow-pop' : 'bg-transparent'}`}
+        className={`absolute inset-0 z-2 overflow-hidden transition-[transform,border-radius,box-shadow] duration-420 ease-out [&>video]:h-full [&>video]:w-full [&>video]:bg-black [&>video]:object-contain ${settingsShrink ? 'bg-black shadow-pop' : 'bg-transparent'}`}
         style={stage}
         onClick={input.onStageClick}
         onKeyDown={input.onStageKeyDown}
@@ -331,7 +331,7 @@ export function Player(props: Readonly<PlayerProps>) {
         {/* Spinner + subtitles ride into the card: inside the transformed stage on
             the CSS path, or via this wrapper's own transform on a native shrink. */}
         <div
-          className="pointer-events-none absolute inset-0 overflow-hidden transition-transform duration-[420ms] ease-[cubic-bezier(.22,1,.36,1)]"
+          className="pointer-events-none absolute inset-0 overflow-hidden transition-transform duration-420 ease-out"
           style={contentShrink}
         >
           <SubtitleRenderer
@@ -343,8 +343,8 @@ export function Player(props: Readonly<PlayerProps>) {
             raised={nav.revealed}
           />
           {c.waiting && !locked ? (
-            <div className="absolute inset-0 z-[4] flex items-center justify-center">
-              <div className="h-14 w-14 rounded-full border-[3px] border-[rgba(255,255,255,0.2)] border-t-accent [animation:kpl-spin_0.9s_linear_infinite]" />
+            <div className="absolute inset-0 z-4 flex items-center justify-center">
+              <div className="h-14 w-14 rounded-full border-[3px] border-[rgba(255,255,255,0.2)] border-t-accent animate-[kpl-spin_0.9s_linear_infinite]" />
             </div>
           ) : null}
         </div>
@@ -359,7 +359,7 @@ export function Player(props: Readonly<PlayerProps>) {
       {hasPlane ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute z-[3] transition-opacity duration-[280ms] ease-out"
+          className="pointer-events-none absolute z-3 transition-opacity duration-280 ease-out"
           onTransitionEnd={() => {
             if (!nativeShrink) setMaskLayer(false);
           }}
@@ -434,7 +434,7 @@ export function Player(props: Readonly<PlayerProps>) {
           z-index) overlays the gradient's dark foot seamlessly rather than the
           gradient ending in a hard shadow band just above the peek. */}
       <div
-        className={`absolute inset-x-0 bottom-0 z-[15] bg-[linear-gradient(0deg,rgba(0,0,0,0.82),transparent)] px-[34px] pt-20 transition-[padding,opacity] duration-300 ${chromeFade}`}
+        className={`absolute inset-x-0 bottom-0 z-15 bg-[linear-gradient(0deg,rgba(0,0,0,0.82),transparent)] px-[34px] pt-20 transition-[padding,opacity] duration-300 ${chromeFade}`}
         style={{ paddingBottom: peekVisible ? 146 : 28 }}
       >
         <ChapterProgressBar

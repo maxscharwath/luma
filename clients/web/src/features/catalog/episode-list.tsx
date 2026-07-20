@@ -5,7 +5,7 @@
 // show fiche + the discover season cards.
 
 import { type CastMember, formatRuntime, type MediaItem, posterColors } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconCheck, IconChevronRight, IconPlayerPlayFilled, IconPlus } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { CastRail } from '#web/features/catalog/detail';
@@ -31,11 +31,9 @@ function EpisodeRow({
   const runtime = formatRuntime(episode.durationMs);
   const synopsis = episode.metadata?.overview;
   const still = kromaClient().backdropFor(episode);
-  const [imgOk, setImgOk] = useState(true);
-  const showImg = Boolean(still) && imgOk;
   return (
     <div
-      className={`group flex items-center gap-3 rounded-[14px] border bg-white/[.025] p-3.5 transition-colors hover:bg-white/6 sm:gap-5 ${
+      className={`group flex items-center gap-3 rounded-[14px] border bg-white/2.5 p-3.5 transition-colors hover:bg-white/6 sm:gap-5 ${
         watched ? 'border-accent/30' : 'border-white/5'
       }`}
     >
@@ -48,17 +46,7 @@ function EpisodeRow({
           className="relative flex aspect-video w-32 shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-50"
           style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}
         >
-          {showImg ? (
-            <img
-              src={still ?? undefined}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              draggable={false}
-              onError={() => setImgOk(false)}
-              className={`absolute inset-0 h-full w-full object-cover ${watched ? 'opacity-60' : ''}`}
-            />
-          ) : null}
+          <Image src={still} fit="cover" fill className={watched ? 'opacity-60' : ''} />
           <div className="absolute inset-0 bg-[linear-gradient(170deg,rgba(0,0,0,.05),rgba(0,0,0,.45))]" />
           {watched ? (
             <div className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-black shadow-card">
@@ -88,7 +76,7 @@ function EpisodeRow({
             ) : null}
           </div>
           {synopsis ? (
-            <p className="line-clamp-2 text-[14px] leading-[1.5] text-white/60 max-sm:text-[15px]">
+            <p className="line-clamp-2 text-[14px] leading-normal text-white/60 max-sm:text-[15px]">
               {synopsis}
             </p>
           ) : null}
@@ -128,8 +116,8 @@ function MissingEpisodeRow({
 }>) {
   const t = useT();
   return (
-    <div className="flex items-center gap-3 rounded-[14px] border border-white/5 bg-white/[.015] p-3.5 sm:gap-5">
-      <div className="flex aspect-video w-32 shrink-0 items-center justify-center rounded-md bg-white/[.04] text-white/35 sm:w-50">
+    <div className="flex items-center gap-3 rounded-[14px] border border-white/5 bg-white/1.5 p-3.5 sm:gap-5">
+      <div className="flex aspect-video w-32 shrink-0 items-center justify-center rounded-md bg-white/4 text-white/35 sm:w-50">
         <span className="text-[15px] font-bold">{episode}</span>
       </div>
       <div className="min-w-0 flex-1">
@@ -203,11 +191,10 @@ function SeasonRequestCard({
       })
     : t('discover.episodesN', { n: String(s.episodeCount) });
 
-  let tone = 'border-white/[0.08] bg-white/[0.03] hover:border-accent/50 hover:bg-white/[0.06]';
-  if (locked) tone = 'cursor-default border-white/[0.05] bg-white/[0.02]';
+  let tone = 'border-white/8 bg-white/3 hover:border-accent/50 hover:bg-white/6';
+  if (locked) tone = 'cursor-default border-white/5 bg-white/2';
   else if (partial)
-    tone =
-      'border-[#F4B642]/30 bg-[#F4B642]/[0.06] hover:border-[#F4B642]/60 hover:bg-[#F4B642]/[0.10]';
+    tone = 'border-[#F4B642]/30 bg-[#F4B642]/6 hover:border-[#F4B642]/60 hover:bg-[#F4B642]/10';
 
   let trailing: ReactNode = null;
   if (s.available || s.requested) {

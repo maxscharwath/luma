@@ -3,7 +3,7 @@
 // stream (request.updated reloads, download.progress patches the bar).
 
 import { KromaEvents, type MediaRequest, posterColors, sizedImageUrl } from '@kroma/core';
-import { useLocale, useT } from '@kroma/ui';
+import { Image, useLocale, useT } from '@kroma/ui';
 import { IconCalendarClock, IconInbox, IconLoader2, IconX } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -157,7 +157,7 @@ function RequestRow({
           className="h-[68px] w-[46px] flex-[0_0_46px] overflow-hidden rounded-lg"
           style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
         >
-          {poster ? <img src={poster} alt="" className="h-full w-full object-cover" /> : null}
+          <Image src={poster} fit="cover" fill />
         </div>
         <div className="min-w-0">
           <div className="truncate text-[15px] font-bold">{req.title}</div>

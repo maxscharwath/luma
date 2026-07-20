@@ -5,6 +5,7 @@
 // POST /store/install-id, which resolves missing hard dependencies from the
 // same catalog and verifies each download's sha256 before unpacking.
 
+import { Image } from '@kroma/ui';
 import { IconSearch } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { adminApi } from '#web/features/admin/module-api';
@@ -78,7 +79,7 @@ function StoreCard({
   return (
     <Card className="flex items-start gap-3 p-4">
       {m.icon ? (
-        <img src={m.icon} alt="" className="mt-0.5 h-9 w-9 shrink-0 rounded-lg" />
+        <Image src={m.icon} fit="cover" className="mt-0.5 h-9 w-9 shrink-0 rounded-lg" />
       ) : (
         <div className="mt-0.5 h-9 w-9 shrink-0 rounded-lg bg-white/5" />
       )}

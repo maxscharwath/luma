@@ -140,8 +140,22 @@ fn fold(ch: char) -> Option<&'static str> {
         'æ' | 'Æ' => "ae",
         'œ' | 'Œ' => "oe",
         'ß' => "ss",
+        // Combining diacritical marks: a decomposed (NFD) accent, e.g. "é" stored
+        // as `e` + U+0301. macOS filenames are NFD, so titles parsed from disk
+        // carry these. Drop the mark the ASCII base letter already precedes it;
+        // without this the mark would fold to a space and split the word.
+        '\u{0300}'..='\u{036F}' => "",
         _ => return None,
     })
+}
+
+/// Strip decomposed (NFD) combining marks, leaving precomposed accents intact.
+/// The lightest touch that makes an NFD title (macOS filenames) searchable: it
+/// turns `e` + U+0301 into `e` without otherwise altering case, punctuation or a
+/// precomposed `é`. Use it for a provider query where [`normalize`]'s fuller
+/// folding (lowercasing, article stripping) would be too lossy.
+pub fn strip_combining(s: &str) -> String {
+    s.chars().filter(|c| !matches!(c, '\u{0300}'..='\u{036F}')).collect()
 }
 
 /// Articles a catalog title may or may not carry ("The Matrix" vs "Matrix", "Le
@@ -191,6 +205,24 @@ mod tests {
         assert_eq!(normalize("L'Auberge espagnole"), "auberge espagnole");
         // Only a *leading* article, and only as a whole word.
         assert_eq!(normalize("Theodore"), "theodore");
+    }
+
+    #[test]
+    fn normalize_drops_decomposed_combining_marks() {
+        // macOS filenames are NFD: "é" arrives as `e` + U+0301. The mark must be
+        // dropped, not folded to a word-splitting space ("de tective").
+        assert_eq!(normalize("de\u{0301}tective"), "detective");
+        assert_eq!(normalize("Ame\u{0301}lie"), "amelie");
+        // Decomposed and precomposed forms fold identically.
+        assert_eq!(normalize("Ame\u{0301}lie"), normalize("Amélie"));
+    }
+
+    #[test]
+    fn strip_combining_removes_marks_but_keeps_precomposed() {
+        // NFD "Amélie" (e + U+0301) loses the mark; a precomposed é is untouched.
+        assert_eq!(strip_combining("Ame\u{0301}lie"), "Amelie");
+        assert_eq!(strip_combining("Amélie"), "Amélie");
+        assert_eq!(strip_combining("Ace Ventura"), "Ace Ventura");
     }
 
     #[test]

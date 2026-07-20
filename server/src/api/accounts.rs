@@ -833,11 +833,11 @@ pub async fn upload_avatar(
 /// the server knows the web app URL) and then polls with `secret`.
 pub async fn quick_initiate(State(state): State<SharedState>) -> Response {
     let init = state.quickconnect.initiate();
-    let authorize_url = state
-        .config
-        .web_url
-        .as_ref()
-        .map(|w| format!("{w}/connect?code={}", init.code));
+    let web_base = state.config.web_url.clone().or_else(|| {
+        let url = crate::services::settings::public_url(&state.settings);
+        (!url.is_empty()).then_some(url)
+    });
+    let authorize_url = web_base.map(|w| format!("{w}/connect?code={}", init.code));
     Json(super::dto::QuickConnectInit {
         code: init.code,
         secret: init.secret,

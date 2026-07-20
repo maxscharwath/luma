@@ -47,6 +47,7 @@ const BASE_ARGS: &[&str] = &[
     "--force-window=yes", // create the video window up front
     "--fullscreen",       // fill the Deck screen behind the UI
     "--ontop=no",         // stay BELOW the always-on-top Tauri window
+    "--title=KROMA Player", // stable window title (not the media filename) in alt-tab
     "--no-osc",           // no mpv on-screen controls (KROMA draws its own)
     "--no-input-default-bindings",
     "--no-terminal",
@@ -227,6 +228,10 @@ fn connect(app: &AppHandle) -> Option<UnixStream> {
 /// Subscribe to the observed properties, then forward every IPC event to the
 /// webview until the socket closes (mpv exited).
 fn pump_events(app: &AppHandle, read_half: UnixStream) {
+    // Best-effort focus-stealing prevention for a SYSTEM mpv, which doesn't get
+    // the sidecar-only `--focus-on=never` (see start_mpv): setting it over IPC
+    // just returns an error reply on pre-0.39 builds instead of killing mpv.
+    let _ = write_ipc(app, &json!({ "command": ["set_property", "focus-on", "never"] }));
     for (i, prop) in OBSERVED.iter().enumerate() {
         let _ = write_ipc(app, &json!({ "command": ["observe_property", i + 1, prop] }));
     }
@@ -271,9 +276,28 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
         }
         p
     });
+    // The pinned sidecar (mpv 0.41) understands --focus-on; a PRE-0.39 system mpv
+    // would abort on the unknown option and sink every ladder rung, so only the
+    // bundled binary gets it. Without it the fullscreen mpv window grabs focus the
+    // moment it maps (KROMA launches to a black screen until an alt-tab back), and
+    // a focused fullscreen window outranks the keep-above UI window on KDE.
+    let sidecar_focus_flag = Path::new(binary)
+        .file_name()
+        .is_some_and(|n| n.to_string_lossy().starts_with("kroma-mpv"));
     for cfg in &ladder {
         let _ = std::fs::remove_file(sock);
         let mut command = Command::new(binary);
+        {
+            // Own process group, so shutdown can kill the WHOLE tree: in
+            // extract-and-run mode the spawned pid is the AppImage runtime and the
+            // real mpv is a grandchild that Child::kill alone would orphan (the
+            // player kept running after the app was closed on the Deck).
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+        if sidecar_focus_flag {
+            command.arg("--focus-on=never");
+        }
         command
             // The bundled kroma-mpv is itself an AppImage; we spawn it from INSIDE the
             // KROMA AppImage, where nested FUSE mounting is unreliable (esp. SteamOS).
@@ -296,6 +320,12 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
             .env_remove("LD_LIBRARY_PATH")
             .env_remove("LD_PRELOAD")
             .env_remove("APPDIR")
+            // Keep mpv on XWayland like the UI window (GDK_BACKEND=x11, see main.rs):
+            // the keep-above sandwich and --focus-on=never both rely on X11 WM
+            // semantics. A native-Wayland mpv gets ACTIVATED by the compositor the
+            // moment its fullscreen window maps (a client can't refuse focus on
+            // Wayland), which is exactly the launch black screen the Deck showed.
+            .env_remove("WAYLAND_DISPLAY")
             .args(BASE_ARGS)
             .args(cfg)
             .arg(format!("--input-ipc-server={}", sock.display()));
@@ -319,8 +349,7 @@ fn start_mpv(binary: &str, sock: &Path) -> Result<(Child, UnixStream), &'static 
                 return Ok((child, stream));
             }
             None => {
-                let _ = child.kill();
-                let _ = child.wait();
+                kill_tree(&mut child);
                 eprintln!(
                     "KROMA: mpv could not start [{}]; trying a more compatible video output",
                     cfg.join(" ")
@@ -394,10 +423,25 @@ fn forward(app: &AppHandle, msg: &Value) {
 /// Kill the mpv process (called on app exit; Tauri does not reap children).
 pub fn shutdown(state: &MpvState) {
     if let Some(mut child) = state.child.lock().unwrap().take() {
-        let _ = child.kill();
-        let _ = child.wait();
+        kill_tree(&mut child);
     }
     let _ = std::fs::remove_file(socket_path());
+}
+
+/// Kill mpv and every descendant via its process group ([`start_mpv`] spawns it
+/// as a group leader). SIGTERM first so mpv tears its window/VA-API state down
+/// cleanly, SIGKILL after a short grace for anything still standing.
+fn kill_tree(child: &mut Child) {
+    let pgid = child.id() as libc::pid_t;
+    let _ = unsafe { libc::kill(-pgid, libc::SIGTERM) };
+    for _ in 0..20 {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    let _ = unsafe { libc::kill(-pgid, libc::SIGKILL) };
+    let _ = child.wait();
 }
 
 // ----- commands invoked by the frontend MpvEngine ----------------------------

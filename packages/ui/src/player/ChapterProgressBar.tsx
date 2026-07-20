@@ -149,12 +149,12 @@ export function ChapterProgressBar({
         {/* storyboard preview + timestamp */}
         {previewSec != null ? (
           <div
-            className="pointer-events-none absolute bottom-9 z-[6] flex -translate-x-1/2 flex-col items-center gap-2"
+            className="pointer-events-none absolute bottom-9 z-6 flex -translate-x-1/2 flex-col items-center gap-2"
             style={{ left: `${previewPct}%` }}
           >
             {previewTile ? (
               <div
-                className="relative overflow-hidden rounded-[13px] border-2 border-[rgba(255,255,255,0.3)] bg-black shadow-[0_16px_40px_rgba(0,0,0,0.7)]"
+                className="relative overflow-hidden rounded-lg border-2 border-[rgba(255,255,255,0.3)] bg-black shadow-[0_16px_40px_rgba(0,0,0,0.7)]"
                 style={previewTile as object}
               >
                 <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_35%,transparent,rgba(0,0,0,0.5))]" />

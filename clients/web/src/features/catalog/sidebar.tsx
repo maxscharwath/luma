@@ -96,7 +96,7 @@ function SidebarBody() {
         <UserChip />
         <div className="flex flex-col gap-2 px-2 pt-1">
           <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-[.1em] text-dim">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-dim">
               {t('nav.thisDevice')}
             </span>
             <CapabilityChip />
@@ -285,7 +285,7 @@ function ModuleNavLinks() {
 }
 
 const MENU =
-  'z-50 min-w-[204px] rounded-xl border border-white/[0.10] bg-[#16161C] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.45)]';
+  'z-50 min-w-[204px] rounded-xl border border-white/10 bg-[#16161C] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.45)]';
 
 /** A row inside the account menu. */
 function MenuItem({

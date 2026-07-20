@@ -120,9 +120,26 @@ pub fn candidates(
         bail!("metadata disabled: set KROMA_TMDB_API_KEY");
     };
     let lang = settings::metadata_language(&state.settings, &state.config);
-    let hits = discover::search(&api_key, &lang, subject.scope(), &search_text, 1)
+    // macOS filenames are NFD, so a title parsed from disk carries decomposed
+    // accents (`é` as `e` + U+0301). TMDB's search returns nothing for those (it
+    // even mismatches "Amélie" to an unrelated title), so strip the combining
+    // marks first. This keeps a precomposed `é` and only fixes the decomposed case.
+    let primary = matching::strip_combining(&search_text);
+    let mut hits = discover::search(&api_key, &lang, subject.scope(), &primary, 1)
         .map_err(|()| anyhow::anyhow!("TMDB search failed"))?
         .hits;
+    // Still nothing? TMDB is also picky about apostrophes and leading articles:
+    // "L'Île aux chiens" comes back empty while "ile aux chiens" finds it. Retry
+    // once with the fully folded form (lowercased, de-accented, punctuation and a
+    // leading article dropped) before giving up.
+    if hits.is_empty() {
+        let folded = matching::normalize(&search_text);
+        if !folded.is_empty() && folded != primary {
+            hits = discover::search(&api_key, &lang, subject.scope(), &folded, 1)
+                .map_err(|()| anyhow::anyhow!("TMDB search failed"))?
+                .hits;
+        }
+    }
 
     let scored = rank(&local, hits);
     Ok(MatchCandidates {

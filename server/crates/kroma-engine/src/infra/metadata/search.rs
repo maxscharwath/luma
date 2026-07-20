@@ -67,7 +67,11 @@ fn search_page(
 ) -> Result<Vec<Candidate>, ()> {
     let mut params = vec![
         ("language", language.to_string()),
-        ("query", title.to_string()),
+        // Strip NFD combining marks: macOS filenames decompose accents ("é" as
+        // `e` + U+0301) and TMDB's search returns nothing for them, so an accented
+        // title would never auto-match. Scoring below still uses the raw title
+        // (`matching::normalize` folds it), so precision is unchanged.
+        ("query", matching::strip_combining(title)),
         ("include_adult", "false".to_string()),
     ];
     if let Some(y) = year {

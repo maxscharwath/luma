@@ -50,7 +50,7 @@ function PasskeyRow({
   return (
     <div className="flex items-center justify-between gap-4 px-5.5 py-3.5">
       <div className="flex min-w-0 items-center gap-3.5">
-        <span className="flex size-9.5 flex-none items-center justify-center rounded-[10px] border border-border bg-surface-2 text-success">
+        <span className="flex size-9.5 flex-none items-center justify-center rounded-md border border-border bg-surface-2 text-success">
           <IconKey size={18} stroke={1.7} />
         </span>
         <div className="min-w-0">

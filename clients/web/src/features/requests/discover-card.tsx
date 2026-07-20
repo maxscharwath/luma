@@ -3,7 +3,7 @@
 // Clicks route to the local fiche when owned, else the discover detail.
 
 import { type DiscoverEntry, posterColors, sizedImageUrl } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconPlus, IconStarFilled } from '@tabler/icons-react';
 import { useNavigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
@@ -52,7 +52,7 @@ export function DiscoverCard({ entry, width }: Readonly<{ entry: DiscoverEntry; 
   return (
     <div
       style={{ width: width ?? 'var(--card-w)' }}
-      className="group/card relative block shrink-0 text-left transition-transform duration-200 ease-(--ease-out) hover:-translate-y-1.5"
+      className="group/card relative block shrink-0 text-left transition-transform duration-200 ease-out hover:-translate-y-1.5"
     >
       <button type="button" onClick={open} className="block w-full text-left focus:outline-none">
         <div
@@ -60,13 +60,7 @@ export function DiscoverCard({ entry, width }: Readonly<{ entry: DiscoverEntry; 
           style={{ background: `linear-gradient(158deg, ${c1} 0%, ${c2} 70%)` }}
         >
           {showImg ? (
-            <img
-              src={art ?? ''}
-              alt={entry.title}
-              loading="lazy"
-              onError={() => setImgOk(false)}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            <Image src={art} alt={entry.title} fit="cover" fill onError={() => setImgOk(false)} />
           ) : (
             <div className="absolute inset-0 flex items-end p-3">
               <span className="line-clamp-3 text-[15px] font-bold leading-tight text-white/90">
@@ -76,12 +70,12 @@ export function DiscoverCard({ entry, width }: Readonly<{ entry: DiscoverEntry; 
           )}
 
           {/* top gradient scrim keeps the chips legible over bright art */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/55 to-transparent opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 pointer-coarse:opacity-100" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/55 to-transparent opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 pointer-coarse:opacity-100" />
 
           <div className="absolute left-2 top-2 flex flex-col gap-1.5">{statusChip}</div>
 
           {entry.rating ? (
-            <span className="absolute right-2 top-2 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10.5px] font-bold text-[#F4B642] backdrop-blur-[4px]">
+            <span className="absolute right-2 top-2 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10.5px] font-bold text-[#F4B642] backdrop-blur-xs">
               <IconStarFilled size={9} />
               {entry.rating.toFixed(1)}
             </span>
@@ -90,7 +84,7 @@ export function DiscoverCard({ entry, width }: Readonly<{ entry: DiscoverEntry; 
           {/* hover request hint (visual only; the click opens the detail where the
               real request action lives) */}
           {canRequest ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent pb-3 pt-8 text-[12.5px] font-bold text-white opacity-0 transition-all duration-200 group-hover/card:translate-y-0 group-hover/card:opacity-100 group-focus-within/card:translate-y-0 group-focus-within/card:opacity-100 pointer-coarse:translate-y-0 pointer-coarse:opacity-100">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-center gap-1.5 bg-linear-to-t from-black/75 to-transparent pb-3 pt-8 text-[12.5px] font-bold text-white opacity-0 transition-all duration-200 group-hover/card:translate-y-0 group-hover/card:opacity-100 group-focus-within/card:translate-y-0 group-focus-within/card:opacity-100 pointer-coarse:translate-y-0 pointer-coarse:opacity-100">
               <IconPlus size={14} stroke={2.6} />
               {t('discover.request')}
             </div>

@@ -1,5 +1,5 @@
 import type { CastMember } from '@kroma/core';
-import { useLocale, useT } from '@kroma/ui';
+import { Image, useLocale, useT } from '@kroma/ui';
 import { IconClock, IconPlus, IconVolume, IconVolumeOff } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useClient, useNav } from '#tv/app/router';
@@ -89,12 +89,7 @@ function CastAvatar({
     >
       <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_22%,rgba(255,255,255,0.2),transparent_60%)]" />
       {showImg ? (
-        <img
-          src={photo ?? undefined}
-          alt=""
-          onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <Image src={photo} fit="cover" fill onError={() => setFailed(true)} />
       ) : (
         initials(name)
       )}
@@ -123,7 +118,7 @@ function CheckGlyph() {
 
 /** Shared pill classes for the detail action toggles (active = amber). */
 const detailToggle = (active: boolean) =>
-  `inline-flex cursor-pointer items-center gap-2.75 rounded-[13px] border px-7.5 py-4 font-sans text-[19px] font-semibold transition-transform focus:scale-[1.04] ${
+  `inline-flex cursor-pointer items-center gap-2.75 rounded-lg border px-7.5 py-4 font-sans text-[19px] font-semibold transition-transform focus:scale-[1.04] ${
     active
       ? 'border-[rgba(242,180,66,0.45)] bg-accent-soft text-accent'
       : 'border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.12)] text-text'

@@ -8,7 +8,7 @@
 //  - qwertz : German/Swiss typewriter order.
 
 import type { MessageKey } from '@kroma/core';
-import { devicePref } from '#tv/app/devicePref';
+import { reactivePref } from '#tv/app/settings/store';
 
 export type KeyboardLayoutPref = 'abc' | 'azerty' | 'qwerty' | 'qwertz';
 
@@ -19,16 +19,17 @@ export const ALL_KEYBOARD_LAYOUTS: readonly KeyboardLayoutPref[] = [
   'qwertz',
 ];
 
-const PREF = devicePref('kroma:kbd-layout', ALL_KEYBOARD_LAYOUTS, 'abc');
+/** The reactive store behind the pref (the settings registry binds rows to it). */
+export const keyboardLayoutStore = reactivePref('kroma:kbd-layout', ALL_KEYBOARD_LAYOUTS, 'abc');
 
 /** The saved keyboard layout for this device, or `abc`. */
 export function getKeyboardLayoutPref(): KeyboardLayoutPref {
-  return PREF.get();
+  return keyboardLayoutStore.get();
 }
 
 /** Persist the keyboard layout preference. */
 export function setKeyboardLayoutPref(p: KeyboardLayoutPref): void {
-  PREF.set(p);
+  keyboardLayoutStore.set(p);
 }
 
 /** i18n label key for each layout (rendered in the picker). */

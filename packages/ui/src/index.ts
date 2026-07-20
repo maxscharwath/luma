@@ -12,6 +12,8 @@ export type { ChipProps } from './components/Chip';
 export { Chip } from './components/Chip';
 export type { EmptyStateProps } from './components/EmptyState';
 export { EmptyState } from './components/EmptyState';
+export type { ImageProps } from './components/Image';
+export { Image } from './components/Image';
 export type { KromaIntroProps } from './components/KromaIntro';
 export { KromaIntro } from './components/KromaIntro';
 export type { KromaMarkProps, KromaMarkSpin } from './components/KromaMark';

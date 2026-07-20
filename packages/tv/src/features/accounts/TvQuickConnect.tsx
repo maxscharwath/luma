@@ -137,12 +137,15 @@ export function TvQuickConnect() {
   );
 }
 
-/** Resolve the web `/connect?code=` URL for the QR. */
+/**
+ * Resolve the web `/connect?code=` URL for the QR. The server-advertised URL
+ * wins; otherwise fall back to the API origin, which also serves the web SPA
+ * in production (single-binary installs).
+ */
 function connectUrl(client: KromaClient, code: string, serverUrl?: string | null): string {
   if (serverUrl) return serverUrl;
   try {
     const u = new URL(client.baseUrl);
-    u.port = '3000';
     u.pathname = '/connect';
     u.search = `?code=${code}`;
     return u.toString();

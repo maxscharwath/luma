@@ -222,7 +222,7 @@ function IndexerCard({
         {ix.hasApiKey ? <Pill color="#46D08D">{t('indexers.keySet')}</Pill> : null}
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3.5">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/6 pt-3.5">
         <TestLine ix={ix} test={test} />
         <div className="flex items-center gap-2">
           <button

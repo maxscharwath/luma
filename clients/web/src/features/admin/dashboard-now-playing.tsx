@@ -1,5 +1,5 @@
 import type { PlaybackSession } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconPlayerStopFilled } from '@tabler/icons-react';
 import { useId, useState } from 'react';
 import { Avatar, C, Card, Modal, ProgressBar } from '#web/features/admin/ui';
@@ -31,12 +31,7 @@ function NowPlayingThumb({ s }: Readonly<{ s: PlaybackSession }>) {
       style={{ width: THUMB_W, background: posterGradient(s.title) }}
     >
       {posterFailed ? null : (
-        <img
-          src={poster}
-          alt=""
-          onError={() => setPosterFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <Image src={poster} fit="cover" fill onError={() => setPosterFailed(true)} />
       )}
       {frame ? (
         <div

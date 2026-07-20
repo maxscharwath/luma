@@ -5,7 +5,7 @@
 // imminent stuff pops out of the list.
 
 import { type CalendarEntry, episodeTag, posterColors, sizedImageUrl } from '@kroma/core';
-import { useLocale, useT } from '@kroma/ui';
+import { Image, useLocale, useT } from '@kroma/ui';
 import { IconCalendarClock, IconChecks } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -120,13 +120,13 @@ function CalendarRow({
     <button
       type="button"
       onClick={onOpen}
-      className="group flex items-center gap-4 rounded-2xl border border-border bg-surface-1 p-3 text-left transition-colors hover:border-white/20 hover:bg-white/[0.02]"
+      className="group flex items-center gap-4 rounded-2xl border border-border bg-surface-1 p-3 text-left transition-colors hover:border-white/20 hover:bg-white/2"
     >
       <div
         className="h-[60px] w-[40px] flex-[0_0_40px] overflow-hidden rounded-lg"
         style={{ background: `linear-gradient(158deg, ${c1}, ${c2})` }}
       >
-        {poster ? <img src={poster} alt="" className="h-full w-full object-cover" /> : null}
+        <Image src={poster} fit="cover" fill />
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[15px] font-bold transition-colors group-hover:text-accent">

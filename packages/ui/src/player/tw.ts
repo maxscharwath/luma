@@ -32,4 +32,4 @@ export const EYEBROW =
 
 /** A right-side sliding panel surface (settings / AV drawer). */
 export const PANEL =
-  'absolute inset-y-0 right-0 z-42 flex flex-col overflow-y-auto bg-[rgba(16,16,20,0.94)] backdrop-blur-2xl [animation:kpl-panel-in_0.28s_var(--ease-out)_both]';
+  'absolute inset-y-0 right-0 z-42 flex flex-col overflow-y-auto bg-[rgba(16,16,20,0.94)] backdrop-blur-2xl animate-[kpl-panel-in_0.28s_var(--ease-out)_both]';

@@ -427,7 +427,7 @@ async fn quick_connect_initiate_then_poll_states() {
     assert_eq!(status, StatusCode::OK);
     let secret = init["secret"].as_str().expect("secret").to_string();
     assert!(!init["code"].as_str().unwrap_or_default().is_empty());
-    // No web_url configured in the test config -> no authorize URL for the QR.
+    // No web_url in the test config and no remoteUrl setting -> no authorize URL.
     assert!(init["authorizeUrl"].is_null());
 
     // The freshly-issued code has not been approved yet.
@@ -441,6 +441,25 @@ async fn quick_connect_initiate_then_poll_states() {
         get(&t.app, "/api/auth/quickconnect/poll?secret=nope", None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(poll["status"], json!("expired"));
+}
+
+#[tokio::test]
+async fn quick_connect_initiate_falls_back_to_the_public_url_setting() {
+    let t = test_app();
+    // Without KROMA_WEB_URL, the admin "Remote access" public URL feeds the QR
+    // (trailing slash trimmed) so a tunnel install still gets a scannable link.
+    t.state.settings.set_patch(
+        &t.state.db,
+        [("remoteUrl".to_string(), json!("https://kroma.example.com/"))].into_iter().collect(),
+    );
+
+    let (status, init) = send(&t.app, "POST", "/api/auth/quickconnect/initiate", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let code = init["code"].as_str().expect("code");
+    assert_eq!(
+        init["authorizeUrl"],
+        json!(format!("https://kroma.example.com/connect?code={code}"))
+    );
 }
 
 #[tokio::test]

@@ -6,6 +6,7 @@ import { isAuthed } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
 import { catalogQueries } from '#web/shared/lib/queries';
 import { buildTitleView } from '#web/shared/lib/titleView';
+import { useCatalogLiveRefresh } from '#web/shared/lib/use-live-refresh';
 import { DetailSkeleton } from '#web/shared/ui';
 
 export const Route = createFileRoute('/_app/movie/$id')({
@@ -29,6 +30,8 @@ function MovieDetailPage() {
   const t = useT();
   const { client, user } = useAuth();
   const { id } = Route.useParams();
+  // Re-enrichment (incl. a corrected TMDB match) lands via the event stream.
+  useCatalogLiveRefresh('item', id);
   const { data: item } = useSuspenseQuery(catalogQueries.item(id));
   const { data: movies } = useSuspenseQuery(catalogQueries.movies());
   const { data: embed } = useSuspenseQuery(catalogQueries.similar(id));

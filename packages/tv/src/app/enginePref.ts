@@ -13,23 +13,24 @@
 //  - exo      : force the native media3/ExoPlayer engine (Android TV shell).
 
 import { isTizenRuntime, isWebOsRuntime, type MessageKey } from '@kroma/core';
-import { devicePref } from '#tv/app/devicePref';
+import { reactivePref } from '#tv/app/settings/store';
 import { exoAvailable, mpvAvailable } from '#tv/features/playback/player/engine';
 
 export type EnginePref = 'auto' | 'avplay' | 'webview' | 'remux' | 'mpv' | 'exo';
 
 const ALL: readonly EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo'];
 
-const PREF = devicePref('kroma:engine', ALL, 'auto');
+/** The reactive store behind the pref (the settings registry binds rows to it). */
+export const enginePrefStore = reactivePref('kroma:engine', ALL, 'auto');
 
 /** The saved engine preference for this device, or `auto`. */
 export function getEnginePref(): EnginePref {
-  return PREF.get();
+  return enginePrefStore.get();
 }
 
 /** Persist the engine preference. */
 export function setEnginePref(p: EnginePref): void {
-  PREF.set(p);
+  enginePrefStore.set(p);
 }
 
 /** Engines the user may choose on THIS platform (always starts with `auto`), so the

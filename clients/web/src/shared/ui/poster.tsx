@@ -1,5 +1,5 @@
 import { sizedImageUrl } from '@kroma/core';
-import { useT } from '@kroma/ui';
+import { Image, useT } from '@kroma/ui';
 import { IconCheck } from '@tabler/icons-react';
 import { useState } from 'react';
 
@@ -51,7 +51,7 @@ export function Poster({
   return (
     <div
       style={{ width: width ?? 'var(--card-w)' }}
-      className="group relative block shrink-0 text-left transition-transform duration-200 ease-(--ease-out) hover:-translate-y-1.5"
+      className="group relative block shrink-0 text-left transition-transform duration-200 ease-out hover:-translate-y-1.5"
     >
       <button type="button" onClick={onClick} className="block w-full text-left focus:outline-none">
         <div
@@ -60,17 +60,12 @@ export function Poster({
             group-focus-within:shadow-[0_0_0_3px_var(--kroma-accent),var(--shadow-pop)]"
           style={{ background: gradient }}
         >
-          {showImg ? (
-            <img
-              src={sizedImageUrl(poster, width ?? 208) ?? undefined}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              draggable={false}
-              onError={() => setImgOk(false)}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : null}
+          <Image
+            src={poster ? sizedImageUrl(poster, width ?? 208) : null}
+            fit="cover"
+            fill
+            onError={() => setImgOk(false)}
+          />
           <div className="absolute inset-0 bg-linear-to-b from-black/5 via-transparent to-black/70" />
           <div
             className={`absolute inset-x-3.5 bottom-3.5 ${
@@ -105,7 +100,7 @@ export function Poster({
             ${
               watched
                 ? 'border-accent bg-accent text-black opacity-100'
-                : 'border-white/40 bg-[rgba(10,10,12,.55)] text-white opacity-0 hover:!bg-[rgba(10,10,12,.85)] group-hover:opacity-100 group-focus-within:opacity-100'
+                : 'border-white/40 bg-[rgba(10,10,12,.55)] text-white opacity-0 hover:bg-[rgba(10,10,12,.85)]! group-hover:opacity-100 group-focus-within:opacity-100'
             }`}
         >
           <IconCheck size={15} stroke={3} />

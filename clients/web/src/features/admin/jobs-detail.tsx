@@ -93,7 +93,7 @@ function LogLine({ log }: Readonly<{ log: JobLog }>) {
   return (
     <div className="flex gap-2.5">
       <span className="shrink-0 text-text/35">{clock(log.ts)}</span>
-      <span className="whitespace-pre-wrap break-words" style={{ color }}>
+      <span className="whitespace-pre-wrap wrap-break-word" style={{ color }}>
         {log.message}
       </span>
     </div>

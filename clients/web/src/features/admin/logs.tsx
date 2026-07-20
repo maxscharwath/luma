@@ -135,7 +135,7 @@ function LogLine({ entry }: Readonly<{ entry: LogEntry }>) {
           {entry.source.replace(/^dev\.kroma\./, '')}
         </span>
       ) : null}
-      <span className="min-w-0 break-words text-text/85">
+      <span className="min-w-0 wrap-break-word text-text/85">
         {entry.target ? <span className="text-dim">{entry.target}: </span> : null}
         {entry.message}
       </span>

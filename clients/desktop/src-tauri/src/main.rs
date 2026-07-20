@@ -17,6 +17,10 @@
 #[allow(dead_code)]
 mod mpv;
 
+// Persisted WebKitGTK GPU-rendering opt-in + its crash guard (Deck / Linux).
+#[cfg(target_os = "linux")]
+mod webview_gpu;
+
 // In-process libmpv (macOS, `libmpv` feature): the chosen native engine, rendering into
 // a native NSView behind the webview via `--wid` (verified). See Cargo.toml.
 #[cfg(all(target_os = "macos", feature = "libmpv"))]
@@ -30,12 +34,15 @@ fn prepare_linux_env() {
     // WebKitGTK's DMABUF renderer fails on some GPU/driver combos (verified on the
     // Steam Deck: "Could not create default EGL display: EGL_BAD_PARAMETER" - the
     // web process aborts, so the transparent window renders NOTHING and sits
-    // invisible-but-focused over the desktop). Disable it before WebKitGTK
-    // initializes. Compositing stays on, so window transparency (mpv behind the
-    // webview) is unaffected. An explicit user value is respected.
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    }
+    // invisible-but-focused over the desktop). By default it is disabled before
+    // WebKitGTK initializes; compositing stays on, so window transparency (mpv
+    // behind the webview) is unaffected. Software rendering is the price, so
+    // webview_gpu.rs offers a persisted opt-in back onto the GPU path (profile
+    // menu row, with a crash guard that auto-reverts an invisible boot); an
+    // explicit WEBKIT_DISABLE_DMABUF_RENDERER or KROMA_WEBKIT_DMABUF=1 (WebKit
+    // checks the var's PRESENCE, so exporting "0" cannot re-enable) pins the
+    // choice for one session without touching the stored setting.
+    webview_gpu::apply_env();
     // Disabling DMABUF is not enough on some Wayland stacks (verified on the
     // Steam Deck): WebKitGTK's *native Wayland* backend still can't create an
     // EGL display ("Could not create default EGL display: EGL_BAD_PARAMETER"),
@@ -94,6 +101,29 @@ fn init_libmpv_deferred(app: &tauri::AppHandle) {
     });
 }
 
+/// Quit the whole app from the webview. The shell is a fullscreen window with no
+/// chrome (no close button), so the TV UI offers an explicit "quit" menu row;
+/// exiting through the event loop also runs the Linux mpv teardown.
+#[tauri::command]
+fn app_quit(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+/// Relaunch the app (used after flipping a boot-time setting like the webview
+/// GPU renderer). `restart` re-execs without flowing through `RunEvent::Exit`,
+/// so the mpv teardown must run here first (idempotent with the Exit handler).
+#[tauri::command]
+fn app_relaunch(app: tauri::AppHandle) {
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::Manager;
+        if let Some(state) = app.try_state::<mpv::MpvState>() {
+            mpv::shutdown(state.inner());
+        }
+    }
+    app.restart();
+}
+
 /// Deck: Tauri does not reap child processes; kill the mpv binary on exit.
 #[cfg(target_os = "linux")]
 fn on_run_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
@@ -121,7 +151,12 @@ fn main() {
             .invoke_handler(tauri::generate_handler![
                 mpv::mpv_load,
                 mpv::mpv_command,
-                mpv::mpv_status
+                mpv::mpv_status,
+                webview_gpu::webview_gpu_get,
+                webview_gpu::webview_gpu_set,
+                webview_gpu::webview_boot_ok,
+                app_quit,
+                app_relaunch
             ]);
     }
     #[cfg(all(target_os = "macos", feature = "libmpv"))]
@@ -131,8 +166,15 @@ fn main() {
             .invoke_handler(tauri::generate_handler![
                 libmpv_mac::mpv_load,
                 libmpv_mac::mpv_command,
-                libmpv_mac::set_now_playing
+                libmpv_mac::set_now_playing,
+                app_quit,
+                app_relaunch
             ]);
+    }
+    // Remaining shells (macOS without libmpv, Windows) still need the app commands.
+    #[cfg(not(any(target_os = "linux", all(target_os = "macos", feature = "libmpv"))))]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![app_quit, app_relaunch]);
     }
 
     // Self-update (all desktop OSes): checks the GitHub Release, verifies the
@@ -142,6 +184,17 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build());
 
     builder
+        // Deck: the transparent UI window is always-on-top so the chrome floats over
+        // the mpv plane - but a PERMANENT keep-above makes every other window
+        // unreachable (alt-tab away showed nothing but KROMA). Track focus instead:
+        // keep-above only while KROMA is the active window, so alt-tabbing to Steam
+        // or a terminal actually reveals it.
+        .on_window_event(|_window, _event| {
+            #[cfg(target_os = "linux")]
+            if let tauri::WindowEvent::Focused(focused) = _event {
+                let _ = _window.set_always_on_top(*focused);
+            }
+        })
         .setup(|_app| {
             // Deck: launch the mpv binary behind the transparent UI.
             #[cfg(target_os = "linux")]

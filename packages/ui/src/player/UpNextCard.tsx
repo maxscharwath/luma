@@ -1,3 +1,4 @@
+import { Image } from '../components/Image';
 import { FOCUS_RING } from './tw';
 
 /**
@@ -42,10 +43,6 @@ function placeholderGradient(id: string): string {
 }
 
 export function UpNextCard({ item, focused, onActivate, onFocus }: Readonly<UpNextCardProps>) {
-  const backgroundImage = item.posterUrl
-    ? `url("${item.posterUrl}")`
-    : placeholderGradient(item.id);
-
   return (
     <button
       type="button"
@@ -55,12 +52,10 @@ export function UpNextCard({ item, focused, onActivate, onFocus }: Readonly<UpNe
       data-focused={focused || undefined}
       onClick={onActivate}
       onMouseEnter={onFocus}
-      className={`${UP_NEXT_CARD_W} block cursor-pointer rounded-[14px] border-none bg-transparent p-0 text-left outline-none transition-[transform,box-shadow] duration-[180ms] ease-out ${focused ? FOCUS_RING : ''}`}
+      className={`${UP_NEXT_CARD_W} block cursor-pointer rounded-[14px] border-none bg-transparent p-0 text-left outline-none transition-[transform,box-shadow] duration-180 ease-out ${focused ? FOCUS_RING : ''}`}
     >
-      <div
-        className="relative aspect-[16/9] w-full overflow-hidden rounded-[14px] bg-surface-1 bg-cover bg-center"
-        style={{ backgroundImage }}
-      >
+      <div className="relative aspect-video w-full overflow-hidden rounded-[14px] bg-surface-1">
+        <Image src={item.posterUrl} fit="cover" background={placeholderGradient(item.id)} fill />
         <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_25%,transparent,rgba(0,0,0,0.42))]" />
         {item.durationLabel ? (
           <span className="absolute right-2.5 bottom-2.5 rounded-[7px] bg-[rgba(0,0,0,0.72)] px-[9px] py-[3px] font-sans text-[12px] font-bold tabular-nums text-white">
@@ -73,7 +68,7 @@ export function UpNextCard({ item, focused, onActivate, onFocus }: Readonly<UpNe
           {item.categoryLabel}
         </div>
       ) : null}
-      <div className="mt-1 font-sans text-[17px] font-semibold leading-[1.25] text-text">
+      <div className="mt-1 font-sans text-[17px] font-semibold leading-tight text-text">
         {item.title}
       </div>
       {item.subtitle ? (

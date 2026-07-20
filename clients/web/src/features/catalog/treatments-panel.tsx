@@ -14,6 +14,7 @@ import {
   IconAlertTriangleFilled,
   IconCircle,
   IconCircleCheckFilled,
+  IconFileInfo,
   IconLoader2,
   IconRefresh,
   IconWand,
@@ -21,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { MediaInfoModal } from '#web/features/catalog/media-info-modal';
 import { RematchDialog } from '#web/features/catalog/rematch-dialog';
 import { kromaClient } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
@@ -45,6 +47,7 @@ export function TreatmentsPanel({
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [info, setInfo] = useState(false);
   const admin = !!user && hasPermission(user, 'settings.manage');
   const canFix = !!user && hasPermission(user, 'library.manage');
 
@@ -80,7 +83,7 @@ export function TreatmentsPanel({
 
   return (
     <section className="mt-8 px-6 md:px-16">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-5 py-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-xl border border-white/8 bg-white/3 px-5 py-4">
         <span className="text-[11px] font-bold uppercase tracking-widest text-white/45">
           {t('pipeline.treatments')}
         </span>
@@ -100,6 +103,16 @@ export function TreatmentsPanel({
           );
         })}
         <div className="ml-auto flex items-center gap-2">
+          {admin && kind === 'item' ? (
+            <button
+              type="button"
+              onClick={() => setInfo(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/12 bg-white/8 px-3.5 py-2 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/12"
+            >
+              <IconFileInfo size={15} stroke={2} />
+              {t('mediaInfo.action')}
+            </button>
+          ) : null}
           {canFix ? (
             <button
               type="button"
@@ -134,6 +147,7 @@ export function TreatmentsPanel({
           onApplied={() => setTimeout(() => queryClient.invalidateQueries({ queryKey }), 1500)}
         />
       ) : null}
+      {info ? <MediaInfoModal id={id} title={title} onClose={() => setInfo(false)} /> : null}
     </section>
   );
 }
