@@ -11,9 +11,27 @@ import type { AudioFilterMode } from './types';
  *              whole thing is the QUIETEST, most even mode - for late-night
  *              listening where you never want a peak to wake anyone.
  * Persisted like the subtitle appearance.
+ *
+ * This graph only reaches an in-page media element. The native TV planes apply
+ * the SAME modes with their own DSP (mpv `af`, ExoPlayer DynamicsProcessing,
+ * AVPlay via the server's filtered remux - see packages/tv), all seeded from the
+ * one persisted value below so the choice follows the user across engines.
  */
 
 const KEY = 'kroma.audioFilter';
+
+/** The persisted filter mode (synchronous; `off` without storage/DOM). Native
+ * engines read it at construction so a remembered mode applies from the first
+ * frame, before React state has hydrated. */
+export function storedAudioFilter(): AudioFilterMode {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw === 'standard' || raw === 'night') return raw;
+  } catch {
+    /* ignore */
+  }
+  return 'off';
+}
 
 // One page-wide AudioContext, created on first enable (a user gesture, so it is
 // never born suspended by autoplay policy) and kept for the tab's lifetime.
@@ -39,6 +57,27 @@ interface Graph {
   source: MediaElementAudioSourceNode;
   comp: DynamicsCompressorNode;
   gain: GainNode;
+}
+
+/** DevTools diagnostic handle (`__kromaAudioFilter`), refreshed on every (re)wire.
+ * TVs are hard to debug, and the graph's classic failure is SILENT (suspended
+ * context, CORS-tainted element): attach an AnalyserNode to `graph.gain` and
+ * check `ctx.state` to tell "filter working" from "filter muting everything". */
+interface FilterDebugHandle {
+  ctx: AudioContext;
+  graph: Graph;
+  mode: AudioFilterMode;
+}
+
+/** DEV only: `graph.source` is a MediaElementAudioSourceNode, so this handle
+ * hard-references the <video>. Shipping it would pin a detached element (and
+ * its decoder buffers) on a TV with very little RAM, defeating the WeakMap
+ * below. Debugging a retail set is done from a dev build. */
+function publishDebugHandle(handle: FilterDebugHandle): void {
+  // Cast rather than `vite/client` types: @kroma/ui is also consumed outside a
+  // Vite build (module SDK, admin-kit), where `import.meta.env` is undefined.
+  if (!(import.meta as { env?: { DEV?: boolean } }).env?.DEV) return;
+  (globalThis as { __kromaAudioFilter?: FilterDebugHandle }).__kromaAudioFilter = handle;
 }
 
 // `createMediaElementSource` is once-per-element for the element's LIFETIME (a
@@ -97,6 +136,7 @@ function wire(el: HTMLMediaElement, mode: AudioFilterMode): void {
     configure(g, mode);
     g.source.connect(g.comp);
   }
+  publishDebugHandle({ ctx, graph: g, mode });
 }
 
 /**
@@ -112,12 +152,7 @@ export function useAudioFilter(
 
   useEffect(() => {
     setSupported(typeof AudioContext !== 'undefined');
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw === 'standard' || raw === 'night') setModeState(raw);
-    } catch {
-      /* ignore */
-    }
+    setModeState(storedAudioFilter());
   }, []);
 
   // Re-wire on mode change AND on <video> remount (fresh element, fresh graph).

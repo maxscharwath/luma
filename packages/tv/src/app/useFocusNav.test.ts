@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EnvProvider } from '#tv/app/providers/env';
 import { useFocusNav } from '#tv/app/useFocusNav';
 
 // jsdom returns a zero rect for every element and doesn't implement
@@ -147,23 +145,13 @@ describe('useFocusNav text-field handling', () => {
 });
 
 describe('useFocusNav pointer environment', () => {
-  const wrap =
-    (pointer: boolean) =>
-    ({ children }: { children: ReactNode }) =>
-      createElement(EnvProvider, { platform: 'Desktop', overrides: { pointer }, children });
-
-  it('with a pointer, hovering a focusable moves the ring to it', () => {
+  // Hover-focus was removed on request: the ring moves on D-pad/arrows only,
+  // a mouse interacts by clicking. The hook no longer reads the input
+  // environment at all, so hover never moves focus, pointer or not.
+  it('hover does not change focus', () => {
     const { a, b } = grid2x2();
     a.focus();
-    renderHook(() => useFocusNav({}), { wrapper: wrap(true) });
-    act(() => b.dispatchEvent(new Event('pointerover', { bubbles: true })));
-    expect(document.activeElement?.id).toBe('b');
-  });
-
-  it('without a pointer, hover does not change focus', () => {
-    const { a, b } = grid2x2();
-    a.focus();
-    renderHook(() => useFocusNav({}), { wrapper: wrap(false) });
+    renderHook(() => useFocusNav({}));
     act(() => b.dispatchEvent(new Event('pointerover', { bubbles: true })));
     expect(document.activeElement?.id).toBe('a');
   });

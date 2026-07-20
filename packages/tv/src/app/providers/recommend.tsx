@@ -1,4 +1,4 @@
-import type { Section } from '@kroma/core';
+import type { Section, SectionItem } from '@kroma/core';
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
@@ -8,6 +8,10 @@ interface Recommend {
    * you watched …", themed/seasonal rows, trending, recently added). Empty until
    * `/api/home` resolves; the server already drops thin rows and localizes titles. */
   sections: Section[];
+  /** Today's server-picked "En vedette" hero (multi-signal score + daily
+   * rotation). Null until `/api/home/featured` resolves, on an empty catalogue
+   * or against an older server the home keeps its local fallback. */
+  featured: SectionItem | null;
 }
 
 const Ctx = createContext<Recommend | null>(null);
@@ -21,10 +25,12 @@ export function RecommendProvider({ children }: Readonly<{ children: ReactNode }
   const { user } = useAuth();
   const { client } = useConnection();
   const [sections, setSections] = useState<Section[]>([]);
+  const [featured, setFeatured] = useState<SectionItem | null>(null);
 
   useEffect(() => {
     if (!user || !client) {
       setSections([]);
+      setFeatured(null);
       return;
     }
     let cancelled = false;
@@ -34,12 +40,18 @@ export function RecommendProvider({ children }: Readonly<{ children: ReactNode }
         if (!cancelled) setSections(s);
       })
       .catch(() => undefined);
+    client
+      .featured()
+      .then((f) => {
+        if (!cancelled) setFeatured(f);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [user, client]);
 
-  const value = useMemo<Recommend>(() => ({ sections }), [sections]);
+  const value = useMemo<Recommend>(() => ({ sections, featured }), [sections, featured]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

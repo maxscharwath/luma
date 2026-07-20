@@ -44,12 +44,18 @@ interface HeroInfo {
   heroBadge: string | null;
 }
 
-/** The featured spotlight: the first entry of the top server section (For You),
- * falling back to the most prominent catalog movie so the hero is never empty,
- * plus its resolved backdrop art and quality badge. */
-function computeHero(sections: Section[], movies: MediaItem[], client: KromaClient): HeroInfo {
+/** The featured spotlight: the server's daily multi-signal pick
+ * (`/api/home/featured`), falling back to the first entry of the top server
+ * section, then to the first catalog movie so the hero is never empty, plus its
+ * resolved backdrop art and quality badge. */
+function computeHero(
+  featured: SectionItem | null,
+  sections: Section[],
+  movies: MediaItem[],
+  client: KromaClient,
+): HeroInfo {
   const hero: SectionItem | null =
-    sections[0]?.items[0] ?? (movies[0] ? { type: 'movie', item: movies[0] } : null);
+    featured ?? sections[0]?.items[0] ?? (movies[0] ? { type: 'movie', item: movies[0] } : null);
   const heroId = hero ? entryId(hero) : null;
   const heroMeta = hero ? entryMetadata(hero) : null;
   let heroBackdrop: string | null = null;
@@ -73,7 +79,7 @@ function computeHero(sections: Section[], movies: MediaItem[], client: KromaClie
 export function TvHome() {
   const { movies, shows } = useConnection();
   const { items: continueItems, refresh: refreshContinue } = useContinue();
-  const { sections } = useRecommend();
+  const { sections, featured } = useRecommend();
   const { has: isWatched, refresh: refreshWatched } = useWatched();
   const { refresh: refreshMyList } = useMyList();
   const { go } = useNav();
@@ -142,7 +148,12 @@ export function TvHome() {
   );
 
   // Featured spotlight (hero) + its backdrop art and quality badge, computed once.
-  const { hero, heroId, heroMeta, heroBackdrop, heroBadge } = computeHero(sections, movies, client);
+  const { hero, heroId, heroMeta, heroBackdrop, heroBadge } = computeHero(
+    featured,
+    sections,
+    movies,
+    client,
+  );
 
   const rows = useMemo<Row[]>(() => {
     const continueRow: Row | null = continueItems.length
@@ -171,14 +182,14 @@ export function TvHome() {
           }),
         }
       : null;
-    // One rail per server section, in the server's order. The top section is
-    // "For You"; its first entry is the hero, so drop it there to avoid showing
-    // it twice (the server already de-dupes across the other rows).
-    const sectionRows = sections.map((section, i) =>
+    // One rail per server section, in the server's order. The hero is picked
+    // independently of the sections, so drop it from every row to avoid showing
+    // the same title twice (the server already de-dupes rows against each other).
+    const sectionRows = sections.map((section) =>
       mediaRow(
         section.id,
         section.title,
-        i === 0 && heroId ? section.items.filter((e) => entryId(e) !== heroId) : section.items,
+        heroId ? section.items.filter((e) => entryId(e) !== heroId) : section.items,
       ),
     );
     const showRow: Row | null = shows.length

@@ -6,7 +6,7 @@ import { Hero, ShowRail } from '#web/features/catalog/cards';
 import { ContinueRow } from '#web/features/catalog/continue-row';
 import { HomeSections } from '#web/features/catalog/home-sections';
 import { isAuthed } from '#web/shared/lib/api';
-import { catalogQueries } from '#web/shared/lib/queries';
+import { catalogQueries, type HeroEntry } from '#web/shared/lib/queries';
 import { EmptyState, PAGE_MAIN, PageSkeleton } from '#web/shared/ui';
 
 export const Route = createFileRoute('/_app/')({
@@ -18,6 +18,7 @@ export const Route = createFileRoute('/_app/')({
     await Promise.all([
       queryClient.ensureQueryData(catalogQueries.moviesView()),
       queryClient.ensureQueryData(catalogQueries.showsView()),
+      queryClient.ensureQueryData(catalogQueries.featured()),
     ]);
   },
   pendingComponent: () => <PageSkeleton rails={3} />,
@@ -28,6 +29,13 @@ function HomePage() {
   const t = useT();
   const { data: movies } = useSuspenseQuery(catalogQueries.moviesView());
   const { data: shows } = useSuspenseQuery(catalogQueries.showsView());
+  const { data: featured } = useSuspenseQuery(catalogQueries.featured());
+  // The server's daily multi-signal pick; first movie as the last-resort
+  // fallback (empty pick only happens on an empty catalogue / old server).
+  const hero: HeroEntry | null =
+    featured ?? (movies[0] ? { type: 'movie', movie: movies[0] } : null);
+  let heroId: string | null = null;
+  if (hero) heroId = hero.type === 'movie' ? hero.movie.id : hero.show.id;
   if (movies.length === 0 && shows.length === 0) {
     return (
       <main className={PAGE_MAIN}>
@@ -41,9 +49,9 @@ function HomePage() {
   }
   return (
     <main className="min-w-0 px-(--gutter-web) pb-20 pt-9">
-      {movies[0] ? <Hero movie={movies[0]} /> : null}
+      {hero ? <Hero entry={hero} /> : null}
       <ContinueRow />
-      <HomeSections />
+      <HomeSections excludeId={heroId} />
       <ShowRail title={t('nav.series')} shows={shows} />
     </main>
   );

@@ -14,7 +14,13 @@ import {
   resolveAudioRelativeIndex,
   selectEngine,
 } from '@kroma/core';
-import { type PlaneRect, usePlaybackHeartbeat, useT } from '@kroma/ui';
+import {
+  type AudioFilterMode,
+  type PlaneRect,
+  storedAudioFilter,
+  usePlaybackHeartbeat,
+  useT,
+} from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type EnginePref,
@@ -52,6 +58,15 @@ export interface Playback {
   setEngine: (p: EnginePref) => void;
   /** Resize the native video plane to a fraction-rect (or `null` = fullscreen). */
   setPlaneRect: (rect: PlaneRect | null) => void;
+  /** Apply the audio filter / volume normalizer (§7) to the native engine (mpv /
+   * ExoPlayer in place, AVPlay via the server's filtered remux). No-op on the
+   * HTML engine - its in-page `<video>` is handled by the Web Audio graph. */
+  setAudioFilter: (mode: AudioFilterMode) => void;
+  /** Whether {@link setAudioFilter} actually reaches a DSP on this device, so
+   * the chrome can hide the row rather than show a mode that does nothing
+   * (API < 28 or audio passthrough on Android, a failed filtered remux on
+   * AVPlay). Meaningless on the HTML engine, which uses Web Audio instead. */
+  audioFilterSupported: boolean;
   verdict: DirectPlayVerdict | null;
   /** Codec/stream load failure, as an i18n key translated at the render site. */
   error: MessageKey | null;
@@ -278,6 +293,7 @@ function createTvEngine(args: {
   avplayDirect: boolean;
   direct: boolean;
   masterAac: boolean;
+  audioFilter: AudioFilterMode;
   forceNativeHls: boolean | undefined;
   video: HTMLVideoElement | null;
   listeners: EngineListeners;
@@ -293,6 +309,7 @@ function createTvEngine(args: {
     avplayDirect,
     direct,
     masterAac: aacMaster,
+    audioFilter,
     forceNativeHls,
     video,
     listeners,
@@ -307,6 +324,7 @@ function createTvEngine(args: {
       initialRendition: rendition,
       startSec,
       direct: true,
+      audioFilter,
       listeners,
     });
     engine.start(); // async subscribe/open kept out of the constructor
@@ -322,6 +340,7 @@ function createTvEngine(args: {
       initialRendition: rendition,
       startSec,
       direct: exoDirect,
+      audioFilter,
       listeners,
     });
   }
@@ -333,6 +352,7 @@ function createTvEngine(args: {
       initialRendition: rendition,
       startSec,
       direct: avplayDirect,
+      audioFilter,
       listeners,
     });
   }
@@ -380,6 +400,10 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(true);
   const [ready, setReady] = useState(false);
+  // Optimistic: a native plane is assumed to have DSP until its engine says
+  // otherwise (the Android bridge only learns on the first real attempt, and
+  // AVPlay only when the server's filtered remux fails).
+  const [audioFilterSupported, setAudioFilterSupported] = useState(true);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(item.durationMs ? item.durationMs / 1000 : 0);
   const [bufEnd, setBufEnd] = useState(0);
@@ -492,6 +516,7 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
       onPlaying: () => setWaiting(false),
       onEnded: () => setEndedNonce((n) => n + 1),
       onError: () => setError(failKey),
+      onAudioFilterUnavailable: () => setAudioFilterSupported(false),
       onReady: () => {
         setReady(true);
         // Ready-gated, resilient autoplay: retry until playback actually starts,
@@ -511,12 +536,19 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
       avplayDirect,
       direct,
       masterAac,
+      // Persisted mode, read at build time so a remembered filter is active from
+      // the first frame (AVPlay even picks its source from it); later changes
+      // arrive in place through setAudioFilter.
+      audioFilter: storedAudioFilter(),
       forceNativeHls: env.nativeHls,
       video: videoRef.current,
       listeners,
     });
     if (!engine) return; // <video> surface not mounted yet; rebuild next render
     engineRef.current = engine;
+    // Seed from whatever the backend can answer upfront (the Android bridge
+    // knows its API level immediately); the rest arrives via the listener.
+    setAudioFilterSupported(engine.audioFilterSupported?.() ?? true);
     return () => {
       engineRef.current = null;
       engine.destroy();
@@ -570,6 +602,11 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   // the <video> instead).
   const setPlaneRect = useCallback((rect: PlaneRect | null) => {
     engineRef.current?.setRect?.(rect);
+  }, []);
+  // Push an audio-filter change into the engine (native planes only implement
+  // it; the HTML engine leaves it to the Web Audio graph, so this is a no-op).
+  const setAudioFilter = useCallback((mode: AudioFilterMode) => {
+    engineRef.current?.setAudioFilter?.(mode);
   }, []);
   const runtime = useCallback(() => engineRef.current?.duration() || durationSec, [durationSec]);
 
@@ -674,6 +711,8 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
     enginePref,
     setEngine,
     setPlaneRect,
+    setAudioFilter,
+    audioFilterSupported,
     verdict: playVerdict,
     error,
     terminated,

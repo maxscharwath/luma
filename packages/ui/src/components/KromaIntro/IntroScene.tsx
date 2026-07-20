@@ -1,4 +1,6 @@
-import { EMBERS, GRAIN, WORDMARK } from './constants';
+import { KROMA_WHEEL_COLORS, KROMA_WHEEL_SEGMENTS } from '../KromaMark';
+import { KROMA_KR_PATH, KROMA_LOCKUP, KROMA_MA_PATH } from '../kromaLockupPaths';
+import { EMBERS, GRAIN } from './constants';
 
 export interface IntroSceneProps {
   /** React key bump restarts every CSS animation from frame 0 on replay. */
@@ -9,14 +11,22 @@ export interface IntroSceneProps {
   tagline: string;
 }
 
+/** Lockup height on screen (vmin); the wheel-O spans the full height. */
+const LOCKUP_VMIN = 16;
+/** vmin per export unit (the lockup frame is 100 units tall). */
+const SCALE = LOCKUP_VMIN / KROMA_LOCKUP.height;
+
 /**
- * The animated visual layers of the intro (glow → aperture mark → impact flash +
- * scale punch → wordmark + sheen → tagline, plus embers / vignette / grain).
+ * The animated visual layers of the intro: the official lockup with its
+ * wheel-O as the mark (glow → segments ignite while the wheel spins into
+ * place → hub-glow pulse → impact flash + shockwave + scale punch → the
+ * outlined KR / MA letterforms reveal → tagline, plus embers / vignette /
+ * grain). Everything is SVG outlines from the brand export, no webfont.
  * Pure presentation: it owns no timers or audio the parent {@link KromaIntro}
  * mounts it only once the synced timeline has started.
  *
  * `lite` keeps everything on the compositor (opacity + transform), drops the
- * blur/blend/sheen raster, and shrinks the big layers.
+ * blur/blend raster, and shrinks the big layers.
  */
 export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<IntroSceneProps>) {
   const glowBlur = lite ? 11 : 18;
@@ -27,10 +37,7 @@ export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<Intro
   const lockupAnim = lite
     ? 'kroma-punch .55s cubic-bezier(.34,1.56,.64,1) 1.27s both'
     : 'kroma-punch .55s cubic-bezier(.34,1.56,.64,1) 1.27s both, kroma-flicker 6s ease-in-out 2s infinite';
-  const ringShadow = lite ? undefined : 'drop-shadow(0 0 7px rgba(242,180,66,.7))';
-  const dotAnim = lite
-    ? 'kroma-dotIgniteLite .7s cubic-bezier(.22,1,.36,1) .95s both'
-    : 'kroma-dotIgnite .7s cubic-bezier(.22,1,.36,1) .95s both';
+  const hubAnim = 'kroma-hubPulse .8s cubic-bezier(.22,1,.36,1) .95s both';
   const wordAnim = lite
     ? 'kroma-wordRevealLite .75s cubic-bezier(.2,.9,.25,1) 1.27s both'
     : 'kroma-wordReveal .75s cubic-bezier(.2,.9,.25,1) 1.27s both';
@@ -110,125 +117,87 @@ export function IntroScene({ runId, lite, showTagline, tagline }: Readonly<Intro
           backfaceVisibility: 'hidden',
         }}
       >
-        {/* aperture mark */}
-        <div
-          style={{
-            position: 'relative',
-            width: '23vmin',
-            height: '23vmin',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              width: '62%',
-              height: '62%',
-              borderRadius: '50%',
-              border: '2px solid rgba(242,180,66,.6)',
-              animation: 'kroma-shock 1.1s ease-out 1.27s both',
-            }}
-          />
+        {/* the official lockup: KR + the wheel-O (the animated mark) + MA.
+            Segments ignite clockwise while the wheel spins into place, landing
+            on the 1.27s bass hit; the letterforms reveal on the same hit. */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <svg
             aria-hidden="true"
-            viewBox="0 0 100 100"
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              transform: 'rotate(-90deg)',
-              overflow: 'visible',
-            }}
+            width={`${KROMA_LOCKUP.krWidth * SCALE}vmin`}
+            height={`${LOCKUP_VMIN}vmin`}
+            viewBox={`0 0 ${KROMA_LOCKUP.krWidth} ${KROMA_LOCKUP.height}`}
+            style={{ animation: wordAnim, willChange: 'transform,opacity' }}
           >
-            <circle
-              cx="50"
-              cy="50"
-              r="42"
-              fill="none"
-              stroke="#F4B642"
-              strokeWidth="3.4"
-              strokeLinecap="round"
-              strokeDasharray="264"
-              style={{
-                animation:
-                  'kroma-ringDraw .9s cubic-bezier(.6,0,.2,1) .4s both, kroma-ringFade .3s ease .4s both',
-                filter: ringShadow,
-              }}
-            />
+            <path d={KROMA_KR_PATH} fill="#F4F3F0" />
           </svg>
+
           <div
             style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              animation:
-                'kroma-orbit 1s cubic-bezier(.6,0,.2,1) .4s both, kroma-glintFade .7s ease 1s both',
+              position: 'relative',
+              width: `${LOCKUP_VMIN}vmin`,
+              height: `${LOCKUP_VMIN}vmin`,
+              margin: `0 ${KROMA_LOCKUP.gapRight * SCALE}vmin 0 ${KROMA_LOCKUP.gapLeft * SCALE}vmin`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             <div
               style={{
                 position: 'absolute',
-                top: '4%',
-                left: '50%',
-                width: '7%',
-                height: '7%',
+                width: '70%',
+                height: '70%',
                 borderRadius: '50%',
-                background: '#FFE7A8',
-                transform: 'translateX(-50%)',
-                filter: 'blur(2px)',
-                boxShadow: '0 0 12px 4px rgba(255,210,98,.9)',
+                border: '2px solid rgba(242,180,66,.6)',
+                animation: 'kroma-shock 1.1s ease-out 1.27s both',
               }}
             />
-          </div>
-          <div
-            style={{
-              position: 'absolute',
-              width: '16%',
-              height: '16%',
-              borderRadius: '50%',
-              background: '#F4B642',
-              boxShadow: '0 0 20px 6px rgba(242,180,66,.85), 0 0 40px 12px rgba(242,180,66,.35)',
-              animation: dotAnim,
-            }}
-          />
-        </div>
-
-        {/* wordmark */}
-        <div style={{ position: 'relative', lineHeight: 1 }}>
-          <div style={{ ...WORDMARK, color: '#F4F3F0' }}>
-            <span
-              style={{
-                display: 'inline-block',
-                animation: wordAnim,
-                textShadow: lite ? '0 0 14px rgba(242,180,66,.28)' : undefined,
-                willChange: 'transform,opacity',
-              }}
-            >
-              KROMA
-            </span>
-          </div>
-          {/* metal sheen repaints clipped text each frame, so high-fidelity only */}
-          {lite ? null : (
+            {/* hub glow synced to the .95s beat (the old dot-ignite moment) */}
             <div
               style={{
-                ...WORDMARK,
                 position: 'absolute',
-                inset: 0,
-                color: 'transparent',
+                width: '40%',
+                height: '40%',
+                borderRadius: '50%',
                 background:
-                  'linear-gradient(100deg,transparent 32%,rgba(255,255,255,.92) 50%,transparent 68%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                backgroundSize: '300% 100%',
-                animation: 'kroma-sheen .85s ease 2.05s both',
-                pointerEvents: 'none',
+                  'radial-gradient(circle, rgba(255,231,168,.9), rgba(242,180,66,.35) 55%, transparent 75%)',
+                animation: hubAnim,
+              }}
+            />
+            {/* spin on the <svg> itself, not an inner group: transform-box is
+                missing on old TV webviews, and the wheel is centred in its viewBox */}
+            <svg
+              aria-hidden="true"
+              viewBox="6 6 88 88"
+              style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                animation:
+                  'kroma-wheelSpin .87s cubic-bezier(.6,0,.2,1) .4s both, kroma-wheelIdle 9s linear 1.27s infinite',
+                willChange: 'transform',
               }}
             >
-              KROMA
-            </div>
-          )}
+              {KROMA_WHEEL_SEGMENTS.map((d, i) => (
+                <path
+                  key={d}
+                  d={d}
+                  fill={KROMA_WHEEL_COLORS[i]}
+                  style={{ animation: `kroma-segIn .3s ease ${0.4 + i * 0.1}s both` }}
+                />
+              ))}
+            </svg>
+          </div>
+
+          <svg
+            aria-hidden="true"
+            width={`${KROMA_LOCKUP.maWidth * SCALE}vmin`}
+            height={`${LOCKUP_VMIN}vmin`}
+            viewBox={`${KROMA_LOCKUP.maX} 0 ${KROMA_LOCKUP.maWidth} ${KROMA_LOCKUP.height}`}
+            style={{ animation: wordAnim, willChange: 'transform,opacity' }}
+          >
+            <path d={KROMA_MA_PATH} fill="#F4F3F0" />
+          </svg>
         </div>
 
         {/* tagline */}

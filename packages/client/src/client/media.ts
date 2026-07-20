@@ -9,6 +9,7 @@ import type {
   PersonResponse,
   SearchResponse,
   Section,
+  SectionItem,
   Show,
   ShowDetail,
 } from '../types';
@@ -64,6 +65,14 @@ export function themed(ctx: RequestContext, query: string): Promise<MediaItem[]>
  * added) already localized + de-duplicated. Clients render it generically. */
 export function home(ctx: RequestContext): Promise<Section[]> {
   return ctx.json<Section[]>('/home');
+}
+
+/** Today's "En vedette" hero for the caller (Bearer): one movie or show picked
+ * server-side by a multi-signal score (taste, rating, freshness, trending,
+ * 4K/HDR) with a deterministic daily rotation. `null` only when the catalogue
+ * is empty clients keep a local fallback for that case. */
+export function featured(ctx: RequestContext): Promise<SectionItem | null> {
+  return ctx.json<SectionItem | null>('/home/featured');
 }
 
 /** AI-curated suggestions for one title's detail page ("Suggestions IA"), Bearer.
@@ -127,6 +136,12 @@ export function streamUrl(ctx: RequestContext, id: string): string {
   return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/stream`;
 }
 
+/** Server-side loudness-filter variant of the HLS master (night-mode volume
+ * leveling for engines with no local audio DSP, e.g. Tizen AVPlay). The names
+ * match the client Web Audio compressor modes; either one forces the AAC
+ * transcode (a stream copy cannot be filtered), superseding `aac`. */
+export type HlsAudioFilter = 'standard' | 'night';
+
 /** HLS *master* playlist for one continuous remux: the video once plus EVERY
  * audio track as an alternate rendition (one per `item.audioTracks` entry, so
  * rendition T maps to audio-relative index T), so language switches happen IN
@@ -143,17 +158,22 @@ export function hlsMasterUrl(
   aac = false,
   startSec = 0,
   audio = 0,
+  filter?: HlsAudioFilter,
 ): string {
-  // One muxed program per (item, mode, ANCHOR, AUDIO). The anchor (input `-ss`)
+  // One muxed program per (item, MODE, ANCHOR, AUDIO). The anchor (input `-ss`)
   // and the audio-relative track index are both in the PATH, so each seek
   // position and each language gets its own session with its own child URLs - no
   // collision, no stale-cache replay. The chosen audio is MUXED into the stream
   // (hls.js alternate-audio switching was unreliable), so language switch reloads
-  // with a different `audio`. hls.js reports time relative to the anchor; the
-  // client adds it back via the X-Hls-Start header.
+  // with a different `audio`. The loudness filter is part of the mode segment for
+  // the same reason (filtered and clean segments must never share URLs). hls.js
+  // reports time relative to the anchor; the client adds it back via the
+  // X-Hls-Start header.
   const anchor = Math.max(0, Math.round(startSec));
   const a = Math.max(0, Math.round(audio));
-  return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${aac ? 'aac' : 'copy'}/${anchor}/${a}/index.m3u8`;
+  const clean = aac ? 'aac' : 'copy';
+  const mode = filter ? `aac-${filter}` : clean;
+  return `${ctx.baseUrl}/api/items/${encodeURIComponent(id)}/hls/${mode}/${anchor}/${a}/index.m3u8`;
 }
 
 /** Generated SVG poster URL for a movie/episode. */

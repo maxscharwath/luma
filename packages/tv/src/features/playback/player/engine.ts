@@ -1,4 +1,4 @@
-import type { PlaneRect } from '@kroma/ui';
+import type { AudioFilterMode, PlaneRect } from '@kroma/ui';
 
 // A thin playback-engine abstraction for the TV player so the same hook/UI can
 // drive either a plain HTML `<video>` (+ hls.js) or Samsung's native AVPlay.
@@ -21,6 +21,11 @@ export interface EngineListeners {
   onError(): void;
   /** Metadata/decoder ready: safe to apply a resume seek and start playback. */
   onReady(): void;
+  /** The audio filter turned out to be undeliverable on this surface (the
+   * device has no DSP, audio is passed through untouched, or the server's
+   * filtered remux failed). The chrome hides the row instead of showing a mode
+   * that is doing nothing. */
+  onAudioFilterUnavailable?(): void;
 }
 
 /** The uniform surface the hook + UI talk to, regardless of backend. */
@@ -44,6 +49,16 @@ export interface TvEngine {
    *  (AVPlay / mpv / ExoPlayer) implement it; the HTML `<video>` engine omits it
    *  (the chrome CSS-transforms its element instead). */
   setRect?(rect: PlaneRect | null): void;
+  /** Apply the shared audio filter / volume normalizer (§7) in place. Only the
+   *  native engines implement it, each with its own DSP (mpv `af` chain,
+   *  ExoPlayer DynamicsProcessing, AVPlay via the server's filtered remux); the
+   *  HTML `<video>` engine omits it (the chrome's Web Audio graph taps its
+   *  in-page element instead). */
+  setAudioFilter?(mode: AudioFilterMode): void;
+  /** Whether {@link setAudioFilter} actually reaches a DSP on this device.
+   *  A backend that cannot know upfront answers optimistically and corrects
+   *  itself later through `onAudioFilterUnavailable`. */
+  audioFilterSupported?(): boolean;
   destroy(): void;
 }
 
@@ -148,8 +163,15 @@ export function mpvAvailable(): boolean {
 export interface ExoShellBridge {
   /** Load a URL (replaces the current item). `master` hints HLS vs progressive. */
   load(url: string, startSec: number, master: boolean): void;
-  /** JSON command: `{op: 'play'|'pause'|'seek'|'audio'|'stop', value?: number}`. */
+  /** JSON command:
+   *  `{op: 'play'|'pause'|'seek'|'audio'|'filter'|'stop'|'rect', value?: number}`
+   *  (`filter` value: 0 = off, 1 = standard, 2 = night). */
   command(json: string): void;
+  /** Whether a DynamicsProcessing effect can actually be attached right now
+   *  (false on API < 28, on audio passthrough, or once construction has
+   *  thrown). Optional: an older installed APK does not expose it, and there
+   *  the old assume-supported behaviour stands. */
+  audioFilterSupported?(): boolean;
 }
 
 /** The injected ExoPlayer bridge when running inside the Android TV shell, else null. */

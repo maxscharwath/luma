@@ -17,7 +17,14 @@ use crate::model::Permission;
 #[tokio::test]
 async fn content_routes_reject_anonymous_callers() {
     let t = test_app();
-    for uri in ["/api/movies", "/api/shows", "/api/libraries", "/api/home", "/api/search?q=x"] {
+    for uri in [
+        "/api/movies",
+        "/api/shows",
+        "/api/libraries",
+        "/api/home",
+        "/api/home/featured",
+        "/api/search?q=x",
+    ] {
         let (status, _) = get(&t.app, uri, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{uri} should require a session");
     }
@@ -155,6 +162,20 @@ async fn home_returns_an_ordered_section_list() {
     let (status, body) = get(&t.app, "/api/home", Some(&t.token)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.is_array(), "home is a Section[]");
+}
+
+#[tokio::test]
+async fn featured_returns_one_tagged_entry_from_the_demo_catalogue() {
+    let t = test_app();
+    let (status, body) = get(&t.app, "/api/home/featured", Some(&t.token)).await;
+    assert_eq!(status, StatusCode::OK);
+    // The demo catalogue is non-empty, so the hero must resolve to a type-tagged
+    // movie or show entry (the same union shape Section items use).
+    let tag = body["type"].as_str().expect("a SectionItem");
+    assert!(tag == "movie" || tag == "show", "unexpected tag {tag}");
+    // Stable within the same request day: two calls agree.
+    let (_, again) = get(&t.app, "/api/home/featured", Some(&t.token)).await;
+    assert_eq!(body, again);
 }
 
 #[tokio::test]

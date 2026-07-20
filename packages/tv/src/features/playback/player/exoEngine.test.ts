@@ -242,3 +242,26 @@ describe('ExoEngine transport', () => {
     expect(x.cmds()).toContainEqual({ op: 'rect' });
   });
 });
+
+describe('ExoEngine audio filter', () => {
+  it('ready re-asserts the level, off included (the player outlives engines)', () => {
+    const { x } = make({ direct: true });
+    emit({ t: 'ready' });
+    expect(x.cmds()).toContainEqual({ op: 'filter', value: 0 });
+  });
+
+  it('a persisted mode is pushed to the bridge on ready', () => {
+    const { x } = make({ direct: true, audioFilter: 'night' });
+    emit({ t: 'ready' });
+    expect(x.cmds()).toContainEqual({ op: 'filter', value: 2 });
+  });
+
+  it('setAudioFilter sends the level in place and dedupes repeats', () => {
+    const { e, x } = make({ direct: true });
+    e.setAudioFilter('standard');
+    expect(x.cmds()).toContainEqual({ op: 'filter', value: 1 });
+    const count = x.cmds().length;
+    e.setAudioFilter('standard');
+    expect(x.cmds()).toHaveLength(count);
+  });
+});

@@ -5,6 +5,18 @@ import type { CSSProperties } from 'react';
 
 export const DEFAULT_AUDIO = new URL('../../assets/kroma-intro.mp3', import.meta.url).href;
 
+// The cinematic intro film (chromatic light tunnel landing on the lockup):
+// 4K60 HEVC only, fitting for an HEVC-first product. Platforms without an HEVC
+// decoder (e.g. Firefox, software-only Chrome) fall back to the CSS scene via
+// the play()-rejection path. Timings are read from the video's own metadata,
+// so a re-encoded master is a drop-in file swap (keep `-movflags +faststart`).
+export const VIDEO_SOURCES = [
+  {
+    src: new URL('../../assets/kroma-intro-hevc.mp4', import.meta.url).href,
+    type: 'video/mp4; codecs="hvc1.1.6.L153.B0"',
+  },
+] as const;
+
 /** Fallback duration (ms) if the audio is blocked/unavailable slightly longer
  * than the 4.992 s sting so a playing sting always reaches its own `ended`. */
 export const SAFETY_MS = 5400;
@@ -15,19 +27,16 @@ export const KEYFRAMES = `
 @keyframes kroma-igniteGlow{from{opacity:0;transform:scale(.5)}to{opacity:.5;transform:scale(1)}}
 @keyframes kroma-igniteGlowLite{from{opacity:0}to{opacity:.5}}
 @keyframes kroma-breathe{0%,100%{opacity:.38}50%{opacity:.62}}
-@keyframes kroma-dotIgnite{0%{opacity:0;transform:scale(0)}55%{opacity:1;transform:scale(1.55);filter:blur(2px)}75%{transform:scale(.82)}100%{opacity:1;transform:scale(1);filter:blur(0)}}
-@keyframes kroma-dotIgniteLite{0%{opacity:0;transform:scale(0)}60%{opacity:1;transform:scale(1.4)}80%{transform:scale(.86)}100%{opacity:1;transform:scale(1)}}
-@keyframes kroma-ringDraw{from{stroke-dashoffset:264}to{stroke-dashoffset:0}}
-@keyframes kroma-ringFade{from{opacity:0}to{opacity:1}}
-@keyframes kroma-orbit{from{transform:rotate(-15deg)}to{transform:rotate(360deg)}}
-@keyframes kroma-glintFade{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+@keyframes kroma-segIn{from{opacity:0}to{opacity:1}}
+@keyframes kroma-wheelSpin{from{transform:rotate(-150deg)}to{transform:rotate(0deg)}}
+@keyframes kroma-wheelIdle{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes kroma-hubPulse{0%{opacity:0;transform:scale(.4)}45%{opacity:.9;transform:scale(1.15)}100%{opacity:0;transform:scale(1.7)}}
 @keyframes kroma-shock{0%{opacity:.75;transform:scale(.55)}100%{opacity:0;transform:scale(2.5)}}
 @keyframes kroma-flash{0%{opacity:0}10%{opacity:.9}100%{opacity:0}}
 @keyframes kroma-blackIn{0%{opacity:1}100%{opacity:0}}
 @keyframes kroma-punch{0%{transform:scale(.985)}38%{transform:scale(1.035)}100%{transform:scale(1)}}
 @keyframes kroma-wordReveal{0%{opacity:0;transform:translateY(16px) scale(.8);filter:blur(16px);text-shadow:0 0 0 rgba(242,180,66,0)}45%{opacity:1;transform:translateY(0) scale(1.06);filter:blur(0);text-shadow:0 0 30px rgba(255,214,98,.9)}68%{transform:scale(.99)}100%{opacity:1;transform:scale(1);text-shadow:0 0 14px rgba(242,180,66,.28)}}
 @keyframes kroma-wordRevealLite{0%{opacity:0;transform:translateY(16px) scale(.84)}55%{opacity:1;transform:translateY(0) scale(1.05)}75%{transform:scale(.99)}100%{opacity:1;transform:scale(1)}}
-@keyframes kroma-sheen{0%{background-position:130% 0;opacity:0}25%{opacity:1}100%{background-position:-130% 0;opacity:0}}
 @keyframes kroma-tagIn{0%{opacity:0;letter-spacing:.2em}100%{opacity:1;letter-spacing:.42em}}
 @keyframes kroma-ember{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:.7}100%{opacity:0;transform:translateY(-46vmin) scale(1.1)}}
 @keyframes kroma-flicker{0%,100%{opacity:1}48%{opacity:.86}}
@@ -84,11 +93,3 @@ export const EMBERS: ReadonlyArray<CSSProperties & { anim: string }> = [
     anim: 'kroma-ember 7s ease-in 2.6s infinite backwards',
   },
 ];
-
-export const WORDMARK: CSSProperties = {
-  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-  fontWeight: 800,
-  fontSize: '12vmin',
-  letterSpacing: '.16em',
-  whiteSpace: 'nowrap',
-};

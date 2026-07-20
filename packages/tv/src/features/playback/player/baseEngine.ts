@@ -9,6 +9,7 @@
 // only its own transport (open, seek, audio switch, teardown) via `reanchor`.
 
 import type { KromaClient, MediaItem } from '@kroma/core';
+import type { AudioFilterMode } from '@kroma/ui';
 import type { EngineListeners, TvEngine } from '#tv/features/playback/player/engine';
 
 /** Construction options common to every native backend. */
@@ -23,6 +24,9 @@ export interface EngineOptions {
   /** Open the original file directly (see each backend's module doc) instead of
    * the master. */
   direct: boolean;
+  /** Audio filter / volume normalizer (§7) to apply from the first open, so a
+   * persisted mode never plays its first seconds unfiltered. Default `off`. */
+  audioFilter?: AudioFilterMode;
   listeners: EngineListeners;
 }
 
@@ -45,6 +49,12 @@ export abstract class BaseTvEngine implements TvEngine {
   protected paused = false;
   protected destroyed = false;
   protected rendition: number;
+  /** Current audio filter / volume normalizer mode (§7). */
+  protected filter: AudioFilterMode;
+  /** The master is open ONLY because the audio filter needs the server's DSP
+   * (the backend has none); turning the filter off drops back to the direct
+   * file, and a remux failure degrades rather than costing the title. */
+  protected filterMaster = false;
   /** Set on a re-anchor so playback resumes once the new source has loaded. */
   protected resumeOnLoad = false;
 
@@ -54,6 +64,7 @@ export abstract class BaseTvEngine implements TvEngine {
     this.listeners = opts.listeners;
     this.durSec = opts.durationSec;
     this.rendition = opts.initialRendition;
+    this.filter = opts.audioFilter ?? 'off';
     this.mode = opts.direct ? 'direct' : 'master';
     // Direct: an absolute timeline starting at `startSec`. Master: the remux is
     // anchored at `startSec` (its clock restarts at 0).
@@ -74,13 +85,27 @@ export abstract class BaseTvEngine implements TvEngine {
 
   /** A prepare/playback failure: a direct attempt retries ONCE as the master at
    * the same position (a file the backend can't demux still plays, remuxed); a
-   * master failure is surfaced. */
+   * filter-forced master degrades ONCE to the clean direct file; anything else
+   * is surfaced. */
   protected fail(): void {
     if (this.destroyed) return;
+    const pos = this.position();
     if (this.mode === 'direct' && !this.fellBack) {
       this.fellBack = true;
-      const pos = this.position();
       this.mode = 'master';
+      this.listeners.onWaiting();
+      this.reanchor(pos);
+      return;
+    }
+    // This master exists only to apply the filter, and the title direct-plays
+    // fine. A remux the server can't produce (no acompressor, an audio track
+    // ffmpeg won't decode) must cost the FILTER, not the title.
+    if (this.mode === 'master' && this.filterMaster && !this.fellBack) {
+      this.fellBack = true; // one-shot: a direct failure after this still errors
+      this.filterMaster = false;
+      this.filter = 'off';
+      this.mode = 'direct';
+      this.listeners.onAudioFilterUnavailable?.();
       this.listeners.onWaiting();
       this.reanchor(pos);
       return;

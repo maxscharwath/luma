@@ -51,17 +51,15 @@ export function LoginGate() {
 
 export function Brand() {
   return (
-    <div className="mb-12 flex items-center gap-2.5">
-      <Logo markOnly size={30} />
-      <span className="font-display text-[24px] font-extrabold tracking-[.16em]">KROMA</span>
+    <div className="mb-12">
+      <Logo size={24} />
     </div>
   );
 }
 
 export function Spinner() {
-  return (
-    <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/15 border-t-accent" />
-  );
+  // The brand loading state: the chromatic wheel at its 2.6s spinner pace.
+  return <Logo markOnly size={40} spin="loading" />;
 }
 
 /** Full-screen loader shown by authenticated layouts while the session hydrates

@@ -4,13 +4,13 @@ import { useNavigate } from '@tanstack/react-router';
 import { memo } from 'react';
 import type { MovieView, ShowView } from '#web/shared/lib/api';
 import { useAuth } from '#web/shared/lib/auth';
+import type { HeroEntry } from '#web/shared/lib/queries';
 import { useWatched } from '#web/shared/lib/watched';
 import { Badge, Button, Poster, Rail } from '#web/shared/ui';
 
 type HeroBadge = '4K' | 'HDR' | 'H.265';
 
-function heroBadges(movie: MovieView): HeroBadge[] {
-  const v = movie.video;
+function heroBadges(v: MovieView['video']): HeroBadge[] {
   if (!v) return [];
   const out: HeroBadge[] = [];
   if ((v.width ?? 0) >= 3840) out.push('4K');
@@ -23,15 +23,22 @@ const SECTION_TITLE = 'mb-5 mt-10 font-display text-[22px] font-bold tracking-[-
 
 /** Full-bleed featured banner TMDB backdrop as cinematic art, bled to the
  * content edges (cancels the page gutter) and faded into the rails below. */
-export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
+export function Hero({ entry }: Readonly<{ entry: HeroEntry }>) {
   const t = useT();
   const navigate = useNavigate();
-  const colors = posterColors(movie.id);
-  const bg = movie.backdrop
-    ? `url("${movie.backdrop}")`
+  const media = entry.type === 'movie' ? entry.movie : entry.show;
+  const colors = posterColors(media.id);
+  const bg = media.backdrop
+    ? `url("${media.backdrop}")`
     : `linear-gradient(158deg, ${colors[0]}, ${colors[1]})`;
-  const meta = movie.metadata;
-  const badges = heroBadges(movie);
+  const meta = media.metadata;
+  const badges = heroBadges(media.video);
+  const line =
+    entry.type === 'movie'
+      ? metaLine(entry.movie)
+      : [entry.show.year, t('content.seasonCount', { count: entry.show.seasonCount })]
+          .filter(Boolean)
+          .join(' · ');
 
   return (
     <div
@@ -46,13 +53,13 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
           {t('content.featured')}
         </div>
         <h1 className="mb-3.5 font-display text-[clamp(34px,6vw,66px)] font-bold leading-[.98] tracking-[-.02em]">
-          {movie.title}
+          {media.title}
         </h1>
         <div className="mb-4 flex flex-wrap items-center gap-3 text-[13px] font-medium text-muted max-sm:text-[15px]">
           {meta?.rating ? (
             <span className="font-semibold text-accent">{meta.rating.toFixed(1)}★</span>
           ) : null}
-          <span>{metaLine(movie)}</span>
+          <span>{line}</span>
           {badges.map((b) => (
             <Badge key={b} tone={b}>
               {b}
@@ -65,15 +72,23 @@ export function Hero({ movie }: Readonly<{ movie: MovieView }>) {
           </p>
         ) : null}
         <div className="flex flex-wrap gap-3.5">
-          <Button onClick={() => navigate({ to: '/watch/$id', params: { id: movie.id } })}>
-            {t('content.play')}
-          </Button>
-          <Button
-            variant="glass"
-            onClick={() => navigate({ to: '/movie/$id', params: { id: movie.id } })}
-          >
-            {t('content.moreInfo')}
-          </Button>
+          {entry.type === 'movie' ? (
+            <>
+              <Button onClick={() => navigate({ to: '/watch/$id', params: { id: media.id } })}>
+                {t('content.play')}
+              </Button>
+              <Button
+                variant="glass"
+                onClick={() => navigate({ to: '/movie/$id', params: { id: media.id } })}
+              >
+                {t('content.moreInfo')}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => navigate({ to: '/show/$id', params: { id: media.id } })}>
+              {t('content.moreInfo')}
+            </Button>
+          )}
         </div>
       </div>
     </div>

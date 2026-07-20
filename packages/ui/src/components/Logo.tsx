@@ -1,31 +1,60 @@
+import { KromaMark, type KromaMarkSpin } from './KromaMark';
+import { KROMA_KR_PATH, KROMA_LOCKUP, KROMA_MA_PATH } from './kromaLockupPaths';
+
 export interface LogoProps {
-  /** Height of the aperture mark in px; wordmark scales with it. */
+  /** Lockup height in px (= the wheel-O diameter); with `markOnly`, the wheel diameter. */
   size?: number;
-  /** Hide the "KROMA" wordmark, showing only the aperture mark. */
+  /** Show only the chromatic wheel, without the KR MA letters. */
   markOnly?: boolean;
+  /** Rotate the wheel: "idle" (ambient 9s) or "loading" (spinner 2.6s). */
+  spin?: KromaMarkSpin;
 }
 
-/** KROMA brand lockup a minimal amber "aperture" ring + centre dot beside the wordmark. */
-export function Logo({ size = 26, markOnly = false }: Readonly<LogoProps>) {
+/**
+ * KROMA brand lockup, drawn entirely from the official export's outlines
+ * (kromaLockupPaths): "KR" + the chromatic wheel as the O + "MA". No webfont
+ * involved, so it renders identically even offline. The wheel is its own
+ * `<svg>` element (not a nested group) so `spin` stays legacy-TV-safe, and its
+ * hub is a true hole so the lockup works on any surface. Letters inherit
+ * `currentColor`, themed via --kroma-text.
+ */
+export function Logo({ size = 24, markOnly = false, spin }: Readonly<LogoProps>) {
+  if (markOnly) return <KromaMark size={size} spin={spin} />;
+  const s = size / KROMA_LOCKUP.height;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: size * 0.42 }}>
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" stroke="var(--kroma-accent)" strokeWidth="2.4" />
-        <circle cx="12" cy="12" r="3.2" fill="var(--kroma-accent)" />
+    <span
+      role="img"
+      aria-label="KROMA"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        whiteSpace: 'nowrap',
+        color: 'var(--kroma-text, #F4F3F0)',
+      }}
+    >
+      <svg
+        width={KROMA_LOCKUP.krWidth * s}
+        height={size}
+        viewBox={`0 0 ${KROMA_LOCKUP.krWidth} ${KROMA_LOCKUP.height}`}
+        aria-hidden="true"
+      >
+        <path d={KROMA_KR_PATH} fill="currentColor" />
       </svg>
-      {markOnly ? null : (
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            fontSize: size * 0.74,
-            letterSpacing: '.16em',
-            color: 'var(--kroma-text)',
-          }}
-        >
-          KROMA
-        </span>
-      )}
+      <KromaMark
+        size={size}
+        spin={spin}
+        style={{
+          margin: `0 ${KROMA_LOCKUP.gapRight * s}px 0 ${KROMA_LOCKUP.gapLeft * s}px`,
+        }}
+      />
+      <svg
+        width={KROMA_LOCKUP.maWidth * s}
+        height={size}
+        viewBox={`${KROMA_LOCKUP.maX} 0 ${KROMA_LOCKUP.maWidth} ${KROMA_LOCKUP.height}`}
+        aria-hidden="true"
+      >
+        <path d={KROMA_MA_PATH} fill="currentColor" />
+      </svg>
     </span>
   );
 }

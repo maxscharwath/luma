@@ -52,7 +52,7 @@ export function Sidebar() {
       {/* Fixed header: brand */}
       <div className="shrink-0 px-4.5 pb-2 pt-7">
         <div className="px-2 pb-2">
-          <Logo size={26} />
+          <Logo size={24} />
         </div>
       </div>
       <SidebarBody />
@@ -122,7 +122,7 @@ export function MobileTopbar() {
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-[#0C0C0E]/95 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
       <Link to="/" aria-label="KROMA">
-        <Logo size={22} />
+        <Logo size={20} />
       </Link>
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Trigger asChild>
@@ -143,7 +143,7 @@ export function MobileTopbar() {
             <Dialog.Title className="sr-only">KROMA</Dialog.Title>
             <div className="flex shrink-0 items-center justify-between px-4.5 pb-2 pt-[max(1.75rem,env(safe-area-inset-top))]">
               <div className="px-2 pb-2">
-                <Logo size={26} />
+                <Logo size={24} />
               </div>
               <Dialog.Close asChild>
                 <button

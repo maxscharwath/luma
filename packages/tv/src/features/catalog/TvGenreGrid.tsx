@@ -7,18 +7,22 @@ import {
   type SortMode,
 } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
+import { AmbientBackdrop } from '#tv/features/catalog/home/AmbientBackdrop';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
 
 // Best-known titles first (rating, then year) the same ranking as the person grid.
 const SORT: SortMode = 'rating';
 
+type Entry = { kind: 'movie'; item: MediaItem } | { kind: 'show'; item: Show };
+
 /** Every movie + show in one genre (reached from {@link TvGenres}). Filters the
- * already-loaded catalogue locally, ranked best-rated first. */
+ * already-loaded catalogue locally, ranked best-rated first, with the browse
+ * screens' ambient backdrop following the focused tile. */
 export function TvGenreGrid() {
   const { name } = useParams('genre');
   const { movies, shows } = useConnection();
@@ -27,32 +31,51 @@ export function TvGenreGrid() {
   const nav = useNav();
   useFocusNav({ onBack: nav.back, resetKey: name });
 
-  const cards = useMemo<GridCard[]>(() => {
-    const movieCard = (m: MediaItem): GridCard => ({
-      id: m.id,
-      title: m.title,
-      poster: client.posterFor(m),
-      colors: posterColors(m.id),
-      onClick: () => nav.go('movie', { item: m }),
-    });
-    const showCard = (s: Show): GridCard => ({
-      id: s.id,
-      title: s.title,
-      poster: client.showPosterFor(s),
-      colors: posterColors(s.id),
-      progress: s.progress ?? null,
-      onClick: () => nav.go('show', { show: s }),
-    });
-    const tagged: { item: MediaItem | Show; card: GridCard }[] = [
-      ...movies.filter((m) => hasGenre(m, name)).map((m) => ({ item: m, card: movieCard(m) })),
-      ...shows.filter((s) => hasGenre(s, name)).map((s) => ({ item: s, card: showCard(s) })),
+  const [focusId, setFocusId] = useState<string | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: name is an intentional re-run key (a genre switch clears the focus echo), not read inside the effect
+  useEffect(() => setFocusId(null), [name]);
+
+  const entries = useMemo<Entry[]>(() => {
+    const tagged: Entry[] = [
+      ...movies.filter((m) => hasGenre(m, name)).map((m): Entry => ({ kind: 'movie', item: m })),
+      ...shows.filter((s) => hasGenre(s, name)).map((s): Entry => ({ kind: 'show', item: s })),
     ];
     const cmp = compareTitles(SORT);
-    return [...tagged].sort((a, b) => cmp(a.item, b.item)).map((x) => x.card);
-  }, [movies, shows, name, client, nav]);
+    return tagged.sort((a, b) => cmp(a.item, b.item));
+  }, [movies, shows, name]);
+
+  const cards = useMemo<GridCard[]>(
+    () =>
+      entries.map((e) => ({
+        id: e.item.id,
+        title: e.item.title,
+        poster: e.kind === 'movie' ? client.posterFor(e.item) : client.showPosterFor(e.item),
+        colors: posterColors(e.item.id),
+        progress: e.kind === 'show' ? (e.item.progress ?? null) : null,
+        onClick: () =>
+          e.kind === 'movie' ? nav.go('movie', { item: e.item }) : nav.go('show', { show: e.item }),
+        onFocus: () => setFocusId(e.item.id),
+      })),
+    [entries, client, nav],
+  );
+
+  const focused = useMemo<Entry | null>(
+    () => entries.find((e) => e.item.id === focusId) ?? entries[0] ?? null,
+    [entries, focusId],
+  );
+  const backdrop = focused
+    ? (client.backdropFor(focused.item) ??
+      (focused.kind === 'movie'
+        ? client.posterFor(focused.item)
+        : client.showPosterFor(focused.item)))
+    : null;
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-bg animate-[tv-fade-in_0.3s_ease]">
+    <div className="fixed inset-0 isolate flex flex-col overflow-hidden bg-bg animate-[tv-fade-in_0.3s_ease]">
+      <AmbientBackdrop
+        src={backdrop}
+        colors={focused ? posterColors(focused.item.id) : ['#1c1c22', '#0a0a0c']}
+      />
       <header className="px-16 pb-6 pt-28">
         <div className="mb-2 font-sans text-[13px] font-bold uppercase tracking-[0.22em] text-accent">
           {t('nav.genres')}

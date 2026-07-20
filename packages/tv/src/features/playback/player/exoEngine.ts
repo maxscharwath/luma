@@ -19,7 +19,7 @@
 // sit on top. Events arrive through the global `__kromaExoEvent` callback the
 // Kotlin side invokes with a JSON payload.
 
-import type { PlaneRect } from '@kroma/ui';
+import type { AudioFilterMode, PlaneRect } from '@kroma/ui';
 import {
   BaseTvEngine,
   type EngineOptions,
@@ -31,12 +31,17 @@ import {
   resolveMasterStart,
 } from '#tv/features/playback/player/engine';
 
+/** Bridge levels for `{op:'filter'}`: the Kotlin side maps them onto a
+ * DynamicsProcessing compressor tuned to match the Web Audio graph (§7). */
+const EXO_FILTER_LEVEL: Record<AudioFilterMode, number> = { off: 0, standard: 1, night: 2 };
+
 /** Event payload pushed by the Kotlin bridge. */
 interface ExoEvent {
   t: string;
   sec?: number;
   playing?: boolean;
   active?: boolean;
+  supported?: boolean;
   message?: string;
 }
 
@@ -104,17 +109,33 @@ export class ExoEngine extends BaseTvEngine {
       case 'ended':
         this.listeners.onEnded();
         break;
+      case 'filterSupported':
+        // The bridge only learns the truth when it tries: no effect on this
+        // ROM, audio passed straight through to an AVR, or construction threw.
+        // Say so rather than leaving "Nuit" lit over untouched audio.
+        if (e.supported === false) this.listeners.onAudioFilterUnavailable?.();
+        break;
       case 'error':
         this.fail();
         break;
     }
   }
 
-  /** The player finished preparing: apply the audio track, announce ready (the
-   * hook drives the first play), and resume after a re-anchor. */
+  /** API 28+ and a real (non-passthrough) audio session, as last seen by the
+   * bridge. An APK predating the capability call keeps the old optimistic
+   * answer, corrected later by the `filterSupported` event if it arrives. */
+  audioFilterSupported(): boolean {
+    return this.bridge.audioFilterSupported?.() ?? true;
+  }
+
+  /** The player finished preparing: apply the audio track + filter, announce
+   * ready (the hook drives the first play), and resume after a re-anchor. */
   private onLoaded(): void {
     if (this.mode === 'direct') this.cmd('audio', this.rendition);
     else this.elSec = 0;
+    // Unconditional (off included): the native player outlives engines, so a
+    // leftover effect from the previous item must be cleared, not inherited.
+    this.cmd('filter', EXO_FILTER_LEVEL[this.filter]);
     this.listeners.onDuration(this.durSec);
     this.listeners.onReady();
     if (this.resumeOnLoad) {
@@ -197,6 +218,14 @@ export class ExoEngine extends BaseTvEngine {
       return;
     }
     this.reanchor(this.position());
+  }
+
+  /** Toggle the native audio effect in place (the Kotlin side re-attaches its
+   * DynamicsProcessing chain to the live audio session; playback never stops). */
+  setAudioFilter(mode: AudioFilterMode): void {
+    if (mode === this.filter) return;
+    this.filter = mode;
+    this.cmd('filter', EXO_FILTER_LEVEL[mode]);
   }
 
   /** Shrink/restore the plane: the Kotlin side resizes + repositions the

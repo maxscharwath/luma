@@ -1,5 +1,7 @@
 // Codec/capability probing: what video + audio the *current runtime* can decode.
 
+import { isTizenRuntime, isWebOsRuntime } from '../platform';
+
 // Codec probe strings (ISO BMFF style). `hvc1`/`hev1` are the two HEVC sample
 // entry fourCCs; we test both because platforms disagree on which they accept.
 const PROBE = {
@@ -80,9 +82,8 @@ function detectHdr(): boolean {
  */
 export function detectCapabilities(): PlaybackCapabilities {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  const isTizen = /Tizen/i.test(ua) || (globalThis as Record<string, unknown>).tizen !== undefined;
-  const isWebOS =
-    /Web0S|webOS/i.test(ua) || (globalThis as Record<string, unknown>).webOS !== undefined;
+  const isTizen = isTizenRuntime(ua);
+  const isWebOS = isWebOsRuntime(ua);
   const isAndroidTvShell = (globalThis as Record<string, unknown>).__KROMA_ANDROID__ !== undefined;
 
   if (isTizen || isWebOS || isAndroidTvShell) {

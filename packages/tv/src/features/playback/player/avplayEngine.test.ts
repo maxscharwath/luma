@@ -91,8 +91,8 @@ function mkListeners(): EngineListeners {
 
 const client = {
   streamUrl: (id: string) => `stream:${id}`,
-  hlsMasterUrl: (id: string, aac: boolean, startSec: number, audio: number) =>
-    `master:${id}:${aac}:${startSec}:${audio}`,
+  hlsMasterUrl: (id: string, aac: boolean, startSec: number, audio: number, filter?: string) =>
+    `master:${id}:${aac}:${startSec}:${audio}${filter ? `:${filter}` : ''}`,
 } as unknown as KromaClient;
 const item = { id: 'sm1' } as unknown as MediaItem;
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -296,5 +296,36 @@ describe('AvplayEngine visibility + destroy', () => {
     const before = names().length;
     document.dispatchEvent(new Event('visibilitychange'));
     expect(names()).toHaveLength(before); // listener gone
+  });
+});
+
+describe('AvplayEngine audio filter (server-side remux)', () => {
+  it('a persisted filter opens the FILTERED master even for a direct-playable file', () => {
+    const { lastArgs } = make({ direct: true, startSec: 0, audioFilter: 'night' });
+    expect(lastArgs('open')).toEqual(['master:sm1:false:0:0:night']);
+  });
+
+  it('enabling the filter mid-play moves a direct source onto the filtered master', async () => {
+    const { e, a, lastArgs, listeners } = make({ direct: true, startSec: 0 });
+    a.listener().oncurrentplaytime?.(30000); // playing at 30s
+    e.setAudioFilter('standard');
+    await tick(); // anchored master resolves its real start first
+    expect(listeners.onWaiting).toHaveBeenCalled();
+    expect(lastArgs('open')).toEqual(['master:sm1:false:30:0:standard']);
+  });
+
+  it('turning the filter off drops a filter-forced master back to the direct file', () => {
+    const { e, a, lastArgs } = make({ direct: true, startSec: 0, audioFilter: 'night' });
+    a.listener().oncurrentplaytime?.(10000);
+    e.setAudioFilter('off');
+    expect(lastArgs('open')).toEqual(['stream:sm1']);
+    a.prepareOk();
+    expect(lastArgs('seekTo')).toEqual([10000]); // resumes where it was
+  });
+
+  it('a filter change on a real master reloads it with the new mode', () => {
+    const { e, lastArgs } = make({ direct: false, startSec: 0 });
+    e.setAudioFilter('night');
+    expect(lastArgs('open')).toEqual(['master:sm1:false:0:0:night']);
   });
 });

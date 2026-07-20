@@ -28,6 +28,11 @@ export interface ShowBundle {
   discover: DiscoverDetail | null;
 }
 
+/** What the featured banner spotlights: the mapped hero (the server's daily pick
+ * with art/stream URLs resolved, or the local movie fallback wrapped in the same
+ * shape). The queries that can come up empty spell the `| null` themselves. */
+export type HeroEntry = { type: 'movie'; movie: MovieView } | { type: 'show'; show: ShowView };
+
 // ---- Catalogue ------------------------------------------------------------
 
 export const catalogQueries = {
@@ -48,6 +53,22 @@ export const catalogQueries = {
       queryFn: async (): Promise<ShowView[]> => {
         const c = kromaClient();
         return (await c.shows()).map((s) => toShowView(c, s));
+      },
+    }),
+
+  /** Today's server-picked "En vedette" hero (movie or show), art pre-resolved.
+   * Resolves to null on an empty catalogue or an older server without the
+   * endpoint the home falls back to the first movie. */
+  featured: () =>
+    queryOptions({
+      queryKey: ['featured'] as const,
+      queryFn: async (): Promise<HeroEntry | null> => {
+        const c = kromaClient();
+        const hero = await c.featured().catch(() => null);
+        if (!hero) return null;
+        return hero.type === 'movie'
+          ? { type: 'movie', movie: toMovieView(c, hero.item) }
+          : { type: 'show', show: toShowView(c, hero.show) };
       },
     }),
 
@@ -171,7 +192,7 @@ export const userQueries = {
 // ---- Server ---------------------------------------------------------------
 
 export const serverQueries = {
-  /** Public `GET /api/health` — server version + basic counts (no auth). Used by
+  /** Public `GET /api/health`: server version + basic counts (no auth). Used by
    * the sidebar to show the server version; cached generously as it rarely moves. */
   health: () =>
     queryOptions({

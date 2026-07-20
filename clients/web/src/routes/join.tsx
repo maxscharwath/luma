@@ -2,6 +2,7 @@ import { Logo, useT } from '@kroma/ui';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { RegisterFields, type RegisterValues } from '#web/features/accounts/auth-fields';
+import { Spinner } from '#web/features/accounts/auth-gate';
 import { useAuth } from '#web/shared/lib/auth';
 
 // Public invitation acceptance page. An admin (with `users.manage`) shares
@@ -78,14 +79,11 @@ function JoinPage() {
       {/* Auto margins (not justify-center) so a form taller than a small phone
           viewport scrolls instead of clipping its top. */}
       <div className="m-auto flex w-full flex-col items-center">
-        <div className="mb-10 flex items-center gap-2.5">
-          <Logo markOnly size={30} />
-          <span className="font-display text-[24px] font-extrabold tracking-[.16em]">KROMA</span>
+        <div className="mb-10">
+          <Logo size={24} />
         </div>
 
-        {status === 'checking' ? (
-          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/15 border-t-accent" />
-        ) : null}
+        {status === 'checking' ? <Spinner /> : null}
         {status === 'invalid' ? (
           <div className="text-center">
             <h1 className="mb-2 font-display text-[28px] font-bold">

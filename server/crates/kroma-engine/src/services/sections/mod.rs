@@ -10,6 +10,7 @@
 mod cache;
 mod context;
 pub mod curate;
+pub mod featured;
 pub mod generate;
 mod math;
 mod phrases;
@@ -94,7 +95,7 @@ pub fn build_home(state: &SharedState, pool: &Pool, locale: &str, user_id: &str)
     push_themed_rows(&mut out, state, &ctx, locale, discretionary_cap, floor);
 
     // 4) Trending in your library (recency-weighted plays) SQL, unscored.
-    let trending = unscored(db::trending_ids(pool, FETCH).unwrap_or_default());
+    let trending = unscored(trending_ids(pool, FETCH));
     out.push("trending", i18n::t(locale, "content.trending", &[]), None, trending, NO_FLOOR);
 
     // 5) Recently added SQL, unscored. Gated by the admin "show recent on home"
@@ -190,6 +191,17 @@ fn push_themed_rows(
 /// through the same [`Builder::push`]; they carry no similarity, so `NO_FLOOR`.
 fn unscored(ids: Vec<String>) -> Vec<(String, f32)> {
     ids.into_iter().map(|id| (id, 0.0)).collect()
+}
+
+/// [`db::trending_ids`] with the failure *logged* before falling back to empty
+/// (shared with [`featured::pick`]'s trending signal). Swallowing the error made
+/// a broken query indistinguishable from "nobody watched anything": a missing
+/// SQLite `POW()` emptied the Trending row on every request and nothing said so.
+fn trending_ids(pool: &Pool, n: usize) -> Vec<String> {
+    db::trending_ids(pool, n).unwrap_or_else(|e| {
+        tracing::warn!(target: "sections", error = %e, "trending query failed; falling back to no trending items");
+        Vec::new()
+    })
 }
 
 /// The curated rows to show this request: the top [`MAX_CURATED`] from the
@@ -427,21 +439,26 @@ mod tests {
     use crate::test_support;
 
     #[test]
-    fn build_home_emits_the_recently_added_row_and_no_thin_rows() {
+    fn build_home_emits_the_trending_and_recently_added_rows_and_no_thin_rows() {
         let state = test_support::test_state();
-        let ids: Vec<String> = (0..6).map(|i| format!("m{i}")).collect();
+        let ids: Vec<String> = (0..12).map(|i| format!("m{i}")).collect();
         let refs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
         seed_movies(&state.db, &refs);
-        // A recent play so `Context` resolves a last-played + watch history and the
-        // "because you watched" branch actually runs (it adds no row under the
-        // no-op embedder, but its query path is exercised).
-        test_support::seed_play(&state, "u1", "m0", test_support::now_secs());
+        // Recent plays of the first six, so `Context` resolves a last-played + watch
+        // history (the "because you watched" branch runs, adding no row under the
+        // no-op embedder) *and* the trending row has enough items to clear the gate.
+        for id in refs.iter().take(6) {
+            test_support::seed_play(&state, "u1", id, test_support::now_secs());
+        }
 
         let sections = build_home(&state, &state.db, "en", "u1");
 
-        // The recently-added row is the deterministic, SQL-sourced row that does not
-        // depend on the embedder (nor on POW(), which trending needs and the bundled
-        // test SQLite lacks). It carries every seeded title.
+        // Trending and recently-added are the deterministic, SQL-sourced rows that
+        // do not depend on the embedder. Trending carries the played titles; the
+        // other six fall through to recently-added (cross-row de-duplication).
+        let trending = sections.iter().find(|s| s.id == "trending").expect("trending row present");
+        assert_eq!(trending.items.len(), 6);
+        assert!(trending.items.iter().all(|i| refs[..6].contains(&i.id())));
         let recent = sections.iter().find(|s| s.id == "recent").expect("recent row present");
         assert_eq!(recent.items.len(), 6);
         // The quality gate means every emitted row clears MIN_ITEMS (nothing thin).

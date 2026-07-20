@@ -6,8 +6,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
+import { addRecentSearch, getRecentSearches } from '#tv/features/catalog/searchHistory';
 import { TvPoster } from '#tv/shared/TvMedia';
-import { KromaMark, OnScreenKeyboard, TvBackButton, TvTextEntry } from '#tv/shared/ui';
+import {
+  InputGroup,
+  InputGroupAddon,
+  KromaMark,
+  OnScreenKeyboard,
+  TvBackButton,
+  TvTextEntry,
+} from '#tv/shared/ui';
 
 interface Hit {
   id: string;
@@ -31,7 +39,15 @@ export function TvSearch() {
   const nav = useNav();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<Hit[]>([]);
+  const [recent, setRecent] = useState<string[]>(getRecentSearches);
   useFocusNav({ onBack: nav.back });
+
+  // A search "counts" once the user opens one of its results: remember the
+  // query then, so the recent list holds real searches, not typing prefixes.
+  const openHit = (h: Hit) => {
+    setRecent(addRecentSearch(query));
+    h.onOpen();
+  };
 
   const toHit = useCallback(
     (hit: SearchHit): Hit => {
@@ -111,8 +127,10 @@ export function TvSearch() {
 
       <div className="flex min-h-0 flex-1 gap-13">
         <div className="flex w-[520px] flex-none flex-col">
-          <div className="mb-6.5 flex h-17 items-center gap-3.5 rounded-2xl border border-border-strong bg-[rgba(255,255,255,0.05)] px-5.5">
-            <IconSearch size={24} stroke={1.8} color="rgba(244,243,240,0.5)" />
+          <InputGroup className="mb-6.5 h-17 gap-3.5 rounded-2xl bg-[rgba(255,255,255,0.05)] px-5.5">
+            <InputGroupAddon>
+              <IconSearch size={24} stroke={1.8} color="rgba(244,243,240,0.5)" />
+            </InputGroupAddon>
             <TvTextEntry
               value={query}
               onChange={setQuery}
@@ -121,8 +139,30 @@ export function TvSearch() {
               textClassName="min-w-0 flex-1 truncate font-sans text-[24px] font-semibold text-text"
               cursorClassName="h-7 w-0.5 bg-accent animate-[tv-breathe_1.1s_ease-in-out_infinite]"
             />
-          </div>
+          </InputGroup>
           <OnScreenKeyboard value={query} onChange={setQuery} onClose={nav.back} layout="search" />
+
+          {/* recent searches: focusable pills that re-run the query */}
+          {recent.length ? (
+            <div className="mt-7 min-h-0">
+              <div className="mb-3 font-sans text-[13px] font-bold tracking-[0.04em] text-dim">
+                {t('search.recent')}
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {recent.map((term) => (
+                  <button
+                    key={term}
+                    data-focus=""
+                    type="button"
+                    onClick={() => setQuery(term)}
+                    className="max-w-[240px] cursor-pointer truncate rounded-full border-none bg-[rgba(255,255,255,0.05)] px-4.5 py-2 font-sans text-[15px] font-semibold text-muted outline-none transition-transform focus:scale-[1.06] focus:bg-accent focus:text-accent-ink"
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-5 pb-8">
@@ -145,7 +185,7 @@ export function TvSearch() {
                     title={h.title}
                     poster={h.poster}
                     colors={h.colors}
-                    onClick={h.onOpen}
+                    onClick={() => openHit(h)}
                   />
                 </div>
               ))}

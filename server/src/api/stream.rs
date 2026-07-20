@@ -12,6 +12,7 @@ use serde::Deserialize;
 use crate::api::error::json_error;
 use crate::api::util::query;
 use crate::db;
+use crate::infra::hls::StreamMode;
 use crate::infra::stream::stream_or_demo_error;
 use crate::infra::subtitles;
 use crate::model::MediaItem;
@@ -64,17 +65,19 @@ fn pick_file_path(item: &MediaItem, file_id: Option<&str>) -> Option<String> {
 
 // ----- HLS: one muxed program per (mode, anchor, audio) -----------------------
 
-/// `GET /api/items/:id/hls/:mode/:anchor/:audio/index.m3u8` (mode = `copy`|`aac`,
-/// anchor = start seconds for input `-ss`, audio = audio-relative track index) →
-/// a single media playlist for video + that ONE audio track, muxed. Each
-/// (anchor, audio) is its OWN session with its OWN child URLs. Language switching
-/// is a reload with a different `audio` (hls.js alternate-audio was unreliable).
-/// Segments are served by [`hls_file`].
+/// `GET /api/items/:id/hls/:mode/:anchor/:audio/index.m3u8` (mode = `copy`|`aac`|
+/// `aac-standard`|`aac-night`, anchor = start seconds for input `-ss`, audio =
+/// audio-relative track index) → a single media playlist for video + that ONE
+/// audio track, muxed. The `aac-*` filter modes apply a loudness compressor
+/// (night-mode volume leveling) during the transcode, for clients with no local
+/// audio DSP (Tizen AVPlay). Each (mode, anchor, audio) is its OWN session with
+/// its OWN child URLs. Language switching is a reload with a different `audio`
+/// (hls.js alternate-audio was unreliable). Segments are served by [`hls_file`].
 pub async fn hls_master(
     State(state): State<SharedState>,
     Path((id, mode, anchor, audio)): Path<(String, String, u64, u32)>,
 ) -> Response {
-    let Some(aac) = parse_mode(&mode) else {
+    let Some(mode) = StreamMode::parse(&mode) else {
         return json_error(StatusCode::BAD_REQUEST, "bad mode");
     };
     let Some(item) = load_item(&state, id).await else {
@@ -92,7 +95,7 @@ pub async fn hls_master(
     if !exists {
         return json_error(StatusCode::NOT_FOUND, "media file unavailable (mount offline?)");
     }
-    match state.hls.master(&item.id, &abs, audio, aac, anchor).await {
+    match state.hls.master(&item.id, &abs, audio, mode, anchor).await {
         // `X-Hls-Start` is the REAL start (keyframe at-or-before the requested
         // anchor) - the client reads it for `baseSec` so the clock/subtitles stay
         // aligned with the A/V (which `-noaccurate_seek` starts at that keyframe).
@@ -114,11 +117,11 @@ pub async fn hls_file(
     State(state): State<SharedState>,
     Path((id, mode, anchor, audio, file)): Path<(String, String, u64, u32, String)>,
 ) -> Response {
-    let Some(aac) = parse_mode(&mode) else {
+    let Some(mode) = StreamMode::parse(&mode) else {
         return json_error(StatusCode::BAD_REQUEST, "bad mode");
     };
     let immutable = !file.ends_with(".m3u8"); // segments/init are fixed per anchor; playlists grow
-    match state.hls.file(&id, aac, anchor, audio, &file).await {
+    match state.hls.file(&id, mode, anchor, audio, &file).await {
         Some((bytes, ct)) => Response::builder()
             .header(header::CONTENT_TYPE, ct)
             // Each anchor's URLs are unique, so a segment's bytes never change →
@@ -135,15 +138,6 @@ pub async fn hls_file(
 
 async fn load_item(state: &SharedState, id: String) -> Option<MediaItem> {
     query(&state.db, move |pool| db::get_item(&pool, &id)).await.ok().flatten()
-}
-
-/// `copy` → `false` (stream-copy), `aac` → `true` (transcode to stereo AAC).
-fn parse_mode(mode: &str) -> Option<bool> {
-    match mode {
-        "copy" => Some(false),
-        "aac" => Some(true),
-        _ => None,
-    }
 }
 
 fn playlist_response(body: String) -> Response {
@@ -312,9 +306,11 @@ mod tests {
 
     #[test]
     fn parse_mode_variants() {
-        assert_eq!(parse_mode("copy"), Some(false));
-        assert_eq!(parse_mode("aac"), Some(true));
-        assert_eq!(parse_mode("bogus"), None);
+        assert_eq!(StreamMode::parse("copy"), Some(StreamMode::Copy));
+        assert_eq!(StreamMode::parse("aac"), Some(StreamMode::Aac));
+        assert_eq!(StreamMode::parse("aac-standard"), Some(StreamMode::AacStandard));
+        assert_eq!(StreamMode::parse("aac-night"), Some(StreamMode::AacNight));
+        assert_eq!(StreamMode::parse("bogus"), None);
     }
 
 }

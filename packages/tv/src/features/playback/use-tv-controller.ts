@@ -1,6 +1,6 @@
 import { type KromaClient, type MediaItem, qualityBadgeForVideo } from '@kroma/core';
 import { type PlayerController, useAudioFilter, useT } from '@kroma/ui';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { availableEngines, ENGINE_LABEL_KEY, type EnginePref } from '#tv/app/enginePref';
 import { type Playback, useDirectPlayback } from '#tv/features/playback/player/useDirectPlayback';
 import { buildTvStats } from '#tv/features/playback/tv-stats';
@@ -16,22 +16,27 @@ export interface TvController {
 /**
  * Adapts the TV engine (`useDirectPlayback`, driving AVPlay / mpv / ExoPlayer /
  * hls.js) + subtitle state into the shared {@link PlayerController}. Volume, PiP
- * and fullscreen are TV-off (handled by the set / already fullscreen), audio
- * filters need an in-page element so they are unsupported on native planes, and
- * playback speed / loop are not exposed by the native engines - all surfaced
- * honestly as no-ops so the shared chrome hides or disables them.
+ * and fullscreen are TV-off (handled by the set / already fullscreen) and
+ * playback speed / loop are not exposed by the native engines - surfaced
+ * honestly as no-ops so the shared chrome hides or disables them. Audio filters
+ * work on EVERY surface: Web Audio on the in-page <video>, in-engine DSP on the
+ * native planes.
  */
 export function useTvController(client: KromaClient, item: MediaItem): TvController {
   const t = useT();
   const pb = useDirectPlayback(client, item);
   const subs = useTvSubtitles(client, item);
 
-  // Audio normalizer (§7). The Web Audio compressor taps the in-page <video>, so
-  // it works on the HTML engine (legacy webOS, the macOS desktop webview, a
-  // desktop browser) but NOT the native planes (AVPlay / mpv / ExoPlayer decode +
-  // output audio themselves, with nothing to route into a graph) - so it is only
-  // advertised as supported while a `video` surface is up.
+  // Audio normalizer (§7), one persisted mode across every engine. The Web Audio
+  // compressor taps the in-page <video> (HTML engine: legacy webOS, the macOS
+  // desktop webview, a desktop browser); the native planes implement the same
+  // modes in-engine (mpv `af`, ExoPlayer DynamicsProcessing, AVPlay via the
+  // server's filtered remux), driven through the engine port below.
   const filter = useAudioFilter(pb.videoRef, `${item.id}:${pb.surface}`);
+  const { setAudioFilter: pushEngineFilter, surface } = pb;
+  useEffect(() => {
+    if (surface !== 'video') pushEngineFilter(filter.mode);
+  }, [surface, pushEngineFilter, filter.mode]);
 
   const scrubPreview = useCallback(
     (abs: number | null) => {
@@ -107,7 +112,11 @@ export function useTvController(client: KromaClient, item: MediaItem): TvControl
     setEngine: (id: string) => pb.setEngine(id as EnginePref),
     audioFilter: filter.mode,
     setAudioFilter: filter.setMode,
-    audioFilterSupported: filter.supported && pb.surface === 'video',
+    // In-page <video> needs Web Audio; a native plane answers for its own DSP
+    // (ExoPlayer has none before API 28 or on passthrough, and AVPlay loses it
+    // when the server's filtered remux fails), so the row hides instead of
+    // showing a mode that is doing nothing.
+    audioFilterSupported: pb.surface === 'video' ? filter.supported : pb.audioFilterSupported,
     pipActive: false,
     togglePip: () => undefined,
     fullscreen: false,

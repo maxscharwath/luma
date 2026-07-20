@@ -7,12 +7,15 @@
 import type { Metadata } from '@kroma/client';
 
 /** The minimal shape every browse helper reads. `MediaItem`, `Show` and the web
- * `MovieView` / `ShowView` view-models all satisfy it. */
+ * `MovieView` / `ShowView` view-models all satisfy it. `backdropUrl` is only
+ * consulted by {@link genreShowcases} to front genre cards with real art. */
 export interface Sortable {
   title: string;
   year: number | null;
   addedAt: string;
-  metadata?: Pick<Metadata, 'rating' | 'releaseDate' | 'genres'> | null;
+  metadata?:
+    | (Pick<Metadata, 'rating' | 'releaseDate' | 'genres'> & { backdropUrl?: string | null })
+    | null;
 }
 
 /** Ways to order a catalogue grid. `added` = most recently added first,

@@ -13,11 +13,18 @@ export function sizedImageUrl(url: string | null | undefined, displayWidth: numb
   return `${url}?w=${Math.max(1, Math.round(displayWidth * 2))}`;
 }
 
+/** Deterministic hue (0-359) for a string: a rolling 31x hash, unsigned. The one
+ * hash behind every generated colour (key-art gradients here, genre art in
+ * genre-art.ts) so the same name always lands on the same hue. */
+export function hueFromString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + (s.codePointAt(i) ?? 0)) >>> 0;
+  return h % 360;
+}
+
 /** Deterministic two-stop key-art gradient derived from an item id. */
 export function posterColors(id: string): [string, string] {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + (id.codePointAt(i) ?? 0)) >>> 0;
-  const hue = h % 360;
+  const hue = hueFromString(id);
   const hue2 = (hue + 40) % 360;
   return [`hsl(${hue} 38% 26%)`, `hsl(${hue2} 50% 12%)`];
 }

@@ -164,6 +164,8 @@ export interface TvPosterProps {
   /** Resume / series-completion progress bar (%), or null for none. */
   progress?: number | null;
   onClick?: () => void;
+  /** Fired when the tile takes focus (D-pad move or pointer click). */
+  onFocus?: () => void;
 }
 
 /**
@@ -178,6 +180,7 @@ function TvPosterImpl({
   watched = false,
   progress = null,
   onClick,
+  onFocus,
 }: Readonly<TvPosterProps>) {
   return (
     <button
@@ -185,6 +188,7 @@ function TvPosterImpl({
       data-focus=""
       type="button"
       onClick={onClick}
+      onFocus={onFocus}
     >
       <div className="relative aspect-2/3 overflow-hidden rounded-lg bg-surface-1 shadow-card [contain-intrinsic-size:200px_300px] [content-visibility:auto]">
         <TvArt src={sizedImageUrl(poster, 240)} colors={colors} position="50% 50%" />

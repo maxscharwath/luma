@@ -11,9 +11,12 @@ import { LoginGate } from '#web/features/accounts/auth-gate';
 import { useAuth } from '#web/shared/lib/auth';
 
 /** Accept only a safe internal path (single leading slash) as the destination
- * guards against open-redirects to another origin. */
+ * guards against open-redirects to another origin. A destination pointing back
+ * at /login is dropped too: following one would clear the fresh session on
+ * arrival (entering /login switches profile), looping the sign-in forever. */
 function safeRedirect(v: unknown): string | undefined {
-  return typeof v === 'string' && v.startsWith('/') && !v.startsWith('//') ? v : undefined;
+  if (typeof v !== 'string' || !v.startsWith('/') || v.startsWith('//')) return undefined;
+  return v.startsWith('/login') ? undefined : v;
 }
 
 export const Route = createFileRoute('/login')({

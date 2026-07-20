@@ -7,11 +7,20 @@ use super::*;
 /// Top `n` item ids by recency-weighted play count over the last 30 days a
 /// half-life decay so a burst last week outranks a stale all-time favourite.
 /// 604800 s = 1-week half-life; 2592000 s = 30-day window.
+///
+/// The decay is `1 / 2^weeks` computed with a left shift on *whole* weeks
+/// (integer division), not `POW()`: the bundled SQLite is compiled without
+/// `SQLITE_ENABLE_MATH_FUNCTIONS`, so `POW` does not exist there and the query
+/// used to fail on every call in production. Whole-week steps make the decay a
+/// staircase rather than a smooth curve, which the ranking does not care about
+/// (the window only spans 5 steps). The shift is clamped to 0..=62: a clock
+/// jump could otherwise make it negative (SQLite would shift the other way and
+/// divide by zero) or overflow a 64-bit shift.
 pub fn trending_ids(pool: &Pool, n: usize) -> Result<Vec<String>> {
     let conn = pool.get()?;
     let mut stmt = conn.prepare(
         "SELECT item_id, \
-                SUM(1.0 / POW(2.0, (strftime('%s','now') - ended_at) / 604800.0)) AS score \
+                SUM(1.0 / (1 << MIN(MAX((strftime('%s','now') - ended_at) / 604800, 0), 62))) AS score \
          FROM play_history \
          WHERE item_id IS NOT NULL AND ended_at > strftime('%s','now') - 2592000 \
          GROUP BY item_id ORDER BY score DESC LIMIT ?1",
@@ -103,6 +112,32 @@ pub fn genre_guard(pool: &Pool, seed: &str, ranked: Vec<(String, f32)>) -> Vec<(
 pub fn items_by_ids(pool: &Pool, ids: &[&str]) -> Result<Vec<MediaItem>> {
     let conn = pool.get()?;
     Ok(items_by_ids_ordered(&conn, ids)?)
+}
+
+/// The distinct parent-show ids behind `ids` (only episode rows have one), in
+/// [`IN_CHUNK`]-sized batches. A lean projection on purpose: callers that just
+/// need "which shows does this history touch?" would otherwise hydrate every id
+/// through [`items_by_ids`], paying for the metadata blob plus a files/markers
+/// batch to read a single column. `DISTINCT` is per chunk, so a caller folding
+/// into a set still gets the dedup it expects.
+pub fn show_ids_for(pool: &Pool, ids: &[&str]) -> Result<Vec<String>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let conn = pool.get()?;
+    let mut out = Vec::new();
+    for chunk in ids.chunks(IN_CHUNK) {
+        let ph = vec!["?"; chunk.len()].join(",");
+        let mut stmt = conn.prepare(&format!(
+            "SELECT DISTINCT show_id FROM items WHERE show_id IS NOT NULL AND id IN ({ph})"
+        ))?;
+        let rows =
+            stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |r| r.get::<_, String>(0))?;
+        for row in rows {
+            out.push(row?);
+        }
+    }
+    Ok(out)
 }
 
 /// Hydrate ranked ids into [`SectionItem`]s, preserving order: each id resolves
@@ -210,12 +245,54 @@ mod tests {
         let idx = |id: &str| recent.iter().position(|x| x == id).unwrap();
         assert!(idx("nogen") < idx("c2") && idx("c2") < idx("c1"));
 
-        // (trending_ids uses SQLite POW(), absent from this bundled build, so it
-        // is exercised elsewhere / not asserted here.)
+        // (trending_ids has its own ranking test below.)
 
         // last_played = most recent by ended_at for the user.
         assert!(last_played(&p, "u1").unwrap().is_some());
         assert!(last_played(&p, "nobody").unwrap().is_none());
+    }
+
+    #[test]
+    fn trending_ids_ranks_by_recency_weighted_plays() {
+        let p = seeded();
+        let day = 86_400i64;
+        {
+            let conn = p.get().unwrap();
+            let play = |item: &str, ago: i64| {
+                let id = format!("ph-{item}-{ago}-{}", SEQ.fetch_add(1, Ordering::Relaxed));
+                conn.execute(
+                    "INSERT INTO play_history (id,user_id,item_id,kind,title,started_at,ended_at) \
+                     VALUES (?1,'u1',?2,'movie','T',0,strftime('%s','now') - ?3)",
+                    params![id, item, ago],
+                )
+                .unwrap();
+            };
+            // 3 plays yesterday: full weight (week 0) -> 3.0.
+            for _ in 0..3 {
+                play("c1", day);
+            }
+            // 3 plays 25 days ago: week 3 -> 3 * 0.125 = 0.375.
+            for _ in 0..3 {
+                play("c2", 25 * day);
+            }
+            // 5 plays 21 days ago: week 3 -> 5 * 0.125 = 0.625. More plays than c1,
+            // but staler, so the decay must still put it behind.
+            for _ in 0..5 {
+                play("nogen", 21 * day);
+            }
+            // Played 10x two months ago: outside the 30-day window entirely.
+            for _ in 0..10 {
+                play("seed", 60 * day);
+            }
+        }
+
+        let top = trending_ids(&p, 10).unwrap();
+        // Recency beats raw count, and among equal counts the fresher wins.
+        assert_eq!(top, vec!["c1".to_string(), "nogen".to_string(), "c2".to_string()]);
+        // The two-month-old binge is out of the window, so it never shows.
+        assert!(!top.contains(&"seed".to_string()));
+        // The limit is honoured.
+        assert_eq!(trending_ids(&p, 2).unwrap(), vec!["c1".to_string(), "nogen".to_string()]);
     }
 
     #[test]
@@ -244,6 +321,11 @@ mod tests {
         // items_by_ids drops unknown ids (and show ids, which have no items row).
         let items = items_by_ids(&p, &["c1", "ghost", "sh1"]).unwrap();
         assert_eq!(items.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(), ["c1"]);
+
+        // show_ids_for projects episodes to their parent show; movies and unknown
+        // ids contribute nothing, and an empty input never hits the DB.
+        assert_eq!(show_ids_for(&p, &["e1", "c1", "ghost"]).unwrap(), vec!["sh1".to_string()]);
+        assert!(show_ids_for(&p, &[]).unwrap().is_empty());
 
         // entities_by_ids mixes movies + shows, order preserved, unknowns dropped.
         let ents = entities_by_ids(&p, &["c1", "sh1", "ghost"]).unwrap();

@@ -2,6 +2,7 @@ import { LOCALES } from '@kroma/core';
 import { useLocale, useSetLocale, useT } from '@kroma/ui';
 import {
   IconChevronRight,
+  IconKeyboard,
   IconLanguage,
   IconLock,
   IconLogout,
@@ -17,6 +18,13 @@ import {
   getEnginePref,
   setEnginePref,
 } from '#tv/app/enginePref';
+import {
+  ALL_KEYBOARD_LAYOUTS,
+  getKeyboardLayoutPref,
+  KEYBOARD_LAYOUT_LABEL_KEY,
+  type KeyboardLayoutPref,
+  setKeyboardLayoutPref,
+} from '#tv/app/keyboardLayoutPref';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
@@ -50,6 +58,17 @@ export function TvProfileMenu() {
     if (!next) return;
     setEngine(next);
     setEnginePref(next);
+  };
+
+  // On-screen keyboard layout (ABC / AZERTY / QWERTY / QWERTZ), device-persisted.
+  // Same hooks-above-early-return rule as the engine useState.
+  const [kbLayout, setKbLayout] = useState<KeyboardLayoutPref>(getKeyboardLayoutPref);
+  const cycleKbLayout = () => {
+    const i = ALL_KEYBOARD_LAYOUTS.indexOf(kbLayout);
+    const next = ALL_KEYBOARD_LAYOUTS[(i + 1) % ALL_KEYBOARD_LAYOUTS.length];
+    if (!next) return;
+    setKbLayout(next);
+    setKeyboardLayoutPref(next);
   };
 
   if (!user) return null;
@@ -94,6 +113,16 @@ export function TvProfileMenu() {
         >
           <span className="font-sans text-[16px] font-semibold text-accent">
             {localeLabel ? t(localeLabel) : locale}
+          </span>
+        </MenuRow>
+
+        <MenuRow
+          icon={<IconKeyboard size={22} stroke={1.7} />}
+          label={t('keyboardLayout.title')}
+          onAct={cycleKbLayout}
+        >
+          <span className="font-sans text-[16px] font-semibold text-accent">
+            {t(KEYBOARD_LAYOUT_LABEL_KEY[kbLayout])}
           </span>
         </MenuRow>
 

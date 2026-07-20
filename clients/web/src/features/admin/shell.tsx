@@ -233,10 +233,7 @@ function AdminBrand() {
   const t = useT();
   return (
     <div className="flex items-center gap-2.5">
-      <Logo markOnly size={25} />
-      <span className="font-display text-[20px] font-extrabold leading-none tracking-[.16em]">
-        KROMA
-      </span>
+      <Logo size={19} />
       <span className="rounded-[5px] bg-accent px-1.5 py-0.75 text-[8.5px] font-bold tracking-[.13em] text-accent-ink">
         {t('admin.badge')}
       </span>

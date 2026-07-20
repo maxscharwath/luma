@@ -14,9 +14,13 @@ export function useRequireAuth(): { ready: boolean; authed: boolean } {
   const href = useRouterState({ select: (s) => s.location.href });
 
   useEffect(() => {
-    if (ready && !user) {
-      navigate({ to: '/login', search: { redirect: href }, replace: true });
-    }
+    if (!ready || user) return;
+    // While the redirect navigation settles, this layout can re-render with the
+    // location ALREADY at /login; navigating again would nest the login URL into
+    // its own `redirect` (login?redirect=/login?redirect=/…) once per render.
+    // The first navigation carried the real destination, so just stand down.
+    if (href.startsWith('/login')) return;
+    navigate({ to: '/login', search: { redirect: href }, replace: true });
   }, [ready, user, href, navigate]);
 
   return { ready, authed: Boolean(user) };

@@ -6,6 +6,7 @@ import {
   codecLabel,
   episodeTag,
   formatTimecode,
+  hueFromString,
   langCode,
   langName,
   metaLine,
@@ -107,6 +108,23 @@ describe('sizedImageUrl', () => {
     expect(sizedImageUrl('/api/images/x?v=2', 200)).toBe('/api/images/x?v=2');
     expect(sizedImageUrl(null, 200)).toBeNull();
     expect(sizedImageUrl(undefined, 200)).toBeNull();
+  });
+});
+
+// ----- hueFromString ---------------------------------------------------------
+
+describe('hueFromString', () => {
+  it('is deterministic and always a hue on the wheel', () => {
+    expect(hueFromString('the-matrix')).toBe(hueFromString('the-matrix'));
+    for (const s of ['', 'a', 'K-Drama', 'science-fiction', '🎬 émission']) {
+      const hue = hueFromString(s);
+      expect(hue).toBeGreaterThanOrEqual(0);
+      expect(hue).toBeLessThan(360);
+    }
+  });
+
+  it('is the hash behind posterColors', () => {
+    expect(posterColors('tt123')[0]).toBe(`hsl(${hueFromString('tt123')} 38% 26%)`);
   });
 });
 

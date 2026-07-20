@@ -21,7 +21,7 @@
 // media element for this backend (surface: 'mpv'); the HTML chrome + subtitle
 // overlay sit on top.
 
-import type { PlaneRect } from '@kroma/ui';
+import type { AudioFilterMode, PlaneRect } from '@kroma/ui';
 import {
   BaseTvEngine,
   type EngineOptions,
@@ -35,6 +35,17 @@ import {
 
 /** A single mpv IPC command: `{"command": args}` (fire-and-forget). */
 type MpvArg = string | number | boolean;
+
+/** `af` chains for the audio filter / volume normalizer (§7), tuned to MATCH the
+ * Web Audio compressor in @kroma/ui `audio-filter.ts` so every engine sounds the
+ * same: standard = gentle 4:1 leveling + make-up gain (threshold -24 dB = 0.063),
+ * night = 8:1 peak clamping (threshold -28 dB = 0.04) with below-unity make-up so
+ * it is never louder than off/standard. `lavfi=[...]` is explicit so the bracket
+ * body is plain ffmpeg filter syntax on every mpv build. */
+const MPV_AF: Record<Exclude<AudioFilterMode, 'off'>, string> = {
+  standard: 'lavfi=[acompressor=threshold=0.063:ratio=4:attack=10:release=250:knee=6:makeup=1.4]',
+  night: 'lavfi=[acompressor=threshold=0.04:ratio=8:attack=4:release=250:knee=5,volume=0.9]',
+};
 
 export class MpvEngine extends BaseTvEngine {
   readonly kind = 'mpv';
@@ -180,8 +191,9 @@ export class MpvEngine extends BaseTvEngine {
     if (this.audioIds.length) this.selectAudio(this.rendition);
   }
 
-  /** mpv finished loading a file: apply the resume seek + audio track, announce
-   * ready (the hook drives the first play), and resume after a re-anchor. */
+  /** mpv finished loading a file: apply the resume seek + audio track + filter,
+   * announce ready (the hook drives the first play), and resume after a
+   * re-anchor. */
   private onLoaded(): void {
     if (this.mode === 'direct') {
       const target = this.pendingSeek;
@@ -194,6 +206,9 @@ export class MpvEngine extends BaseTvEngine {
     } else {
       this.elSec = 0;
     }
+    // Unconditional (off included): the mpv process outlives engines, so a
+    // leftover `af` from the previous item must be cleared, not inherited.
+    this.applyFilter();
     this.listeners.onDuration(this.durSec);
     this.listeners.onReady();
     if (this.resumeOnLoad) {
@@ -298,6 +313,18 @@ export class MpvEngine extends BaseTvEngine {
       return;
     }
     this.reanchor(this.position());
+  }
+
+  /** Swap the audio filter chain in place (mpv rebuilds its `af` graph live, so
+   * playback never stops); an empty chain restores the untouched path. */
+  setAudioFilter(mode: AudioFilterMode): void {
+    if (mode === this.filter) return;
+    this.filter = mode;
+    this.applyFilter();
+  }
+
+  private applyFilter(): void {
+    this.setProp('af', this.filter === 'off' ? '' : MPV_AF[this.filter]);
   }
 
   /** Shrink/restore the mpv plane by insetting the video with margin ratios (the

@@ -2,7 +2,7 @@
 // clients @source this dir; legacy-safe flex-only + no /opacity, see ./tw).
 // Barrel for the public surface consumed by the web + TV wrappers.
 
-export { useAudioFilter } from './audio-filter';
+export { storedAudioFilter, useAudioFilter } from './audio-filter';
 export type { CreditsCardItem } from './CreditsCard';
 export { currentChapter, currentChapterIndex, normalizeChapters } from './chapters';
 export { clamp01, endsAtClock, pct } from './fmt';

@@ -1,6 +1,5 @@
 import { dispatchRemoteKey, registerTvMediaKeys } from '@kroma/core';
 import { useEffect } from 'react';
-import { useEnv } from '#tv/app/providers/env';
 
 // Don't let one physical OK carry past the screen it opened. The press that
 // navigates here (card → detail) would otherwise also fire the control the new
@@ -95,7 +94,6 @@ export interface FocusNavHandlers {
  * carrying a `data-focus` attribute (e.g. `<PosterCard focusable />`).
  */
 export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers) {
-  const { pointer } = useEnv();
   // biome-ignore lint/correctness/useExhaustiveDependencies: resetKey is an intentional re-run trigger (a view switch re-focuses the first element); it is not read inside the effect.
   useEffect(() => {
     registerTvMediaKeys();
@@ -127,6 +125,11 @@ export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers)
         e,
         {
           Back: (ev) => {
+            // Already consumed by the on-screen keyboard's typing bridge (which
+            // preventDefaults the Backspace it turned into a delete). Both
+            // listeners sit on window, so without this one press would delete a
+            // character AND leave the screen.
+            if (ev.defaultPrevented) return false;
             // In a real text field a physical Backspace edits the value (native);
             // only Escape / a remote Back button leaves the screen.
             if (inText && ev.key === 'Backspace') return false;
@@ -155,26 +158,13 @@ export function useFocusNav({ onBack, onPlayPause, resetKey }: FocusNavHandlers)
 
     window.addEventListener('keydown', onKey);
 
-    // Desktop mouse / webOS magic remote: let the amber focus ring follow the
-    // cursor, so a pointer drives the same `[data-focus]:focus` affordance the
-    // remote does (no visual/design change, `preventScroll` keeps hover from
-    // yanking rails the way remote nav intentionally does). Clicks already work
-    // natively everything focusable is a real button / role="button".
-    const onPointerOver = pointer
-      ? (e: PointerEvent) => {
-          const active = document.activeElement;
-          // Never yank focus out of a field the user may be typing into (mouse
-          // jitter over the on-screen keyboard mustn't blur a half-typed query).
-          if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
-          const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-focus]');
-          if (el && el !== active) el.focus({ preventScroll: true });
-        }
-      : null;
-    if (onPointerOver) window.addEventListener('pointerover', onPointerOver);
+    // No hover-focus: the amber ring moves on D-pad / arrow keys only (a mouse
+    // still clicks natively, and clicking focuses the button). Cursor-follow
+    // focus was tried and dropped on request it fought physical typing and
+    // made the ring jitter across the on-screen keyboard.
 
     return () => {
       window.removeEventListener('keydown', onKey);
-      if (onPointerOver) window.removeEventListener('pointerover', onPointerOver);
     };
-  }, [onBack, onPlayPause, resetKey, pointer]);
+  }, [onBack, onPlayPause, resetKey]);
 }

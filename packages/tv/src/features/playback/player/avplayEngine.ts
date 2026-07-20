@@ -19,7 +19,7 @@
 // shows an `<object type="application/avplayer">` surface (transparent body)
 // and the HTML chrome + subtitle overlay sit on top.
 
-import type { PlaneRect } from '@kroma/ui';
+import type { AudioFilterMode, PlaneRect } from '@kroma/ui';
 import {
   BaseTvEngine,
   type EngineOptions,
@@ -40,6 +40,9 @@ export class AvplayEngine extends BaseTvEngine {
   /** Current display rectangle (device px). Re-applied on every (re)open so a
    * shrunk plane survives a re-anchor / audio switch instead of popping back. */
   private displayRect = { x: 0, y: 0, w: AVPLAY_W, h: AVPLAY_H };
+  /** Bumped on every (re)open so an in-flight master-start resolution that has
+   * been superseded can tell and bow out. */
+  private openGen = 0;
   private readonly onVisibility: () => void;
 
   constructor(opts: EngineOptions) {
@@ -47,6 +50,14 @@ export class AvplayEngine extends BaseTvEngine {
     const api = getAvplay();
     if (!api) throw new Error('AVPlay unavailable');
     this.api = api;
+    if (this.filter !== 'off' && this.mode === 'direct') {
+      // The filter runs server-side, so a filtered start opens the remux (at the
+      // same position) instead of the original file.
+      this.filterMaster = true;
+      this.mode = 'master';
+      this.baseSec = this.elSec;
+      this.elSec = 0;
+    }
     if (this.mode === 'direct') {
       this.pendingSeek = opts.startSec > 0.5 ? opts.startSec : null;
     }
@@ -57,15 +68,54 @@ export class AvplayEngine extends BaseTvEngine {
     this.open();
   }
 
+  /** The shared source logic, except a filtered master carries the loudness
+   * filter in its mode segment - AVPlay has no client-side audio DSP, so the
+   * server's remux applies the compressor instead (see infra/hls). */
+  protected sourceUrl(): string {
+    if (this.mode === 'master' && this.filter !== 'off') {
+      return this.client.hlsMasterUrl(
+        this.item.id,
+        false,
+        this.baseSec,
+        this.rendition,
+        this.filter,
+      );
+    }
+    return super.sourceUrl();
+  }
+
+  /** Switch the server-side filter: reload the source at the current position
+   * with the new mode segment (re-preps in ~1s, like a language switch). A
+   * filtered direct source moves onto the remux; once the filter is off a
+   * filter-forced remux drops back to the original file. */
+  setAudioFilter(mode: AudioFilterMode): void {
+    if (mode === this.filter) return;
+    this.filter = mode;
+    if (this.mode === 'direct') {
+      this.filterMaster = true;
+      this.mode = 'master';
+    } else if (mode === 'off' && this.filterMaster && !this.fellBack) {
+      this.filterMaster = false;
+      this.mode = 'direct';
+    }
+    this.listeners.onWaiting();
+    this.reanchor(this.position());
+  }
+
   /** (Re)open the current source and prepare it. An anchored master first
    * resolves its REAL start (the keyframe the server actually seeked to) so
    * `baseSec` and every absolute-time consumer (progress bar, subtitle cues)
    * stay honest; direct sources have an absolute timeline and open at once. */
   private open(): void {
+    // Resolving a master start is a server round-trip that blocks until ffmpeg
+    // writes the playlist (seconds). A filter toggle or seek in that window
+    // supersedes this open, so stamp a generation and drop a stale resolution -
+    // otherwise it would overwrite `baseSec` and reopen the abandoned source.
+    const gen = ++this.openGen;
     const url = this.sourceUrl();
     if (this.mode === 'master' && this.baseSec > 0.5) {
       void resolveMasterStart(url, this.baseSec).then((real) => {
-        if (this.destroyed) return;
+        if (this.destroyed || gen !== this.openGen) return;
         this.baseSec = real;
         this.openNow(url);
       });

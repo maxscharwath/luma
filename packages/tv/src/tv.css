@@ -187,6 +187,16 @@ html.kroma-native-surface #root {
   }
 }
 
+/* Ambient browse backdrop cross-fade (opacity-only for TV GPUs). */
+@keyframes tv-ambient-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Text-input caret blink (on-screen keyboard fields). */
 @keyframes tv-blink {
   50% {

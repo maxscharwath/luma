@@ -50,9 +50,8 @@ function ErrorScreen({
       style={{ background: RADIAL }}
     >
       <div className="flex w-full max-w-[440px] flex-col items-center">
-        <div className="mb-8 flex items-center gap-2.5 opacity-90">
-          <Logo markOnly size={26} />
-          <span className="font-display text-[20px] font-extrabold tracking-[.16em]">KROMA</span>
+        <div className="mb-8 opacity-90">
+          <Logo size={20} />
         </div>
 
         {/* Big cinematic status number with an amber-tinted glow. */}

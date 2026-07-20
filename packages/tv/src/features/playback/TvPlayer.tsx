@@ -142,7 +142,17 @@ export function TvPlayer() {
       // only satisfies the media-caption a11y requirement. Fill / object-fit come
       // from the shared stage's `[&>video]:*` rules; borderRadius stays inline
       // (guaranteed) so the remux shrink-card is rounded on the legacy-tier build.
-      <video ref={pb.videoRef} autoPlay playsInline style={{ borderRadius: 'inherit' }}>
+      // crossOrigin is REQUIRED for the audio filter: the TV shells load the app
+      // from their own origin (file:// / tauri://) while media comes from the
+      // server, and a non-CORS media element routed into Web Audio outputs
+      // SILENCE (tainted). The server replies permissive CORS, so this is safe.
+      <video
+        ref={pb.videoRef}
+        autoPlay
+        playsInline
+        crossOrigin="anonymous"
+        style={{ borderRadius: 'inherit' }}
+      >
         <track kind="captions" />
       </video>
     );

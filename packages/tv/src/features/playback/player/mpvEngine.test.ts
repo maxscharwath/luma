@@ -68,6 +68,14 @@ const client = {
     `master:${id}:${aac}:${startSec}:${audio}`,
 } as unknown as KromaClient;
 const item = { id: 'v9' } as unknown as MediaItem;
+
+/** The `set_property af <chain>` values sent so far, in order. */
+function afValues(t: FakeTauri): string[] {
+  return t
+    .cmds()
+    .filter((c) => c[0] === 'set_property' && c[1] === 'af')
+    .map((c) => String(c[2]));
+}
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 const props = (name: string, data: unknown) => ({ name, data });
 
@@ -326,5 +334,40 @@ describe('MpvEngine end-of-file + destroy', () => {
     ]);
     e.setRect(null);
     expect(t.cmds()).toContainEqual(['set_property', 'video-margin-ratio-left', 0]);
+  });
+});
+
+describe('MpvEngine audio filter', () => {
+  function started(over: Partial<EngineOptions> = {}) {
+    const t = fakeTauri();
+    vi.stubGlobal('__TAURI__', t.bridge);
+    const e = new MpvEngine(opts({ direct: true, ...over }));
+    e.start();
+    return { e, t };
+  }
+
+  it('a persisted mode applies its chain on file-loaded', () => {
+    const { t } = started({ audioFilter: 'night' });
+    t.emit('mpv://file-loaded', {});
+    const af = afValues(t);
+    expect(af).toHaveLength(1);
+    expect(af[0]).toContain('acompressor');
+    expect(af[0]).toContain('ratio=8');
+  });
+
+  it('off clears a leftover chain on load (the mpv process outlives engines)', () => {
+    const { t } = started();
+    t.emit('mpv://file-loaded', {});
+    expect(afValues(t)).toEqual(['']);
+  });
+
+  it('setAudioFilter swaps the chain in place and dedupes repeats', () => {
+    const { e, t } = started();
+    e.setAudioFilter('standard');
+    expect(afValues(t)[0]).toContain('ratio=4');
+    e.setAudioFilter('standard');
+    expect(afValues(t)).toHaveLength(1);
+    e.setAudioFilter('off');
+    expect(afValues(t)[1]).toBe('');
   });
 });

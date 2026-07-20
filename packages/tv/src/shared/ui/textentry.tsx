@@ -68,7 +68,10 @@ export function TvTextEntry({
         onKeyDown={(e: ReactKeyboardEvent<HTMLInputElement>) => {
           if (e.key === 'Enter' && onSubmit) onSubmit();
         }}
-        className={`min-w-0 border-none bg-transparent p-0 caret-accent outline-none placeholder:text-[rgba(244,243,240,0.35)] ${textClassName}`}
+        // focus:shadow-none suppresses the global [data-focus]:focus amber ring:
+        // the surrounding InputGroup shows the focus state instead (shadcn-style,
+        // a calm focus-within accent border on the field).
+        className={`min-w-0 border-none bg-transparent p-0 caret-accent outline-none placeholder:text-[rgba(244,243,240,0.35)] focus:shadow-none ${textClassName}`}
       />
     );
   }

@@ -12,33 +12,24 @@
 //  - mpv      : force the native mpv engine (VA-API on the Linux/Deck shell).
 //  - exo      : force the native media3/ExoPlayer engine (Android TV shell).
 
-import type { MessageKey } from '@kroma/core';
+import { isTizenRuntime, isWebOsRuntime, type MessageKey } from '@kroma/core';
+import { devicePref } from '#tv/app/devicePref';
 import { exoAvailable, mpvAvailable } from '#tv/features/playback/player/engine';
 
 export type EnginePref = 'auto' | 'avplay' | 'webview' | 'remux' | 'mpv' | 'exo';
 
-const KEY = 'kroma:engine';
-
 const ALL: readonly EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo'];
+
+const PREF = devicePref('kroma:engine', ALL, 'auto');
 
 /** The saved engine preference for this device, or `auto`. */
 export function getEnginePref(): EnginePref {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v && (ALL as readonly string[]).includes(v)) return v as EnginePref;
-  } catch {
-    /* storage unavailable */
-  }
-  return 'auto';
+  return PREF.get();
 }
 
 /** Persist the engine preference. */
 export function setEnginePref(p: EnginePref): void {
-  try {
-    localStorage.setItem(KEY, p);
-  } catch {
-    /* storage unavailable */
-  }
+  PREF.set(p);
 }
 
 /** Engines the user may choose on THIS platform (always starts with `auto`), so the
@@ -49,8 +40,8 @@ export function setEnginePref(p: EnginePref): void {
 export function availableEngines(): EnginePref[] {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   if (exoAvailable()) return ['auto', 'exo', 'remux'];
-  if (/tizen/i.test(ua)) return ['auto', 'avplay', 'remux'];
-  if (/web0?s/i.test(ua)) return ['auto', 'webview', 'remux'];
+  if (isTizenRuntime(ua)) return ['auto', 'avplay', 'remux'];
+  if (isWebOsRuntime(ua)) return ['auto', 'webview', 'remux'];
   const list: EnginePref[] = ['auto', 'webview', 'remux'];
   // mpv is offered when a native mpv engine is present: the Linux/Deck shell (mpv
   // binary), or the macOS shell whose in-process libmpv engine flagged itself.

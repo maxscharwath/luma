@@ -3,6 +3,7 @@ import type { Metadata } from '../types';
 import { KromaApiError, type RequestContext } from './base';
 import {
   backdropFor,
+  featured,
   hlsMasterUrl,
   items,
   logs,
@@ -70,6 +71,16 @@ describe('hlsMasterUrl', () => {
   it('url-encodes the item id', () => {
     expect(hlsMasterUrl(ctx, 'a b/c', true, 0, 2)).toBe(
       'http://kroma.test/api/items/a%20b%2Fc/hls/aac/0/2/index.m3u8',
+    );
+  });
+
+  it('a loudness filter becomes the mode segment (forcing the transcode path)', () => {
+    expect(hlsMasterUrl(ctx, 'abc', false, 600.4, 1, 'night')).toBe(
+      'http://kroma.test/api/items/abc/hls/aac-night/600/1/index.m3u8',
+    );
+    // The filter supersedes `aac` (a filtered program is always transcoded).
+    expect(hlsMasterUrl(ctx, 'abc', true, 0, 0, 'standard')).toBe(
+      'http://kroma.test/api/items/abc/hls/aac-standard/0/0/index.m3u8',
     );
   });
 });
@@ -144,6 +155,12 @@ describe('catalogue reads (json delegation)', () => {
     expect(calls[0]).toBe('/people?name=Ana+de+Armas&library=lib1');
     // themed uses encodeURIComponent (space -> %20), not URLSearchParams (+).
     expect(calls[1]).toBe('/themed?q=christmas%20movie');
+  });
+
+  it('featured reads the hero endpoint', () => {
+    const { ctx: c, calls } = recordCtx();
+    void featured(c);
+    expect(calls).toEqual(['/home/featured']);
   });
 });
 

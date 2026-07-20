@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useGrowingCount } from '#tv/features/catalog/home/useGrowingCount';
 import { TvPoster } from '#tv/shared/TvMedia';
 
@@ -11,16 +12,18 @@ export interface GridCard {
   /** Series-completion / resume progress (%), or null. */
   progress?: number | null;
   onClick: () => void;
+  /** Fired when the tile takes focus (drives the browse screens' ambient header). */
+  onFocus?: () => void;
 }
 
 // Grid renders in chunks (grows on scroll) so a 1000-item library never mounts at once.
 const GRID_STEP = 120;
 
 /** Incrementally-rendered 2:3 poster grid for the Films / Séries browse views. */
-export function TvGrid({ cards }: Readonly<{ cards: GridCard[] }>) {
+function TvGridImpl({ cards }: Readonly<{ cards: GridCard[] }>) {
   const [count, sentinel] = useGrowingCount(cards.length, GRID_STEP);
   return (
-    <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-16 pt-7 pb-18">
+    <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-16 pt-6 pb-18">
       {/* flex-wrap, NOT CSS grid: the fixed 1920px stage makes the column math
           static (1792px content = 8 x 203px + 7 x 24px gaps), and flex survives
           the legacy webOS tier (Chromium 53) where grid does not exist. */}
@@ -34,6 +37,7 @@ export function TvGrid({ cards }: Readonly<{ cards: GridCard[] }>) {
               watched={c.watched}
               progress={c.progress}
               onClick={c.onClick}
+              onFocus={c.onFocus}
             />
           </div>
         ))}
@@ -42,3 +46,8 @@ export function TvGrid({ cards }: Readonly<{ cards: GridCard[] }>) {
     </div>
   );
 }
+
+// memo: the browse screens re-render on every focus move (the ambient header
+// tracks the focused tile); an unchanged `cards` array must skip this whole
+// 100+-tile subtree.
+export const TvGrid = memo(TvGridImpl);

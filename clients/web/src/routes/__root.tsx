@@ -35,7 +35,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
       { title: 'KROMA' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      // The chromatic-wheel symbol; SVG first, PNG fallback for Safari & co.
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    ],
   }),
   shellComponent: RootDocument,
 });

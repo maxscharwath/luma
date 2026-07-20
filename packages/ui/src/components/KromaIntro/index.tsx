@@ -1,217 +1,259 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_AUDIO, EXIT_MS, KEYFRAMES, SAFETY_MS } from './constants';
-import { IntroScene } from './IntroScene';
+import { CssIntro } from './CssIntro';
+import { SAFETY_MS, VIDEO_SOURCES } from './constants';
+import { IntroShell } from './IntroShell';
+import { useIntroExit } from './useIntroExit';
+import { useIntroKeys } from './useIntroKeys';
 
 /**
- * KROMA cinematic brand intro ported from the Claude Design source
- * ("KROMA Intro.dc.html"): a total-black open, an amber glow that ignites an
- * aperture mark (ring draw → orbit glint → centre-dot ignite → shockwave), an
- * impact flash + scale punch synced to the 1.30 s bass hit, the "KROMA" wordmark
- * reveal with a metal sheen, then the tagline. Drifting embers and a vignette
- * sit on top.
+ * KROMA cinematic brand intro: the bundled intro film (a chromatic light tunnel
+ * that lands on the KR-wheel-MA lockup), full-screen with sound, shared by every
+ * client. Ships as 4K60 HEVC only every target TV, Android TV, Apple device
+ * and HW-decode Chrome plays it; anything without an HEVC decoder (decode/load
+ * failure, no supported codec) falls back to the pure-CSS scene in
+ * {@link CssIntro}.
  *
- * The whole timeline is choreographed to a ~5 s audio sting (bundled here, shared
- * by every client). Because browsers block autoplay-with-sound until a user
- * gesture, the visual timeline only *starts* once `audio.play()` resolves (or is
- * rejected) so picture and sound stay locked together; a pointer/key fallback
- * unblocks the sound on the first interaction, and a safety timer guarantees the
- * intro still ends even if audio never plays. There are no on-screen controls
- * it auto-ends with the sting, and any key / remote button (OK, Back, Space) skips.
+ * Browsers block autoplay-with-sound until a user gesture, so playback is tried
+ * with sound first and falls back to muted; the first pointer/key interaction
+ * then unmutes the film in place, and only rewinds it when it has barely
+ * started (so an opening gesture still gets picture and sound together, while a
+ * stray click or remote key mid-film cannot restart the intro). There are no
+ * on-screen controls it auto-ends with the film, any key / remote button (OK,
+ * Back, Space) skips, and a safety timer (armed from the video's own duration
+ * once metadata loads) guarantees the intro ends even if playback stalls.
  *
- * It is intentionally framework-free plain inline styles + an injected
- * `<style>` of @keyframes, no Tailwind so it renders identically on the web
- * SSR shell and on old TV webviews. Mount it as a full-screen overlay and call
- * `onDone` to hand off to the app.
- *
- * `lite` (set by the TV shells) trades a little polish for a smooth frame rate on
- * weak TV GPUs: it drops the per-frame raster work desktop can absorb but a TV
- * can't animated `filter: blur()`, the `mix-blend-mode` grain, the
- * `background-position` sheen and keeps animation on the compositor (opacity +
- * transform only, big layers promoted with `translateZ`).
+ * Framework-free (plain inline styles) so it renders identically on the web SSR
+ * shell and on old TV webviews. Mount as a full-screen overlay; `onDone` hands
+ * off to the app.
  */
 export interface KromaIntroProps {
-  /** Called once the intro has finished (audio ended or skipped). */
+  /** Called once the intro has finished (video ended or skipped). */
   onDone: () => void;
-  /** Audio sting URL. Defaults to the bundled KROMA sting. */
-  audioSrc?: string;
+  /** Single-source override for the intro film. Defaults to the bundled
+   * 4K60 HEVC film. */
+  videoSrc?: string;
   /** Loop forever instead of ending (preview/idle-screen use). */
   loop?: boolean;
-  /** Show the "Votre médiathèque, en grand" tagline. */
-  showTagline?: boolean;
-  /** Override the tagline copy. */
+  /** Optional tagline overlaid during the film's final seconds. None by default:
+   * the film ends on the bare lockup. */
   tagline?: string;
-  /** Performance mode for weak TV GPUs compositor-only animation, no blur/blend
-   * raster. Visually near-identical; much smoother on a TV webview. */
+  /** Performance mode for weak TV GPUs. The video path decodes in hardware and
+   * ignores it; the CSS fallback uses it to stay compositor-only. */
   lite?: boolean;
 }
 
-export function KromaIntro({
-  onDone,
-  audioSrc = DEFAULT_AUDIO,
-  loop = false,
-  showTagline = true,
-  tagline = 'Votre médiathèque, en grand',
-  lite = false,
-}: Readonly<KromaIntroProps>) {
-  // `started` gates the animated layers so the CSS timeline begins exactly at
-  // audio onset. `runId` is the React key that restarts every animation on replay.
-  const [started, setStarted] = useState(false);
-  const [exiting, setExiting] = useState(false);
-  const [runId, setRunId] = useState(0);
+/** Seconds before the end of the film when the tagline overlay fades in. */
+const TAGLINE_LEAD_S = 2.6;
+/** Slack added to the video duration for the stall-safety timer (ms). */
+const SAFETY_SLACK_MS = 1500;
+/** How far into the film a first gesture still rewinds it to play with sound
+ * from the top. Past this the gesture only unmutes. */
+const UNMUTE_REWIND_S = 0.4;
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const safetyRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const exitRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const exitedRef = useRef(false);
+export function KromaIntro(props: Readonly<KromaIntroProps>) {
+  const [videoFailed, setVideoFailed] = useState(false);
+  if (videoFailed) {
+    const { onDone, loop, tagline, lite } = props;
+    return <CssIntro onDone={onDone} loop={loop} tagline={tagline} lite={lite} />;
+  }
+  return <VideoIntro {...props} onVideoError={() => setVideoFailed(true)} />;
+}
+
+function VideoIntro({
+  onDone,
+  videoSrc,
+  loop = false,
+  tagline,
+  onVideoError,
+}: Readonly<KromaIntroProps & { onVideoError: () => void }>) {
+  const [tagVisible, setTagVisible] = useState(false);
+  const { exiting, exitedRef, safetyRef, exit, reopen, clearTimers } = useIntroExit(onDone);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const loopRef = useRef(loop);
   loopRef.current = loop;
-  // Latest onDone without re-running the mount effect (avoids re-arming audio).
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
+  // Latest callback without re-running the mount effect (avoids restarting the film).
+  const onVideoErrorRef = useRef(onVideoError);
+  onVideoErrorRef.current = onVideoError;
 
-  const exit = useCallback(() => {
-    if (exitedRef.current) return;
-    exitedRef.current = true;
+  // (Re-)arm the stall-safety timer from the film's real length when known.
+  const armSafety = useCallback(() => {
     clearTimeout(safetyRef.current);
-    setExiting(true);
-    exitRef.current = setTimeout(() => onDoneRef.current(), EXIT_MS);
-  }, []);
-
-  const start = useCallback(() => {
-    exitedRef.current = false;
-    clearTimeout(safetyRef.current);
-    clearTimeout(exitRef.current);
-    setExiting(false);
-    setStarted(false);
-    const a = audioRef.current;
-    // Kick the visual timeline at audio onset so the flash/punch land on the
-    // 1.30 s bass hit (the keyframe delays are timed to the sting).
-    const begin = () => setStarted(true);
-    if (a) {
-      try {
-        a.currentTime = 0;
-      } catch {
-        /* not yet seekable harmless */
+    if (loopRef.current) return;
+    const d = videoRef.current?.duration;
+    const ms = d && Number.isFinite(d) && d > 0 ? d * 1000 + SAFETY_SLACK_MS : SAFETY_MS;
+    safetyRef.current = setTimeout(() => {
+      // A hidden tab defers the media fetch entirely; don't burn the intro
+      // while parked in the background, re-check once per safety window.
+      const vv = videoRef.current;
+      if (document.hidden && vv && vv.readyState === 0) {
+        armSafetyRef.current();
+        return;
       }
-      const p = a.play();
-      if (typeof p?.then === 'function') p.then(begin).catch(begin);
-      else begin();
+      exit();
+    }, ms);
+  }, [exit, safetyRef]);
+  const armSafetyRef = useRef(armSafety);
+  armSafetyRef.current = armSafety;
+
+  const replay = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    reopen();
+    setTagVisible(false);
+    try {
+      v.currentTime = 0;
+    } catch {
+      /* not yet seekable harmless */
+    }
+    void v.play().catch(() => undefined);
+    armSafety();
+  }, [armSafety, reopen]);
+
+  // First gesture while the film is muted: add sound in place. Chrome keeps the
+  // whole film muted until then, so a rewind here would restart the intro on any
+  // click or non-skip remote key; only a gesture at the very top rewinds, which
+  // is what makes picture and sound open together when the user is early.
+  const unblock = useCallback(() => {
+    const v = videoRef.current;
+    if (!v?.muted || exitedRef.current) return;
+    v.muted = false;
+    if (v.currentTime >= UNMUTE_REWIND_S) return;
+    try {
+      v.currentTime = 0;
+    } catch {
+      /* harmless */
+    }
+    void v.play().catch(() => undefined);
+    armSafety();
+  }, [armSafety, exitedRef]);
+
+  useIntroKeys({ exit, replay, unblock });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only intro timeline; exit/armSafety/replay are stable useCallbacks and are intentionally omitted so the effect never re-arms (which would restart the film) on unrelated re-renders.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    // A failure landing after the user skipped is ignored: swapping in the CSS
+    // scene would unmount us, and this cleanup would drop the pending hand-off,
+    // so the fallback would play a whole second intro from the top.
+    const fail = () => {
+      if (!exitedRef.current) onVideoErrorRef.current();
+    };
+
+    // Sound-first autoplay; muted fallback when the browser blocks it. A
+    // muted-too rejection means playback is genuinely broken: use the CSS scene.
+    const begin = () => {
+      const p = v.play();
+      if (typeof p?.then === 'function') {
+        p.catch(() => {
+          v.muted = true;
+          const p2 = v.play();
+          if (typeof p2?.then === 'function') p2.catch(fail);
+        });
+      }
+      armSafety();
+    };
+
+    // Chrome defers media loading in background tabs, which would stall the film
+    // until the safety timer silently burned the once-per-session intro. If the
+    // page opens hidden, hold everything until it first becomes visible.
+    let pendingVisible = false;
+    const onVisible = () => {
+      if (pendingVisible && !document.hidden) {
+        pendingVisible = false;
+        document.removeEventListener('visibilitychange', onVisible);
+        begin();
+      }
+    };
+    if (document.hidden) {
+      pendingVisible = true;
+      document.addEventListener('visibilitychange', onVisible);
     } else {
       begin();
     }
-    if (!loopRef.current) safetyRef.current = setTimeout(exit, SAFETY_MS);
-  }, [exit]);
-
-  const replay = useCallback(() => {
-    clearTimeout(safetyRef.current);
-    clearTimeout(exitRef.current);
-    setRunId((n) => n + 1);
-    start();
-  }, [start]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only intro timeline; arm audio once per `audioSrc`. start/exit/replay are stable useCallbacks and are intentionally omitted so the effect never re-arms (which would restart the sting) on unrelated re-renders.
-  useEffect(() => {
-    const a = new Audio(audioSrc);
-    a.preload = 'auto';
-    audioRef.current = a;
 
     const onEnded = () => {
       if (loopRef.current) replay();
       else exit();
     };
-    a.addEventListener('ended', onEnded);
-
-    // Browsers block autoplay-with-sound until a gesture: arm a one-shot
-    // unblock on the first pointer/key, then run the synced timeline.
-    const unblock = () => {
-      if (a.paused) {
-        try {
-          a.currentTime = 0;
-        } catch {
-          /* harmless */
-        }
-        void a
-          .play()
-          .then(() => setStarted(true))
-          .catch(() => undefined);
-      }
-    };
-    document.addEventListener('pointerdown', unblock);
-    document.addEventListener('keydown', unblock);
-
-    // Skip / replay via keyboard + TV remote (OK/Enter, Space, Back/Escape).
-    const onKey = (e: KeyboardEvent) => {
-      const k = e.key;
-      if (
-        k === 'Enter' ||
-        k === ' ' ||
-        k === 'Spacebar' ||
-        k === 'Escape' ||
-        k === 'GoBack' ||
-        k === 'BrowserBack'
-      ) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        exit();
-      } else if (k === 'r' || k === 'R') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        replay();
-      }
-    };
-    // Capture phase so the TV's spatial focus-nav underneath stays inert.
-    window.addEventListener('keydown', onKey, true);
-
-    start();
+    const onMeta = () => armSafety();
+    v.addEventListener('ended', onEnded);
+    v.addEventListener('loadedmetadata', onMeta);
+    v.addEventListener('error', fail);
 
     return () => {
-      clearTimeout(safetyRef.current);
-      clearTimeout(exitRef.current);
-      a.pause();
-      a.removeEventListener('ended', onEnded);
-      document.removeEventListener('pointerdown', unblock);
-      document.removeEventListener('keydown', unblock);
-      window.removeEventListener('keydown', onKey, true);
+      clearTimers();
+      document.removeEventListener('visibilitychange', onVisible);
+      v.pause();
+      v.removeEventListener('ended', onEnded);
+      v.removeEventListener('loadedmetadata', onMeta);
+      v.removeEventListener('error', fail);
     };
-    // Re-arm only if the audio source changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioSrc]);
+  }, []);
+
+  // The tagline reveal is the film's only per-frame listener: wire it up only
+  // when a tagline was actually asked for (no shell sets one today).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !tagline) return;
+    const onTime = () => {
+      if (v.duration && Number.isFinite(v.duration) && v.currentTime > v.duration - TAGLINE_LEAD_S)
+        setTagVisible(true);
+    };
+    v.addEventListener('timeupdate', onTime);
+    return () => v.removeEventListener('timeupdate', onTime);
+  }, [tagline]);
 
   return (
-    <div
-      className="kroma-intro"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        overflow: 'hidden',
-        background: '#0A0A0C',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: "'Hanken Grotesk', system-ui, sans-serif",
-      }}
-      role="img"
-      aria-label="KROMA"
-    >
-      <style>{KEYFRAMES}</style>
-
-      {started ? (
-        <IntroScene runId={runId} lite={lite} showTagline={showTagline} tagline={tagline} />
-      ) : null}
-
-      {/* exit transition to the app */}
-      <div
+    <IntroShell exiting={exiting}>
+      {/* biome-ignore lint/a11y/useMediaCaption: decorative brand film with a musical sting only, no speech to caption; the shell carries the accessible name. */}
+      <video
+        ref={videoRef}
+        playsInline
+        preload="metadata"
         style={{
           position: 'absolute',
           inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
           background: '#0A0A0C',
-          opacity: exiting ? 1 : 0,
-          transition: 'opacity .8s ease',
-          pointerEvents: 'none',
-          zIndex: 50,
         }}
-      />
-    </div>
+      >
+        {/* With no playable source (no HEVC decoder), play() rejects
+            (NotSupportedError) on both attempts above and the CSS scene takes
+            over. */}
+        {videoSrc ? (
+          <source src={videoSrc} />
+        ) : (
+          VIDEO_SOURCES.map((s) => <source key={s.src} src={s.src} type={s.type} />)
+        )}
+      </video>
+
+      {/* tagline overlay during the film's landing */}
+      {tagline && tagVisible ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: '11%',
+            textAlign: 'center',
+            fontWeight: 700,
+            fontSize: '1.8vmin',
+            letterSpacing: '.42em',
+            textTransform: 'uppercase',
+            color: 'rgba(244,243,240,.52)',
+            whiteSpace: 'nowrap',
+            animation: 'kroma-tagIn .85s ease both',
+            pointerEvents: 'none',
+          }}
+        >
+          {tagline}
+        </div>
+      ) : null}
+    </IntroShell>
   );
 }

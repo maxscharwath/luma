@@ -82,6 +82,7 @@ import type {
   SaveVpnBody,
   SearchResponse,
   Section,
+  SectionItem,
   ServerInfo,
   SessionInfo,
   SettingsView,
@@ -108,7 +109,7 @@ export type {
 export type { KromaClientOptions } from './client/base';
 export { apiErrorText, KromaApiError } from './client/base';
 export type { DiscoverType } from './client/discovery';
-export type { StoryboardManifest } from './client/media';
+export type { HlsAudioFilter, StoryboardManifest } from './client/media';
 export type {
   DownloadedSub,
   GenerateReq,
@@ -263,6 +264,10 @@ export class KromaClient {
   home(): Promise<Section[]> {
     return media.home(this.ctx);
   }
+  /** Today's "En vedette" hero pick; `null` only on an empty catalogue. */
+  featured(): Promise<SectionItem | null> {
+    return media.featured(this.ctx);
+  }
   /** AI suggestions for a title's detail page; `null` while generating (poll). */
   aiSuggest(id: string): Promise<Section | null> {
     return media.aiSuggest(this.ctx, id);
@@ -289,8 +294,14 @@ export class KromaClient {
   streamUrl(id: string): string {
     return media.streamUrl(this.ctx, id);
   }
-  hlsMasterUrl(id: string, aac = false, startSec = 0, audio = 0): string {
-    return media.hlsMasterUrl(this.ctx, id, aac, startSec, audio);
+  hlsMasterUrl(
+    id: string,
+    aac = false,
+    startSec = 0,
+    audio = 0,
+    filter?: media.HlsAudioFilter,
+  ): string {
+    return media.hlsMasterUrl(this.ctx, id, aac, startSec, audio, filter);
   }
   posterUrl(id: string): string {
     return media.posterUrl(this.ctx, id);

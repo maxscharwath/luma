@@ -9,7 +9,13 @@
 //!
 //! Dependency-light (no resvg / system fonts): tiny-skia rasterises shapes,
 //! gradients and the pre-scaled PNG layers; fontdue draws the (Latin) badge +
-//! brand wordmark; jpeg-encoder writes the output. The brand font is embedded.
+//! brand wordmark; jpeg-encoder writes the output. Both fonts are embedded
+//! (Hanken Grotesk for the badge, Bricolage Grotesque for the wordmark).
+//!
+//! This file owns the poster compositing; the brand lockup (wordmark + chromatic
+//! wheel) is drawn by the [`brand`] submodule on top of the same primitives.
+
+mod brand;
 
 use std::sync::OnceLock;
 
@@ -17,7 +23,7 @@ use fontdue::Font;
 use jpeg_encoder::{ColorType, Encoder};
 use tiny_skia::{
     Color, FillRule, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap, PixmapPaint, Point,
-    PremultipliedColorU8, Rect, SpreadMode, Stroke, Transform,
+    PremultipliedColorU8, Rect, SpreadMode, Transform,
 };
 
 const W: u32 = 640;
@@ -78,7 +84,7 @@ pub fn render(card: &Card) -> Option<Vec<u8>> {
     }
 
     // KROMA brand lockup, top-right, vertically centred on the badge row.
-    paint_brand(&mut pm, MARGIN + BADGE_H / 2.0);
+    brand::paint(&mut pm, MARGIN + BADGE_H / 2.0);
 
     if let Some(p) = card.progress {
         paint_progress(&mut pm, p.clamp(0.0, 1.0));
@@ -152,49 +158,6 @@ fn paint_badge(pm: &mut Pixmap, text: &str) {
         x + BADGE_PAD_X,
         y + BADGE_PAD_Y + BADGE_SIZE * 0.82,
         &TextStyle { size: BADGE_SIZE, color: ACCENT, tracking: BADGE_TRACKING },
-    );
-}
-
-/// Top-right KROMA brand lockup: an amber aperture mark (ring + centre dot)
-/// followed by the "KROMA" wordmark, right-aligned to the margin and vertically
-/// centred on `cy`. Mirrors the on-screen `<Logo>` lockup, drawn natively (no
-/// SVG/asset) from tiny-skia primitives + the embedded brand font.
-fn paint_brand(pm: &mut Pixmap, cy: f32) {
-    const WORD: &str = "KROMA";
-    let f = font();
-    let size = 20.0;
-    let tracking = size * 0.16; // matches the brand's .16em letter-spacing
-    let ring_r = 9.5;
-    let stroke_w = 2.4;
-    let dot_r = 3.4;
-    let gap = 11.0; // mark → wordmark
-
-    let mark_w = ring_r * 2.0 + stroke_w; // visual diameter incl. the stroke
-    let word_w = text_width(f, WORD, size, tracking);
-    let x0 = W as f32 - MARGIN - (mark_w + gap + word_w);
-    let mark_cx = x0 + mark_w / 2.0;
-
-    let mut amber = Paint::default();
-    amber.set_color_rgba8(ACCENT.0, ACCENT.1, ACCENT.2, 255);
-    amber.anti_alias = true;
-
-    // Aperture ring.
-    if let Some(ring) = PathBuilder::from_circle(mark_cx, cy, ring_r) {
-        let stroke = Stroke { width: stroke_w, ..Default::default() };
-        pm.stroke_path(&ring, &amber, &stroke, Transform::identity(), None);
-    }
-    // Centre dot.
-    if let Some(dot) = PathBuilder::from_circle(mark_cx, cy, dot_r) {
-        pm.fill_path(&dot, &amber, FillRule::Winding, Transform::identity(), None);
-    }
-    // Wordmark, vertically centred on the mark.
-    draw_text(
-        pm,
-        f,
-        WORD,
-        x0 + mark_w + gap,
-        cy + size * 0.32,
-        &TextStyle { size, color: WHITE, tracking },
     );
 }
 

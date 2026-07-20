@@ -1,23 +1,13 @@
 // The KROMA brand mark and the 10-foot wall clock.
 
+import { Logo } from '@kroma/ui';
 import { useEffect, useState } from 'react';
 
-/** The KROMA brand mark concentric amber rings + the wordmark. */
+/** The KROMA brand lockup the wordmark with the chromatic-wheel O. `size` keeps
+ * its historical meaning (rough lockup height) and maps onto the shared Logo's
+ * lockup height (= wheel diameter). */
 export function KromaMark({ size = 30 }: Readonly<{ size?: number }>) {
-  return (
-    <div className="flex items-center gap-3">
-      <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <circle cx="16" cy="16" r="13" stroke="#F4B642" strokeWidth="2.4" />
-        <circle cx="16" cy="16" r="4.5" fill="#F4B642" />
-      </svg>
-      <span
-        className="font-display font-extrabold leading-none tracking-[0.16em]"
-        style={{ fontSize: Math.round(size * 0.82) }}
-      >
-        KROMA
-      </span>
-    </div>
-  );
+  return <Logo size={Math.round(size * 0.82)} />;
 }
 
 /** Live wall clock ("20:15") 24-hour, updated each minute. */

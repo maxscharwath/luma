@@ -27,6 +27,8 @@ use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
+use super::{same_program, StreamMode};
+
 const SEGMENT_SECONDS: &str = "6";
 const IDLE_TIMEOUT: Duration = Duration::from_secs(180);
 const REAP_INTERVAL: Duration = Duration::from_secs(30);
@@ -41,7 +43,8 @@ const READRATE: &str = "1.5";
 /// so playback still starts instantly. Needs ffmpeg >= 6.1 (see [`detect_burst`]).
 const READRATE_BURST: &str = "30";
 /// A session whose last access is more recent than this is treated as actively
-/// playing and is NEVER evicted to reclaim disk (that would stall a live stream).
+/// playing: it is NEVER evicted to reclaim disk (that would stall a live stream)
+/// and is dropped under the concurrency cap only as a last resort.
 /// Superseded anchors / finished sessions go idle at once, so they free quickly.
 const BUDGET_GRACE: Duration = Duration::from_secs(45);
 /// Per-session sliding window: keep this many segments BEHIND the furthest one the
@@ -79,7 +82,8 @@ impl Session {
     }
 }
 
-/// Registry of continuous HLS remux sessions, keyed by `{item_id}:{copy|aac}`.
+/// Registry of continuous HLS remux sessions, keyed per program + anchor (see
+/// `session_key`).
 pub struct Sessions {
     root: PathBuf,
     cap: usize,
@@ -118,8 +122,8 @@ impl Sessions {
 
     /// Start (or reuse) the session for `key` (one muxed video+audio program) and
     /// return the media playlist bytes + the real stream start (s) for `baseSec`.
-    pub async fn master(&self, key: &str, input: &Path, audio: u32, aac: bool, start_secs: f64) -> Option<(Vec<u8>, f64)> {
-        let session = match self.ensure(key, input, audio, aac, start_secs).await {
+    pub async fn master(&self, key: &str, input: &Path, audio: u32, mode: StreamMode, start_secs: f64) -> Option<(Vec<u8>, f64)> {
+        let session = match self.ensure(key, input, audio, mode, start_secs).await {
             Ok(s) => s,
             Err(e) => {
                 warn!(error = %e, session = %key, "failed to start HLS remux");
@@ -180,7 +184,7 @@ impl Sessions {
         }
     }
 
-    async fn ensure(&self, key: &str, input: &Path, audio: u32, aac: bool, start_secs: f64) -> std::io::Result<Arc<Session>> {
+    async fn ensure(&self, key: &str, input: &Path, audio: u32, mode: StreamMode, start_secs: f64) -> std::io::Result<Arc<Session>> {
         // The anchor is part of the key, so an existing session is always the
         // right one - just reuse it (no in-place re-anchor).
         {
@@ -199,26 +203,70 @@ impl Sessions {
             s.touch().await; // another task created it while we probed
             return Ok(s.clone());
         }
-        self.make_room(&mut map).await;
+        // A seek or an audio-filter toggle mints a NEW key for the same program,
+        // so the client's previous session is dead weight the moment it stops
+        // being read: reclaim it here instead of holding an ffmpeg (the filtered
+        // modes really do transcode) plus its segments for the full IDLE_TIMEOUT.
+        self.reap_superseded(&mut map, key).await;
+        self.make_room(&mut map, key).await;
         let dir = self.root.join(safe_dir(key));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir)?;
-        let child = spawn_stream(input, &dir, audio, aac, start_secs, self.burst)?;
-        info!(session = %key, audio, aac, anchor = start_secs, start, "started HLS remux");
+        let child = spawn_stream(input, &dir, audio, mode, start_secs, self.burst)?;
+        info!(session = %key, audio, mode = ?mode, anchor = start_secs, start, "started HLS remux");
         let session = Arc::new(Session { dir, child: Mutex::new(child), last_access: Mutex::new(Instant::now()), max_seg: AtomicU64::new(0), pruned: AtomicU64::new(0), start });
         map.insert(key.to_string(), session.clone());
         Ok(session)
     }
 
-    async fn make_room(&self, map: &mut HashMap<String, Arc<Session>>) {
-        // Hard concurrency cap: evict the least-recently-used session (even an
-        // active one) so a new stream can always start.
+    /// Free a slot for the incoming `key`: enforce the hard concurrency cap,
+    /// then the soft disk budget.
+    ///
+    /// The cap picks its victim in this order (one eviction per pass, so the
+    /// loop always terminates):
+    /// 1. the least-recently-used session when it has gone quiet (untouched for
+    ///    [`BUDGET_GRACE`]). It is the coldest one by construction, so nothing
+    ///    live is dropped while a colder session exists;
+    /// 2. otherwise EVERY session is live and killing one stalls a viewer
+    ///    mid-play (its next segment 404s), so prefer a sibling of `key` - same
+    ///    program, different mode / anchor - which is almost certainly the
+    ///    arriving client's OWN superseded stream (see [`same_program`]);
+    /// 3. only failing that, the plain LRU: a new stream must be able to start
+    ///    even when every session is genuinely live.
+    async fn make_room(&self, map: &mut HashMap<String, Arc<Session>>, key: &str) {
         while map.len() >= self.cap {
-            let Some((k, _)) = lru(map).await else { break };
-            self.evict(map, &k).await;
+            let Some((oldest, la)) = lru(map.iter()).await else { break };
+            let victim = if Instant::now().duration_since(la) >= BUDGET_GRACE {
+                oldest
+            } else {
+                lru_sibling(map, key).await.unwrap_or(oldest)
+            };
+            self.evict(map, &victim).await;
         }
         // Soft disk budget: reclaim idle bloat before adding another session.
         self.enforce_budget(map).await;
+    }
+
+    /// Drop the sessions superseded by `key` - same program (title + audio
+    /// track), different mode / anchor - that have already gone quiet
+    /// ([`BUDGET_GRACE`], the same liveness test the disk budget uses). A
+    /// re-anchor mints such a sibling and never reads the old one again, so this
+    /// returns its ffmpeg + disk in seconds instead of [`IDLE_TIMEOUT`].
+    /// Sibling sessions still being read are left alone: the HLS routes are
+    /// anonymous (no bearer, no device id), so a warm sibling could equally be a
+    /// second viewer on the same title and we must not cut them off.
+    async fn reap_superseded(&self, map: &mut HashMap<String, Arc<Session>>, key: &str) {
+        let now = Instant::now();
+        let mut stale = Vec::new();
+        for (k, s) in map.iter() {
+            let quiet = now.duration_since(*s.last_access.lock().await) >= BUDGET_GRACE;
+            if k != key && quiet && same_program(k, key) {
+                stale.push(k.clone());
+            }
+        }
+        for k in stale {
+            self.evict(map, &k).await;
+        }
     }
 
     /// Evict idle / superseded sessions oldest-first until the on-disk cache is
@@ -234,7 +282,7 @@ impl Sessions {
         }
         let mut total = self.bytes();
         while total > budget && map.len() > 1 {
-            let Some((k, la)) = lru(map).await else { break };
+            let Some((k, la)) = lru(map.iter()).await else { break };
             if Instant::now().duration_since(la) < BUDGET_GRACE {
                 break; // the least-recent session is still live - keep it and the rest
             }
@@ -283,10 +331,12 @@ impl Sessions {
     }
 }
 
-/// The (key, last_access) of the least-recently-used session, if any.
-async fn lru(map: &HashMap<String, Arc<Session>>) -> Option<(String, Instant)> {
+/// The (key, last_access) of the least-recently-used session in `sessions`, if
+/// any. Takes an iterator so a subset (e.g. one program's sessions) can be
+/// ranked with the same pass.
+async fn lru<'a>(sessions: impl Iterator<Item = (&'a String, &'a Arc<Session>)>) -> Option<(String, Instant)> {
     let mut victim: Option<(String, Instant)> = None;
-    for (k, s) in map.iter() {
+    for (k, s) in sessions {
         let la = *s.last_access.lock().await;
         match &victim {
             Some((_, t)) if *t <= la => {}
@@ -294,6 +344,14 @@ async fn lru(map: &HashMap<String, Arc<Session>>) -> Option<(String, Instant)> {
         }
     }
     victim
+}
+
+/// The key of the least-recently-used session that plays the same program as
+/// `key` (another mode / anchor of the same title + audio track), if any. `key`
+/// itself is never returned. See [`Sessions::make_room`] for why this is the
+/// preferred victim once every session is live.
+async fn lru_sibling(map: &HashMap<String, Arc<Session>>, key: &str) -> Option<String> {
+    lru(map.iter().filter(|(k, _)| k.as_str() != key && same_program(k, key))).await.map(|(k, _)| k)
 }
 
 /// Delete this session's media segments more than [`KEEP_BEHIND_SEGS`] behind the
@@ -391,7 +449,7 @@ async fn keyframe_before(input: &Path, anchor: f64) -> f64 {
 /// hls.js's alternate-audio switching was unreliable (it kept playing rendition 0
 /// regardless of selection); muxing makes the chosen language play unconditionally.
 /// Language switch = the client reloads with a different `audio` (a fresh session).
-fn spawn_stream(input: &Path, dir: &Path, audio: u32, aac: bool, start_secs: f64, burst: bool) -> std::io::Result<Child> {
+fn spawn_stream(input: &Path, dir: &Path, audio: u32, mode: StreamMode, start_secs: f64, burst: bool) -> std::io::Result<Child> {
     let mut cmd = Command::new("ffmpeg");
     // Remux never decodes video (`-c:v copy`); at most it decodes ONE audio
     // stream for the aac fallback. `-threads 1` stops ffmpeg from standing up a
@@ -421,7 +479,12 @@ fn spawn_stream(input: &Path, dir: &Path, audio: u32, aac: bool, start_secs: f64
     }
     cmd.args(["-map", "0:v:0"]).arg("-map").arg(format!("0:a:{audio}"));
     cmd.args(["-c:v", "copy"]);
-    if aac {
+    if mode.transcode() {
+        // The loudness filter (volume leveling) rides the decode the transcode
+        // already pays for; `-ac 2` downmixes after the filter graph.
+        if let Some(af) = mode.filter_chain() {
+            cmd.args(["-af", af]);
+        }
         cmd.args(["-c:a", "aac", "-ac", "2", "-b:a", "192k"]);
     } else {
         cmd.args(["-c:a", "copy"]);
@@ -497,5 +560,124 @@ mod tests {
         assert_eq!(content_type("master.m3u8"), "application/vnd.apple.mpegurl");
         assert_eq!(content_type("init_0.mp4"), "video/mp4");
         assert_eq!(content_type("seg_0_00001.m4s"), "video/iso.segment");
+    }
+
+    // ---- eviction policy -----------------------------------------------------
+    // The registry is driven directly (no ffmpeg): each fake session holds a
+    // harmless child process and an explicit last-access age, which is all the
+    // cap / supersede rules look at.
+
+    /// Age of a session the client is still reading (well inside [`BUDGET_GRACE`]).
+    const LIVE: Duration = Duration::from_secs(1);
+    /// Age of a session nobody has read for longer than [`BUDGET_GRACE`].
+    const QUIET: Duration = Duration::from_secs(BUDGET_GRACE.as_secs() + 5);
+
+    fn fake_session(dir: PathBuf, age: Duration) -> Arc<Session> {
+        let child = Command::new("sleep")
+            .arg("30")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .expect("spawn the stand-in child");
+        let last = Instant::now().checked_sub(age).expect("monotonic clock older than the test window");
+        Arc::new(Session {
+            dir,
+            child: Mutex::new(child),
+            last_access: Mutex::new(last),
+            max_seg: AtomicU64::new(0),
+            pruned: AtomicU64::new(0),
+            start: 0.0,
+        })
+    }
+
+    /// A registry over its own temp root, pre-populated with `(key, age)` fakes.
+    /// `budget = 0` so only the concurrency cap is exercised.
+    async fn registry(name: &str, cap: usize, sessions: &[(&str, Duration)]) -> Sessions {
+        let data = std::env::temp_dir().join(format!("kroma-hls-test-{}-{name}", std::process::id()));
+        let s = Sessions::new(&data, cap, 0);
+        let mut map = s.inner.lock().await;
+        for (key, age) in sessions {
+            let dir = s.root.join(safe_dir(key));
+            std::fs::create_dir_all(&dir).expect("session dir");
+            map.insert((*key).to_string(), fake_session(dir, *age));
+        }
+        drop(map);
+        s
+    }
+
+    /// The registry's session keys, sorted.
+    async fn keys(s: &Sessions) -> Vec<String> {
+        let mut keys: Vec<String> = s.inner.lock().await.keys().cloned().collect();
+        keys.sort();
+        keys
+    }
+
+    #[tokio::test]
+    async fn hard_cap_prefers_the_arriving_clients_own_superseded_sibling() {
+        // Two viewers mid-stream: itA started first (so it is the LRU) while itB
+        // toggles the audio filter, which mints a third key for its own program.
+        let s = registry(
+            "sibling",
+            2,
+            &[("itA:copy:0:a0", Duration::from_secs(3)), ("itB:aac:0:a0", LIVE)],
+        )
+        .await;
+        {
+            let mut map = s.inner.lock().await;
+            s.make_room(&mut map, "itB:aac-night:0:a0").await;
+        }
+        // The plain-LRU rule used to kill itA here: another viewer's LIVE stream.
+        assert_eq!(keys(&s).await, ["itA:copy:0:a0"]);
+        assert!(!s.root.join(safe_dir("itB:aac:0:a0")).exists());
+    }
+
+    #[tokio::test]
+    async fn hard_cap_evicts_a_quiet_session_before_a_live_sibling() {
+        let s = registry("quiet", 2, &[("itA:copy:0:a0", QUIET), ("itB:aac:0:a0", LIVE)]).await;
+        {
+            let mut map = s.inner.lock().await;
+            s.make_room(&mut map, "itB:aac-night:0:a0").await;
+        }
+        assert_eq!(keys(&s).await, ["itB:aac:0:a0"]);
+    }
+
+    #[tokio::test]
+    async fn hard_cap_still_frees_a_slot_when_every_session_is_live_and_unrelated() {
+        let s = registry(
+            "fallback",
+            2,
+            &[("itA:copy:0:a0", Duration::from_secs(3)), ("itB:aac:0:a0", LIVE)],
+        )
+        .await;
+        {
+            let mut map = s.inner.lock().await;
+            s.make_room(&mut map, "itC:copy:0:a0").await;
+        }
+        // Nothing is quiet and nothing is related, so the LRU still goes: a new
+        // stream must always be able to start.
+        assert_eq!(keys(&s).await, ["itB:aac:0:a0"]);
+    }
+
+    #[tokio::test]
+    async fn superseded_siblings_are_reclaimed_only_once_quiet() {
+        let s = registry(
+            "supersede",
+            8,
+            &[
+                ("itA:copy:0:a0", QUIET),  // the same program, gone quiet: superseded
+                ("itA:aac:600:a0", LIVE),  // the same program but still being read
+                ("itA:copy:0:a1", QUIET),  // another language track = another program
+                ("itB:copy:0:a0", QUIET),  // another title
+            ],
+        )
+        .await;
+        {
+            let mut map = s.inner.lock().await;
+            s.reap_superseded(&mut map, "itA:aac-night:900:a0").await;
+        }
+        assert_eq!(keys(&s).await, ["itA:aac:600:a0", "itA:copy:0:a1", "itB:copy:0:a0"]);
+        assert!(!s.root.join(safe_dir("itA:copy:0:a0")).exists());
     }
 }

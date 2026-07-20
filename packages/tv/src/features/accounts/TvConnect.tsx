@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
-import { AuthScreen, KromaMark, OnScreenKeyboard, TvTextEntry } from '#tv/shared/ui';
+import {
+  AuthScreen,
+  InputGroup,
+  InputGroupAddon,
+  KromaMark,
+  OnScreenKeyboard,
+  TvTextEntry,
+} from '#tv/shared/ui';
 
 /**
  * Add a (distant) server by address, via an on-screen URL keyboard. Reached on
@@ -55,8 +62,10 @@ export function TvConnect() {
           {t('connect.addServerSub')}
         </p>
 
-        <div className="mb-5 flex items-center gap-3 rounded-[13px] border border-border-strong bg-[#0F0F13] px-5 py-4">
-          <IconWorldSearch size={20} className="flex-none text-dim" stroke={1.7} />
+        <InputGroup className="mb-5 gap-3 rounded-[13px] bg-[#0F0F13] px-5 py-4">
+          <InputGroupAddon>
+            <IconWorldSearch size={20} className="text-dim" stroke={1.7} />
+          </InputGroupAddon>
           <TvTextEntry
             value={value}
             onChange={setValue}
@@ -76,7 +85,7 @@ export function TvConnect() {
           >
             {discovering ? t('common.detecting') : t('connect.detect')}
           </button>
-        </div>
+        </InputGroup>
 
         <OnScreenKeyboard
           value={value}

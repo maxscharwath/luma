@@ -1,4 +1,12 @@
-import { collectGenres, type GenreCount } from '@kroma/core';
+import {
+  collectGenres,
+  type GenreCount,
+  genreAccent,
+  genreColors,
+  genreShowcases,
+  genreTint,
+  sizedImageUrl,
+} from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { IconCategory } from '@tabler/icons-react';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -38,8 +46,11 @@ function GenresPage() {
   const { data: shows } = useSuspenseQuery(catalogQueries.showsView());
 
   // Genres are derived from the whole catalogue (movies + shows), already
-  // localized server-side, ranked most-common first.
-  const genres = useMemo(() => collectGenres([...movies, ...shows]), [movies, shows]);
+  // localized server-side, ranked most-common first; each card is fronted by
+  // the genre's best-rated backdrop from the library.
+  const catalogue = useMemo(() => [...movies, ...shows], [movies, shows]);
+  const genres = useMemo(() => collectGenres(catalogue), [catalogue]);
+  const showcases = useMemo(() => genreShowcases(catalogue), [catalogue]);
 
   return (
     <main className={PAGE_MAIN}>
@@ -47,9 +58,14 @@ function GenresPage() {
       {genres.length === 0 ? (
         <EmptyState icon={<IconCategory size={32} stroke={1.5} />} title={t('genres.empty')} />
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
           {genres.map((g) => (
-            <GenreTile key={g.name} genre={g} count={t('person.titleCount', { count: g.count })} />
+            <GenreTile
+              key={g.name}
+              genre={g}
+              count={t('person.titleCount', { count: g.count })}
+              backdrop={showcases.get(g.name)?.backdrop ?? null}
+            />
           ))}
         </div>
       )}
@@ -57,19 +73,47 @@ function GenresPage() {
   );
 }
 
-/** A tappable genre card leading to its full grid. */
-function GenreTile({ genre, count }: Readonly<{ genre: GenreCount; count: string }>) {
+/** A tappable genre card: library backdrop (or the genre-colour gradient) under
+ * a bottom-heavy wash of the genre's signature hue. */
+function GenreTile({
+  genre,
+  count,
+  backdrop,
+}: Readonly<{ genre: GenreCount; count: string; backdrop: string | null }>) {
+  const [c1, c2] = genreColors(genre.name);
   return (
     <Link
       to="/genre/$genre"
       params={{ genre: genre.name }}
-      className="group relative flex min-h-[96px] flex-col justify-between overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.04] px-5 py-4 no-underline transition-colors hover:border-accent/40 hover:bg-white/[0.08]"
+      className="group relative block aspect-video overflow-hidden rounded-2xl border border-white/[0.06] no-underline transition-colors hover:border-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      style={{ background: `linear-gradient(150deg, ${c1}, ${c2})` }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_80%_at_100%_0%,rgba(242,180,66,.10),transparent_60%)] opacity-0 transition-opacity group-hover:opacity-100" />
-      <span className="relative font-display text-[18px] font-bold leading-tight tracking-[-.01em] text-text">
-        {genre.name}
-      </span>
-      <span className="relative text-[13px] font-medium text-dim tabular-nums">{count}</span>
+      {backdrop ? (
+        <img
+          src={sizedImageUrl(backdrop, 420) ?? undefined}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-cover object-[50%_25%] transition-transform duration-500 group-hover:scale-105"
+        />
+      ) : null}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: genreTint(genre.name) }}
+      />
+      <div className="absolute inset-x-4 bottom-3.5 sm:inset-x-5 sm:bottom-4">
+        <div
+          className="mb-1.5 h-1 w-6 rounded-full"
+          style={{ background: genreAccent(genre.name) }}
+        />
+        <div className="font-display text-[16px] font-bold leading-tight tracking-[-.01em] text-white sm:text-[19px]">
+          {genre.name}
+        </div>
+        <div className="mt-0.5 text-[12px] font-medium text-white/70 tabular-nums sm:text-[13px]">
+          {count}
+        </div>
+      </div>
     </Link>
   );
 }

@@ -14,6 +14,8 @@ export type { EmptyStateProps } from './components/EmptyState';
 export { EmptyState } from './components/EmptyState';
 export type { KromaIntroProps } from './components/KromaIntro';
 export { KromaIntro } from './components/KromaIntro';
+export type { KromaMarkProps, KromaMarkSpin } from './components/KromaMark';
+export { KROMA_WHEEL_COLORS, KROMA_WHEEL_SEGMENTS, KromaMark } from './components/KromaMark';
 export type { LogoProps } from './components/Logo';
 export { Logo } from './components/Logo';
 export type { PosterCardProps } from './components/PosterCard';
