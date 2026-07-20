@@ -264,7 +264,9 @@ jobs:
           mv spk-payload/bin spk-payload/ffmpeg docker-ctx/amd64/
           mv arm64-payload/bin arm64-payload/ffmpeg docker-ctx/arm64/
           chmod +x docker-ctx/*/bin/* docker-ctx/*/ffmpeg/*
-          ls -R docker-ctx | head -20
+          # Diagnostic only: `|| true` so the SIGPIPE `ls` takes when `head`
+          # closes the pipe early can't trip `set -o pipefail` and fail the step.
+          ls -R docker-ctx | head -20 || true
           # INFO version from the filename: kroma-<version>-x86_64.spk
           NAME="$(basename "$SPK")"; V="${NAME#kroma-}"; V="${V%-x86_64.spk}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
