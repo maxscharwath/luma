@@ -201,7 +201,10 @@ jobs:
       - name: Fetch static ffmpeg/ffprobe (arm64)
         run: |
           set -euo pipefail
-          curl -fSL --proto '=https' --proto-redir '=https' "$FFMPEG_URL" -o ff.tar.xz
+          # johnvansickle.com intermittently 4xx/5xxs (has 415'd mid-release);
+          # --retry-all-errors so even an HTTP 415 is retried, not just connects.
+          curl -fSL --retry 5 --retry-delay 4 --retry-all-errors \
+            --proto '=https' --proto-redir '=https' "$FFMPEG_URL" -o ff.tar.xz
           mkdir -p ffmpeg-arm64
           tar xJf ff.tar.xz -C ffmpeg-arm64 --strip-components=1
 

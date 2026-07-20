@@ -136,7 +136,10 @@ fi
 FF="$CACHE/ffmpeg-amd64-static"
 if [ ! -x "$FF/ffmpeg" ]; then
   say "Fetching static ffmpeg/ffprobe"
-  curl -fSL --proto '=https' --proto-redir '=https' "$FFMPEG_URL" -o "$WORK/ff.tar.xz"
+  # --retry-all-errors: johnvansickle.com intermittently 4xx/5xxs, so retry even
+  # an HTTP error (e.g. a spurious 415), not just connection failures.
+  curl -fSL --retry 5 --retry-delay 4 --retry-all-errors \
+    --proto '=https' --proto-redir '=https' "$FFMPEG_URL" -o "$WORK/ff.tar.xz"
   mkdir -p "$FF" && tar xJf "$WORK/ff.tar.xz" -C "$FF" --strip-components=1
 fi
 
