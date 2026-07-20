@@ -16,6 +16,8 @@ import * as media from './client/media';
 import * as moduleRegistry from './client/modules';
 import * as organize from './client/organize';
 import * as playback from './client/playback';
+import type { RematchKind } from './client/rematch';
+import * as rematch from './client/rematch';
 import * as requests from './client/requests';
 import * as subtitlesClient from './client/subtitles';
 import type {
@@ -54,6 +56,7 @@ import type {
   LogsView,
   ManualAddBody,
   ManualSearchView,
+  MatchCandidates,
   MediaItem,
   MediaRequest,
   Metadata,
@@ -554,6 +557,15 @@ export class KromaClient {
   }
   discoverDetail(kind: 'movie' | 'tv', tmdbId: number): Promise<DiscoverDetail> {
     return discovery.discoverDetail(this.ctx, kind, tmdbId);
+  }
+
+  // ----- fixing a wrong TMDB match (library.manage) ----------------------------
+
+  matchCandidates(kind: RematchKind, id: string, query?: string): Promise<MatchCandidates> {
+    return rematch.matchCandidates(this.ctx, kind, id, query);
+  }
+  setMatch(kind: RematchKind, id: string, tmdbId: number | null): Promise<void> {
+    return rematch.setMatch(this.ctx, kind, id, tmdbId);
   }
   listRequests(opts?: { mine?: boolean }): Promise<RequestsView> {
     return requests.listRequests(this.ctx, opts);

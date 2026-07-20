@@ -14,11 +14,12 @@ pub mod admin;
 pub mod jobs;
 pub mod pipeline;
 pub mod naming;
+pub mod matching;
 pub mod requests;
 pub mod section;
 
-// Flat re-export (mirrors the server's former `model.rs`). `naming` is
-// intentionally not globbed here; reach it via its module path.
+// Flat re-export (mirrors the server's former `model.rs`). `naming` / `matching`
+// are intentionally not globbed here; reach them via their module path.
 pub use accounts::*;
 pub use admin::*;
 pub use jobs::*;

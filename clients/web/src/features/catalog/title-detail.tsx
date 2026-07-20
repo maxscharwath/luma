@@ -195,7 +195,11 @@ function TitleBody({
       ) : null}
 
       {owned && localId ? (
-        <TreatmentsPanel kind={view.kind === 'show' ? 'show' : 'item'} id={localId} />
+        <TreatmentsPanel
+          kind={view.kind === 'show' ? 'show' : 'item'}
+          id={localId}
+          title={view.title}
+        />
       ) : null}
 
       {view.kind === 'movie' ? (

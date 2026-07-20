@@ -11,6 +11,7 @@ use crate::domain::metadata::{CastMember, Metadata};
 
 use super::cache::Cache;
 use super::common::{build_cast, build_crew, RawCreatedBy, RawCredits};
+use super::search;
 
 pub(super) const API: &str = "https://api.themoviedb.org/3";
 pub(super) const IMG: &str = "https://image.tmdb.org/t/p";
@@ -23,7 +24,7 @@ pub enum Target {
 }
 
 impl Target {
-    fn search_path(self) -> &'static str {
+    pub(super) fn search_path(self) -> &'static str {
         match self {
             Target::Movie => "search/movie",
             Target::Tv => "search/tv",
@@ -37,7 +38,7 @@ impl Target {
     }
     /// TMDB uses a different year query param for movies vs. shows.
     /// `primary_release_year` is the precise movie filter Seerr/Overseerr use.
-    fn year_param(self) -> &'static str {
+    pub(super) fn year_param(self) -> &'static str {
         match self {
             Target::Movie => "primary_release_year",
             Target::Tv => "first_air_date_year",
@@ -78,6 +79,13 @@ fn detail_key(target: Target, language: &str, title: &str, year: Option<u32>) ->
         year.unwrap_or(0),
         title.to_lowercase()
     )
+}
+
+/// Cache key for a detail resolved by a *known* id rather than a title guess.
+/// The `#` cannot collide with a title-keyed entry (titles are lowercased text
+/// and the year slot is numeric).
+fn detail_key_id(target: Target, language: &str, id: u64) -> String {
+    format!("{}|{}|#{id}", target.detail_path(), language)
 }
 
 /// Resolve metadata for `title`/`year` in one language, caching the result (hit
@@ -134,15 +142,48 @@ pub fn lookup_all(
     title: &str,
     year: Option<u32>,
 ) -> Option<Resolved> {
-    let id = match search_id(api_key, search_lang, target, title, year) {
+    let id = match search::best_id(api_key, search_lang, target, title, year) {
         Ok(Some(id)) => id,
         // No match, or a transient search failure treat both as "no result this
         // run" (a transient blip is retried on the next enrichment pass).
         _ => return None,
     };
+    let by_lang = details_by_lang(cache, api_key, langs, target, id, |lang| {
+        detail_key(target, lang, title, year)
+    });
+    (!by_lang.is_empty()).then_some(Resolved { by_lang })
+}
+
+/// The same as [`lookup_all`] but for an *already known* TMDB id: no search at
+/// all. This is the path a pinned id takes, whether pinned by an acquisition
+/// import or by an operator correcting a wrong match, so the correction is
+/// authoritative and can never be re-litigated by a title guess.
+pub fn lookup_all_by_id(
+    cache: &Cache,
+    api_key: &str,
+    langs: &[&str],
+    target: Target,
+    id: u64,
+) -> Option<Resolved> {
+    let by_lang =
+        details_by_lang(cache, api_key, langs, target, id, |lang| detail_key_id(target, lang, id));
+    (!by_lang.is_empty()).then_some(Resolved { by_lang })
+}
+
+/// Fetch one resolved id's details in every language in `langs`, caching each
+/// under `key_for(lang)`. A language whose fetch fails transiently is omitted
+/// rather than failing the whole resolve.
+fn details_by_lang(
+    cache: &Cache,
+    api_key: &str,
+    langs: &[&str],
+    target: Target,
+    id: u64,
+    key_for: impl Fn(&str) -> String,
+) -> std::collections::HashMap<String, Metadata> {
     let mut by_lang = std::collections::HashMap::new();
     for &lang in langs {
-        let key = detail_key(target, lang, title, year);
+        let key = key_for(lang);
         let meta = match cache.get(&key) {
             Some(Some(m)) => m,
             Some(None) => continue, // cached miss for this language
@@ -156,7 +197,7 @@ pub fn lookup_all(
         };
         by_lang.insert(lang.to_string(), meta);
     }
-    (!by_lang.is_empty()).then_some(Resolved { by_lang })
+    by_lang
 }
 
 /// Search TMDB for the best match, then fetch its details + external IDs.
@@ -172,31 +213,10 @@ fn fetch(
     title: &str,
     year: Option<u32>,
 ) -> Result<Option<Metadata>, ()> {
-    match search_id(api_key, language, target, title, year)? {
+    match search::best_id(api_key, language, target, title, year)? {
         Some(id) => Ok(Some(fetch_details(api_key, language, target, id)?)),
         None => Ok(None),
     }
-}
-
-/// Search half: resolve `title`/`year` to a TMDB id. `Ok(None)` = no match.
-fn search_id(
-    api_key: &str,
-    language: &str,
-    target: Target,
-    title: &str,
-    year: Option<u32>,
-) -> Result<Option<u64>, ()> {
-    let mut search_params = vec![
-        ("language", language.to_string()),
-        ("query", title.to_string()),
-        ("include_adult", "false".to_string()),
-    ];
-    if let Some(y) = year {
-        search_params.push((target.year_param(), y.to_string()));
-    }
-    let search: SearchResp =
-        curl_json(&format!("{API}/{}", target.search_path()), api_key, &search_params)?;
-    Ok(search.results.first().map(|hit| hit.id))
 }
 
 /// Detail half: fetch + map one resolved TMDB `id` into a [`Metadata`] in
@@ -429,17 +449,6 @@ fn is_bearer_token(key: &str) -> bool {
 // ----- Raw TMDB JSON shapes ----------------------------------------------------
 
 #[derive(Debug, Deserialize)]
-struct SearchResp {
-    #[serde(default)]
-    results: Vec<SearchHit>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearchHit {
-    id: u64,
-}
-
-#[derive(Debug, Deserialize)]
 struct Details {
     id: u64,
     #[serde(default)]
@@ -628,12 +637,6 @@ mod tests {
         assert_eq!(cast[0].character.as_deref(), Some("A"));
         // Empty character strings are dropped during the Metadata mapping.
         assert_eq!(cast[2].character.as_deref(), Some(""));
-    }
-
-    #[test]
-    fn empty_search_results_deserialize() {
-        let s: SearchResp = serde_json::from_str(r#"{"results": []}"#).unwrap();
-        assert!(s.results.is_empty());
     }
 
     #[test]

@@ -1406,5 +1406,20 @@
   "admin.aiSearchModels": "Rechercher un modèle…",
   "admin.aiUntitledProvider": "Fournisseur sans nom",
   "admin.aiRequired": "requis",
-  "admin.aiOptional": "optionnel"
+  "admin.aiOptional": "optionnel",
+  "rematch.action": "Corriger la fiche",
+  "rematch.title": "Corriger la correspondance TMDB",
+  "rematch.subtitle": "Choisissez le bon titre TMDB pour cet élément.",
+  "rematch.parsedAs": "Détecté comme {title}",
+  "rematch.searchPlaceholder": "Chercher un autre titre sur TMDB",
+  "rematch.search": "Chercher",
+  "rematch.current": "Actuel",
+  "rematch.pinned": "Choix manuel",
+  "rematch.confidence": "Confiance {score} %",
+  "rematch.noResults": "Aucun résultat sur TMDB pour cette recherche.",
+  "rematch.loadFailed": "Impossible de charger les propositions TMDB.",
+  "rematch.apply": "Utiliser ce titre",
+  "rematch.applied": "Correspondance mise à jour, les métadonnées se rechargent.",
+  "rematch.applyFailed": "Impossible de mettre à jour la correspondance.",
+  "rematch.reset": "Rétablir la correspondance automatique"
 }

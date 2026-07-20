@@ -1405,5 +1405,20 @@
   "admin.aiSearchModels": "Search models…",
   "admin.aiUntitledProvider": "Untitled provider",
   "admin.aiRequired": "required",
-  "admin.aiOptional": "optional"
+  "admin.aiOptional": "optional",
+  "rematch.action": "Fix the match",
+  "rematch.title": "Fix the TMDB match",
+  "rematch.subtitle": "Pick the right TMDB title for this element.",
+  "rematch.parsedAs": "Detected as {title}",
+  "rematch.searchPlaceholder": "Search TMDB for another title",
+  "rematch.search": "Search",
+  "rematch.current": "Current",
+  "rematch.pinned": "Manual choice",
+  "rematch.confidence": "{score}% confidence",
+  "rematch.noResults": "No TMDB results for this search.",
+  "rematch.loadFailed": "Could not load TMDB suggestions.",
+  "rematch.apply": "Use this title",
+  "rematch.applied": "Match updated, metadata is reloading.",
+  "rematch.applyFailed": "Could not update the match.",
+  "rematch.reset": "Restore automatic matching"
 }

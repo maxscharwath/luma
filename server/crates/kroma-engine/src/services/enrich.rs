@@ -42,6 +42,11 @@ struct Job {
     /// per-season episode/cast pass so newly-added seasons are filled without
     /// re-fetching the whole show. `None` means a full first-time enrichment.
     resolved_tmdb: Option<u64>,
+    /// An id chosen for us rather than guessed: an operator correcting a wrong
+    /// match, or an acquisition import that already knew what it downloaded.
+    /// Unlike `resolved_tmdb` this means "fetch THIS id", not "already done", so
+    /// it is checked first and always performs the detail fetch.
+    pin: Option<u64>,
 }
 
 /// The shared, cloneable bundle a worker needs to resolve one title. Cloning is
@@ -97,36 +102,73 @@ pub struct EnrichSummary {
 /// so its per-season episode pass runs, but without re-resolving the show. So a
 /// re-run only does genuinely missing work: a full catalog re-fetch is an
 /// explicit reset (`db::reset_all_metadata`), not the steady-state cost.
-fn build_jobs(items: &[MediaItem], shows: &[Show]) -> Vec<Job> {
+fn build_jobs(items: &[MediaItem], shows: &[Show], pins: &Pins) -> Vec<Job> {
     let mut jobs: Vec<Job> = Vec::new();
     for i in items {
-        if matches!(i.kind, Kind::Movie | Kind::Video) && i.metadata.is_none() {
-            jobs.push(Job {
-                id: i.id.clone(),
-                target: Target::Movie,
-                title: i.title.clone(),
-                year: i.year,
-                is_show: false,
-                resolved_tmdb: None,
-            });
+        if !matches!(i.kind, Kind::Movie | Kind::Video) {
+            continue;
         }
+        let on_file = i.metadata.as_ref().map(|m| m.tmdb_id).filter(|&id| id != 0);
+        let pin = pins.items.get(&i.id).copied();
+        // A pin that disagrees with what is on file is a correction that has not
+        // landed yet, so it re-enters the queue even though the movie "looks"
+        // enriched.
+        if on_file.is_some() && (pin.is_none() || pin == on_file) {
+            continue;
+        }
+        jobs.push(Job {
+            id: i.id.clone(),
+            target: Target::Movie,
+            title: i.title.clone(),
+            year: i.year,
+            is_show: false,
+            resolved_tmdb: None,
+            pin,
+        });
     }
     for s in shows {
         // Always enqueue shows even when already enriched: a show that resolved
         // last week may have gained a season this week, and `enrich_episodes`
         // (itself incremental) fills only the new stills/cast. `resolved_tmdb`
         // lets the worker skip the show-level re-lookup for those.
-        let resolved_tmdb = s.metadata.as_ref().map(|m| m.tmdb_id).filter(|&id| id != 0);
+        let on_file = s.metadata.as_ref().map(|m| m.tmdb_id).filter(|&id| id != 0);
+        let pin = pins.shows.get(&s.id).copied();
         jobs.push(Job {
             id: s.id.clone(),
             target: Target::Tv,
             title: s.title.clone(),
             year: s.year,
             is_show: true,
-            resolved_tmdb,
+            // A pending correction wins over the id on file.
+            resolved_tmdb: on_file.filter(|_| pin.is_none() || pin == on_file),
+            pin: pin.filter(|&p| Some(p) != on_file),
         });
     }
     jobs
+}
+
+/// Operator-pinned TMDB ids, loaded once per enrichment run instead of once per
+/// title (two indexed scans of a table that is empty in the common case).
+#[derive(Default)]
+struct Pins {
+    items: std::collections::HashMap<String, u64>,
+    shows: std::collections::HashMap<String, u64>,
+}
+
+/// One subject's operator-chosen id. Best-effort: a lookup failure just means
+/// this call falls back to automatic matching.
+fn pin_for(state: &SharedState, kind: &str, id: &str) -> Option<u64> {
+    let conn = state.db.get().ok()?;
+    db::tmdb_pin::get(&conn, kind, id).ok().flatten()
+}
+
+fn load_pins(pool: &Pool) -> Pins {
+    // Best-effort: a pin lookup failure must not stop enrichment, it only means
+    // this run falls back to automatic matching.
+    Pins {
+        items: db::tmdb_pin::all_for_kind(pool, db::metadata_core::ITEM).unwrap_or_default(),
+        shows: db::tmdb_pin::all_for_kind(pool, db::metadata_core::SHOW).unwrap_or_default(),
+    }
 }
 
 fn engine_for(state: &SharedState, api_key: String) -> Engine {
@@ -152,7 +194,7 @@ pub fn maybe_spawn(state: &SharedState, items: &[MediaItem], shows: &[Show]) {
     if !state.config.tmdb_enrich {
         return;
     }
-    let jobs = build_jobs(items, shows);
+    let jobs = build_jobs(items, shows, &load_pins(&state.db));
     if jobs.is_empty() {
         return;
     }
@@ -350,10 +392,18 @@ fn process_job(eng: &Engine, counters: &Counters, total: usize, activity: Option
         bump(eng, counters, total, activity);
         return;
     }
-    // Resolve the title once, then fetch its details in every supported language.
-    let Some(resolved) = metadata::lookup_all(
-        &eng.cache, &eng.api_key, &eng.language, &langs, job.target, &job.title, job.year,
-    ) else {
+    // A pinned id skips the search entirely and fetches that title's details; a
+    // free title is resolved by search first. Either way we end up with the same
+    // per-language detail set and take the identical write path below.
+    let resolved = match job.pin {
+        Some(tmdb_id) => {
+            metadata::lookup_all_by_id(&eng.cache, &eng.api_key, &langs, job.target, tmdb_id)
+        }
+        None => metadata::lookup_all(
+            &eng.cache, &eng.api_key, &eng.language, &langs, job.target, &job.title, job.year,
+        ),
+    };
+    let Some(resolved) = resolved else {
         counters.missed.fetch_add(1, Ordering::Relaxed);
         bump(eng, counters, total, activity);
         return;
@@ -509,32 +559,35 @@ pub fn enrich_one(state: &SharedState, id: &str, is_show: bool) -> anyhow::Resul
         let Some(show) = db::get_show(&state.db, id)?.map(|d| d.show) else {
             return Ok(());
         };
+        let on_file = show.metadata.as_ref().map(|m| m.tmdb_id).filter(|&i| i != 0);
+        let pin = pin_for(state, db::metadata_core::SHOW, id).filter(|&p| Some(p) != on_file);
         Job {
             id: show.id.clone(),
             target: Target::Tv,
             title: show.title.clone(),
             year: show.year,
             is_show: true,
-            resolved_tmdb: show.metadata.as_ref().map(|m| m.tmdb_id).filter(|&i| i != 0),
+            resolved_tmdb: on_file.filter(|_| pin.is_none()),
+            pin,
         }
     } else {
         let Some(item) = db::get_item(&state.db, id)? else {
             return Ok(());
         };
+        let on_file = item.metadata.as_ref().map(|m| m.tmdb_id).filter(|&i| i != 0);
+        // An operator correction wins; else adopt the id an acquisition import
+        // already knew, so the real movie is fetched instead of a title guess.
+        let pin = pin_for(state, db::metadata_core::ITEM, id)
+            .or_else(|| state.db.get().ok().and_then(|c| db::tmdb_hint(&c, id).ok().flatten()))
+            .filter(|&p| Some(p) != on_file);
         Job {
             id: item.id.clone(),
             target: Target::Movie,
             title: item.title.clone(),
             year: item.year,
             is_show: false,
-            // Prefer an already-resolved id; else adopt a pinned id from an
-            // acquisition (so the real TMDB movie is fetched, not a title guess).
-            resolved_tmdb: item
-                .metadata
-                .as_ref()
-                .map(|m| m.tmdb_id)
-                .filter(|&i| i != 0)
-                .or_else(|| state.db.get().ok().and_then(|c| db::tmdb_hint(&c, &item.id).ok().flatten())),
+            resolved_tmdb: on_file.filter(|_| pin.is_none()),
+            pin,
         }
     };
     let eng = engine_for(state, api_key);
@@ -583,7 +636,7 @@ pub fn run_tracked(
     progress: impl Fn(usize, usize),
     cancelled: impl Fn() -> bool,
 ) -> EnrichSummary {
-    let jobs = build_jobs(items, shows);
+    let jobs = build_jobs(items, shows, &load_pins(&state.db));
     let total = jobs.len();
     let Some(api_key) = state.config.tmdb_api_key.clone() else {
         return EnrichSummary { total, resolved: 0, missed: 0, failed: 0, cancelled: false };

@@ -69,9 +69,9 @@ pub fn stage_for(state: &SharedState, kind: &str, id: &str, stage: &str) -> Resu
 /// Clear + requeue the metadata stage for one element.
 fn stage_metadata(db: &db::Pool, kind: &str, id: &str, now: i64) -> Result<()> {
     if kind == "show" {
-        db::clear_show_metadata(db, id)?;
+        db::clear_subject_metadata(db, db::metadata_core::SHOW, id)?;
     } else {
-        db::clear_item_metadata(db, id)?;
+        db::clear_subject_metadata(db, db::metadata_core::ITEM, id)?;
     }
     db::pipeline::enqueue(db, "metadata", "item", id, HIGH, now)?;
     Ok(())
@@ -196,7 +196,7 @@ fn reprocess_item(
     *subjects += 2;
 
     if matches!(item.kind, Kind::Movie | Kind::Video) {
-        db::clear_item_metadata(db, id)?;
+        db::clear_subject_metadata(db, db::metadata_core::ITEM, id)?;
         db::pipeline::enqueue(db, "metadata", "item", id, HIGH, now)?;
         db::pipeline::enqueue(db, "embed", "item", id, HIGH, now)?;
         *subjects += 2;
@@ -228,7 +228,7 @@ fn reprocess_show(
     let Some(detail) = db::get_show(db, id)? else {
         bail!("unknown show {id}");
     };
-    db::clear_show_metadata(db, id)?;
+    db::clear_subject_metadata(db, db::metadata_core::SHOW, id)?;
     db::clear_item_vector(db, id)?;
     db::pipeline::enqueue(db, "metadata", "item", id, HIGH, now)?;
     db::pipeline::enqueue(db, "embed", "item", id, HIGH, now)?;

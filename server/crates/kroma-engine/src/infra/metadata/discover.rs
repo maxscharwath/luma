@@ -23,6 +23,9 @@ pub struct DiscoverHit {
     pub kind: RequestKind,
     pub tmdb_id: u64,
     pub title: String,
+    /// Original-language title, often the only one a scene release matches.
+    /// Empty when TMDB omits it.
+    pub original_title: String,
     pub year: Option<u32>,
     pub poster_url: Option<String>,
     pub backdrop_url: Option<String>,
@@ -281,6 +284,7 @@ fn hit_from(kind: RequestKind, h: RawHit) -> Option<DiscoverHit> {
         kind,
         tmdb_id: h.id,
         title,
+        original_title: h.original_title.or(h.original_name).unwrap_or_default(),
         year: year_of(h.release_date.as_deref().or(h.first_air_date.as_deref())),
         poster_url: h.poster_path.map(|p| format!("{IMG}/w342{p}")),
         backdrop_url: h.backdrop_path.map(|p| format!("{IMG}/w780{p}")),
@@ -338,6 +342,10 @@ struct RawHit {
     title: Option<String>,
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    original_title: Option<String>,
+    #[serde(default)]
+    original_name: Option<String>,
     #[serde(default)]
     overview: Option<String>,
     #[serde(default)]

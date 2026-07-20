@@ -19,9 +19,10 @@ mod cache;
 mod client;
 mod common;
 pub mod discover;
+mod search;
 
 pub use cache::Cache;
 pub use client::{
-    curl_available, lookup, lookup_all, season_episodes, season_episodes_multi, EpisodeArt,
-    SeasonData, Target,
+    curl_available, lookup, lookup_all, lookup_all_by_id, season_episodes, season_episodes_multi,
+    EpisodeArt, SeasonData, Target,
 };

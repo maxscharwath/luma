@@ -123,3 +123,40 @@ pub fn build_doc(title: &str, year: Option<u32>, meta: &Metadata) -> String {
     }
     parts.join(". ")
 }
+
+/// One TMDB title offered by the "fix the match" picker, with the confidence
+/// [`crate::matching`] gives it against what the filename parsed to. `score` is
+/// what lets the UI show *why* the automatic pick landed where it did.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchCandidate {
+    pub tmdb_id: u64,
+    pub title: String,
+    pub original_title: Option<String>,
+    pub year: Option<u32>,
+    pub poster_url: Option<String>,
+    pub overview: Option<String>,
+    pub rating: Option<f32>,
+    /// Confidence in `0.0..=1.0` that this is the title on disk.
+    pub score: f32,
+    /// Already the stored match for this element.
+    pub current: bool,
+}
+
+/// `GET /api/rematch/{kind}/{id}/candidates`: what we would match against, and
+/// the ranked candidates to choose from.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchCandidates {
+    /// The text searched for: the operator's query when they typed one, else the
+    /// title parsed from the filename. The UI prefills its search box with it.
+    pub query: String,
+    /// The year parsed from the filename, which is what scoring compares against.
+    pub year: Option<u32>,
+    /// The TMDB id currently stored for this element, if it ever resolved.
+    pub current_tmdb_id: Option<u64>,
+    /// Whether the current match was chosen by an operator rather than resolved
+    /// automatically (i.e. whether there is something to reset).
+    pub pinned: bool,
+    pub results: Vec<MatchCandidate>,
+}

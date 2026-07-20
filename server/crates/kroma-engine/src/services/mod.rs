@@ -14,6 +14,7 @@ pub mod markers;
 pub mod pipeline;
 pub mod scan;
 pub mod enrich;
+pub mod rematch;
 pub mod search;
 pub mod sections;
 pub mod quickconnect;

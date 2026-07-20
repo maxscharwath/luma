@@ -49,6 +49,7 @@ mod suggest;
 // scoped so `put`/`resolve_*`/`get_core` read clearly at the call sites.
 pub mod translations;
 pub mod metadata_core;
+pub mod tmdb_pin;
 pub mod localize;
 mod schema;
 mod vectors;

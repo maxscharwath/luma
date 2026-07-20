@@ -180,17 +180,26 @@ pub fn unprobe_item_files(pool: &Pool, item_id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Clear one movie/video item's TMDB metadata, so a reprocess re-enriches it.
-pub fn clear_item_metadata(pool: &Pool, id: &str) -> Result<()> {
+/// Clear ONE subject's resolved TMDB metadata so a reprocess re-enriches it:
+/// the legacy blob, the invariant core, every TMDB-sourced translation, the
+/// embedding, and (for a show) its season casts.
+///
+/// `kind` is [`metadata_core::ITEM`] or [`metadata_core::SHOW`]. Wiping all of it
+/// matters when the *identity* changes (an operator corrected a wrong match):
+/// nulling only the blob would leave the old `tmdb_id` in `metadata_core` for
+/// availability matching and the old localized text in `translations`, both of
+/// which outlive the re-enrichment if it resolves to fewer languages.
+pub fn clear_subject_metadata(pool: &Pool, kind: &str, id: &str) -> Result<()> {
     let conn = pool.get()?;
-    conn.execute("UPDATE items SET metadata=NULL WHERE id=?1", params![id])?;
-    Ok(())
-}
-
-/// Clear one show's TMDB metadata, so a reprocess re-enriches it.
-pub fn clear_show_metadata(pool: &Pool, id: &str) -> Result<()> {
-    let conn = pool.get()?;
-    conn.execute("UPDATE shows SET metadata=NULL WHERE id=?1", params![id])?;
+    if kind == metadata_core::SHOW {
+        conn.execute("UPDATE shows SET metadata=NULL WHERE id=?1", params![id])?;
+        conn.execute("DELETE FROM season_meta WHERE show_id=?1", params![id])?;
+    } else {
+        conn.execute("UPDATE items SET metadata=NULL WHERE id=?1", params![id])?;
+        conn.execute("DELETE FROM item_vectors WHERE id=?1", params![id])?;
+    }
+    metadata_core::delete_core(&conn, kind, id)?;
+    translations::delete_all(&conn, kind, id)?;
     Ok(())
 }
 
@@ -956,12 +965,19 @@ mod tests {
         assert_eq!(casts.len(), 2);
         assert_eq!(casts[&1][0].name, "Adam");
 
-        // clear_* null out the metadata blob for a reprocess.
+        // clear_subject_metadata wipes the blob AND every derived row, so a
+        // corrected match cannot inherit the old identity.
         set_item_metadata(&p, "m1", &meta(603, "Dune")).unwrap();
         set_show_metadata(&p, "s1", &meta(1396, "Show")).unwrap();
-        clear_item_metadata(&p, "m1").unwrap();
-        clear_show_metadata(&p, "s1").unwrap();
+        store_localized(&p, metadata_core::ITEM, "m1", &meta(603, "Dune"), &HashMap::new()).unwrap();
+        crate::set_item_vector(&p, "m1", &[0.5, 0.5]).unwrap();
+        clear_subject_metadata(&p, metadata_core::ITEM, "m1").unwrap();
+        clear_subject_metadata(&p, metadata_core::SHOW, "s1").unwrap();
         assert!(crate::get_item(&p, "m1").unwrap().unwrap().metadata.is_none());
         assert!(crate::get_show(&p, "s1").unwrap().unwrap().show.metadata.is_none());
+        assert!(metadata_core::get_core(&p, metadata_core::ITEM, "m1").unwrap().is_none());
+        assert!(!crate::has_vector(&p, "m1").unwrap());
+        // The show's season casts go with it (they are keyed by TMDB identity).
+        assert!(seasons_with_cast(&p, "s1").unwrap().is_empty());
     }
 }

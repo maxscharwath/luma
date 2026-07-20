@@ -24,6 +24,7 @@ mod modules;
 mod people;
 mod pin;
 mod recommend;
+mod rematch;
 mod requests;
 mod search;
 pub mod online_subs;
@@ -47,6 +48,8 @@ mod it_accounts;
 mod it_pin;
 #[cfg(test)]
 mod it_content;
+#[cfg(test)]
+mod it_rematch;
 #[cfg(test)]
 mod it_media;
 #[cfg(test)]
@@ -151,6 +154,7 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
         .merge(home::routes())
         .merge(playback::routes())
         .merge(discover::routes())
+        .merge(rematch::routes())
         .merge(requests::routes())
         .merge(modules::routes())
         .route_layer(from_fn_with_state(state.clone(), require_session));

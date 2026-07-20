@@ -141,6 +141,37 @@ export const Metadata = z.object({
 });
 export type Metadata = z.infer<typeof Metadata>;
 
+/** One TMDB title offered by the "fix the match" picker, with the confidence
+ * the server's matcher gives it against what the filename parsed to. */
+export const MatchCandidate = z.object({
+  tmdbId: z.number(),
+  title: z.string(),
+  originalTitle: z.string().nullish(),
+  year: z.number().nullish(),
+  posterUrl: z.string().nullish(),
+  overview: z.string().nullish(),
+  rating: z.number().nullish(),
+  /** Confidence in 0..1 that this is the title on disk. */
+  score: z.number(),
+  /** Already the stored match for this element. */
+  current: z.boolean(),
+});
+export type MatchCandidate = z.infer<typeof MatchCandidate>;
+
+/** `GET /api/rematch/{kind}/{id}/candidates`: what we matched against, and the
+ * ranked candidates to choose from. */
+export const MatchCandidates = z.object({
+  /** The text searched for: the operator's query, else the parsed title. */
+  query: z.string(),
+  /** The year parsed from the filename, which is what scoring compares against. */
+  year: z.number().nullish(),
+  currentTmdbId: z.number().nullish(),
+  /** Whether an operator chose the current match (i.e. there is a pin to reset). */
+  pinned: z.boolean(),
+  results: z.array(MatchCandidate),
+});
+export type MatchCandidates = z.infer<typeof MatchCandidates>;
+
 /** A single playable media item. `defaultFileId` is an opaque file id (plain
  * string); `id`/`showId` are branded. */
 export const MediaItem = z.object({

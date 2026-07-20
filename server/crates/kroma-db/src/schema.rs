@@ -455,6 +455,21 @@ pub(crate) const SCHEMA: &str = "
     -- below) the old json_extract expression indexes on the metadata blob are
     -- retired in `migrate`.
 
+    -- An operator-chosen TMDB id for one catalog subject, set from the 'fix the
+    -- match' picker when automatic resolution picked the wrong title (or none).
+    -- Enrichment consults this BEFORE any title guess and fetches the id
+    -- directly, so a correction is authoritative and survives every re-scan and
+    -- nightly re-run. Deleting the row restores automatic matching.
+    -- Distinct from `acq_tmdb` above, which is keyed by the logical id an import
+    -- is about to produce (i.e. before the subject exists).
+    CREATE TABLE IF NOT EXISTS tmdb_pin (
+        subject_kind TEXT NOT NULL,          -- 'item' | 'show'
+        subject_id   TEXT NOT NULL,
+        tmdb_id      INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL,
+        PRIMARY KEY (subject_kind, subject_id)
+    );
+
     -- ----- language-agnostic metadata cache (see db::metadata_core / translations) --
 
     -- Language-INVARIANT resolved metadata, one row per catalog subject (a movie
