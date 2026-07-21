@@ -25,6 +25,8 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.SurfaceView
+import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -51,6 +53,13 @@ class MainActivity : Activity() {
         val playerView = PlayerView(this).apply {
             useController = false // KROMA draws its own chrome in the WebView
             layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        }
+        // The libVLC software-decode plane, shown only when ExoPlayer can't decode
+        // the video and we hand off to VLC (see ExoBridge). Hidden otherwise so it
+        // doesn't cover the ExoPlayer surface.
+        val vlcSurface = SurfaceView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+            visibility = View.GONE
         }
         // Serve the bundled assets over the virtual https origin so ES-module
         // scripts load (see the file header). `/assets/` maps to android_asset/.
@@ -80,10 +89,11 @@ class MainActivity : Activity() {
                 ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
             }
         }
-        bridge = ExoBridge(this, webView, playerView)
+        bridge = ExoBridge(this, webView, playerView, vlcSurface)
         webView.addJavascriptInterface(bridge, "__KROMA_ANDROID__")
 
         root.addView(playerView)
+        root.addView(vlcSurface) // above the ExoPlayer plane, below the WebView chrome
         root.addView(webView)
         setContentView(root)
 

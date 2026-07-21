@@ -55,6 +55,12 @@ dependencies {
     // HLS media source: the stream-copy master fallback (`master=true` loads).
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
+    // libVLC: a bundled software-decoding player. ExoPlayer only uses the device's
+    // platform decoders, so a codec/profile the hardware lacks (e.g. 10-bit HEVC
+    // Main10, DTS, TrueHD) is unplayable; libVLC carries its own ffmpeg-based
+    // decoders and plays anything, so it's the fallback when ExoPlayer can't
+    // decode. See VlcPlayer / ExoBridge.
+    implementation("org.videolan.android:libvlc-all:3.6.0")
     // TvProvider: publish the "continue watching" list into the launcher's
     // system Watch Next row (the Tizen Smart Hub carousel equivalent). See WatchNext.kt.
     implementation("androidx.tvprovider:tvprovider:1.0.0")

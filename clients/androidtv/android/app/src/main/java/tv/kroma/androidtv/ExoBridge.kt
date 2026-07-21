@@ -17,6 +17,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.SurfaceView
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.media3.common.C
@@ -39,9 +41,16 @@ class ExoBridge(
     private val activity: Activity,
     private val webView: WebView,
     private val playerView: PlayerView,
+    private val vlcSurface: SurfaceView,
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val player: ExoPlayer = ExoPlayer.Builder(activity).build()
+
+    // libVLC software-decode fallback (lazy: only built the first time ExoPlayer
+    // hits a codec the device can't decode). `vlcActive` routes commands to it.
+    private var vlc: VlcPlayer? = null
+    private var vlcActive = false
+    private var currentUrl: String? = null
 
     // Audio filter / volume normalizer: a DynamicsProcessing compressor+limiter on
     // the player's audio session (levels: 0 off, 1 standard, 2 night), re-attached
@@ -96,13 +105,20 @@ class ExoBridge(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            // The device can't decode the VIDEO (e.g. 10-bit HEVC Main10 with no
+            // hardware decoder): hand off to libVLC, which software-decodes it (and
+            // its audio). Transparent to the web engine - VLC emits the same events.
+            if (!vlcActive && videoUnsupported()) {
+                switchToVlc()
+                return
+            }
             emit(
                 JSONObject()
                     .put("t", "error")
                     .put("message", error.errorCodeName)
-                    // Flag an audio-decode failure (e.g. E-AC3/DTS/TrueHD with no
-                    // hardware decoder) so the web engine falls back to the server's
-                    // AAC-transcoded master instead of erroring out.
+                    // Flag an audio-only decode failure (E-AC3/DTS/TrueHD) so the web
+                    // engine falls back to the server's AAC-transcoded master (cheaper
+                    // than software-decoding the whole thing) instead of erroring.
                     .put("audio", audioUnsupported()),
             )
         }
@@ -138,6 +154,14 @@ class ExoBridge(
     @JavascriptInterface
     fun load(url: String, startSec: Double, master: Boolean) {
         main.post {
+            currentUrl = url
+            // A new item always tries ExoPlayer (hardware) first; drop any VLC
+            // fallback from the previous item.
+            if (vlcActive) {
+                vlc?.stop()
+                vlcActive = false
+                playerView.visibility = View.VISIBLE
+            }
             val item = MediaItem.Builder()
                 .setUri(url)
                 .apply { if (master) setMimeType(MimeTypes.APPLICATION_M3U8) }
@@ -149,12 +173,56 @@ class ExoBridge(
         }
     }
 
+    /** True when the current media has a VIDEO track the device can't decode and
+     * none it can (10-bit HEVC Main10, etc.) - the signal to hand off to libVLC.
+     * Main thread only (onPlayerError runs there). */
+    private fun videoUnsupported(): Boolean {
+        var sawVideo = false
+        for (group in player.currentTracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            sawVideo = true
+            for (i in 0 until group.length) if (group.isTrackSupported(i)) return false
+        }
+        return sawVideo
+    }
+
+    /** Stop ExoPlayer and resume the current URL in libVLC (software decode) at the
+     * same position - the web engine keeps driving through the same event contract. */
+    private fun switchToVlc() {
+        val url = currentUrl ?: return
+        val posSec = player.currentPosition / 1000.0
+        player.stop()
+        playerView.visibility = View.GONE
+        vlcActive = true
+        val v = vlc ?: VlcPlayer(activity, vlcSurface) { emit(it) }.also { vlc = it }
+        v.load(url, posSec)
+    }
+
     /** `{op: 'play'|'pause'|'seek'|'audio'|'filter'|'stop'|'rect', value?, x?,y?,w?,h?}`. */
     @JavascriptInterface
     fun command(json: String) {
         val cmd = JSONObject(json)
         main.post {
-            when (cmd.optString("op")) {
+            val op = cmd.optString("op")
+            // When libVLC is driving (ExoPlayer couldn't decode), route transport to
+            // it. `rect` (plane resize) + `filter` (DynamicsProcessing on the Exo
+            // audio session) don't apply to VLC, so they no-op there.
+            val v = vlc
+            if (vlcActive && v != null) {
+                when (op) {
+                    "play" -> v.play()
+                    "pause" -> v.pause()
+                    "seek" -> v.seek(cmd.optDouble("value", 0.0))
+                    "audio" -> v.setAudio(cmd.optInt("value", 0))
+                    "stop" -> {
+                        v.stop()
+                        vlcActive = false
+                        playerView.visibility = View.VISIBLE
+                    }
+                }
+                return@post
+            }
+            when (op) {
                 "play" -> player.play()
                 "pause" -> player.pause()
                 "seek" -> player.seekTo((cmd.optDouble("value", 0.0) * 1000).toLong())
@@ -341,6 +409,8 @@ class ExoBridge(
             dynamics?.release()
             dynamics = null
             player.release()
+            vlc?.release()
+            vlc = null
         }
     }
 }
