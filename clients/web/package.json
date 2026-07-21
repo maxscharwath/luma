@@ -22,7 +22,7 @@
     "@kroma/module-vpn": "workspace:*",
     "@kroma/modules-generated": "workspace:*",
     "@kroma/ui": "workspace:*",
-    "@module-federation/runtime": "2.7.0",
+    "@module-federation/runtime": "2.8.0",
     "@radix-ui/react-avatar": "^1.2.0",
     "@radix-ui/react-dialog": "^1",
     "@radix-ui/react-dropdown-menu": "^2",
