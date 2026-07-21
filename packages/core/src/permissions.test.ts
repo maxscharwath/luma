@@ -12,6 +12,7 @@ describe('PERMISSIONS', () => {
       'requests.create',
       'requests.manage',
       'requests.auto',
+      'reports.manage',
     ]);
     expect(new Set(keys).size).toBe(keys.length);
   });
