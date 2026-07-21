@@ -2,20 +2,22 @@
 //! RAM charts and the Stockage page.
 //!
 //! A background task samples CPU + RAM via `sysinfo` every [`SAMPLE_INTERVAL`]
-//! and keeps a rolling ring buffer (~[`HISTORY`] samples ≈ the design's 2-minute
-//! window). Bandwidth is derived from the live playback registry (sum of stream
-//! bitrates, split LAN vs WAN) rather than instrumenting the byte stream it's
-//! the throughput actually being delivered. Disk usage is read on demand for the
-//! storage page.
+//! and keeps a rolling ring buffer (~[`HISTORY`] samples ≈ the design's 6-minute
+//! window). Bandwidth is the REAL throughput: the media-delivery handlers feed
+//! every byte they stream into cumulative LAN/WAN counters (via [`ByteSink`]),
+//! and each tick converts the byte delta over the elapsed interval into Mb/s.
+//! That tracks what is actually on the wire (buffering bursts, transcode
+//! throttling, paused-but-buffered clients), unlike a nominal per-title bitrate.
+//! Disk usage is read on demand for the storage page.
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use sysinfo::{Disks, System};
 
-use crate::services::playback::Registry;
 use crate::process_started;
 // (process_started now lives at the kroma-engine crate root, seeded from main.)
 
@@ -51,7 +53,40 @@ pub struct Snapshot {
     pub bw_local_mbps: f64,
     pub bw_remote_mbps: f64,
     pub uptime_secs: u64,
+    /// The sampler's cadence in ms, so the client's chart labels the time axis
+    /// with the server's real interval instead of a hardcoded (drift-prone) one.
+    pub sample_interval_ms: u64,
     pub series: Series,
+}
+
+/// Cumulative bytes delivered by the media handlers, split by client network
+/// class. Monotonic; the sampler reads deltas between ticks. Cloning shares the
+/// same atomics (both the [`Metrics`] handle and every [`ByteSink`] point here).
+#[derive(Clone, Default)]
+struct Bytes {
+    lan: Arc<AtomicU64>,
+    wan: Arc<AtomicU64>,
+}
+
+/// A cheap, cloneable handle a streaming response adds its delivered bytes to.
+/// `Metrics::sink` hands out the LAN or WAN counter for a request; an empty sink
+/// (`ByteSink::none`) is a no-op, for byte streams that shouldn't count toward
+/// media bandwidth (e.g. UI theme songs).
+#[derive(Clone, Default)]
+pub struct ByteSink(Option<Arc<AtomicU64>>);
+
+impl ByteSink {
+    /// A sink that discards its counts (not attributed to any bandwidth series).
+    pub fn none() -> Self {
+        ByteSink(None)
+    }
+
+    /// Record `n` freshly-delivered bytes against this sink's counter.
+    pub fn add(&self, n: u64) {
+        if let Some(c) = &self.0 {
+            c.fetch_add(n, Ordering::Relaxed);
+        }
+    }
 }
 
 #[derive(Default)]
@@ -69,13 +104,26 @@ struct Hist {
 #[derive(Clone)]
 pub struct Metrics {
     inner: Arc<RwLock<Hist>>,
+    bytes: Bytes,
 }
 
 impl Metrics {
     pub fn new() -> Self {
         Metrics {
             inner: Arc::new(RwLock::new(Hist::default())),
+            bytes: Bytes::default(),
         }
+    }
+
+    /// A byte sink for a request, targeting the LAN or WAN throughput counter.
+    /// The streaming handler passes it to the media response so every delivered
+    /// byte is metered into the dashboard's bandwidth chart.
+    pub fn sink(&self, is_lan: bool) -> ByteSink {
+        ByteSink(Some(if is_lan {
+            self.bytes.lan.clone()
+        } else {
+            self.bytes.wan.clone()
+        }))
     }
 
     /// Current values + the recent history series, for `GET /api/admin/metrics`.
@@ -83,6 +131,7 @@ impl Metrics {
         let h = self.inner.read().unwrap();
         let mut snap = h.cur.clone();
         snap.uptime_secs = process_started().elapsed().as_secs();
+        snap.sample_interval_ms = SAMPLE_INTERVAL.as_millis() as u64;
         snap.series = Series {
             cpu_kroma: h.cpu_kroma.iter().copied().collect(),
             cpu_system: h.cpu_system.iter().copied().collect(),
@@ -105,8 +154,9 @@ impl Metrics {
         h.cur = snap;
     }
 
-    /// Spawn the sampler. `registry` feeds the bandwidth series.
-    pub fn spawn_sampler(&self, registry: Registry) {
+    /// Spawn the sampler. Bandwidth is the real byte delta on the LAN/WAN
+    /// counters (fed by [`ByteSink`] from the media handlers) over each interval.
+    pub fn spawn_sampler(&self) {
         let metrics = self.clone();
         // sysinfo work is blocking-ish but cheap; a dedicated OS thread keeps it
         // off the async runtime and lets us sleep precisely.
@@ -114,6 +164,10 @@ impl Metrics {
             let pid = sysinfo::get_current_pid().ok();
             let mut sys = System::new();
             let cpus = num_cpus_safe(&mut sys);
+            // Baselines for the per-interval throughput delta.
+            let mut last_lan = metrics.bytes.lan.load(Ordering::Relaxed);
+            let mut last_wan = metrics.bytes.wan.load(Ordering::Relaxed);
+            let mut last_at = Instant::now();
             loop {
                 sys.refresh_cpu_usage();
                 sys.refresh_memory();
@@ -132,7 +186,22 @@ impl Metrics {
                 let ram_sys_pct = (ram_used as f32 / ram_total as f32) * 100.0;
                 let ram_kroma_pct = (ram_kroma_bytes as f32 / ram_total as f32) * 100.0;
 
-                let (bw_local, bw_remote) = bandwidth(&registry);
+                // Bytes delivered since the previous tick / real elapsed time →
+                // Mb/s. `wrapping_sub` is just defensive; the counters only grow.
+                let lan_now = metrics.bytes.lan.load(Ordering::Relaxed);
+                let wan_now = metrics.bytes.wan.load(Ordering::Relaxed);
+                let dt = last_at.elapsed().as_secs_f64();
+                let (bw_local, bw_remote) = if dt > 0.0 {
+                    (
+                        mbps(lan_now.wrapping_sub(last_lan), dt),
+                        mbps(wan_now.wrapping_sub(last_wan), dt),
+                    )
+                } else {
+                    (0.0, 0.0)
+                };
+                last_lan = lan_now;
+                last_wan = wan_now;
+                last_at = Instant::now();
 
                 metrics.push(
                     Snapshot {
@@ -144,6 +213,7 @@ impl Metrics {
                         bw_local_mbps: bw_local,
                         bw_remote_mbps: bw_remote,
                         uptime_secs: 0,
+                        sample_interval_ms: 0,
                         series: Series::default(),
                     },
                     ram_kroma_pct,
@@ -156,28 +226,15 @@ impl Metrics {
     }
 }
 
+/// Convert a byte count delivered over `dt` seconds into megabits per second.
+fn mbps(bytes: u64, dt: f64) -> f64 {
+    (bytes as f64) * 8.0 / dt / 1_000_000.0
+}
+
 impl Default for Metrics {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Sum the live sessions' bitrates (Mb/s), split by network class.
-fn bandwidth(registry: &Registry) -> (f64, f64) {
-    let mut local = 0.0;
-    let mut remote = 0.0;
-    for s in registry.list() {
-        // Paused streams aren't pulling bytes.
-        if s.state != "playing" {
-            continue;
-        }
-        if s.network == "LAN" {
-            local += s.bitrate;
-        } else {
-            remote += s.bitrate;
-        }
-    }
-    (local, remote)
 }
 
 fn push_cap<T>(buf: &mut VecDeque<T>, v: T) {
@@ -217,7 +274,6 @@ pub struct DiskInfo {
 ///   (the storage page and dashboard poll this endpoint repeatedly).
 pub fn read_disks() -> Vec<DiskInfo> {
     use std::sync::OnceLock;
-    use std::time::Instant;
     type DiskCache = OnceLock<RwLock<Option<(Instant, Vec<DiskInfo>)>>>;
     static CACHE: DiskCache = OnceLock::new();
     const TTL: Duration = Duration::from_secs(15);
@@ -256,4 +312,44 @@ fn read_disks_uncached() -> Vec<DiskInfo> {
     }
     out.sort_by_key(|b| std::cmp::Reverse(b.total_bytes));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mbps_converts_bytes_over_time() {
+        // 1 MB delivered over 1 s = 8 Mb/s.
+        assert!((mbps(1_000_000, 1.0) - 8.0).abs() < 1e-9);
+        // Same bytes over 2 s = half the rate.
+        assert!((mbps(1_000_000, 2.0) - 4.0).abs() < 1e-9);
+        assert_eq!(mbps(0, 3.0), 0.0);
+    }
+
+    #[test]
+    fn sink_routes_bytes_to_the_right_counter() {
+        let m = Metrics::new();
+        m.sink(true).add(1_000);
+        m.sink(true).add(500);
+        m.sink(false).add(200);
+        assert_eq!(m.bytes.lan.load(Ordering::Relaxed), 1_500);
+        assert_eq!(m.bytes.wan.load(Ordering::Relaxed), 200);
+    }
+
+    #[test]
+    fn empty_sink_is_a_noop() {
+        // A default/none sink counts nowhere and never panics.
+        ByteSink::none().add(9_999);
+        ByteSink::default().add(9_999);
+    }
+
+    #[test]
+    fn snapshot_reports_the_sample_interval() {
+        let m = Metrics::new();
+        assert_eq!(
+            m.snapshot().sample_interval_ms,
+            SAMPLE_INTERVAL.as_millis() as u64
+        );
+    }
 }

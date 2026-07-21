@@ -3,22 +3,53 @@
 
 use std::io::SeekFrom;
 use std::path::Path;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use axum::body::Body;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt, ReadBuf};
 use tokio_util::io::ReaderStream;
 
+use crate::infra::metrics::ByteSink;
 use crate::json_error;
+
+/// Wraps a file reader so every byte handed to the response body is metered into
+/// a [`ByteSink`] (the dashboard's LAN/WAN bandwidth counters). Backpressure from
+/// the socket drives `poll_read`, so this tracks bytes as they are actually
+/// delivered, not merely read ahead.
+struct CountingReader<R> {
+    inner: R,
+    sink: ByteSink,
+}
+
+impl<R: AsyncRead + Unpin> AsyncRead for CountingReader<R> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let poll = Pin::new(&mut self.inner).poll_read(cx, buf);
+        if let Poll::Ready(Ok(())) = &poll {
+            let n = buf.filled().len() - before;
+            if n > 0 {
+                self.sink.add(n as u64);
+            }
+        }
+        poll
+    }
+}
 
 /// Stream a file, honouring an optional `Range: bytes=start-end` header.
 ///
 /// Returns `206 Partial Content` with a `Content-Range` when a satisfiable
 /// range is requested, otherwise a full `200 OK`. The body is streamed and the
-/// file is never fully buffered in memory.
-pub async fn stream_file(path: &Path, req_headers: &HeaderMap) -> Response {
+/// file is never fully buffered in memory. `sink` meters delivered bytes into
+/// the dashboard's bandwidth chart ([`ByteSink::none`] to opt out).
+pub async fn stream_file(path: &Path, req_headers: &HeaderMap, sink: ByteSink) -> Response {
     let mut file = match File::open(path).await {
         Ok(f) => f,
         Err(_) => {
@@ -39,7 +70,7 @@ pub async fn stream_file(path: &Path, req_headers: &HeaderMap) -> Response {
     let content_type = content_type_for(path);
 
     match parse_range(req_headers, total_size) {
-        RangeOutcome::Full => full_response(file, total_size, content_type),
+        RangeOutcome::Full => full_response(file, total_size, content_type, sink),
         RangeOutcome::Partial { start, end } => {
             if file.seek(SeekFrom::Start(start)).await.is_err() {
                 return json_error(
@@ -47,7 +78,7 @@ pub async fn stream_file(path: &Path, req_headers: &HeaderMap) -> Response {
                     "could not seek media file",
                 );
             }
-            partial_response(file, start, end, total_size, content_type)
+            partial_response(file, start, end, total_size, content_type, sink)
         }
         RangeOutcome::Unsatisfiable => {
             let mut resp = json_error(
@@ -65,8 +96,8 @@ pub async fn stream_file(path: &Path, req_headers: &HeaderMap) -> Response {
 }
 
 /// Full `200 OK` response streaming the whole file.
-fn full_response(file: File, total_size: u64, content_type: &str) -> Response {
-    let stream = ReaderStream::new(file);
+fn full_response(file: File, total_size: u64, content_type: &str, sink: ByteSink) -> Response {
+    let stream = ReaderStream::new(CountingReader { inner: file, sink });
     let body = Body::from_stream(stream);
 
     let mut resp = Response::new(body);
@@ -86,11 +117,12 @@ fn partial_response(
     end: u64,
     total_size: u64,
     content_type: &str,
+    sink: ByteSink,
 ) -> Response {
     let length = end - start + 1;
     // Limit the reader to exactly the requested window.
     let limited = file.take(length);
-    let stream = ReaderStream::new(limited);
+    let stream = ReaderStream::new(CountingReader { inner: limited, sink });
     let body = Body::from_stream(stream);
 
     let mut resp = Response::new(body);
@@ -210,10 +242,15 @@ fn content_type_for(path: &Path) -> &'static str {
     }
 }
 
-/// Convenience: build a stream response or a JSON 404 for demo items.
-pub async fn stream_or_demo_error(abs_path: Option<&str>, req_headers: &HeaderMap) -> Response {
+/// Convenience: build a stream response or a JSON 404 for demo items. `sink`
+/// meters delivered bytes into the dashboard's bandwidth chart.
+pub async fn stream_or_demo_error(
+    abs_path: Option<&str>,
+    req_headers: &HeaderMap,
+    sink: ByteSink,
+) -> Response {
     match abs_path {
-        Some(p) => stream_file(Path::new(p), req_headers).await,
+        Some(p) => stream_file(Path::new(p), req_headers, sink).await,
         None => json_error(StatusCode::NOT_FOUND, "demo item has no media").into_response(),
     }
 }

@@ -61,7 +61,10 @@ export default defineConfig({
     alias: { '#web': fileURLToPath(new URL('./src', import.meta.url)) },
     // One React copy: the other clients stay on their own React, so pin this
     // bundle to a single react/react-dom (guards against "Invalid hook call").
-    dedupe: ['react', 'react-dom'],
+    // `react-call` is deduped too: its callables keep a module-level store, so a
+    // second copy (bundled from a module UI's own node_modules) would give the
+    // Root and the `.call()` different stores and the modal would never open.
+    dedupe: ['react', 'react-dom', 'react-call'],
   },
   server: {
     // Allow importing TS source from the workspace packages (@kroma/ui, @kroma/core).

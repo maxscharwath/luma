@@ -142,6 +142,9 @@ export const MetricsSnapshot = z.object({
   bwLocalMbps: z.number(),
   bwRemoteMbps: z.number(),
   uptimeSecs: z.number(),
+  /** The server's sampling cadence in ms, so the chart labels its time axis with
+   * the real interval. Defaulted for tolerance against an older server. */
+  sampleIntervalMs: z.number().default(3000),
   series: MetricsSeries,
 });
 export type MetricsSnapshot = z.infer<typeof MetricsSnapshot>;

@@ -3,6 +3,7 @@
 // importing the API client, wire types and schemas from `@kroma/core` unchanged.
 export * from '@kroma/client';
 export * from './browse';
+export * from './compat';
 export * from './discover';
 export * from './format';
 export * from './genre-art';

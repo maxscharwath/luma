@@ -23,6 +23,7 @@ import {
   subString,
 } from '#web/features/catalog/detail';
 import { SeasonSection } from '#web/features/catalog/episode-list';
+import { ReportDialog } from '#web/features/catalog/report-dialog';
 import { TreatmentsPanel } from '#web/features/catalog/treatments-panel';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 import { SeasonPicker } from '#web/features/requests/season-picker';
@@ -149,6 +150,16 @@ function TitleHero({
       }
       onBack={onBack}
       onPlay={playable ? () => onPlay(playable.id) : undefined}
+      onReport={
+        owned && localId
+          ? () =>
+              void ReportDialog.call({
+                subjectKind: view.kind,
+                subjectId: localId,
+                subjectTitle: view.title,
+              })
+          : undefined
+      }
     />
   );
 }

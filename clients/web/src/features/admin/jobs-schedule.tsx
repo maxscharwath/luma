@@ -6,6 +6,7 @@
 import { type JobInfo, KromaApiError } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { useState } from 'react';
+import { createCallable } from 'react-call';
 import { useAsyncAction } from '#web/features/admin/shell';
 import { Field, Modal, ModalActions, TextInput } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
@@ -18,11 +19,7 @@ const PRESETS: { label: string; expr: string }[] = [
   { label: '1st 03:00', expr: '0 3 1 * *' },
 ];
 
-export function ScheduleModal({
-  job,
-  onClose,
-  onSaved,
-}: Readonly<{ job: JobInfo; onClose: () => void; onSaved: () => void }>) {
+export const ScheduleModal = createCallable<{ job: JobInfo }, boolean>(({ call, job }) => {
   const t = useT();
   const { client } = useAuth();
   const [value, setValue] = useState(job.schedule ?? '');
@@ -32,7 +29,7 @@ export function ScheduleModal({
     run(
       async () => {
         await client.updateJob(job.key, { schedule: value.trim() || null });
-        onSaved();
+        call.end(true);
       },
       (e) =>
         e instanceof KromaApiError && e.status === 400
@@ -41,7 +38,7 @@ export function ScheduleModal({
     );
 
   return (
-    <Modal title={t('jobs.editSchedule')} onClose={onClose}>
+    <Modal title={t('jobs.editSchedule')} onClose={() => call.end(false)}>
       <Field label={t('jobs.cronExpr')}>
         <TextInput
           value={value}
@@ -87,7 +84,7 @@ export function ScheduleModal({
       ) : null}
 
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={save}
         confirmLabel={busy ? t('jobs.saving') : t('common.save')}
@@ -95,4 +92,4 @@ export function ScheduleModal({
       />
     </Modal>
   );
-}
+});

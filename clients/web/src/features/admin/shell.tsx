@@ -20,6 +20,7 @@ import {
   IconClockBolt,
   IconDatabase,
   IconFileText,
+  IconFlag,
   IconInbox,
   IconLayoutDashboard,
   IconLibrary,
@@ -38,6 +39,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { usePoll } from '#web/features/admin/hooks';
+import { AdminModalHosts } from '#web/features/admin/modal-hosts';
 import { useModuleNavAll } from '#web/modules/ModuleHostProvider';
 import { resolveModuleIcon } from '#web/modules/module-icons';
 import { formatUptime } from '#web/shared/lib/adminFormat';
@@ -142,6 +144,12 @@ const NAV_GROUPS: { labelKey: MessageKey; section: string; items: NavItem[] }[] 
         labelKey: 'admin.navRequests',
         cap: 'requests.manage',
         icon: IconInbox,
+      },
+      {
+        to: '/admin/reports',
+        labelKey: 'admin.navReports',
+        cap: 'reports.manage',
+        icon: IconFlag,
       },
     ],
   },
@@ -432,6 +440,9 @@ export function AdminLayout({ children }: Readonly<{ children: ReactNode }>) {
             directly into this. */}
         <main className="min-w-0 flex-1 px-(--gutter-web) pb-20 pt-9">{children}</main>
       </div>
+      {/* One mount point for every admin imperative modal (react-call), so call
+          sites open them with `await SomeModal.call(...)` and keep no open-state. */}
+      <AdminModalHosts />
     </AdminProvider>
   );
 }

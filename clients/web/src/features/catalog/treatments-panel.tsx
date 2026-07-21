@@ -46,8 +46,6 @@ export function TreatmentsPanel({
   const { user, client } = useAuth();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const [fixing, setFixing] = useState(false);
-  const [info, setInfo] = useState(false);
   const admin = !!user && hasPermission(user, 'settings.manage');
   const canFix = !!user && hasPermission(user, 'library.manage');
 
@@ -81,6 +79,17 @@ export function TreatmentsPanel({
       .finally(() => setTimeout(() => setBusy(false), 1500));
   };
 
+  const openRematch = async () => {
+    const applied = await RematchDialog.call({
+      kind: kind === 'show' ? 'show' : 'movie',
+      id,
+      title,
+    });
+    // The correction re-runs enrichment in the background; give it a beat, then
+    // pull the fresh treatments + art.
+    if (applied) setTimeout(() => queryClient.invalidateQueries({ queryKey }), 1500);
+  };
+
   return (
     <section className="mt-8 px-6 md:px-16">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-xl border border-white/8 bg-white/3 px-5 py-4">
@@ -106,7 +115,7 @@ export function TreatmentsPanel({
           {admin && kind === 'item' ? (
             <button
               type="button"
-              onClick={() => setInfo(true)}
+              onClick={() => void MediaInfoModal.call({ id, title })}
               className="inline-flex items-center gap-1.5 rounded-md border border-white/12 bg-white/8 px-3.5 py-2 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/12"
             >
               <IconFileInfo size={15} stroke={2} />
@@ -116,7 +125,7 @@ export function TreatmentsPanel({
           {canFix ? (
             <button
               type="button"
-              onClick={() => setFixing(true)}
+              onClick={() => void openRematch()}
               className="inline-flex items-center gap-1.5 rounded-md border border-white/12 bg-white/8 px-3.5 py-2 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/12"
             >
               <IconWand size={15} stroke={2} />
@@ -136,18 +145,6 @@ export function TreatmentsPanel({
           ) : null}
         </div>
       </div>
-      {fixing ? (
-        <RematchDialog
-          kind={kind === 'show' ? 'show' : 'movie'}
-          id={id}
-          title={title}
-          onClose={() => setFixing(false)}
-          // The correction re-runs enrichment in the background; give it a beat,
-          // then pull the fresh treatments + art.
-          onApplied={() => setTimeout(() => queryClient.invalidateQueries({ queryKey }), 1500)}
-        />
-      ) : null}
-      {info ? <MediaInfoModal id={id} title={title} onClose={() => setInfo(false)} /> : null}
     </section>
   );
 }

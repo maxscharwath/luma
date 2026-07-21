@@ -828,10 +828,33 @@ pub async fn upload_avatar(
 
 // ----- quick connect ----------------------------------------------------------
 
-/// `POST /api/auth/quickconnect/initiate` → `{ code, secret, expiresInSec,
-/// authorizeUrl? }`. The device shows `code` (and a QR of `authorizeUrl` when
-/// the server knows the web app URL) and then polls with `secret`.
-pub async fn quick_initiate(State(state): State<SharedState>) -> Response {
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickInitiateBody {
+    /// Secret of a code the device is rotating away from (its TTL is lapsing).
+    /// Revoked so it can no longer be approved into a session the device that
+    /// rotated will never collect. Absent on the first request.
+    pub prev_secret: Option<String>,
+}
+
+/// `POST /api/auth/quickconnect/initiate` (optional body `{ prevSecret? }`) →
+/// `{ code, secret, expiresInSec, authorizeUrl? }`. The device shows `code` (and
+/// a QR of `authorizeUrl` when the server knows the web app URL) and then polls
+/// with `secret`. When rotating an expiring code it passes the old `secret` as
+/// `prevSecret` so the server drops it up front instead of leaving it to lapse.
+pub async fn quick_initiate(
+    State(state): State<SharedState>,
+    body: Option<Json<QuickInitiateBody>>,
+) -> Response {
+    // Rotating away from a previous code: drop it so it stops being approvable,
+    // and delete any tokens it accrued in the gap (approved but not yet polled).
+    if let Some(Json(QuickInitiateBody { prev_secret: Some(secret) })) = body {
+        if let Some(revoked) = state.quickconnect.revoke(&secret) {
+            let (token, access) = (revoked.token, revoked.access_token);
+            let _ = query(&state.db, move |pool| db::delete_session(&pool, &token)).await;
+            let _ = query(&state.db, move |pool| db::delete_access_token(&pool, &access)).await;
+        }
+    }
     let init = state.quickconnect.initiate();
     let web_base = state.config.web_url.clone().or_else(|| {
         let url = crate::services::settings::public_url(&state.settings);

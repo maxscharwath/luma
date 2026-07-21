@@ -25,14 +25,21 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [features]
-# In-process libmpv render engine for macOS (WIP: not yet wired into the UI). OFF by
-# default so shippable builds don't link/need libmpv (a distributed .dmg would have to
-# BUNDLE libmpv.dylib). Enable for the native mpv work: `cargo build --features libmpv`
-# (needs `brew install mpv`). Only meaningful on macOS.
-# In-process libmpv, the chosen native engine (all OSes). Embeds into a native view
-# via `--wid` (NSView on macOS - verified - / HWND / X11), decoding everything the
-# webview can't (AV1 via dav1d + surround). Raw link + an Obj-C window shim; WIP, off
-# by default so shippable builds don't yet need a bundled libmpv.dylib.
+# In-process libmpv is the chosen native engine on EVERY desktop OS, ON by default:
+# it embeds into a native view (NSView on macOS via a GL render shim; HWND / X11 XID
+# via `--wid`) and decodes everything the webview can't (HEVC/AV1 + surround). A build
+# with it needs libmpv at LINK time and a BUNDLED libmpv in the installer at run time:
+#   - macOS:   `brew install mpv` to build; CI dylibbundler-embeds libmpv + its ffmpeg
+#              dylibs into KROMA.app (see scripts/bundle-libmpv-macos.sh).
+#   - Windows: the self-contained mpv-2.dll (ffmpeg statically linked in) fetched by
+#              scripts/fetch-libmpv-windows.ps1, shipped next to the .exe.
+#   - Linux:   libmpv.so.2 (apt `libmpv-dev` to build); the AppImage/.deb bundle it.
+#              libmpv is the PRIMARY engine but the mpv BINARY (mpv.rs) stays as an
+#              automatic fallback when the in-process GPU context can't initialise
+#              (the Deck's fragile EGL/Wayland stack) - so the sidecar is still bundled.
+# Disable for a lean webview-only build (`--no-default-features`): the in-page <video>
+# path then handles playback (no libmpv link/bundle needed).
+default = ["libmpv"]
 libmpv = ["dep:libmpv2"]
 
 [profile.release]
@@ -55,6 +62,17 @@ libmpv2 = { version = "6.0.0", optional = true }
 libmpv2 = { version = "6.0.0", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# In-process libmpv on Linux, embedded into the GTK window's X11 XID via `--wid`
+# (mpv's gpu VO renders a child surface behind the transparent webview, like the
+# Windows HWND path). The PRIMARY engine; if its GPU context fails to initialise
+# (the Deck's EGL/Wayland stack), libmpv_linux::init returns false and the shell
+# falls back to the mpv BINARY over IPC (mpv.rs, VO fallback ladder + process
+# isolation). Off with `--no-default-features`. Needs `libmpv-dev` at link time.
+libmpv2 = { version = "6.0.0", optional = true }
+# Extract the app window's X11 XID for libmpv's `--wid` (0.6 = Tauri v2's version,
+# so `WebviewWindow::window_handle()` returns a matching RawWindowHandle). Only used
+# in a libmpv build; harmless otherwise.
+raw-window-handle = "0.6"
 # Process-group kill of the mpv sidecar tree (the AppImage runtime execs the real
 # mpv as a grandchild, so Child::kill alone orphans the player).
 libc = "0.2"

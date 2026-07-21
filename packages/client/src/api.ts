@@ -18,6 +18,8 @@ import * as organize from './client/organize';
 import * as playback from './client/playback';
 import type { RematchKind } from './client/rematch';
 import * as rematch from './client/rematch';
+import type { ReportQuery } from './client/reports';
+import * as reports from './client/reports';
 import * as requests from './client/requests';
 import * as subtitlesClient from './client/subtitles';
 import type {
@@ -30,6 +32,7 @@ import type {
   CalendarEntry,
   ClientTestResult,
   ContinueItem,
+  CreateReportBody,
   CreateRequestBody,
   DiscoverDetail,
   DiscoverResponse,
@@ -78,6 +81,8 @@ import type {
   PublicUser,
   QuickConnectInit,
   QuickConnectStatus,
+  Report,
+  ReportsView,
   RequestsView,
   SampleNames,
   SaveDownloadClientBody,
@@ -113,6 +118,7 @@ export type { KromaClientOptions } from './client/base';
 export { apiErrorText, KromaApiError } from './client/base';
 export type { DiscoverType } from './client/discovery';
 export type { HlsAudioFilter, StoryboardManifest } from './client/media';
+export type { ReportQuery } from './client/reports';
 export type {
   DownloadedSub,
   GenerateReq,
@@ -477,8 +483,8 @@ export class KromaClient {
   uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {
     return accounts.uploadAvatar(this.ctx, file);
   }
-  quickConnectInitiate(): Promise<QuickConnectInit> {
-    return accounts.quickConnectInitiate(this.ctx);
+  quickConnectInitiate(prevSecret?: string): Promise<QuickConnectInit> {
+    return accounts.quickConnectInitiate(this.ctx, prevSecret);
   }
   quickConnectPoll(secret: string): Promise<QuickConnectStatus> {
     return accounts.quickConnectPoll(this.ctx, secret);
@@ -599,6 +605,30 @@ export class KromaClient {
   }
   grabRelease(id: string, body: GrabBody): Promise<void> {
     return requests.grabRelease(this.ctx, id, body);
+  }
+
+  // ----- problem reports (signaler un probleme) ---------------------------------
+
+  createReport(body: CreateReportBody): Promise<Report> {
+    return reports.createReport(this.ctx, body);
+  }
+  listMyReports(): Promise<Report[]> {
+    return reports.listMyReports(this.ctx);
+  }
+  adminReports(query?: ReportQuery): Promise<ReportsView> {
+    return reports.adminReports(this.ctx, query);
+  }
+  resolveReport(id: string): Promise<Report> {
+    return reports.resolveReport(this.ctx, id);
+  }
+  dismissReport(id: string): Promise<Report> {
+    return reports.dismissReport(this.ctx, id);
+  }
+  reopenReport(id: string): Promise<Report> {
+    return reports.reopenReport(this.ctx, id);
+  }
+  deleteReport(id: string): Promise<void> {
+    return reports.deleteReport(this.ctx, id);
   }
 
   // ----- admin: naming / organize -----------------------------------------------

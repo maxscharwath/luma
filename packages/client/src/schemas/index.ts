@@ -8,5 +8,6 @@ export * from './ids';
 export * from './media';
 export * from './modules';
 export * from './pipeline';
+export * from './reports';
 export * from './rules';
 export * from './validate';

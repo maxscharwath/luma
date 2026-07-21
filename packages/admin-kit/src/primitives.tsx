@@ -51,12 +51,17 @@ export function Section({
   );
 }
 
-/** A muted, chevroned "filter" label (display-only, like the design). */
-export function FilterLabel({ children }: Readonly<{ children: ReactNode }>) {
+/** A muted "filter" caption (display-only). The chevron hints at a dropdown, so
+ * pass `plain` for a static caption (e.g. a "real-time" tag) that isn't a picker
+ * a chevron with no menu behind it reads as a broken control. */
+export function FilterLabel({
+  children,
+  plain,
+}: Readonly<{ children: ReactNode; plain?: boolean }>) {
   return (
     <span className="inline-flex cursor-default items-center gap-1.5 text-[14px] font-semibold text-muted">
       {children}
-      <IconChevronDown size={11} stroke={2.5} />
+      {plain ? null : <IconChevronDown size={11} stroke={2.5} />}
     </span>
   );
 }

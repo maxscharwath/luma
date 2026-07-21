@@ -34,8 +34,11 @@ ChartJS.register(
 ChartJS.defaults.font.family =
   'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
 
-/** Seconds between metric samples on the server (see `server/src/metrics.rs`). */
-const SAMPLE_SEC = 1.5;
+/** Fallback seconds between metric samples, used only if the snapshot omits its
+ * real cadence. The server is authoritative via `sampleIntervalMs` (see
+ * `server/crates/kroma-engine/src/infra/metrics.rs`); a hardcoded constant here
+ * silently drifted from it before. */
+const DEFAULT_SAMPLE_SEC = 3;
 
 const GRID = 'rgba(255,255,255,.05)';
 
@@ -69,11 +72,11 @@ function timeAgo(secondsAgo: number): string {
 }
 
 /** Sparse time-ago labels: 7 evenly-spaced ticks, blanks elsewhere. */
-function timeLabels(n: number): string[] {
+function timeLabels(n: number, sampleSec: number): string[] {
   return Array.from({ length: n }, (_, i) => {
     const tickEvery = (n - 1) / 6;
     const onTick = n <= 7 || Math.abs(i % tickEvery) < 0.5 || i === n - 1;
-    return onTick ? timeAgo((n - 1 - i) * SAMPLE_SEC) : '';
+    return onTick ? timeAgo((n - 1 - i) * sampleSec) : '';
   });
 }
 
@@ -92,6 +95,7 @@ export function MetricsChart({
   formatValue,
   legend,
   footer,
+  sampleSec = DEFAULT_SAMPLE_SEC,
 }: Readonly<{
   series: SeriesDef[];
   max: number;
@@ -99,9 +103,11 @@ export function MetricsChart({
   formatValue: (v: number) => string;
   legend: { label: string; color: string }[];
   footer?: ReactNode;
+  /** Seconds between samples, from the server snapshot, for the time-ago axis. */
+  sampleSec?: number;
 }>) {
   const n = Math.max(0, ...series.map((s) => s.data.length));
-  const labels = timeLabels(n);
+  const labels = timeLabels(n, sampleSec);
 
   const data = {
     labels,
@@ -163,7 +169,7 @@ export function MetricsChart({
         callbacks: {
           title: (items) => {
             const i = items[0]?.dataIndex ?? 0;
-            return timeAgo((n - 1 - i) * SAMPLE_SEC);
+            return timeAgo((n - 1 - i) * sampleSec);
           },
           label: (item) => ` ${item.dataset.label}: ${formatValue(item.parsed.y ?? 0)}`,
         },

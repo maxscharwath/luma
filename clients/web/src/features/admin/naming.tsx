@@ -7,9 +7,9 @@ import { IconArrowRight, IconBraces, IconLoader2, IconWand } from '@tabler/icons
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { NamingTokenModal } from '#web/features/admin/naming-tokens';
 import { Denied, PageHeader, useCap } from '#web/features/admin/shell';
-import { Card, Modal, ModalActions, Section } from '#web/features/admin/ui';
+import { Card, Section } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
-import { Select } from '#web/shared/ui';
+import { confirmDialog, Select } from '#web/shared/ui';
 
 type FieldKey = Exclude<keyof NamingTemplatesView, 'case'>;
 
@@ -36,7 +36,6 @@ export function NamingPage() {
   const [sample, setSample] = useState<{ movie: string; episode: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [openField, setOpenField] = useState<FieldKey | null>(null);
 
   useEffect(() => {
     client
@@ -75,6 +74,18 @@ export function NamingPage() {
   // Keep the modal editing the live template value.
   const setField = (key: FieldKey) => (value: string) => set(key, value);
 
+  // Open the token picker for a field; it writes back through `setField` so the
+  // page stays live-synced while the modal is open.
+  const openTokens = (key: FieldKey) => {
+    if (!tpl) return;
+    void NamingTokenModal.call({
+      fieldKey: key,
+      fieldLabel: t(FIELDS.find((f) => f.key === key)?.labelKey as Parameters<typeof t>[0]),
+      value: tpl[key],
+      onChange: setField(key),
+    });
+  };
+
   const save = () => {
     if (!tpl) return;
     setSaving(true);
@@ -109,7 +120,7 @@ export function NamingPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setOpenField(f.key)}
+                    onClick={() => openTokens(f.key)}
                     title={t('naming.tokensTitle')}
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border border-white/12 bg-[#1A1A20] px-3 text-[13px] font-semibold text-white/80 hover:bg-[#222229]"
                   >
@@ -167,18 +178,6 @@ export function NamingPage() {
       </Card>
 
       <RenameSection />
-
-      {tpl && openField ? (
-        <NamingTokenModal
-          fieldKey={openField}
-          fieldLabel={t(
-            FIELDS.find((f) => f.key === openField)?.labelKey as Parameters<typeof t>[0],
-          )}
-          value={tpl[openField]}
-          onChange={setField(openField)}
-          onClose={() => setOpenField(null)}
-        />
-      ) : null}
     </>
   );
 }
@@ -197,7 +196,6 @@ function RenameSection() {
   const { client } = useAuth();
   const [plan, setPlan] = useState<OrganizePlan | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   const preview = () => {
@@ -210,7 +208,6 @@ function RenameSection() {
       .finally(() => setBusy(false));
   };
   const apply = () => {
-    setConfirm(false);
     setBusy(true);
     client
       .organizeApply()
@@ -220,6 +217,15 @@ function RenameSection() {
       })
       .catch((e) => setResult(apiErrorText(e, t('naming.applyFailed'))))
       .finally(() => setBusy(false));
+  };
+  const askApply = async () => {
+    const ok = await confirmDialog({
+      title: t('naming.confirmTitle'),
+      message: t('naming.confirmBody'),
+      confirmLabel: t('naming.confirmApply'),
+      cancelLabel: t('common.cancel'),
+    });
+    if (ok) apply();
   };
 
   return (
@@ -267,7 +273,7 @@ function RenameSection() {
               </div>
               <button
                 type="button"
-                onClick={() => setConfirm(true)}
+                onClick={() => void askApply()}
                 disabled={busy}
                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.75 text-[14px] font-bold text-accent-ink hover:bg-accent-hover disabled:opacity-60"
               >
@@ -280,19 +286,6 @@ function RenameSection() {
             </div>
           )}
         </Card>
-      ) : null}
-
-      {confirm ? (
-        <Modal title={t('naming.confirmTitle')} onClose={() => setConfirm(false)}>
-          <p className="text-[13.5px] leading-relaxed text-white/75">{t('naming.confirmBody')}</p>
-          <ModalActions
-            onCancel={() => setConfirm(false)}
-            cancelLabel={t('common.cancel')}
-            onConfirm={apply}
-            confirmLabel={t('naming.confirmApply')}
-            busy={busy}
-          />
-        </Modal>
       ) : null}
     </Section>
   );

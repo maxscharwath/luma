@@ -1,7 +1,6 @@
 import type { AdminUser } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { IconDots, IconUsers } from '@tabler/icons-react';
-import { useState } from 'react';
 import { Denied, HeaderAction, PageHeader, useCap, usePoll } from '#web/features/admin/shell';
 import { Avatar, C, Card, Section, StatCard } from '#web/features/admin/ui';
 import { EditUserModal, InviteModal, PendingInvite } from '#web/features/admin/users-modals';
@@ -33,8 +32,12 @@ function UsersPageInner() {
     () => client.invites(),
     15000,
   );
-  const [editing, setEditing] = useState<AdminUser | null>(null);
-  const [inviting, setInviting] = useState(false);
+  const openInvite = async () => {
+    if (await InviteModal.call()) reloadInvites();
+  };
+  const openEdit = async (user: AdminUser) => {
+    if (await EditUserModal.call({ user })) reload();
+  };
 
   const users = data?.users ?? [];
   const libraryCount = data?.libraryCount ?? 0;
@@ -46,7 +49,7 @@ function UsersPageInner() {
       <PageHeader
         title={t('admin.usersTitle')}
         subtitle={t('admin.usersSub')}
-        action={<HeaderAction label={t('nav.inviteUser')} onClick={() => setInviting(true)} />}
+        action={<HeaderAction label={t('nav.inviteUser')} onClick={() => void openInvite()} />}
       />
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -114,7 +117,7 @@ function UsersPageInner() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEditing(u)}
+                  onClick={() => void openEdit(u)}
                   className="flex justify-end text-text/50 hover:text-text"
                   aria-label={t('admin.editUserAction')}
                 >
@@ -129,7 +132,7 @@ function UsersPageInner() {
               title={t('admin.usersEmpty')}
               hint={t('admin.usersEmptyHint')}
               action={
-                <HeaderAction label={t('nav.inviteUser')} onClick={() => setInviting(true)} />
+                <HeaderAction label={t('nav.inviteUser')} onClick={() => void openInvite()} />
               }
             />
           ) : null}
@@ -144,25 +147,6 @@ function UsersPageInner() {
             ))}
           </div>
         </Section>
-      ) : null}
-
-      {editing ? (
-        <EditUserModal
-          user={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            reload();
-          }}
-        />
-      ) : null}
-      {inviting ? (
-        <InviteModal
-          onClose={() => setInviting(false)}
-          onCreated={() => {
-            reloadInvites();
-          }}
-        />
       ) : null}
     </>
   );

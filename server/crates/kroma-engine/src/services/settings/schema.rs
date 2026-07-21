@@ -2,12 +2,40 @@
 //! renders for the `general` / `network` / `transcoder` views, with each row's
 //! current value overlaid from the store and a few computed values from config.
 
+use std::sync::OnceLock;
+
 use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::i18n;
 
 use super::store::Settings;
+
+/// The running server's version + short git commit + UTC build date, set once at
+/// startup by the server binary. It must come from the binary: this schema lives
+/// in the engine crate, so `env!("CARGO_PKG_VERSION")` here is the ENGINE crate's
+/// version (a stale 0.1.0), not the released server version. Unset (tests) falls
+/// back to the crate version + placeholders.
+static BUILD_INFO: OnceLock<(String, String, String)> = OnceLock::new();
+
+/// Record the running server's version, short commit hash, and UTC build date for
+/// the settings view. Call once from the server binary; later calls are ignored.
+pub fn set_build_info(
+    version: impl Into<String>,
+    commit: impl Into<String>,
+    built: impl Into<String>,
+) {
+    let _ = BUILD_INFO.set((version.into(), commit.into(), built.into()));
+}
+
+/// `"<version> (<commit> · <build date>)"` for the read-only version row, e.g.
+/// `0.1.31 (a1b2c3d · 2026-07-21 20:15 UTC)`.
+fn version_label() -> String {
+    let (version, commit, built) = BUILD_INFO.get().cloned().unwrap_or_else(|| {
+        (env!("CARGO_PKG_VERSION").to_string(), "unknown".to_string(), "unknown".to_string())
+    });
+    format!("{version} ({commit} · {built})")
+}
 
 /// One editable (or read-only) setting row.
 #[derive(Debug, Clone, Serialize)]
@@ -65,7 +93,7 @@ pub fn groups(
                 vec![
                     row("serverName", t("admin.serverName"), Some(t("admin.serverNameHint")), "text", &[], g("serverName"), true),
                     row("tmdbLanguage", t("admin.tmdbLanguage"), Some(t("admin.tmdbLanguageHint")), "text", &[], g("tmdbLanguage"), true),
-                    row("version", t("admin.version"), None, "value", &[], json!(env!("CARGO_PKG_VERSION")), true),
+                    row("version", t("admin.version"), None, "value", &[], json!(version_label()), true),
                 ],
             ),
             group(
@@ -90,6 +118,7 @@ pub fn groups(
                 row("localNetworks", t("admin.localNetworks"), Some(t("admin.localNetworksHint")), "text", &[], g("localNetworks"), true),
                 row("httpsEnabled", t("admin.httpsEnabled"), Some(t("admin.httpsEnabledHint")), "toggle", &[], g("httpsEnabled"), true),
                 row("httpsPort", t("admin.httpsPort"), Some(t("admin.httpsPortHint")), "text", &[], g("httpsPort"), true),
+                row("httpsRedirect", t("admin.httpsRedirect"), Some(t("admin.httpsRedirectHint")), "toggle", &[], g("httpsRedirect"), true),
             ],
         )],
         "transcoder" => vec![group(
@@ -214,18 +243,9 @@ mod tests {
         crate::config::Config {
             host: "0.0.0.0".to_string(),
             port: 4040,
-            media_dirs: Vec::new(),
-            movies_dirs: Vec::new(),
-            series_dirs: Vec::new(),
             data_dir: PathBuf::from("/data"),
-            tmdb_api_key: None,
             tmdb_language: "en-US".to_string(),
-            tmdb_enrich: false,
-            web_url: None,
-            web_dir: None,
-            https_override: None,
-            https_port_override: None,
-            tls_extra_sans: Vec::new(),
+            ..Default::default()
         }
     }
 
@@ -241,10 +261,14 @@ mod tests {
         let groups = groups("general", &s, &test_config(), "en");
         assert_eq!(groups.len(), 2);
         assert_eq!(find_row(&groups, "serverName").unwrap().value, json!("MyBox"));
-        // version is a computed read-only row from the crate version.
+        // version is a computed read-only row: "<server version> (<commit>)". The
+        // build info is unset in tests, so it falls back to the crate version +
+        // "unknown".
         let ver = find_row(&groups, "version").unwrap();
         assert_eq!(ver.kind, "value");
-        assert_eq!(ver.value, json!(env!("CARGO_PKG_VERSION")));
+        let shown = ver.value.as_str().unwrap();
+        assert!(shown.starts_with(env!("CARGO_PKG_VERSION")), "version row: {shown}");
+        assert!(shown.contains('('), "version row should include a commit: {shown}");
         // introDetection is a select with the expected options.
         let intro = find_row(&groups, "introDetection").unwrap();
         assert_eq!(intro.kind, "select");

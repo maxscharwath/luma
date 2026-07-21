@@ -137,13 +137,14 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   // (an over-optimistic capability probe, a quirky file), we drop to the HLS
   // master at the same position instead of dying with a black screen.
   const [forceHls, setForceHls] = useState(false);
-  // Manual engine override (Settings → "Moteur de lecture"). `remux` behaves like
-  // the direct-play safety net (always the HLS master); `direct` forces the bare
-  // `<video src>` (still guarded by the decode-error fallback below); `auto` defers
-  // to the runtime-cap decision.
+  // Manual engine override (Settings → "Moteur de lecture"). `remux` and `shaka`
+  // behave like the direct-play safety net (always the HLS master), differing only
+  // in the MSE engine that plays it (hls.js vs Shaka Player); `direct` forces the
+  // bare `<video src>` (still guarded by the decode-error fallback below); `auto`
+  // defers to the runtime-cap decision.
   const [enginePref, setEnginePrefState] = useState<WebEnginePref>(getWebEnginePref);
   const decision = useMemo<EngineDecision>(() => {
-    if (forceHls || enginePref === 'remux') {
+    if (forceHls || enginePref === 'remux' || enginePref === 'shaka') {
       return {
         kind: 'web-mse',
         aacMaster: masterNeedsAac(item, env.safari ? SAFARI_CAPS : MSE_CAPS),
@@ -153,6 +154,9 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     return selectEngine(item, env);
   }, [item, env, forceHls, enginePref]);
   const hlsRef = useRef<import('hls.js').default | null>(null);
+  const shakaRef = useRef<import('#web/features/playback/video-engine').ShakaPlayerLike | null>(
+    null,
+  );
 
   // The absolute-position offset: `absolute = baseSec + video.currentTime`. For
   // HLS, `-noaccurate_seek` starts the stream at the keyframe AT-OR-BEFORE the
@@ -163,6 +167,11 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
   // the offset is known.
   const [baseSec, setBaseSec] = useState(0);
   const [srcReady, setSrcReady] = useState(false);
+  // The server's TRUE media duration (s) from the `X-Media-Duration` header, used
+  // when the catalog row was never probed (so `item.durationMs` is missing). 0 =
+  // not (yet) known. Without it the growing HLS EVENT playlist's live edge would
+  // be all the player could show as the total (a "tiny" movie).
+  const [serverDurSec, setServerDurSec] = useState(0);
   useEffect(() => {
     if (bootAnchor === null) return; // wait until resume has picked the anchor
     setSrcReady(false);
@@ -176,8 +185,10 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     fetch(url)
       .then((r) => {
         const k = Number(r.headers.get('X-Hls-Start'));
+        const d = Number(r.headers.get('X-Media-Duration'));
         if (!cancelled) {
           setBaseSec(Number.isFinite(k) ? k : anchor);
+          if (Number.isFinite(d) && d > 0) setServerDurSec(d);
           setSrcReady(true);
         }
       })
@@ -191,6 +202,16 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       cancelled = true;
     };
   }, [item.id, decision, anchor, audioIndex, bootAnchor]);
+
+  // Authoritative total length (ms): the catalog runtime, else the server header.
+  // Everything that needs the full timeline (the slider, seek clamps, the media
+  // -event duration binding) reads this so an unprobed file still spans the whole
+  // movie instead of the HLS live edge.
+  const knownDurationMs =
+    item.durationMs || (serverDurSec > 0 ? Math.round(serverDurSec * 1000) : 0);
+  useEffect(() => {
+    if (knownDurationMs > 0) setDur(knownDurationMs / 1000);
+  }, [knownDurationMs]);
 
   // ----- video element wiring -------------------------------------------------
   // Re-binds on anchor/audio change too: those REMOUNT the <video> (keyed by
@@ -214,8 +235,9 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
         setReady,
       },
       baseSec,
+      knownDurationMs,
     );
-  }, [item, anchor, audioIndex, baseSec]);
+  }, [item, anchor, audioIndex, baseSec, knownDurationMs]);
 
   // ----- source wiring --------------------------------------------------------
   // Attaches the source. The chosen audio (`audioIndex`) is MUXED into the stream
@@ -225,18 +247,24 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     const v = videoRef.current;
     // Wait until resume picked the anchor AND the real start (baseSec) is known.
     if (!v || bootAnchor === null || !srcReady) return;
+    // Shaka is the DEFAULT MSE engine for the HLS master (it handles our streams
+    // best); hls.js is used only on the explicit `remux` override. Safari keeps its
+    // native HLS pipeline (surround via stream-copy) unless the user picks Shaka.
+    const safariNative = env.safari && enginePref !== 'shaka';
     return attachMediaSource({
       v,
       item,
       decision,
-      useNativeHls: env.safari,
+      useNativeHls: safariNative,
+      useShaka: !safariNative && enginePref !== 'remux',
       startSec: anchor,
       audioRel: audioIndex,
       hlsRef,
+      shakaRef,
       setUseHls,
       setReady,
     });
-  }, [item, decision, env.safari, anchor, audioIndex, bootAnchor, srcReady]);
+  }, [item, decision, env.safari, enginePref, anchor, audioIndex, bootAnchor, srcReady]);
 
   useEffect(() => {
     const onFs = () => setFs(Boolean(document.fullscreenElement));
@@ -282,7 +310,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     (absSec: number) => {
       const v = videoRef.current;
       if (!v) return;
-      const total = item.durationMs ? item.durationMs / 1000 : 0;
+      const total = knownDurationMs ? knownDurationMs / 1000 : 0;
       const target = Math.max(0, total ? Math.min(total - 1, absSec) : absSec);
 
       if (decision.kind === 'direct') {
@@ -306,7 +334,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
         setAnchor(target);
       }
     },
-    [item, decision.kind, anchor],
+    [decision.kind, anchor, knownDurationMs],
   );
 
   const getPosition = useCallback(() => baseSec + (videoRef.current?.currentTime ?? 0), [baseSec]);
@@ -326,7 +354,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       const v = videoRef.current;
       const bar = barRef.current;
       let total: number;
-      if (item.durationMs) total = item.durationMs / 1000;
+      if (knownDurationMs) total = knownDurationMs / 1000;
       else if (Number.isFinite(v?.duration)) total = (v as HTMLVideoElement).duration;
       else total = 0;
       if (!v || !bar || !total) return null;
@@ -334,7 +362,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       return pct * total;
     },
-    [item],
+    [knownDurationMs],
   );
 
   const scrubToClientX = useCallback(
@@ -459,6 +487,7 @@ export function useVideoPlayback(item: MovieView): VideoPlayback {
     baseSec,
     aac: decision.kind === 'direct' ? false : Boolean(decision.aacMaster),
     hlsRef,
+    shakaRef,
     scrubbing,
     setScrubbing,
     scrubPreview,

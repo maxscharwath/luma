@@ -15,6 +15,7 @@ mod llm;
 mod logs;
 mod modules;
 mod pipeline;
+mod reports;
 mod settings;
 mod stats;
 mod storage;
@@ -58,6 +59,7 @@ pub fn routes(state: SharedState) -> Router<SharedState> {
         .route("/sessions/{id}/stop", post(terminate_session))
         .route("/metrics", get(metrics))
         .merge(users::routes())
+        .merge(reports::routes())
         .merge(libraries::routes())
         .merge(settings::routes())
         .merge(storage::routes())

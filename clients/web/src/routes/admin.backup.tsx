@@ -14,20 +14,16 @@ function BackupPage() {
   const t = useT();
   const canManage = useCap('settings.manage');
   const fileRef = useRef<HTMLInputElement>(null);
-  const [showExport, setShowExport] = useState(false);
-  const [importTarget, setImportTarget] = useState<{ file: File; encrypted: boolean } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (!canManage) return <Denied />;
 
   async function onFilePicked(file: File) {
     setNotice(null);
-    setImportTarget({ file, encrypted: await isEncryptedFile(file) });
-  }
-
-  function closeImport() {
-    setImportTarget(null);
+    const encrypted = await isEncryptedFile(file);
+    const msg = await ImportModal.call({ file, encrypted });
     if (fileRef.current) fileRef.current.value = '';
+    if (msg) setNotice(msg);
   }
 
   return (
@@ -43,7 +39,7 @@ function BackupPage() {
         <ActionRow
           desc={t('admin.backupExportDesc')}
           action={
-            <PrimaryButton onClick={() => setShowExport(true)} icon={IconDownload}>
+            <PrimaryButton onClick={() => void ExportModal.call()} icon={IconDownload}>
               {t('admin.backupExport')}
             </PrimaryButton>
           }
@@ -77,19 +73,6 @@ function BackupPage() {
           </p>
         ) : null}
       </Section>
-
-      {showExport ? <ExportModal onClose={() => setShowExport(false)} /> : null}
-      {importTarget ? (
-        <ImportModal
-          file={importTarget.file}
-          encrypted={importTarget.encrypted}
-          onClose={closeImport}
-          onDone={(msg) => {
-            closeImport();
-            setNotice(msg);
-          }}
-        />
-      ) : null}
     </>
   );
 }

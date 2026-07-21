@@ -14,7 +14,8 @@
     "@kroma/module-sdk": "workspace:*",
     "@radix-ui/react-dropdown-menu": "^2",
     "@tabler/icons-react": "^3.44.0",
-    "@tanstack/react-router": "^1.170.16"
+    "@tanstack/react-router": "^1.170.16",
+    "react-call": "^2.0.2"
   },
   "peerDependencies": {
     "react": ">=18"

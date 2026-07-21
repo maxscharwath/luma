@@ -1,5 +1,6 @@
-import type { KromaClient } from '@kroma/core';
+import { type CompatVerdict, checkServerCompat, type KromaClient } from '@kroma/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CLIENT_BUILD } from '#tv/app/clientBuild';
 import { startHealthMonitor } from '#tv/app/healthMonitor';
 
 /** Heartbeat cadence while the server answers normally. */
@@ -24,8 +25,11 @@ export function useServerHealth(
   client: KromaClient | null,
   enabled: boolean,
   onReconnect?: () => void,
-): { online: boolean; recheck: () => void } {
+): { online: boolean; recheck: () => void; serverVersion: string | null; compat: CompatVerdict } {
   const [online, setOnline] = useState(true);
+  // The active server's reported version (from the same health probe) + the
+  // client<->server compatibility verdict derived from it.
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
   // Ref so a fresh `onReconnect` closure each render doesn't restart the monitor.
   const reconnectRef = useRef(onReconnect);
   reconnectRef.current = onReconnect;
@@ -35,6 +39,7 @@ export function useServerHealth(
     if (!client || !enabled) {
       // No active session → assume reachable so the picker shows no offline chrome.
       setOnline(true);
+      setServerVersion(null); // a switched/absent server must not keep a stale version
       return;
     }
     const monitor = startHealthMonitor({
@@ -43,7 +48,8 @@ export function useServerHealth(
         const ctrl = new AbortController();
         const to = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
         try {
-          await client.health({ signal: ctrl.signal });
+          const health = await client.health({ signal: ctrl.signal });
+          setServerVersion(health.version);
           return true;
         } catch {
           return false;
@@ -64,5 +70,8 @@ export function useServerHealth(
   }, [client, enabled]);
 
   const recheck = useCallback(() => kickRef.current(), []);
-  return { online, recheck };
+  const compat: CompatVerdict = serverVersion
+    ? checkServerCompat(CLIENT_BUILD, serverVersion)
+    : 'ok';
+  return { online, recheck, serverVersion, compat };
 }

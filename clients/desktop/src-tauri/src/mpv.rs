@@ -444,33 +444,30 @@ fn kill_tree(child: &mut Child) {
     let _ = child.wait();
 }
 
-// ----- commands invoked by the frontend MpvEngine ----------------------------
+// ----- backend called by the dispatcher (mpv_dispatch.rs) when the binary is active
 
 /// Load a URL into mpv, replacing the current file. `start` > 0 seeks DURING the open
 /// (resume) via `loadfile … start=<sec>`, so playback begins there without buffering
 /// at 0 first.
-#[tauri::command]
-pub fn mpv_load(app: AppHandle, url: String, start: f64) -> Result<(), String> {
+pub fn binary_load(app: &AppHandle, url: String, start: f64) -> Result<(), String> {
     let cmd = if start > 0.5 {
         json!({ "command": ["loadfile", url, "replace", "0", format!("start={start}")] })
     } else {
         json!({ "command": ["loadfile", url, "replace"] })
     };
-    write_ipc(&app, &cmd)
+    write_ipc(app, &cmd)
 }
 
 /// Send a raw mpv command array (`set_property`, `seek`, `stop`, …). The frontend
 /// passes JSON-compatible args (string / number / bool).
-#[tauri::command]
-pub fn mpv_command(app: AppHandle, args: Vec<Value>) -> Result<(), String> {
-    write_ipc(&app, &json!({ "command": args }))
+pub fn binary_command(app: &AppHandle, args: Vec<Value>) -> Result<(), String> {
+    write_ipc(app, &json!({ "command": args }))
 }
 
 /// Liveness probe for the frontend engine: `running` (IPC up), `starting` (process
 /// launched, socket not connected yet), or `dead` (never launched, or exited - the
 /// zombie is reaped here so a crash doesn't read as `starting` forever).
-#[tauri::command]
-pub fn mpv_status(state: tauri::State<MpvState>) -> String {
+pub fn binary_status(state: &MpvState) -> String {
     if state.conn.lock().unwrap().is_some() {
         return "running".into();
     }

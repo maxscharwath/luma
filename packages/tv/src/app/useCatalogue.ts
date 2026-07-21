@@ -157,7 +157,7 @@ export function useCatalogue(platform: string): Catalogue {
   }, [client, signedIn, fetchCatalogue]);
 
   // Heartbeat: detect when the server drops and auto-refetch when it returns.
-  const { online, recheck } = useServerHealth(client, signedIn, () => {
+  const { online, recheck, serverVersion, compat } = useServerHealth(client, signedIn, () => {
     if (client) void fetchCatalogue(client, true);
   });
 
@@ -261,6 +261,8 @@ export function useCatalogue(platform: string): Catalogue {
       activeServerName: serverLabel(servers, activeServerUrl),
       error,
       online,
+      serverVersion,
+      compat,
       client,
       movies,
       shows,
@@ -281,6 +283,8 @@ export function useCatalogue(platform: string): Catalogue {
       activeServerUrl,
       error,
       online,
+      serverVersion,
+      compat,
       client,
       movies,
       shows,

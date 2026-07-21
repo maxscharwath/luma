@@ -38,6 +38,23 @@ pub fn ffprobe_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Fast duration-only probe: reads just the container's `format.duration` (a
+/// header read, no frame decode), so it is cheap enough to call on demand when the
+/// catalog row was never probed. Returns milliseconds, or None if ffprobe is
+/// missing / the file has no readable duration.
+pub fn probe_duration_ms(path: &Path) -> Option<u64> {
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1"])
+        .arg(path)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let secs: f64 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+    (secs > 0.0).then(|| (secs * 1000.0) as u64)
+}
+
 /// Probe a single file. Returns a best-effort [`ProbeResult`]; on any failure
 /// it falls back to a container-extension guess for the video codec.
 pub fn probe_file(path: &Path, ffprobe_present: bool) -> ProbeResult {

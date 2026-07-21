@@ -191,12 +191,14 @@ function JobCard({
   const canManage = useCap('settings.manage');
   const action = useAsyncAction();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
 
   const run = () => action.run(() => client.runJob(job.key).then(reload));
   const cancel = () => action.run(() => client.cancelJob(job.key).then(reload));
   const toggle = (enabled: boolean) =>
     action.run(() => client.updateJob(job.key, { enabled }).then(reload));
+  const editSchedule = async () => {
+    if (await ScheduleModal.call({ job })) reload();
+  };
 
   const prog = job.running
     ? (live ?? { done: job.progressDone ?? 0, total: job.progressTotal ?? 0 })
@@ -205,7 +207,7 @@ function JobCard({
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center justify-between gap-4 px-5.5 py-4.5">
-        <JobMeta job={job} onEdit={canManage ? () => setEditing(true) : undefined} />
+        <JobMeta job={job} onEdit={canManage ? () => void editSchedule() : undefined} />
         <JobActions
           job={job}
           canManage={canManage}
@@ -225,17 +227,6 @@ function JobCard({
       ) : null}
 
       {open ? <JobDetailPanel jobKey={job.key} /> : null}
-
-      {editing ? (
-        <ScheduleModal
-          job={job}
-          onClose={() => setEditing(false)}
-          onSaved={() => {
-            setEditing(false);
-            reload();
-          }}
-        />
-      ) : null}
     </Card>
   );
 }

@@ -25,6 +25,7 @@ mod people;
 mod pin;
 mod recommend;
 mod rematch;
+mod reports;
 mod requests;
 mod search;
 pub mod online_subs;
@@ -62,6 +63,8 @@ mod it_admin;
 mod it_admin2;
 #[cfg(test)]
 mod it_admin_manage;
+#[cfg(test)]
+mod it_reports;
 
 use std::sync::Arc;
 
@@ -156,6 +159,7 @@ pub fn router(state: SharedState, supervisor: Arc<Supervisor>) -> Router {
         .merge(discover::routes())
         .merge(rematch::routes())
         .merge(requests::routes())
+        .merge(reports::routes())
         .merge(modules::routes())
         .route_layer(from_fn_with_state(state.clone(), require_session));
 

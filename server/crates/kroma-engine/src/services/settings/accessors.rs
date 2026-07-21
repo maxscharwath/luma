@@ -236,18 +236,9 @@ mod tests {
         crate::config::Config {
             host: "0.0.0.0".to_string(),
             port: 4040,
-            media_dirs: Vec::new(),
-            movies_dirs: Vec::new(),
-            series_dirs: Vec::new(),
             data_dir: PathBuf::from("/tmp/kroma-data"),
-            tmdb_api_key: None,
             tmdb_language: "en-US".to_string(),
-            tmdb_enrich: false,
-            web_url: None,
-            web_dir: None,
-            https_override: None,
-            https_port_override: None,
-            tls_extra_sans: Vec::new(),
+            ..Default::default()
         }
     }
 

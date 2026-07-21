@@ -434,6 +434,31 @@ pub(crate) const SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_wanted_request ON wanted(request_id);
     CREATE INDEX IF NOT EXISTS idx_wanted_ident   ON wanted(tmdb_id, season, episode);
 
+    -- User-submitted problem reports (the 'signaler un probleme' flow). Any user
+    -- can flag an issue on a movie / show / episode; `reports.manage` holders
+    -- triage them. `subject_id` is the local catalog id (a movie/episode item id
+    -- OR a show id, same no-items-FK rationale as `watched`/`my_list`), and
+    -- `subject_title` is snapshotted so the queue survives a re-scan / deletion of
+    -- the underlying title. `category` is metadata|video|audio|subtitles|other;
+    -- `status` is open|resolved|dismissed. Timestamps are epoch ms.
+    CREATE TABLE IF NOT EXISTS reports (
+        id            TEXT PRIMARY KEY,
+        subject_kind  TEXT NOT NULL,
+        subject_id    TEXT NOT NULL,
+        subject_title TEXT NOT NULL,
+        category      TEXT NOT NULL,
+        message       TEXT,
+        status        TEXT NOT NULL DEFAULT 'open',
+        reported_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
+        resolved_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
+        resolved_at   INTEGER,
+        created_at    INTEGER NOT NULL,
+        updated_at    INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_reports_status  ON reports(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_reports_subject ON reports(subject_kind, subject_id);
+    CREATE INDEX IF NOT EXISTS idx_reports_user    ON reports(reported_by, created_at DESC);
+
     -- The acquisition MODULE tables (`indexers`, `download_clients`, `downloads`)
     -- no longer live here: each is owned by its module crate and created at DB
     -- init via that module's `ServerModule::migrations` (run right after this core
@@ -441,13 +466,20 @@ pub(crate) const SCHEMA: &str = "
     -- which is fine because the module schema is applied after this one. Backup
     -- still dumps `indexers` / `download_clients` by name (see `backup::TABLES`).
 
-    -- Known TMDB id for an acquired item, keyed by its (future) logical item id.
-    -- Set at import time so enrichment uses the real id instead of re-guessing
-    -- from the filename (which fails for obscure/foreign titles), and the movie
-    -- resolves its poster + shows as in-library in Discover.
-    CREATE TABLE IF NOT EXISTS acq_tmdb (
-        logical_id  TEXT PRIMARY KEY,
-        tmdb_id     INTEGER NOT NULL
+    -- Known TMDB id for an acquired file, keyed by the ABSOLUTE PATH the import
+    -- wrote it to. Set at import time so enrichment adopts the real id instead of
+    -- re-guessing it from the filename (which fails for obscure/foreign titles or
+    -- near-identical namesakes like Scary Movie vs A Scary Movie).
+    --
+    -- Keyed by path, not by a recomputed logical id: the import knows exactly
+    -- where it placed the file, and the scanner records that same path in
+    -- `files.abs_path` (both canonicalized), so the join is on ground truth and
+    -- can never orphan on a title-parse difference. Enrichment resolves an item's
+    -- id by joining `files` to this table (see `db::acq_tmdb_for_item`). Rows are
+    -- harmless to keep: a stale one is only read when a file at that path exists.
+    CREATE TABLE IF NOT EXISTS acq_file_tmdb (
+        abs_path  TEXT PRIMARY KEY,
+        tmdb_id   INTEGER NOT NULL
     );
 
     -- Availability matching ('is this TMDB title in the library') is a seek on
@@ -460,8 +492,8 @@ pub(crate) const SCHEMA: &str = "
     -- Enrichment consults this BEFORE any title guess and fetches the id
     -- directly, so a correction is authoritative and survives every re-scan and
     -- nightly re-run. Deleting the row restores automatic matching.
-    -- Distinct from `acq_tmdb` above, which is keyed by the logical id an import
-    -- is about to produce (i.e. before the subject exists).
+    -- Distinct from `acq_file_tmdb` above (keyed by an imported file's path, set
+    -- automatically at import): enrichment prefers this operator choice over it.
     CREATE TABLE IF NOT EXISTS tmdb_pin (
         subject_kind TEXT NOT NULL,          -- 'item' | 'show'
         subject_id   TEXT NOT NULL,
@@ -684,6 +716,13 @@ fn migrate(conn: &Connection) {
             verdict     TEXT NOT NULL,\
             updated_at  TEXT NOT NULL,\
             PRIMARY KEY (file_id, track_index))",
+        // ----- acquisition tmdb hint: logical-id key -> file-path key -------------
+        // The old `acq_tmdb(logical_id)` keyed the import's known id by a
+        // recomputed logical id that orphaned whenever the filename parsed to a
+        // slightly different title/year than the request. Replaced by
+        // `acq_file_tmdb(abs_path)` (created in SCHEMA above), keyed by the exact
+        // path both the import and the scanner agree on. Drop the dead table.
+        "DROP TABLE IF EXISTS acq_tmdb",
     ] {
         let _ = conn.execute(sql, []);
     }

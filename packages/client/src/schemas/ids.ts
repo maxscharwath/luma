@@ -29,6 +29,9 @@ export type ShowId = ReturnType<typeof ShowId.of>;
 export const RequestId = brandedId('RequestId');
 export type RequestId = ReturnType<typeof RequestId.of>;
 
+export const ReportId = brandedId('ReportId');
+export type ReportId = ReturnType<typeof ReportId.of>;
+
 export const IndexerId = brandedId('IndexerId');
 export type IndexerId = ReturnType<typeof IndexerId.of>;
 

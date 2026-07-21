@@ -31,7 +31,13 @@ function WatchPage() {
       following={following}
       onPlayNext={next ? () => navigate({ to: '/watch/$id', params: { id: next.id } }) : undefined}
       onPlayItem={(id) => navigate({ to: '/watch/$id', params: { id } })}
-      onClose={() => navigate({ to: '/' })}
+      // Back returns to the detail page of what was playing: the series page for an
+      // episode, otherwise the movie page (mirrors the catalog cards' deep-link rule).
+      onClose={() =>
+        item.kind === 'episode' && item.showId
+          ? navigate({ to: '/show/$id', params: { id: item.showId }, replace: true })
+          : navigate({ to: '/movie/$id', params: { id: item.id }, replace: true })
+      }
     />
   );
 }

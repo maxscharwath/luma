@@ -39,10 +39,6 @@ export default function IndexersPage() {
   const { client } = useAdminKit();
   const canManage = useCap('settings.manage');
   const engines = useEnabledEngines('indexer-engine');
-  const [editIndexer, setEditIndexer] = useState<IndexerView | null>(null);
-  const [picker, setPicker] = useState(false);
-  const [builtinCreate, setBuiltinCreate] = useState<string | null>(null);
-  const [addEngine, setAddEngine] = useState<EngineCapability | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
 
   const { data, reload } = usePoll(['admin', 'indexers'], () => client.adminIndexers(), 30000);
@@ -75,6 +71,39 @@ export default function IndexersPage() {
       .finally(reload);
   };
 
+  const openEdit = async (ix: IndexerView) => {
+    if (await IndexerModal.call({ indexer: ix })) reload();
+  };
+
+  // Built-in flow: browse/pick a Cardigann definition, then fill its settings.
+  const openPicker = async () => {
+    const definitionId = await DefinitionPickerModal.call();
+    if (!definitionId) return;
+    if (await BuiltinIndexerModal.call({ definitionId, indexer: null })) reload();
+  };
+
+  // Generic engine (e.g. Torznab): the shared field form over the engine's schema.
+  const openAddEngine = async (engine: EngineCapability) => {
+    const changed = await AddEngineModal.call({
+      engines: [engine],
+      title: t('indexers.addTitle'),
+      onSubmit: (kind, v) =>
+        client
+          .createIndexer({
+            kind,
+            name: v.name ?? null,
+            url: v.url ?? null,
+            apiKey: v.apiKey ?? null,
+            categories: v.categories ? parseCats(v.categories) : null,
+            enabled: true,
+            priority: null,
+            definitionId: null,
+          })
+          .then(() => {}),
+    });
+    if (changed) reload();
+  };
+
   // One add-flow per enabled engine: the native Cardigann engine opens its
   // definition picker (flow "definition"); every other engine (e.g. Torznab)
   // opens the generic field form. No engines -> no add buttons.
@@ -86,7 +115,7 @@ export default function IndexersPage() {
             key={engine.id}
             label={t((engine.label ?? engine.id) as MessageKey)}
             onClick={() =>
-              engine.flow === 'definition' ? setPicker(true) : setAddEngine(engine)
+              engine.flow === 'definition' ? void openPicker() : void openAddEngine(engine)
             }
           />
         ))}
@@ -120,59 +149,14 @@ export default function IndexersPage() {
             test={tests[ix.id]}
             onToggle={(v) => toggle(ix, v)}
             onTest={() => test(ix)}
-            onEdit={() => setEditIndexer(ix)}
+            onEdit={() => void openEdit(ix)}
           />
         ))}
       </div>
 
-      {editIndexer ? (
-        <IndexerModal
-          indexer={editIndexer}
-          onClose={() => setEditIndexer(null)}
-          onSaved={reload}
-        />
-      ) : null}
-
-      {addEngine ? (
-        <AddEngineModal
-          engines={[addEngine]}
-          title={t('indexers.addTitle')}
-          onClose={() => setAddEngine(null)}
-          onSubmit={(kind, v) =>
-            client
-              .createIndexer({
-                kind,
-                name: v.name ?? null,
-                url: v.url ?? null,
-                apiKey: v.apiKey ?? null,
-                categories: v.categories ? parseCats(v.categories) : null,
-                enabled: true,
-                priority: null,
-                definitionId: null,
-              })
-              .then(reload)
-          }
-        />
-      ) : null}
-
-      {picker ? (
-        <DefinitionPickerModal
-          onClose={() => setPicker(false)}
-          onPick={(defId) => {
-            setPicker(false);
-            setBuiltinCreate(defId);
-          }}
-        />
-      ) : null}
-
-      {builtinCreate ? (
-        <BuiltinIndexerModal
-          definitionId={builtinCreate}
-          indexer={null}
-          onClose={() => setBuiltinCreate(null)}
-          onSaved={reload}
-        />
-      ) : null}
+      <IndexerModal />
+      <DefinitionPickerModal />
+      <BuiltinIndexerModal />
     </>
   );
 }

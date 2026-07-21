@@ -56,6 +56,13 @@ pub enum PollState {
     Unknown,
 }
 
+/// Tokens attached to a pending code (present only once it was approved).
+/// Returned by [`QuickConnectInner::revoke`] so the caller can delete them.
+pub struct RevokedTokens {
+    pub token: String,
+    pub access_token: String,
+}
+
 pub fn new() -> QuickConnect {
     Arc::new(QuickConnectInner { map: Mutex::new(HashMap::new()) })
 }
@@ -123,6 +130,24 @@ impl QuickConnectInner {
         }
     }
 
+    /// Forget the pending entry whose secret matches, if any. Returns the tokens
+    /// it had already accrued (i.e. it was approved in the gap before the device
+    /// rotated its code) so the caller can delete them the rotating device will
+    /// never collect them. A no-op for an unknown/expired secret.
+    pub fn revoke(&self, secret: &str) -> Option<RevokedTokens> {
+        let mut map = self.map.lock().unwrap();
+        Self::reap(&mut map);
+        let code = map
+            .iter()
+            .find(|(_, p)| super::auth::ct_eq(p.secret.as_bytes(), secret.as_bytes()))
+            .map(|(c, _)| c.clone())?;
+        let entry = map.remove(&code)?;
+        match (entry.token, entry.access_token) {
+            (Some(token), Some(access_token)) => Some(RevokedTokens { token, access_token }),
+            _ => None,
+        }
+    }
+
     /// Poll by secret. Once authorized, the entry is consumed and its token +
     /// user returned.
     pub fn poll(&self, secret: &str) -> PollState {
@@ -149,6 +174,17 @@ impl QuickConnectInner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn revoke_forgets_a_pending_code() {
+        let qc = new();
+        let init = qc.initiate();
+        // Not yet approved -> no tokens to clean up, but the entry is dropped.
+        assert!(qc.revoke(&init.secret).is_none());
+        assert!(matches!(qc.poll(&init.secret), PollState::Unknown));
+        // Revoking an unknown secret is a harmless no-op.
+        assert!(qc.revoke("nope").is_none());
+    }
 
     #[test]
     fn initiate_is_capped_under_flood() {

@@ -7,6 +7,7 @@ import type { NamingTemplatesView } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { IconX } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
+import { createCallable } from 'react-call';
 import { Select } from '#web/shared/ui';
 
 type FieldKey = keyof Omit<NamingTemplatesView, 'case'>;
@@ -117,22 +118,26 @@ const SEPARATORS: readonly { value: string; labelKey: string }[] = [
 const isEpisode = (f: FieldKey) =>
   f === 'seriesFolder' || f === 'seasonFolder' || f === 'episodeFile';
 
-export function NamingTokenModal({
-  fieldKey,
-  fieldLabel,
-  value,
-  onChange,
-  onClose,
-}: Readonly<{
-  fieldKey: FieldKey;
-  fieldLabel: string;
-  value: string;
-  onChange: (v: string) => void;
-  onClose: () => void;
-}>) {
+export const NamingTokenModal = createCallable<
+  Readonly<{
+    fieldKey: FieldKey;
+    fieldLabel: string;
+    value: string;
+    onChange: (v: string) => void;
+  }>,
+  void
+>(({ call, fieldKey, fieldLabel, value: initialValue, onChange: onParentChange }) => {
   const t = useT();
+  // Own the working value locally so multiple inserts compose correctly, and
+  // mirror every edit back to the parent template so the page stays live-synced.
+  const [value, setValue] = useState(initialValue);
   const [separator, setSeparator] = useState(' ');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const onChange = (next: string) => {
+    setValue(next);
+    onParentChange(next);
+  };
 
   const groups = isEpisode(fieldKey) ? SERIES_GROUPS : MOVIE_GROUPS;
   const presets = isEpisode(fieldKey) ? EPISODE_PRESETS : MOVIE_PRESETS;
@@ -158,7 +163,7 @@ export function NamingTokenModal({
       <button
         type="button"
         aria-label={t('common.close')}
-        onClick={onClose}
+        onClick={() => call.end()}
         className="absolute inset-0 bg-black/60"
       />
       <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col rounded-2xl border border-border bg-surface-1 shadow-pop">
@@ -168,7 +173,7 @@ export function NamingTokenModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => call.end()}
             className="text-dim hover:text-text"
             aria-label={t('common.close')}
           >
@@ -238,7 +243,7 @@ export function NamingTokenModal({
           />
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => call.end()}
             className="shrink-0 rounded-xl bg-accent px-5 py-2.5 text-[14px] font-bold text-accent-ink hover:bg-accent-hover"
           >
             {t('common.close')}
@@ -247,7 +252,7 @@ export function NamingTokenModal({
       </div>
     </div>
   );
-}
+});
 
 function Fieldset({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (

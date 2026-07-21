@@ -313,9 +313,19 @@ export function uploadAvatar(ctx: RequestContext, file: Blob): Promise<{ avatarU
   });
 }
 
-/** Start a Quick Connect request → a code to display + a secret to poll with. */
-export function quickConnectInitiate(ctx: RequestContext): Promise<QuickConnectInit> {
-  return ctx.json<QuickConnectInit>('/auth/quickconnect/initiate', { method: 'POST' });
+/**
+ * Start a Quick Connect request → a code to display + a secret to poll with.
+ * Pass `prevSecret` when rotating an expiring code so the server revokes the old
+ * one up front (stops it being approvable) instead of leaving it to lapse on TTL.
+ */
+export function quickConnectInitiate(
+  ctx: RequestContext,
+  prevSecret?: string,
+): Promise<QuickConnectInit> {
+  return ctx.json<QuickConnectInit>('/auth/quickconnect/initiate', {
+    method: 'POST',
+    ...(prevSecret ? { headers: JSON_HEADERS, body: JSON.stringify({ prevSecret }) } : {}),
+  });
 }
 
 /** Poll a Quick Connect request by its secret. */

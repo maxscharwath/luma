@@ -2,9 +2,11 @@ import { type AdminUser, type Invite, PERMISSIONS, type Permission } from '@krom
 import { useT } from '@kroma/ui';
 import { IconMail } from '@tabler/icons-react';
 import { useCallback, useState } from 'react';
+import { createCallable } from 'react-call';
 import { useAsyncAction } from '#web/features/admin/shell';
 import { Field, Modal, ModalActions } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
+import { confirmDialog } from '#web/shared/ui';
 
 export function PendingInvite({ inv, onChange }: Readonly<{ inv: Invite; onChange: () => void }>) {
   const t = useT();
@@ -105,15 +107,9 @@ function usePermissionSet(
   return [perms, toggle];
 }
 
-export function EditUserModal({
-  user,
-  onClose,
-  onSaved,
-}: Readonly<{
-  user: AdminUser;
-  onClose: () => void;
-  onSaved: () => void;
-}>) {
+/** Edit a user (name + permissions, with a guarded delete). Resolves `true` when
+ * the user was saved or deleted (the caller refreshes), `false` on dismiss. */
+export const EditUserModal = createCallable<{ user: AdminUser }, boolean>(({ call, user }) => {
   const t = useT();
   const { client, user: me } = useAuth();
   const [name, setName] = useState(user.username);
@@ -125,24 +121,31 @@ export function EditUserModal({
     run(
       async () => {
         await client.updateUser(user.id, { permissions: [...perms], username: name.trim() });
-        onSaved();
+        call.end(true);
       },
       () => t('admin.updateFailed'),
     );
 
-  const remove = () => {
-    if (!confirm(t('admin.confirmDeleteUser', { name: user.username }))) return;
+  const remove = async () => {
+    const ok = await confirmDialog({
+      title: t('admin.deleteAccount'),
+      message: t('admin.confirmDeleteUser', { name: user.username }),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
     run(
       async () => {
         await client.deleteUser(user.id);
-        onSaved();
+        call.end(true);
       },
       () => t('admin.deleteFailed'),
     );
   };
 
   return (
-    <Modal title={t('admin.editUser', { name: user.username })} onClose={onClose}>
+    <Modal title={t('admin.editUser', { name: user.username })} onClose={() => call.end(false)}>
       <Field label={t('admin.name')}>
         <input
           value={name}
@@ -156,7 +159,7 @@ export function EditUserModal({
       <PermPicker selected={perms} toggle={toggle} />
       {error ? <p className="mt-3 text-[13px] text-danger">{error}</p> : null}
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={() => {
           save();
@@ -166,7 +169,7 @@ export function EditUserModal({
         destructive={{
           label: t('admin.deleteAccount'),
           onClick: () => {
-            remove();
+            void remove();
           },
           disabled: isSelf,
           title: isSelf ? t('admin.cantDeleteYourself') : undefined,
@@ -174,29 +177,28 @@ export function EditUserModal({
       />
     </Modal>
   );
-}
+});
 
-export function InviteModal({
-  onClose,
-  onCreated,
-}: Readonly<{ onClose: () => void; onCreated: () => void }>) {
+/** Create an invite link. Resolves `true` if an invite was created (the caller
+ * refreshes the pending list), `false` if dismissed without creating one. */
+export const InviteModal = createCallable<void, boolean>(({ call }) => {
   const t = useT();
   const { client } = useAuth();
   const [perms, toggle] = usePermissionSet(['playback']);
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { busy, run } = useAsyncAction();
+  const close = () => call.end(link !== null);
 
   const create = () =>
     run(async () => {
       const res = await client.createInvite({ permissions: [...perms] });
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       setLink(res.url ?? `${origin}/join?invite=${res.token}`);
-      onCreated();
     });
 
   return (
-    <Modal title={t('nav.inviteUser')} onClose={onClose}>
+    <Modal title={t('nav.inviteUser')} onClose={close}>
       <p className="mb-4 text-[13px] text-dim">{t('admin.inviteIntro')}</p>
       <PermPicker selected={perms} toggle={toggle} />
       {link ? (
@@ -230,7 +232,7 @@ export function InviteModal({
         </div>
       ) : (
         <ModalActions
-          onCancel={onClose}
+          onCancel={close}
           cancelLabel={t('common.cancel')}
           onConfirm={() => {
             create();
@@ -242,4 +244,4 @@ export function InviteModal({
       )}
     </Modal>
   );
-}
+});

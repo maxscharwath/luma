@@ -12,6 +12,13 @@
 # step writes into the library); :ro is fine for a purely pre-existing library:
 #     docker run -p 4040:4040 -v kroma-data:/data -v /media:/media \
 #       -e KROMA_MEDIA_DIRS=/media ghcr.io/maxscharwath/kroma:latest
+#
+# Optional HTTPS (auto self-signed cert, off by default): publish 4443, set
+# KROMA_HTTPS=1, and on the bridge network pass the host's real IP/DNS via
+# KROMA_TLS_SANS (the container can't detect it). The cert persists in /data/tls.
+#     docker run -p 4040:4040 -p 4443:4443 -v kroma-data:/data -v /media:/media \
+#       -e KROMA_MEDIA_DIRS=/media -e KROMA_HTTPS=1 \
+#       -e KROMA_TLS_SANS=192.168.1.50 ghcr.io/maxscharwath/kroma:latest
 
 # ---- 1) Web SPA (node + bun) -----------------------------------------------
 # Node base (not the bun-only image): the TanStack Start prerender spawns a `node`
@@ -81,5 +88,6 @@ ENV KROMA_HOST=0.0.0.0 \
     RUST_LOG=kroma_server=info,tower_http=info
 
 VOLUME ["/data"]
-EXPOSE 4040
+# 4040 = HTTP (always). 4443 = optional HTTPS listener (KROMA_HTTPS=1).
+EXPOSE 4040 4443
 ENTRYPOINT ["kroma-server"]

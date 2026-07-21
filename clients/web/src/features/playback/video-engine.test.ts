@@ -36,13 +36,35 @@ const H = vi.hoisted(() => {
       instances.push(this);
     }
   }
-  return { hlsMasterUrl, instances, FakeHls };
+  const shakaInstances: Array<{
+    attach: ReturnType<typeof vi.fn>;
+    load: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
+    configure: ReturnType<typeof vi.fn>;
+  }> = [];
+  class FakeShakaPlayer {
+    static supported = true;
+    static isBrowserSupported() {
+      return FakeShakaPlayer.supported;
+    }
+    attach = vi.fn(() => Promise.resolve());
+    load = vi.fn(() => Promise.resolve());
+    destroy = vi.fn(() => Promise.resolve());
+    configure = vi.fn(() => true);
+    constructor() {
+      shakaInstances.push(this);
+    }
+  }
+  const installAll = vi.fn();
+  const FakeShaka = { Player: FakeShakaPlayer, polyfill: { installAll } };
+  return { hlsMasterUrl, instances, FakeHls, shakaInstances, FakeShaka, installAll };
 });
 
 vi.mock('#web/shared/lib/api', () => ({
   kromaClient: () => ({ hlsMasterUrl: H.hlsMasterUrl }),
 }));
 vi.mock('hls.js', () => ({ default: H.FakeHls }));
+vi.mock('shaka-player/dist/shaka-player.compiled.js', () => ({ default: H.FakeShaka }));
 
 interface FakeVideo {
   el: HTMLVideoElement;
@@ -134,6 +156,9 @@ afterEach(() => {
   H.hlsMasterUrl.mockClear();
   H.instances.length = 0;
   H.FakeHls.supported = true;
+  H.shakaInstances.length = 0;
+  H.FakeShaka.Player.supported = true;
+  H.installAll.mockClear();
 });
 
 describe('bindMediaEvents', () => {
@@ -158,6 +183,16 @@ describe('bindMediaEvents', () => {
     bindMediaEvents(fv2.el, { ...item, durationMs: 0 } as MovieView, s2, 10);
     fv2.fire('durationchange');
     expect(s2.setDur).toHaveBeenCalledWith(910); // baseSec + element duration
+  });
+
+  it('prefers the known (server-header) duration over the element clock', () => {
+    // Unprobed catalog row (durationMs 0), but the server supplied 5885s: the
+    // slider must span the whole movie, not the growing playlist's live edge.
+    const fv = fakeVideo({ duration: 172 });
+    const s = mkSetters();
+    bindMediaEvents(fv.el, { ...item, durationMs: 0 } as MovieView, s, 0, 5_885_000);
+    fv.fire('durationchange');
+    expect(s.setDur).toHaveBeenCalledWith(5885);
   });
 
   it('reports the buffered end (anchor + last range), or 0 when empty', () => {
@@ -227,9 +262,11 @@ describe('attachMediaSource direct-play', () => {
       item,
       decision: { kind: 'direct', aacMaster: false } as EngineDecision,
       useNativeHls: false,
+      useShaka: false,
       startSec: 0,
       audioRel: 0,
       hlsRef: { current: null },
+      shakaRef: { current: null },
       setUseHls: vi.fn(),
       setReady: vi.fn(),
       ...over,
@@ -269,9 +306,11 @@ describe('attachMediaSource HLS master', () => {
       item,
       decision: { kind: 'web-mse', aacMaster: true } as EngineDecision,
       useNativeHls: false,
+      useShaka: false,
       startSec: 600,
       audioRel: 2,
       hlsRef: { current: null },
+      shakaRef: { current: null },
       setUseHls: vi.fn(),
       setReady: vi.fn(),
       ...over,
@@ -308,6 +347,63 @@ describe('attachMediaSource HLS master', () => {
     attachMediaSource(hlsOpts({ v: fv.el }));
     await tick();
     expect(H.instances).toHaveLength(0);
+    expect(fv.get('src')).toBe('hls:w1:true:600:2');
+  });
+});
+
+describe('attachMediaSource HLS master via Shaka', () => {
+  function shakaOpts(over: Partial<AttachSourceOptions> = {}): AttachSourceOptions {
+    return {
+      v: fakeVideo().el,
+      item,
+      decision: { kind: 'web-mse', aacMaster: true } as EngineDecision,
+      useNativeHls: false,
+      useShaka: true,
+      startSec: 600,
+      audioRel: 2,
+      hlsRef: { current: null },
+      shakaRef: { current: null },
+      setUseHls: vi.fn(),
+      setReady: vi.fn(),
+      ...over,
+    };
+  }
+
+  it('installs polyfills, attaches and loads the muxed master, then destroys on cleanup', async () => {
+    const fv = fakeVideo();
+    const opts = shakaOpts({ v: fv.el });
+    const cleanup = attachMediaSource(opts);
+    expect(opts.setUseHls).toHaveBeenCalledWith(true);
+    await tick(); // dynamic import + attach()/load() microtasks resolve
+    expect(H.installAll).toHaveBeenCalled();
+    expect(H.shakaInstances).toHaveLength(1);
+    const inst = H.shakaInstances[0];
+    expect(inst?.attach).toHaveBeenCalledWith(fv.el);
+    expect(inst?.load).toHaveBeenCalledWith('hls:w1:true:600:2');
+    // A generous forward buffer is configured (default bufferingGoal is only 10s).
+    const cfg = inst?.configure.mock.calls[0]?.[0] as {
+      streaming?: { bufferingGoal?: number };
+    };
+    expect(cfg?.streaming?.bufferingGoal).toBeGreaterThanOrEqual(60);
+    cleanup();
+    expect(inst?.destroy).toHaveBeenCalled();
+  });
+
+  // Shaka wins over Safari's native HLS when the user explicitly picks it.
+  it('uses Shaka even when useNativeHls is set', async () => {
+    const fv = fakeVideo();
+    attachMediaSource(shakaOpts({ v: fv.el, useNativeHls: true }));
+    await tick();
+    expect(H.shakaInstances).toHaveLength(1);
+    expect(fv.get('src')).toBe(''); // no native src attach
+  });
+
+  it('falls back to a native src when Shaka is unsupported', async () => {
+    H.FakeShaka.Player.supported = false;
+    const fv = fakeVideo();
+    attachMediaSource(shakaOpts({ v: fv.el }));
+    await tick();
+    expect(H.shakaInstances).toHaveLength(0); // support check fails before construction
     expect(fv.get('src')).toBe('hls:w1:true:600:2');
   });
 });

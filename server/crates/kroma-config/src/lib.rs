@@ -13,7 +13,12 @@ use std::path::PathBuf;
 const BUILTIN_TMDB_API_KEY: &str = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiYjI2M2YzMGNlNGY5MjJjYzkxODAwMTc4NzIyYmQ2ZiIsIm5iZiI6MTU1NTQyMzg5MS4yNDg5OTk4LCJzdWIiOiI1Y2I1ZTI5MzBlMGEyNjZiOWJlZDJjNTEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.n7C78ISAFNtk1To3rCSqwdGcM2c72jPslotoU3UCtxc";
 
 /// Resolved server configuration.
-#[derive(Debug, Clone)]
+///
+/// `from_env` is the only real constructor; the derived `Default` exists so tests
+/// can build a stub with `..Default::default()` and override just the fields they
+/// exercise, instead of hand-listing every field (which broke on each new field).
+/// Its defaults (`host: ""`, `port: 0`, no key) are deliberately non-functional.
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub host: String,
     pub port: u16,
@@ -54,6 +59,11 @@ pub struct Config {
     /// LAN IP or custom hostname to add to the auto-generated self-signed cert,
     /// on top of the auto-detected localhost / hostname / primary LAN IP.
     pub tls_extra_sans: Vec<String>,
+    /// Force the HTTP listener to redirect everything to HTTPS
+    /// (`KROMA_HTTPS_REDIRECT=1`). `None` = defer to the `httpsRedirect` setting.
+    /// Only takes effect when HTTPS is actually running; the cert-download route
+    /// stays reachable over plain HTTP so a device can bootstrap trust first.
+    pub https_redirect_override: Option<bool>,
 }
 
 impl Config {
@@ -132,6 +142,10 @@ impl Config {
             })
             .unwrap_or_default();
 
+        let https_redirect_override = env::var("KROMA_HTTPS_REDIRECT")
+            .ok()
+            .map(|v| !matches!(v.trim(), "0" | "false" | "no" | "off" | ""));
+
         Config {
             host,
             port,
@@ -147,6 +161,7 @@ impl Config {
             https_override,
             https_port_override,
             tls_extra_sans,
+            https_redirect_override,
         }
     }
 
@@ -222,18 +237,10 @@ mod tests {
         Config {
             host: host.into(),
             port,
-            media_dirs: Vec::new(),
-            movies_dirs: Vec::new(),
-            series_dirs: Vec::new(),
             data_dir: PathBuf::from(data_dir),
-            tmdb_api_key: None,
             tmdb_language: "en-US".into(),
             tmdb_enrich: true,
-            web_url: None,
-            web_dir: None,
-            https_override: None,
-            https_port_override: None,
-            tls_extra_sans: Vec::new(),
+            ..Default::default()
         }
     }
 

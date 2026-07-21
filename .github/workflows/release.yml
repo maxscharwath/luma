@@ -557,9 +557,13 @@ jobs:
         with:
           workspaces: clients/desktop/src-tauri
 
-      # Tauri v2 Linux system deps (macOS/Windows need none). mpv is NOT a build dep:
-      # on Linux we drive the mpv binary over IPC at runtime; on macOS libmpv is
-      # off by default (feature `libmpv`), so no installer needs it.
+      # Tauri v2 Linux system deps. NB: the Linux release is built --no-default-features
+      # (see the build step), i.e. WITHOUT the in-process libmpv engine, so no
+      # libmpv-dev here: ubuntu-22.04 (kept for its low glibc = SteamOS compat) only
+      # ships libmpv.so.1 (mpv 0.34), too old for the libmpv2 crate (needs .so.2 /
+      # mpv 0.35+). Linux keeps the mpv BINARY (which is itself libmpv, out-of-process);
+      # the in-process engine ships in source, ready once a Deck-compatible libmpv.so.2
+      # is sourced. mac/Windows DO bundle in-process libmpv (their own modern libmpv).
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
@@ -588,9 +592,35 @@ jobs:
 
       # Bundle a self-contained mpv (pinned pkgforge AppImage, sha256-verified) as
       # the `kroma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
+      # Still needed: the binary is the Linux libmpv fallback (fix-appimage.sh
+      # restores its pristine bytes; the .deb depends on the system mpv).
       - name: Fetch bundled mpv (Linux sidecar)
         if: runner.os == 'Linux'
         run: bash clients/desktop/scripts/fetch-mpv.sh
+
+      # macOS: libmpv to LINK against (brew) + dylibbundler to EMBED it (+ its ffmpeg
+      # dylib tree) into KROMA.app so the .dmg runs without Homebrew. See the
+      # "Bundle libmpv into the .app" step below.
+      - name: Install libmpv build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install mpv dylibbundler
+
+      # Windows: fetch a pinned libmpv-2.dll + synthesise the MSVC import lib mpv.lib
+      # from it (LLVM is pre-installed on the runner). Sets KROMA_MPV_LIB_DIR (consumed
+      # by build.rs's link search) + KROMA_MPV_DLL (bundled next to the .exe) in
+      # $GITHUB_ENV. The DLL is self-contained (ffmpeg statically linked in), so one
+      # file ships beside the executable.
+      - name: Fetch + prepare libmpv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./clients/desktop/scripts/fetch-libmpv-windows.ps1
+
+      # Stage the DLL at a FIXED path the bundler config references (tauri.windows.
+      # conf.json bundle.resources), since KROMA_MPV_DLL is a dynamic scratch path.
+      - name: Stage libmpv-2.dll for bundling (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item "$env:KROMA_MPV_DLL" clients/desktop/src-tauri/libmpv-2.dll -Force
 
       # Windows Authenticode: import the PFX + inject its thumbprint so `tauri build`
       # signs the .exe/.msi. No-ops (unsigned) when the secret is unset.
@@ -648,33 +678,83 @@ jobs:
           security delete-keychain "$kc" >/dev/null 2>&1 || true
           rm -f "$RUNNER_TEMP/cert.p12"
 
-      # Unsigned / non-macOS: NO APPLE_* env at all, so tauri never attempts a codesign.
-      # (An empty-but-present APPLE_CERTIFICATE still makes `security import` fail, so the
-      # signing env must be absent entirely, not just empty - hence two separate steps.)
-      # TAURI_SIGNING_PRIVATE_KEY is unrelated to codesigning: tauri.conf.json has
-      # createUpdaterArtifacts:true, so EVERY build must sign the updater artifacts.
-      - name: Build installer(s)
-        if: steps.macsign.outputs.sign != 'true'
+      # Windows/Linux: tauri builds + signs in one pass (Windows Authenticode via the
+      # thumbprint injected earlier). macOS is handled separately below - it must EMBED
+      # libmpv into the .app before the dmg is sealed, and sign AFTER that. NO APPLE_*
+      # env here (an empty APPLE_CERTIFICATE would make tauri's `security import` fail).
+      # TAURI_SIGNING_PRIVATE_KEY signs the updater artifacts (createUpdaterArtifacts).
+      # Windows builds WITH libmpv (default features) + the fetched mpv.lib/dll; Linux
+      # builds --no-default-features (mpv binary engine only) because ubuntu-22.04's
+      # libmpv is too old for the libmpv2 crate (see the deps step above).
+      - name: Build installer(s) (Windows/Linux)
+        if: runner.os != 'macOS'
         working-directory: clients/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
-        run: bun run tauri build --bundles ${{ needs.version.outputs.channel == 'nightly' && matrix.nightly_bundles || matrix.bundles }}
+        run: bun run tauri build ${{ runner.os == 'Linux' && '--no-default-features' || '' }} --bundles ${{ needs.version.outputs.channel == 'nightly' && matrix.nightly_bundles || matrix.bundles }}
 
-      # macOS with a verified Developer ID cert: sign + notarize via the Apple secrets.
-      - name: Build installer(s) (macOS signed)
-        if: steps.macsign.outputs.sign == 'true'
+      # macOS: build the .app UNSIGNED, embed libmpv so it is self-contained, THEN sign
+      # + notarize + package the dmg. This order is REQUIRED: dylibbundler rewrites the
+      # Mach-O load commands (invalidating any signature), and the dmg must carry the
+      # already-embedded app. This replaces tauri's built-in macOS sign/notarize/dmg.
+      - name: Build .app (macOS)
+        if: runner.os == 'macOS'
         working-directory: clients/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: bun run tauri build --bundles app
+
+      - name: Embed libmpv into the .app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          APP=$(find clients/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -n1)
+          bash clients/desktop/scripts/bundle-libmpv-macos.sh "$APP"
+
+      # Sign deep (incl. the embedded dylibs) + notarize when a Developer ID cert is
+      # present, then package the dmg. The macsign step already validated + then DELETED
+      # its keychain, so re-import the cert here. NOTE: the signed path needs a CI run
+      # with the real APPLE_* secrets to confirm end-to-end; the unsigned path (hdiutil
+      # dmg) mirrors what was validated locally.
+      - name: Sign + notarize + package dmg (macOS)
+        if: runner.os == 'macOS'
+        env:
+          SIGN: ${{ steps.macsign.outputs.sign }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: bun run tauri build --bundles ${{ needs.version.outputs.channel == 'nightly' && matrix.nightly_bundles || matrix.bundles }}
+        run: |
+          set -euo pipefail
+          BUNDLE=clients/desktop/src-tauri/target/release/bundle
+          APP=$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app' | head -n1)
+          if [ "$SIGN" = "true" ]; then
+            kc="$RUNNER_TEMP/kroma-sign.keychain-db"
+            security create-keychain -p '' "$kc"
+            security default-keychain -s "$kc"
+            security unlock-keychain -p '' "$kc"
+            echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '' "$kc" >/dev/null
+            codesign --deep --force --timestamp --options runtime --sign "$APPLE_SIGNING_IDENTITY" "$APP"
+            ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/app.zip"
+            xcrun notarytool submit "$RUNNER_TEMP/app.zip" \
+              --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun stapler staple "$APP"
+          fi
+          mkdir -p "$BUNDLE/dmg"
+          DMG="$BUNDLE/dmg/KROMA_$(uname -m).dmg"
+          hdiutil create -volname KROMA -srcfolder "$APP" -ov -format UDZO "$DMG"
+          if [ "$SIGN" = "true" ]; then
+            codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$DMG"
+            xcrun notarytool submit "$DMG" \
+              --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun stapler staple "$DMG"
+          fi
 
       # Tauri's default bundler sweeps the runner's wayland/glib/gstreamer libs
       # into the AppImage, which breaks it on Mesa 25+ hosts (SteamOS 3.7+,

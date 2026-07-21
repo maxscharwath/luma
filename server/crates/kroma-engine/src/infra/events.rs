@@ -107,6 +107,11 @@ pub enum ServerEvent {
     /// available...). Low-frequency: clients refetch their request lists on it.
     #[serde(rename = "request.updated")]
     RequestUpdated { id: String, status: String },
+    /// A problem report was filed or triaged (created / resolved / dismissed /
+    /// reopened / deleted). Low-frequency: the admin "Signalements" queue refetches
+    /// on it.
+    #[serde(rename = "report.updated")]
+    ReportUpdated { id: String, status: String },
     // Module events (download.progress / download.completed / vpn.status, ...) are
     // NOT here: modules publish them generically via `HostCtx::publish(Event)` and
     // the bus fans out the raw JSON (see `Bus::publish_value`), so the core owns no

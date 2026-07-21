@@ -72,7 +72,16 @@ const meta = {
 
 // --- Read the package's own INFO + icon so the catalog can never disagree ------
 // DSM compares `version` to the installed version.
-const { package: pkg, version, dname, desc, arch, firmware, size, md5 } = readSpkInfo(spk);
+const { package: pkg, version: rawVersion, dname, desc, arch, firmware, size, md5 } =
+  readSpkInfo(spk);
+
+// build.sh stamps nightlies `X.Y.Z.BUILD-BUILD` (4th feature segment). DSM's
+// package-center list hides a package whose feature version has a 4th segment
+// that large, so collapse to the conventional `major.minor.micro-build` that it
+// renders. Mirrors worker/catalog.ts dsmVersion(). Stable (already 3-segment)
+// is untouched.
+const [feat = '', build] = rawVersion.split('-');
+const version = build ? `${feat.split('.').slice(0, 3).join('.')}-${build}` : feat;
 
 // Icon: an explicit override wins, else pull the store icon out of the .spk itself.
 const iconOverride = process.env.CATALOG_ICON?.trim();
@@ -88,7 +97,6 @@ const catalog = {
       version,
       dname,
       desc,
-      price: 0,
       download_count: 0,
       recent_download_count: 0,
       link: downloadUrl,
@@ -96,21 +104,24 @@ const catalog = {
       md5,
       thumbnail: [iconUrl],
       thumbnail_retina: [iconUrl],
+      snapshot: [],
       maintainer: meta.maintainer,
       maintainer_url: meta.maintainerUrl,
       distributor: meta.distributor,
       distributor_url: meta.distributorUrl,
       changelog: meta.changelogUrl,
       firmware,
-      beta,
+      // No `model`/`beta` fields: `model: []` reads to DSM as an empty
+      // supported-model whitelist, and `beta: true` from a dynamic source both
+      // make DSM silently HIDE the row. SynoCommunity omits both; the channel is
+      // gated by which .spk this catalog points at, not a per-package flag. See
+      // worker/catalog.ts.
       qinst: true,
       qstart: true,
       qupgrade: true,
       deppkgs: null,
       conflictpkgs: null,
-      start: true,
-      model: [],
-      type: 0,
+      startable: 'yes',
     },
   ],
 };

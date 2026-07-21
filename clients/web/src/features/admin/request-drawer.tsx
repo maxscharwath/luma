@@ -14,8 +14,10 @@ import {
 import { Image, useT } from '@kroma/ui';
 import { IconCheck, IconLoader2, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
+import { createCallable } from 'react-call';
 import { kindMeta, posterGrad } from '#web/features/admin/pipeline-meta';
 import { ReleaseList } from '#web/features/admin/release-list';
+import { useAsyncAction, usePoll } from '#web/features/admin/shell';
 import { Avatar } from '#web/features/admin/ui';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 import { seasonsSummary } from '#web/features/requests/status';
@@ -274,43 +276,79 @@ function ModerationButtons({
   );
 }
 
-export function RequestDrawer({
-  req,
-  busy,
-  canReview,
-  onClose,
-  onApprove,
-  onDeny,
-  onDelete,
-}: Readonly<{
-  req: MediaRequest | null;
-  busy: boolean;
-  canReview: boolean;
-  onClose: () => void;
-  onApprove: () => void;
-  onDeny: (note: string) => void;
-  onDelete: () => void;
-}>) {
+/**
+ * The moderation drawer, as an imperative callable: open it with
+ * `RequestDrawer.call({ req, canReview, onApprove, onDeny, onDelete })`. Its root
+ * is mounted once by `AdminModalHosts`, so the queue page carries no open-state.
+ * The displayed request stays live off the shared requests query (same key as
+ * the queue), so WS/action-driven reloads refresh the open drawer; the drawer
+ * closes itself when its request leaves the list (e.g. after a delete). The
+ * caller's actions run through the `onApprove`/`onDeny`/`onDelete` callbacks so
+ * the queue's toast + list refresh keep working while the drawer is open.
+ */
+export const RequestDrawer = createCallable<
+  {
+    req: MediaRequest;
+    canReview: boolean;
+    onApprove: (req: MediaRequest) => Promise<unknown>;
+    onDeny: (req: MediaRequest, note: string) => Promise<unknown>;
+    onDelete: (req: MediaRequest) => void;
+  },
+  void
+>(({ call, req: initialReq, canReview, onApprove, onDeny, onDelete }) => {
   const t = useT();
   const { client } = useAuth();
   // The interactive release search + grab are the Acquisition module's feature;
   // hide the whole panel when it is disabled (its routes 404 too).
   const acqEnabled = useModuleEnabled('tv.kroma.acquisition');
-  const open = !!req;
+  // Track the request live off the shared queue query (same key + fetcher), so an
+  // action or WS-driven reload refreshes the open drawer just like the table.
+  const { data } = usePoll(['admin', 'requests', 'all'], () => client.listRequests(), 30000);
+  const req = data ? data.requests.find((r) => r.id === initialReq.id) : initialReq;
+
+  const { busy, run } = useAsyncAction();
   const [denying, setDenying] = useState(false);
   const [note, setNote] = useState('');
   const [search, setSearch] = useState<SearchState>({ busy: false, view: null, error: null });
   const [grabbed, setGrabbed] = useState<GrabbedState>(null);
 
-  // Reset the deny form + search results whenever another request opens. `req?.id`
-  // is read only in the dep array on purpose: it keys the reset to the open
-  // request, so removing it would stop the form clearing between requests.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional re-run key; req?.id gates the reset to each opened request
+  // Slide in on mount, slide out on close: mount at the off-screen transform,
+  // flip to `open` on the next frame, and (via the 300ms unmounting delay) keep
+  // the node mounted while `call.ended` animates it back out.
+  const [entered, setEntered] = useState(false);
   useEffect(() => {
-    setDenying(false);
-    setNote('');
-    setSearch({ busy: false, view: null, error: null });
-  }, [req?.id]);
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const open = entered && !call.ended;
+
+  // Close when this request drops out of the list (deleted here or elsewhere).
+  const gone = !!data && !data.requests.some((r) => r.id === initialReq.id);
+  useEffect(() => {
+    if (gone) call.end();
+  }, [gone, call.end]);
+
+  const submitApprove = () => {
+    const r = req;
+    if (r)
+      void run(async () => {
+        await onApprove(r);
+      });
+  };
+  const submitDeny = (n: string) => {
+    const r = req;
+    if (r)
+      void run(async () => {
+        await onDeny(r, n);
+      });
+  };
+  const submitDelete = () => {
+    const r = req;
+    if (r) {
+      onDelete(r);
+      call.end();
+    }
+  };
 
   const runSearch = () => {
     if (!req) return;
@@ -341,7 +379,7 @@ export function RequestDrawer({
       <button
         type="button"
         aria-label={t('common.close')}
-        onClick={onClose}
+        onClick={() => call.end()}
         className={`fixed inset-0 z-60 bg-[rgba(4,4,6,.6)] backdrop-blur-[2px] transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       />
       <aside
@@ -350,7 +388,7 @@ export function RequestDrawer({
       >
         {req ? (
           <>
-            <DrawerHeader req={req} onClose={onClose} />
+            <DrawerHeader req={req} onClose={() => call.end()} />
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               <RequesterCard req={req} />
@@ -374,16 +412,16 @@ export function RequestDrawer({
                     busy={busy}
                     note={note}
                     onNote={setNote}
-                    onDeny={onDeny}
+                    onDeny={submitDeny}
                     onCancel={() => setDenying(false)}
                   />
                 ) : (
                   <ModerationButtons
                     req={req}
                     busy={busy}
-                    onApprove={onApprove}
+                    onApprove={submitApprove}
                     onStartDeny={() => setDenying(true)}
-                    onDelete={onDelete}
+                    onDelete={submitDelete}
                   />
                 )}
               </div>
@@ -393,4 +431,4 @@ export function RequestDrawer({
       </aside>
     </>
   );
-}
+}, 300);

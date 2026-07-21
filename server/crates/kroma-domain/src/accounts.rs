@@ -61,6 +61,7 @@ impl User {
             || self.can(Permission::LibraryManage)
             || self.can(Permission::SettingsManage)
             || self.can(Permission::RequestsManage)
+            || self.can(Permission::ReportsManage)
     }
 }
 
@@ -91,6 +92,10 @@ pub enum Permission {
     /// This user's requests skip the approval queue (Overseerr's auto-approve).
     #[serde(rename = "requests.auto")]
     RequestsAuto,
+    /// Triage user-submitted problem reports (the "Signalements" admin queue:
+    /// resolve / dismiss / reopen / delete).
+    #[serde(rename = "reports.manage")]
+    ReportsManage,
 }
 
 impl Permission {
@@ -104,6 +109,7 @@ impl Permission {
             "requests.create" => Some(Permission::RequestsCreate),
             "requests.manage" => Some(Permission::RequestsManage),
             "requests.auto" => Some(Permission::RequestsAuto),
+            "reports.manage" => Some(Permission::ReportsManage),
             _ => None,
         }
     }
@@ -118,6 +124,7 @@ impl Permission {
             Permission::RequestsCreate,
             Permission::RequestsManage,
             Permission::RequestsAuto,
+            Permission::ReportsManage,
         ]
     }
 }

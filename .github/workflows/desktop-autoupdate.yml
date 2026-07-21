@@ -88,12 +88,22 @@ jobs:
       max-parallel: 1
       matrix:
         include:
+          # macOS auto-update ships --no-default-features (in-page <video>) for now:
+          # embedding libmpv needs the manual build->bundle->sign->tarball reorder
+          # (see release.yml) which tauri-action's updater-tarball flow can't host.
+          # The release .dmg DOES bundle libmpv; bringing it here is a follow-up.
           - os: macos-14
             bundles: app,dmg
+            extra_args: '--no-default-features'
+          # Windows auto-update bundles libmpv (self-contained mpv-2.dll beside the exe).
           - os: windows-latest
             bundles: nsis
+            extra_args: ''
+          # Linux keeps the mpv binary engine: ubuntu-22.04's libmpv is too old for the
+          # libmpv2 crate (needs .so.2 / mpv 0.35+); the binary is itself libmpv.
           - os: ubuntu-22.04
             bundles: appimage,deb
+            extra_args: '--no-default-features'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -123,6 +133,16 @@ jobs:
       - name: Fetch bundled mpv (Linux sidecar)
         if: runner.os == 'Linux'
         run: bash clients/desktop/scripts/fetch-mpv.sh
+      # Windows: fetch libmpv-2.dll + synthesise its MSVC import lib (KROMA_MPV_LIB_DIR
+      # for build.rs) and stage the DLL for bundling next to the .exe. Same as release.yml.
+      - name: Fetch + prepare libmpv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./clients/desktop/scripts/fetch-libmpv-windows.ps1
+      - name: Stage libmpv-2.dll for bundling (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item "$env:KROMA_MPV_DLL" clients/desktop/src-tauri/libmpv-2.dll -Force
       # Stamp the timestamped version into tauri.conf.json so this build is a
       # strictly-newer prerelease. `shell: bash` + node work on all three runners.
       - name: Stamp version ${{ needs.version.outputs.version }}
@@ -141,7 +161,7 @@ jobs:
         with:
           projectPath: clients/desktop
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: --bundles ${{ matrix.bundles }}
+          args: ${{ matrix.extra_args }} --bundles ${{ matrix.bundles }}
 
       # Tauri's default bundler sweeps the runner's wayland/glib/gstreamer libs
       # into the AppImage, which breaks it on Mesa 25+ hosts (SteamOS 3.7+:

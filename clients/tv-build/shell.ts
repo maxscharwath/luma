@@ -12,7 +12,9 @@
 //    Chromium 53-94). dist/index.html is rewritten into an ES5 loader that
 //    picks the tier at runtime. See legacy-css.ts / legacy-finalize.ts.
 
+import { readFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
@@ -47,11 +49,26 @@ function lanIp(): string | undefined {
 }
 
 /** The MODERN tier config. `shellUrl` is the calling vite.config's import.meta.url. */
+/** This client build's version, baked in as `__KROMA_VERSION__` for the
+ * server-compatibility banner. CI stamps `KROMA_VERSION`; otherwise it reads the
+ * repo's single source of truth (server/Cargo.toml), so a local build reports the
+ * real version too rather than a placeholder. */
+export function clientVersion(repoRoot: string): string {
+  if (process.env.KROMA_VERSION) return process.env.KROMA_VERSION;
+  try {
+    const toml = readFileSync(join(repoRoot, 'server', 'Cargo.toml'), 'utf8');
+    return /^version\s*=\s*"([^"]+)"/m.exec(toml)?.[1] ?? 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
 export function tvShellConfig(shellUrl: string, target: TvTarget) {
   const repoRoot = fileURLToPath(new URL('../..', shellUrl));
   const deviceDev = target.deviceDev === true && process.env.KROMA_TV_DEVICE === '1';
   const floor = target.chromeFloor ?? 99;
   return ({ command }: ConfigEnv): UserConfig => ({
+    define: { __KROMA_VERSION__: JSON.stringify(clientVersion(repoRoot)) },
     // `tvFrame()` is dev-only (apply: 'serve'): letterboxes the app into a
     // 1920x1080 stage in a desktop browser; on a real TV the panel already is
     // that canvas, so device mode turns it off.

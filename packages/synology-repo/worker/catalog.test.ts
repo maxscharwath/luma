@@ -3,6 +3,7 @@ import {
   archSupported,
   cmpDsmVersion,
   DEFAULT_REPO,
+  dsmVersion,
   type Entry,
   entryVersion,
   type SpkInfo,
@@ -103,6 +104,21 @@ describe('archSupported', () => {
   });
 });
 
+describe('dsmVersion', () => {
+  it('leaves a conventional 3-segment version untouched', () => {
+    expect(dsmVersion('0.1.31-3447024')).toBe('0.1.31-3447024');
+  });
+
+  it('collapses a nightly X.Y.Z.BUILD-BUILD to X.Y.Z-BUILD (DSM hides the 4th segment)', () => {
+    expect(dsmVersion('0.1.31.3447024-3447024')).toBe('0.1.31-3447024');
+  });
+
+  it('handles a build-less and a short version', () => {
+    expect(dsmVersion('1.2.3.4')).toBe('1.2.3');
+    expect(dsmVersion('23.10-3')).toBe('23.10-3');
+  });
+});
+
 describe('toDsmPackage', () => {
   it('fills defaults when there is no sidecar info', () => {
     const pkg = toDsmPackage(entry(), 'https://pkg.kroma.tv', 'maxscharwath/kroma');
@@ -113,13 +129,14 @@ describe('toDsmPackage', () => {
     expect(pkg.size).toBe(1048576); // falls back to entry spkSize
     expect(pkg.md5).toBeUndefined();
     expect(pkg.firmware).toBe('7.0-40000');
-    expect(pkg.beta).toBe(false); // stable channel
+    // No `beta` field at all - DSM hides `beta:true` from a dynamic source.
+    expect('beta' in pkg).toBe(false);
     expect(pkg.thumbnail).toEqual(['https://pkg.kroma.tv/icon.png']);
     expect(pkg.maintainer_url).toBe('https://github.com/maxscharwath/kroma');
     expect(pkg.changelog).toBe(entry().releaseUrl);
   });
 
-  it('prefers sidecar fields and marks nightly as beta', () => {
+  it('prefers sidecar fields and never emits a beta flag for a nightly', () => {
     const pkg = toDsmPackage(
       entry({ info, channel: 'nightly' }),
       'https://pkg.kroma.tv',
@@ -129,7 +146,7 @@ describe('toDsmPackage', () => {
     expect(pkg.size).toBe(2097152); // sidecar size wins
     expect(pkg.md5).toBe('abc123');
     expect(pkg.desc).toBe('desc');
-    expect(pkg.beta).toBe(true);
+    expect('beta' in pkg).toBe(false);
   });
 });
 

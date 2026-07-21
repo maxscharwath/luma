@@ -1681,6 +1681,7 @@ dependencies = [
  "cc",
  "libc",
  "libmpv2",
+ "raw-window-handle",
  "serde",
  "serde_json",
  "tauri",

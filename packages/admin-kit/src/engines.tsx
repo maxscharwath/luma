@@ -17,6 +17,7 @@ import {
 import { useT } from '@kroma/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { createCallable } from 'react-call';
 import { useAdminKit } from './context';
 import { SegmentedControl } from './controls';
 import { Field, Modal, ModalActions, Select, TextInput } from './forms';
@@ -104,21 +105,21 @@ export function FieldForm({
   );
 }
 
-/** The generic "add an engine" modal: pick an engine (when there is more than
- * one), name it, fill its declared fields, submit. Rendered entirely from what the
- * backend reports, so a new engine needs no bespoke modal. `onSubmit` receives the
- * chosen engine id and the collected values (`name` plus every field key). */
-export function AddEngineModal({
-  engines,
-  title,
-  onClose,
-  onSubmit,
-}: Readonly<{
-  engines: EngineCapability[];
-  title: string;
-  onClose: () => void;
-  onSubmit: (engineId: string, values: Record<string, string>) => Promise<void>;
-}>) {
+/** The generic "add an engine" modal, as an imperative callable: pick an engine
+ * (when there is more than one), name it, fill its declared fields, submit.
+ * Rendered entirely from what the backend reports, so a new engine needs no
+ * bespoke modal. `onSubmit` (a prop of `.call(...)`) receives the chosen engine
+ * id and the collected values (`name` plus every field key); the modal resolves
+ * `true` once a submit succeeds, `false` on dismiss. Its single root is mounted
+ * once in the admin shell. */
+export const AddEngineModal = createCallable<
+  {
+    engines: EngineCapability[];
+    title: string;
+    onSubmit: (engineId: string, values: Record<string, string>) => Promise<void>;
+  },
+  boolean
+>(({ call, engines, title, onSubmit }) => {
   const t = useT();
   const { busy, error, run } = useAsyncAction();
   const [engineId, setEngineId] = useState(engines[0]?.id ?? '');
@@ -137,13 +138,13 @@ export function AddEngineModal({
       async () => {
         if (!engine) return;
         await onSubmit(engine.id, { name: name.trim(), ...values });
-        onClose();
+        call.end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={() => call.end(false)}>
       {engines.length > 1 ? (
         <div className="mb-4">
           <SegmentedControl
@@ -162,7 +163,7 @@ export function AddEngineModal({
       <FieldForm fields={fields} values={values} onChange={setField} />
       {error ? <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p> : null}
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={submit}
         confirmLabel={busy ? t('common.saving') : t('common.save')}
@@ -171,4 +172,4 @@ export function AddEngineModal({
       />
     </Modal>
   );
-}
+});

@@ -20,6 +20,7 @@ import { Route as AdminTranscoderRouteImport } from './routes/admin.transcoder'
 import { Route as AdminStoreRouteImport } from './routes/admin.store'
 import { Route as AdminStorageRouteImport } from './routes/admin.storage'
 import { Route as AdminRequestsRouteImport } from './routes/admin.requests'
+import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminPipelineRouteImport } from './routes/admin.pipeline'
 import { Route as AdminNetworkRouteImport } from './routes/admin.network'
 import { Route as AdminNamingRouteImport } from './routes/admin.naming'
@@ -103,6 +104,11 @@ const AdminStorageRoute = AdminStorageRouteImport.update({
 const AdminRequestsRoute = AdminRequestsRouteImport.update({
   id: '/requests',
   path: '/requests',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPipelineRoute = AdminPipelineRouteImport.update({
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/admin/naming': typeof AdminNamingRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/pipeline': typeof AdminPipelineRoute
+  '/admin/reports': typeof AdminReportsRoute
   '/admin/requests': typeof AdminRequestsRoute
   '/admin/storage': typeof AdminStorageRoute
   '/admin/store': typeof AdminStoreRoute
@@ -324,6 +331,7 @@ export interface FileRoutesByTo {
   '/admin/naming': typeof AdminNamingRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/pipeline': typeof AdminPipelineRoute
+  '/admin/reports': typeof AdminReportsRoute
   '/admin/requests': typeof AdminRequestsRoute
   '/admin/storage': typeof AdminStorageRoute
   '/admin/store': typeof AdminStoreRoute
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/admin/naming': typeof AdminNamingRoute
   '/admin/network': typeof AdminNetworkRoute
   '/admin/pipeline': typeof AdminPipelineRoute
+  '/admin/reports': typeof AdminReportsRoute
   '/admin/requests': typeof AdminRequestsRoute
   '/admin/storage': typeof AdminStorageRoute
   '/admin/store': typeof AdminStoreRoute
@@ -413,6 +422,7 @@ export interface FileRouteTypes {
     | '/admin/naming'
     | '/admin/network'
     | '/admin/pipeline'
+    | '/admin/reports'
     | '/admin/requests'
     | '/admin/storage'
     | '/admin/store'
@@ -453,6 +463,7 @@ export interface FileRouteTypes {
     | '/admin/naming'
     | '/admin/network'
     | '/admin/pipeline'
+    | '/admin/reports'
     | '/admin/requests'
     | '/admin/storage'
     | '/admin/store'
@@ -496,6 +507,7 @@ export interface FileRouteTypes {
     | '/admin/naming'
     | '/admin/network'
     | '/admin/pipeline'
+    | '/admin/reports'
     | '/admin/requests'
     | '/admin/storage'
     | '/admin/store'
@@ -596,6 +608,13 @@ declare module '@tanstack/react-router' {
       path: '/requests'
       fullPath: '/admin/requests'
       preLoaderRoute: typeof AdminRequestsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/pipeline': {
@@ -871,6 +890,7 @@ interface AdminRouteChildren {
   AdminNamingRoute: typeof AdminNamingRoute
   AdminNetworkRoute: typeof AdminNetworkRoute
   AdminPipelineRoute: typeof AdminPipelineRoute
+  AdminReportsRoute: typeof AdminReportsRoute
   AdminRequestsRoute: typeof AdminRequestsRoute
   AdminStorageRoute: typeof AdminStorageRoute
   AdminStoreRoute: typeof AdminStoreRoute
@@ -891,6 +911,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminNamingRoute: AdminNamingRoute,
   AdminNetworkRoute: AdminNetworkRoute,
   AdminPipelineRoute: AdminPipelineRoute,
+  AdminReportsRoute: AdminReportsRoute,
   AdminRequestsRoute: AdminRequestsRoute,
   AdminStorageRoute: AdminStorageRoute,
   AdminStoreRoute: AdminStoreRoute,

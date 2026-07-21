@@ -7,6 +7,9 @@ import { useNav } from '#tv/app/router';
 import { useFocusNav } from '#tv/app/useFocusNav';
 import { AuthScreen, KromaMark } from '#tv/shared/ui';
 
+/** Regenerate the code this many seconds before the server-side TTL lapses. */
+const EXPIRY_MARGIN_SEC = 5;
+
 /**
  * Quick Connect (route `quick`) against the active server: shows a code + QR; an
  * already-signed-in user approves it from the web/mobile app and the TV pairs the
@@ -25,8 +28,16 @@ export function TvQuickConnect() {
   useEffect(() => {
     if (!client || !activeServerUrl) return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let expireTimer: ReturnType<typeof setTimeout> | undefined;
     let secret = '';
+
+    const clearTimers = () => {
+      if (pollTimer) clearTimeout(pollTimer);
+      if (expireTimer) clearTimeout(expireTimer);
+      pollTimer = undefined;
+      expireTimer = undefined;
+    };
 
     const onAuthenticated = (res: AuthResult) => login(res, activeServerUrl);
 
@@ -36,6 +47,7 @@ export function TvQuickConnect() {
         const res = await client.quickConnectPoll(secret);
         if (cancelled) return;
         if (res.status === 'authorized') {
+          clearTimers();
           onAuthenticated({ token: res.token, accessToken: res.accessToken, user: res.user });
           return;
         }
@@ -46,12 +58,15 @@ export function TvQuickConnect() {
       } catch {
         /* transient keep polling */
       }
-      timer = setTimeout(poll, 2500);
+      pollTimer = setTimeout(poll, 2500);
     };
 
     const begin = async () => {
+      clearTimers();
       try {
-        const init = await client.quickConnectInitiate();
+        // On a rotation, hand the server the code we're leaving so it revokes it
+        // instead of letting it linger approvable until its own TTL lapses.
+        const init = await client.quickConnectInitiate(secret || undefined);
         if (cancelled) return;
         secret = init.secret;
         setInfo(init);
@@ -68,7 +83,13 @@ export function TvQuickConnect() {
             })
             .catch(() => undefined);
         }
-        timer = setTimeout(poll, 2500);
+        // Proactively mint a fresh code a touch before the server TTL lapses, so
+        // the code on screen is always valid to approve (independent of the poll
+        // loop, which only learns of expiry after the server has already reaped).
+        const marginSec = Math.min(EXPIRY_MARGIN_SEC, Math.floor(init.expiresInSec / 2));
+        const renewMs = Math.max(1000, (init.expiresInSec - marginSec) * 1000);
+        expireTimer = setTimeout(() => void begin(), renewMs);
+        pollTimer = setTimeout(poll, 2500);
       } catch {
         if (!cancelled) setError('connect.quickConnectUnavailable');
       }
@@ -77,7 +98,7 @@ export function TvQuickConnect() {
     void begin();
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      clearTimers();
     };
   }, [client, activeServerUrl, login]);
 

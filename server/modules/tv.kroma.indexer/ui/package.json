@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@kroma/module-sdk": "workspace:*",
-    "@tabler/icons-react": "^3.44.0"
+    "@tabler/icons-react": "^3.44.0",
+    "react-call": "^2.0.2"
   },
   "peerDependencies": {
     "react": ">=18"

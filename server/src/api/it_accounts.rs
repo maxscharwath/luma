@@ -492,6 +492,73 @@ async fn quick_connect_authorize_then_poll_hands_the_device_a_session() {
 }
 
 #[tokio::test]
+async fn quick_connect_rotating_revokes_the_previous_code() {
+    let t = test_app();
+
+    // Device initiates, then rotates its code passing the old secret as prevSecret.
+    let (_, first) = send(&t.app, "POST", "/api/auth/quickconnect/initiate", None, None).await;
+    let old_secret = first["secret"].as_str().expect("secret").to_string();
+
+    // Before rotating, the old secret still polls as pending.
+    let (_, poll) =
+        get(&t.app, &format!("/api/auth/quickconnect/poll?secret={old_secret}"), None).await;
+    assert_eq!(poll["status"], json!("pending"));
+
+    let (status, _) = send(
+        &t.app,
+        "POST",
+        "/api/auth/quickconnect/initiate",
+        None,
+        Some(json!({ "prevSecret": old_secret })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // The old code is revoked up front: its secret now reads as expired.
+    let (_, poll) =
+        get(&t.app, &format!("/api/auth/quickconnect/poll?secret={old_secret}"), None).await;
+    assert_eq!(poll["status"], json!("expired"));
+}
+
+#[tokio::test]
+async fn quick_connect_rotating_cleans_up_an_approved_but_uncollected_code() {
+    let t = test_app();
+
+    // Device initiates and the owner approves the code, but the device rotates
+    // before it polls -> the minted session is orphaned unless rotation cleans up.
+    let (_, first) = send(&t.app, "POST", "/api/auth/quickconnect/initiate", None, None).await;
+    let old_code = first["code"].as_str().expect("code").to_string();
+    let old_secret = first["secret"].as_str().expect("secret").to_string();
+
+    let (status, _) = send(
+        &t.app,
+        "POST",
+        "/api/auth/quickconnect/authorize",
+        Some(&t.token),
+        Some(json!({ "code": old_code })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Rotate, passing the old secret -> the approved-but-uncollected entry is
+    // revoked and its tokens deleted.
+    let (status, _) = send(
+        &t.app,
+        "POST",
+        "/api/auth/quickconnect/initiate",
+        None,
+        Some(json!({ "prevSecret": old_secret })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // The old secret no longer hands out the session it was approved for.
+    let (_, poll) =
+        get(&t.app, &format!("/api/auth/quickconnect/poll?secret={old_secret}"), None).await;
+    assert_eq!(poll["status"], json!("expired"));
+}
+
+#[tokio::test]
 async fn quick_connect_authorize_rejects_an_unknown_code_and_requires_auth() {
     let t = test_app();
 

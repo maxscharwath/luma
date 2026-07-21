@@ -171,6 +171,22 @@ export function entryVersion(e: Entry): string {
   return e.info?.version ?? versionFromSpkName(e.spkName);
 }
 
+/** The version string DSM's Package Center will DISPLAY. build.sh stamps
+ * nightlies `X.Y.Z.BUILD-BUILD` (a 4th feature segment carrying the build, for
+ * manual-install ordering), which renders as e.g. `0.1.31.3447024-3447024`.
+ * DSM's package-center list hides a package whose feature version has a 4th
+ * segment that large (SynoCommunity only ever ships small 4th segments), so the
+ * row silently vanished for beta users while the plain 3-segment stable
+ * (`0.1.31-3447024`) showed fine. Collapse to the conventional `major.minor.
+ * micro-build`; the build stays in the suffix, so ordering is preserved and the
+ * nightly .spk is still what gets served. Comparison logic keeps using the raw
+ * entryVersion, so beta still correctly prefers the newer nightly. */
+export function dsmVersion(raw: string): string {
+  const [feat = '', build] = raw.split('-');
+  const seg = feat.split('.').slice(0, 3).join('.');
+  return build ? `${seg}-${build}` : seg;
+}
+
 /** DSM's version ordering: compare the dotted feature version numerically
  * segment by segment, then the -build suffix. */
 export function cmpDsmVersion(a: string, b: string): number {
@@ -220,15 +236,20 @@ export function archSupported(arch: string | null): boolean {
 }
 
 /** One catalog entry -> the JSON object DSM's Package Center expects (same
- * shape as gen-catalog.ts / SynoCommunity's spkrepo). */
+ * shape as gen-catalog.ts / SynoCommunity's spkrepo).
+ *
+ * Field set is kept in lockstep with a live SynoCommunity feed (verified 144
+ * packages, none carry `model`/`type`/`price`). An earlier cut emitted
+ * `model: []`, which DSM reads as an EMPTY supported-model whitelist and so
+ * hides the row on every NAS - the "source added but nothing shows" bug on
+ * x86_64 boxes. `startable`/`snapshot` mirror SynoCommunity's daemon packages. */
 export function toDsmPackage(e: Entry, origin: string, repo: string) {
   const info = e.info;
   return {
     package: info?.package ?? 'kroma',
-    version: entryVersion(e),
+    version: dsmVersion(entryVersion(e)),
     dname: info?.dname ?? 'KROMA',
     desc: info?.desc ?? 'KROMA - self-hosted, direct-play HEVC media streaming.',
-    price: 0,
     download_count: 0,
     recent_download_count: 0,
     link: e.spkUrl,
@@ -236,20 +257,23 @@ export function toDsmPackage(e: Entry, origin: string, repo: string) {
     md5: info?.md5,
     thumbnail: [`${origin}/icon.png`],
     thumbnail_retina: [`${origin}/icon.png`],
+    snapshot: [],
     maintainer: 'KROMA',
     maintainer_url: `https://github.com/${repo}`,
     distributor: 'KROMA',
     distributor_url: `https://github.com/${repo}`,
     changelog: e.releaseUrl,
     firmware: info?.firmware ?? '7.0-40000',
-    beta: e.channel === 'nightly',
+    // No `beta` field: DSM's package-center list silently HIDES a `beta:true`
+    // package served from a dynamic source (verified against a real NAS - the
+    // nightly vanished while the identical stable showed). SynoCommunity never
+    // sets it either; the channel is gated server-side by WHICH entry we serve
+    // (see dsmPackages), not by a per-package flag.
     qinst: true,
     qstart: true,
     qupgrade: true,
     deppkgs: null,
     conflictpkgs: null,
-    start: true,
-    model: [],
-    type: 0,
+    startable: 'yes',
   };
 }

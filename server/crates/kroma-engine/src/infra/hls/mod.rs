@@ -111,13 +111,39 @@ fn same_program(a: &str, b: &str) -> bool {
 
 pub struct HlsEngine {
     sessions: Arc<Sessions>,
+    /// Cache of `abs_path -> true media duration (ms)`, so the on-demand ffprobe
+    /// fallback (for catalog rows that were never probed) runs at most once per
+    /// file. `None` = probed but no readable duration.
+    durations: std::sync::Mutex<std::collections::HashMap<String, Option<u64>>>,
 }
 
 impl HlsEngine {
     /// `max_concurrent` hard-caps live sessions; `cache_budget` is the on-disk
     /// byte budget that trims idle / superseded sessions (0 = unlimited).
     pub fn new(data_dir: &Path, max_concurrent: usize, cache_budget: u64) -> Self {
-        HlsEngine { sessions: Arc::new(Sessions::new(data_dir, max_concurrent, cache_budget)) }
+        HlsEngine {
+            sessions: Arc::new(Sessions::new(data_dir, max_concurrent, cache_budget)),
+            durations: std::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    /// True media duration (ms) of the input file, ffprobed once (duration-only,
+    /// header read) and cached. Lets the player show the real length when the
+    /// catalog row was never probed - otherwise the growing EVENT playlist's
+    /// duration is all the client can see (it reads the live edge as the total).
+    pub async fn input_duration_ms(&self, input: &str) -> Option<u64> {
+        if let Some(v) = self.durations.lock().unwrap().get(input).copied() {
+            return v;
+        }
+        let path = input.to_string();
+        let dur = tokio::task::spawn_blocking(move || {
+            crate::infra::probe::probe_duration_ms(Path::new(&path))
+        })
+        .await
+        .ok()
+        .flatten();
+        self.durations.lock().unwrap().insert(input.to_string(), dur);
+        dur
     }
 
     pub fn spawn_reaper(&self) {

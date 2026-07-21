@@ -21,6 +21,7 @@ import {
 } from '@kroma/module-sdk';
 import { IconLoader2, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
+import { createCallable } from 'react-call';
 
 /** Parse a comma-separated Newznab category list into positive category ids. */
 export function parseCats(text: string): number[] {
@@ -34,39 +35,27 @@ export function parseCats(text: string): number[] {
 
 /** Router for EDITING an existing indexer: a built-in row edits in the settings
  * form, a Torznab row in the endpoint form. Creation goes through the generic
- * add-picker (Torznab) or the definition picker (built-in), not this modal. */
-export function IndexerModal({
-  indexer,
-  onClose,
-  onSaved,
-}: Readonly<{
-  indexer: IndexerView;
-  onClose: () => void;
-  onSaved: () => void;
-}>) {
-  if (indexer.kind === 'builtin' && indexer.definitionId) {
-    return (
-      <BuiltinIndexerModal
-        definitionId={indexer.definitionId}
-        indexer={indexer}
-        onClose={onClose}
-        onSaved={onSaved}
-      />
-    );
-  }
-  return <TorznabIndexerModal indexer={indexer} onClose={onClose} onSaved={onSaved} />;
-}
+ * add-picker (Torznab) or the definition picker (built-in), not this modal.
+ * Resolves `true` once a save/delete succeeds so the caller can refresh. */
+export const IndexerModal = createCallable<{ indexer: IndexerView }, boolean>(
+  ({ call, indexer }) => {
+    if (indexer.kind === 'builtin' && indexer.definitionId) {
+      return (
+        <BuiltinIndexerForm definitionId={indexer.definitionId} indexer={indexer} end={call.end} />
+      );
+    }
+    return <TorznabIndexerForm indexer={indexer} end={call.end} />;
+  },
+);
 
 // ----- Torznab endpoint form ------------------------------------------------------
 
-function TorznabIndexerModal({
+function TorznabIndexerForm({
   indexer,
-  onClose,
-  onSaved,
+  end,
 }: Readonly<{
   indexer: IndexerView;
-  onClose: () => void;
-  onSaved: () => void;
+  end: (saved: boolean) => void;
 }>) {
   const t = useT();
   const { client } = useAdminKit();
@@ -89,8 +78,7 @@ function TorznabIndexerModal({
           priority: Number.parseInt(priority, 10) || 0,
         };
         await client.updateIndexer(indexer.id, body);
-        onSaved();
-        onClose();
+        end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
@@ -99,14 +87,13 @@ function TorznabIndexerModal({
     run(
       async () => {
         await client.deleteIndexer(indexer.id);
-        onSaved();
-        onClose();
+        end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
 
   return (
-    <Modal title={t('indexers.edit')} onClose={onClose}>
+    <Modal title={t('indexers.edit')} onClose={() => end(false)}>
       <Field label={t('indexers.name')}>
         <TextInput value={name} onChange={setName} placeholder="Jackett - YGG" className="w-full" />
       </Field>
@@ -134,7 +121,7 @@ function TorznabIndexerModal({
       </div>
       {error ? <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p> : null}
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={save}
         confirmLabel={busy ? t('common.saving') : t('common.save')}
@@ -149,11 +136,8 @@ function TorznabIndexerModal({
 // ----- built-in: definition picker ------------------------------------------------
 
 /** Browse the Cardigann catalog, sync it from upstream, and pick a definition
- * to add. */
-export function DefinitionPickerModal({
-  onPick,
-  onClose,
-}: Readonly<{ onPick: (definitionId: string) => void; onClose: () => void }>) {
+ * to add. Resolves the picked definition id, or `null` on dismiss. */
+export const DefinitionPickerModal = createCallable<void, string | null>(({ call }) => {
   const t = useT();
   const { client } = useAdminKit();
   const [defs, setDefs] = useState<IndexerDefinitionView[] | null>(null);
@@ -197,7 +181,7 @@ export function DefinitionPickerModal({
   }, [defs, q]);
 
   return (
-    <Modal title={t('indexers.pickTitle')} onClose={onClose}>
+    <Modal title={t('indexers.pickTitle')} onClose={() => call.end(null)}>
       <div className="mb-3 flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-border-strong bg-[#0F0F13] px-3">
           <IconSearch size={15} className="text-dim" />
@@ -230,7 +214,7 @@ export function DefinitionPickerModal({
           <button
             key={d.id}
             type="button"
-            onClick={() => onPick(d.id)}
+            onClick={() => call.end(d.id)}
             className="flex w-full items-center justify-between gap-3 border-b border-white/5 px-1 py-2.5 text-left hover:bg-white/3"
           >
             <div className="min-w-0">
@@ -248,27 +232,34 @@ export function DefinitionPickerModal({
       </div>
 
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(null)}
         cancelLabel={t('common.cancel')}
-        onConfirm={onClose}
+        onConfirm={() => call.end(null)}
         confirmLabel={t('common.close')}
       />
     </Modal>
   );
-}
+});
 
 // ----- built-in: settings form ----------------------------------------------------
 
-export function BuiltinIndexerModal({
+/** Create or edit a built-in (Cardigann) indexer from its definition schema.
+ * Resolves `true` once a save/delete succeeds so the caller can refresh. */
+export const BuiltinIndexerModal = createCallable<
+  { definitionId: string; indexer: IndexerView | null },
+  boolean
+>(({ call, definitionId, indexer }) => (
+  <BuiltinIndexerForm definitionId={definitionId} indexer={indexer} end={call.end} />
+));
+
+function BuiltinIndexerForm({
   definitionId,
   indexer,
-  onClose,
-  onSaved,
+  end,
 }: Readonly<{
   definitionId: string;
   indexer: IndexerView | null;
-  onClose: () => void;
-  onSaved: () => void;
+  end: (saved: boolean) => void;
 }>) {
   const t = useT();
   const { client } = useAdminKit();
@@ -317,8 +308,7 @@ export function BuiltinIndexerModal({
         };
         if (indexer) await client.updateIndexer(indexer.id, body);
         else await client.createIndexer(body);
-        onSaved();
-        onClose();
+        end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
@@ -328,8 +318,7 @@ export function BuiltinIndexerModal({
       async () => {
         if (!indexer) return;
         await client.deleteIndexer(indexer.id);
-        onSaved();
-        onClose();
+        end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
@@ -337,7 +326,7 @@ export function BuiltinIndexerModal({
   const title = detail?.name ?? definitionId;
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={() => end(false)}>
       {loadError ? (
         <p className="mb-2 text-[13px] font-semibold text-[#EF8091]">{loadError}</p>
       ) : null}
@@ -417,7 +406,7 @@ export function BuiltinIndexerModal({
 
       {error ? <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p> : null}
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={save}
         confirmLabel={busy ? t('common.saving') : t('common.save')}

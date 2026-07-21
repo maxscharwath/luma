@@ -1,5 +1,6 @@
 import { KromaIntro } from '@kroma/ui';
 import { lazy, useEffect, useState } from 'react';
+import { CompatBanner } from '#tv/app/CompatBanner';
 import { type RedirectRule, resolveRedirect } from '#tv/app/guard';
 import { AuthProvider, useAuth } from '#tv/app/providers/auth';
 import { ConnectionProvider, useConnection } from '#tv/app/providers/connection';
@@ -86,6 +87,7 @@ export function TvApp({ platform = 'TV', capabilities, introVideoSrc }: Readonly
               onSignedInChange={setSignedIn}
             >
               <LocaleProvider client={client}>
+                <CompatBanner />
                 <ContinueProvider>
                   <RecommendProvider>
                     <MyListProvider>

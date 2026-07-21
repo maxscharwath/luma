@@ -1,21 +1,41 @@
 // KROMA desktop shell (Steam Deck / macOS / Windows). A thin Tauri window hosting the
 // shared @kroma/tv frontend (built to ../dist).
 //
-//  - Linux (the Deck): drives a native mpv BINARY over a unix-socket IPC (mpv.rs) for
-//    VA-API hardware decode, behind a transparent always-on-top window.
-//  - macOS (`libmpv` feature): in-process libmpv renders into a native NSView behind
-//    the transparent webview (via --wid) - decodes AV1 + everything the WKWebView
-//    can't. Same MpvEngine protocol as the Deck. WIP; off by default, so a default
-//    macOS build still uses the in-page <video>.
-//  - Windows: uses the in-page <video> (WebView2). (libmpv/HWND path is a later step.)
+// In-process libmpv is the native engine on every desktop OS (the `libmpv` feature,
+// ON by default); all three speak the SAME frontend MpvEngine protocol (`mpv_load` /
+// `mpv_command` + `mpv://…` events):
+//  - macOS: libmpv renders into a native NSView behind the transparent webview (a GL
+//    render shim); decodes HEVC/AV1 + surround the WKWebView can't.
+//  - Windows: libmpv embeds into the window HWND via `--wid` (d3d11/gpu VO).
+//  - Linux (the Deck): libmpv embeds into the GTK window's X11 XID via `--wid`, BUT
+//    only when opted in (KROMA_LINUX_LIBMPV=1) and it initialises; otherwise the
+//    native mpv BINARY over a unix-socket IPC (mpv.rs) is used - its process
+//    isolation + VO fallback ladder is what keeps the fragile Deck GPU stack robust,
+//    so it stays the default and the automatic fallback. See mpv_dispatch.rs.
+// A `--no-default-features` build drops libmpv entirely and uses the in-page <video>
+// (macOS/Windows) or the mpv binary (Linux).
 //
 // Prevents an extra console window on Windows in release; a no-op on Linux/macOS.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-// The mpv BINARY IPC runtime (Deck): unix socket, Linux only.
+// The mpv BINARY IPC runtime (Deck): unix socket, Linux only. Still the default
+// Linux backend (process isolation + VO fallback ladder), and the automatic
+// fallback when the in-process libmpv engine can't come up.
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
 mod mpv;
+
+// Linux playback dispatcher: routes the frontend's mpv commands to the in-process
+// libmpv engine or the mpv binary, whichever is live. Owns the `mpv_*` commands.
+#[cfg(target_os = "linux")]
+mod mpv_dispatch;
+
+// In-process libmpv (Linux, `libmpv` feature): embeds into the GTK window's X11 XID
+// via `--wid`. PRIMARY only when opted in (KROMA_LINUX_LIBMPV=1) + it initialises;
+// else the mpv binary is used. See Cargo.toml + libmpv_linux.rs + mpv_dispatch.rs.
+#[cfg(all(target_os = "linux", feature = "libmpv"))]
+#[allow(dead_code)]
+mod libmpv_linux;
 
 // Persisted WebKitGTK GPU-rendering opt-in + its crash guard (Deck / Linux).
 #[cfg(target_os = "linux")]
@@ -39,17 +59,19 @@ mod libmpv_win;
 /// Each var is only set when the user hasn't already pinned an explicit value.
 #[cfg(target_os = "linux")]
 fn prepare_linux_env() {
-    // WebKitGTK's DMABUF renderer fails on some GPU/driver combos (verified on the
-    // Steam Deck: "Could not create default EGL display: EGL_BAD_PARAMETER" - the
-    // web process aborts, so the transparent window renders NOTHING and sits
-    // invisible-but-focused over the desktop). By default it is disabled before
-    // WebKitGTK initializes; compositing stays on, so window transparency (mpv
-    // behind the webview) is unaffected. Software rendering is the price, so
-    // webview_gpu.rs offers a persisted opt-in back onto the GPU path (profile
-    // menu row, with a crash guard that auto-reverts an invisible boot); an
-    // explicit WEBKIT_DISABLE_DMABUF_RENDERER or KROMA_WEBKIT_DMABUF=1 (WebKit
-    // checks the var's PRESENCE, so exporting "0" cannot re-enable) pins the
-    // choice for one session without touching the stored setting.
+    // Choose the WebKitGTK renderer for this boot. GPU (DMABUF) rendering is the
+    // DEFAULT: it once aborted on the Deck ("Could not create default EGL display:
+    // EGL_BAD_PARAMETER" - web process gone, transparent window paints NOTHING),
+    // which is why this used to force software rendering, but fix-appimage.sh has
+    // since removed the poisoned bundled libwayland behind that abort (mpv's
+    // gpu-next now comes up clean), and forcing software instead black-screened the
+    // transform-composited app layer under the transparent window. So webview_gpu.rs
+    // defaults to GPU with a crash guard that auto-reverts a boot that never reaches
+    // the frontend back to software; the profile-menu row is an opt-OUT. An explicit
+    // WEBKIT_DISABLE_DMABUF_RENDERER or KROMA_WEBKIT_DMABUF=1 (WebKit checks the var's
+    // PRESENCE, so exporting "0" cannot re-enable) pins the choice for one session
+    // without touching the stored setting. Compositing stays on either way, so window
+    // transparency (mpv behind the webview) is unaffected.
     webview_gpu::apply_env();
     // Disabling DMABUF is not enough on some Wayland stacks (verified on the
     // Steam Deck): WebKitGTK's *native Wayland* backend still can't create an
@@ -132,6 +154,46 @@ fn init_libmpv_win_deferred(app: &tauri::AppHandle) {
     });
 }
 
+// Linux: the app window's X11 XID, for mpv's `--wid` embedding. `None` on a Wayland
+// backend (no XID to embed into) - the shell then falls back to the mpv binary. The
+// app pins GDK_BACKEND=x11 (prepare_linux_env), so this is Xlib in practice.
+#[cfg(all(target_os = "linux", feature = "libmpv"))]
+fn window_xid(win: &tauri::WebviewWindow) -> Option<u64> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match win.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Xlib(h) => Some(h.window),
+        RawWindowHandle::Xcb(h) => Some(u32::from(h.window) as u64),
+        _ => None,
+    }
+}
+
+// Linux: build the in-process libmpv engine embedded in the window's X11 XID, once
+// the window is realised. On ANY failure (no XID / Wayland / GPU-context abort) it
+// falls back to spawning the mpv binary, so the Deck is never left without a player.
+// Only called when the user opted in (KROMA_LINUX_LIBMPV=1); the default is the binary.
+#[cfg(all(target_os = "linux", feature = "libmpv"))]
+fn init_libmpv_linux_deferred(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        let h = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            let xid = h.webview_windows().values().next().and_then(window_xid);
+            let up = matches!(xid, Some(x) if libmpv_linux::init(&h, x));
+            if up {
+                mpv_dispatch::mark_inproc_active();
+                if let Some(win) = h.webview_windows().values().next() {
+                    let _ = win.eval("window.__KROMA_MPV__ = true;");
+                }
+            } else {
+                eprintln!("KROMA: in-process libmpv unavailable on Linux; using the mpv binary");
+                mpv::spawn(h.clone());
+            }
+        });
+    });
+}
+
 /// Quit the whole app from the webview. The shell is a fullscreen window with no
 /// chrome (no close button), so the TV UI offers an explicit "quit" menu row;
 /// exiting through the event loop also runs the Linux mpv teardown.
@@ -177,18 +239,23 @@ fn main() {
     // two cfgs are mutually exclusive, so exactly one `invoke_handler` compiles.
     #[cfg(target_os = "linux")]
     {
-        builder = builder
-            .manage(mpv::MpvState::default())
-            .invoke_handler(tauri::generate_handler![
-                mpv::mpv_load,
-                mpv::mpv_command,
-                mpv::mpv_status,
-                webview_gpu::webview_gpu_get,
-                webview_gpu::webview_gpu_set,
-                webview_gpu::webview_boot_ok,
-                app_quit,
-                app_relaunch
-            ]);
+        builder = builder.manage(mpv::MpvState::default());
+        // In-process libmpv state (empty until init succeeds); the dispatcher routes
+        // commands to it or the binary. Only present in a libmpv build.
+        #[cfg(feature = "libmpv")]
+        {
+            builder = builder.manage(libmpv_linux::InprocState::default());
+        }
+        builder = builder.invoke_handler(tauri::generate_handler![
+            mpv_dispatch::mpv_load,
+            mpv_dispatch::mpv_command,
+            mpv_dispatch::mpv_status,
+            webview_gpu::webview_gpu_get,
+            webview_gpu::webview_gpu_set,
+            webview_gpu::webview_boot_ok,
+            app_quit,
+            app_relaunch
+        ]);
     }
     #[cfg(all(target_os = "macos", feature = "libmpv"))]
     {
@@ -242,23 +309,32 @@ fn main() {
             }
         })
         .setup(|_app| {
-            // Deck: launch the mpv binary behind the transparent UI.
+            // Linux: in-process libmpv when opted in (deferred; falls back to the
+            // binary on any init failure), otherwise launch the proven mpv binary now.
             #[cfg(target_os = "linux")]
             {
-                use tauri::Manager;
-                mpv::spawn(_app.handle().clone());
+                #[cfg(feature = "libmpv")]
+                {
+                    if mpv_dispatch::opt_in() {
+                        init_libmpv_linux_deferred(_app.handle());
+                    } else {
+                        mpv::spawn(_app.handle().clone());
+                    }
+                }
+                #[cfg(not(feature = "libmpv"))]
+                {
+                    mpv::spawn(_app.handle().clone());
+                }
             }
             // macOS: build the in-process libmpv engine once the window is laid out
             // (deferred; see [`init_libmpv_deferred`]).
             #[cfg(all(target_os = "macos", feature = "libmpv"))]
             {
-                use tauri::Manager;
                 init_libmpv_deferred(_app.handle());
             }
             // Windows: same, embedding into the window HWND (see [`init_libmpv_win_deferred`]).
             #[cfg(all(target_os = "windows", feature = "libmpv"))]
             {
-                use tauri::Manager;
                 init_libmpv_win_deferred(_app.handle());
             }
             Ok(())

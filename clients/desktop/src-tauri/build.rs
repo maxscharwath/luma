@@ -1,6 +1,20 @@
 fn main() {
-    let macos = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos");
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS");
+    let macos = target_os.as_deref() == Ok("macos");
+    let windows = target_os.as_deref() == Ok("windows");
     let libmpv = std::env::var("CARGO_FEATURE_LIBMPV").is_ok();
+
+    if libmpv && windows {
+        // libmpv2-sys emits `-lmpv` with NO link-search path (same as macOS below).
+        // Point the linker at the dir holding the MSVC import lib `mpv.lib`, which CI
+        // generates from the mpv-dev DLL (see scripts/fetch-libmpv-windows.ps1) and
+        // exposes via KROMA_MPV_LIB_DIR. libmpv-2.dll ships next to the .exe at runtime.
+        // Absent var (e.g. a webview-only build) = no search path added.
+        println!("cargo:rerun-if-env-changed=KROMA_MPV_LIB_DIR");
+        if let Ok(dir) = std::env::var("KROMA_MPV_LIB_DIR") {
+            println!("cargo:rustc-link-search=native={dir}");
+        }
+    }
 
     if libmpv && macos {
         // libmpv2-sys pkg-configs headers but doesn't emit a link-search path, so

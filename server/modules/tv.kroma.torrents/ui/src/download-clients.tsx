@@ -28,8 +28,6 @@ export function DownloadClientsSection() {
   const t = useT();
   const { client: api } = useAdminKit();
   const engines = useEnabledEngines('download-client');
-  const [addOpen, setAddOpen] = useState(false);
-  const [editClient, setEditClient] = useState<DownloadClientView | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
   const { data, reload } = usePoll(
     ['admin', 'downloadClients'],
@@ -37,6 +35,28 @@ export function DownloadClientsSection() {
     30000,
   );
   const clients = data?.clients ?? [];
+
+  const openAdd = async () => {
+    const changed = await AddEngineModal.call({
+      engines,
+      title: t('dlclients.addTitle'),
+      onSubmit: async (kind, v) => {
+        await api.createDownloadClient({
+          kind,
+          name: v.name ?? null,
+          url: v.url ?? null,
+          username: v.username ?? null,
+          password: v.password ?? null,
+          enabled: true,
+          priority: null,
+        });
+      },
+    });
+    if (changed) reload();
+  };
+  const openEdit = async (c: DownloadClientView) => {
+    if (await DownloadClientModal.call({ client: c })) reload();
+  };
 
   const toggle = (c: DownloadClientView, enabled: boolean) => {
     api
@@ -68,7 +88,7 @@ export function DownloadClientsSection() {
     engines.length > 0 ? (
       <button
         type="button"
-        onClick={() => setAddOpen(true)}
+        onClick={() => void openAdd()}
         className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#1A1A20] px-3 py-2 text-[12.5px] font-semibold text-white/80 hover:bg-[#222229]"
       >
         <IconPlus size={14} stroke={2.4} />
@@ -120,7 +140,7 @@ export function DownloadClientsSection() {
                 {!c.builtin ? (
                   <button
                     type="button"
-                    onClick={() => setEditClient(c)}
+                    onClick={() => void openEdit(c)}
                     title={t('dlclients.edit')}
                     className="flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-white/12 bg-[#1A1A20] text-white/70 hover:text-white"
                   >
@@ -140,34 +160,7 @@ export function DownloadClientsSection() {
         />
       ) : null}
 
-      {addOpen ? (
-        <AddEngineModal
-          engines={engines}
-          title={t('dlclients.addTitle')}
-          onClose={() => setAddOpen(false)}
-          onSubmit={(kind, v) =>
-            api
-              .createDownloadClient({
-                kind,
-                name: v.name ?? null,
-                url: v.url ?? null,
-                username: v.username ?? null,
-                password: v.password ?? null,
-                enabled: true,
-                priority: null,
-              })
-              .then(reload)
-          }
-        />
-      ) : null}
-
-      {editClient ? (
-        <DownloadClientModal
-          client={editClient}
-          onClose={() => setEditClient(null)}
-          onSaved={reload}
-        />
-      ) : null}
+      <DownloadClientModal />
     </Section>
   );
 }

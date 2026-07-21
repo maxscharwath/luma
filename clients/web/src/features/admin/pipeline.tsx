@@ -12,7 +12,7 @@ import {
   IconPlayerPause,
   IconPlayerPlay,
 } from '@tabler/icons-react';
-import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
 import { PipelineDrawer } from '#web/features/admin/pipeline-drawer';
 import { ElementRowView } from '#web/features/admin/pipeline-row';
 import { PageHeader, useCap, usePoll } from '#web/features/admin/shell';
@@ -53,18 +53,6 @@ function usePipelineReloadEvents(onReload: () => void): void {
     ev.connect();
     return () => ev.close();
   }, [onReload]);
-}
-
-/** Keep the open drawer in sync with a fresh reload while its element is on the
- * page. Pulled out of the effect so the page body stays flat. */
-function syncOpenDrawer(
-  drawer: ElementRow | null,
-  data: { elements: ElementRow[] } | null | undefined,
-  setDrawer: Dispatch<SetStateAction<ElementRow | null>>,
-): void {
-  if (!drawer || !data) return;
-  const fresh = data.elements.find((e) => e.id === drawer.id);
-  if (fresh) setDrawer(fresh);
 }
 
 /** The three privileged pipeline actions (pause toggle, reprocess a subject,
@@ -129,7 +117,10 @@ export function PipelinePage() {
   const [q, setQ] = useState('');
   const [dq, setDq] = useState('');
   const [page, setPage] = useState(0);
-  const [drawer, setDrawer] = useState<ElementRow | null>(null);
+  // The element currently shown in the drawer (a ref, not render state: the drawer
+  // is an imperative react-call now). Lets the live reload push fresh treatment
+  // statuses + busy into the open instance via PipelineDrawer.update().
+  const openEl = useRef<ElementRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState(false);
   const { toast, flash } = useConsoleToast();
@@ -157,8 +148,15 @@ export function PipelinePage() {
 
   usePipelineReloadEvents(throttledReload);
 
-  // Keep the open drawer fresh from reloads while its element is on the page.
-  useEffect(() => syncOpenDrawer(drawer, data, setDrawer), [data, drawer]);
+  // Keep the open drawer fresh from reloads: push new treatment statuses and the
+  // shared busy flag into the live react-call instance (no-op when it's closed).
+  useEffect(() => {
+    const cur = openEl.current;
+    if (!cur) return;
+    const fresh = data?.elements.find((e) => e.id === cur.id) ?? cur;
+    openEl.current = fresh;
+    PipelineDrawer.update({ el: fresh, busy });
+  }, [data, busy]);
 
   // The global pause flag lives on the pipeline-health endpoint; poll it (on the
   // admin shell's tick) so another admin's toggle shows, and mirror it into local
@@ -182,6 +180,21 @@ export function PipelinePage() {
     setBusy,
     flash,
   });
+
+  // Open the element drawer imperatively; the promise resolves when it closes.
+  // Reprocess/retry stay page-level (shared busy + reload) and are handed in as
+  // props; the sync effect above streams fresh el/busy in while it's open.
+  const openDrawer = (el: ElementRow) => {
+    openEl.current = el;
+    void PipelineDrawer.call({
+      el,
+      busy,
+      onReprocess: () => reprocess(el),
+      onRetryStage: (stage) => retryStage(el, stage),
+    }).finally(() => {
+      openEl.current = null;
+    });
+  };
 
   const c = data?.counts;
   const total = c?.total ?? 0;
@@ -335,7 +348,7 @@ export function PipelinePage() {
           <ElementRowView
             key={`${el.kind}-${el.id}`}
             el={el}
-            onOpen={() => setDrawer(el)}
+            onOpen={() => openDrawer(el)}
             onReprocess={() => reprocess(el)}
           />
         ))}
@@ -381,14 +394,6 @@ export function PipelinePage() {
           </div>
         ) : null}
       </div>
-
-      <PipelineDrawer
-        el={drawer}
-        busy={busy}
-        onClose={() => setDrawer(null)}
-        onReprocess={() => drawer && reprocess(drawer)}
-        onRetryStage={(stage) => drawer && retryStage(drawer, stage)}
-      />
 
       <ConsoleToast toast={toast} />
     </>

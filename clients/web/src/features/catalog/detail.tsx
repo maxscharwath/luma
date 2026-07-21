@@ -13,6 +13,7 @@ import { Image, useT, useThemeAudio } from '@kroma/ui';
 import {
   IconCheck,
   IconChevronLeft,
+  IconFlag,
   IconPlayerPlayFilled,
   IconPlus,
   IconVolume,
@@ -125,6 +126,9 @@ export interface DetailHeroProps {
   themeUrl?: string | null;
   /** Optional trailing action in the button row (e.g. an admin "Reprocess"). */
   adminAction?: ReactNode;
+  /** Open the "signaler un probleme" dialog. Omit to hide the report button
+   * (e.g. a not-owned discover title, which has no library file to report). */
+  onReport?: () => void;
 }
 
 /** Full-bleed cinematic detail hero shared by the movie and series fiches
@@ -153,6 +157,7 @@ export function DetailHero({
   playable,
   themeUrl,
   adminAction,
+  onReport,
 }: Readonly<DetailHeroProps>) {
   const t = useT();
   const [c1, c2] = posterColors(art.id);
@@ -238,6 +243,7 @@ export function DetailHero({
               ) : null)}
             <WatchedButton watched={watched} onToggle={onToggleWatched} />
             <ListButton inList={inList} onToggle={onToggleList} />
+            <ReportButton onReport={onReport} />
             {adminAction}
           </div>
 
@@ -342,6 +348,23 @@ function ListButton({ inList, onToggle }: Readonly<{ inList?: boolean; onToggle?
         }`}
     >
       {inList ? <IconCheck size={20} stroke={2.4} /> : <IconPlus size={20} stroke={2} />}
+    </button>
+  );
+}
+
+/** "Signaler un probleme" button; renders nothing without an `onReport` handler. */
+function ReportButton({ onReport }: Readonly<{ onReport?: () => void }>) {
+  const t = useT();
+  if (!onReport) return null;
+  return (
+    <button
+      type="button"
+      onClick={onReport}
+      aria-label={t('report.action')}
+      title={t('report.action')}
+      className="flex h-12.5 w-12.5 items-center justify-center rounded-md border border-border-strong bg-white/10 text-text transition-colors hover:bg-white/15"
+    >
+      <IconFlag size={19} stroke={2} />
     </button>
   );
 }

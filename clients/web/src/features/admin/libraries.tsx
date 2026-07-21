@@ -43,8 +43,13 @@ function LibrariesPageInner() {
   const t = useT();
   const { client } = useAuth();
   const { data, reload } = usePoll(['admin', 'libraries'], () => client.adminLibraries(), 8000);
-  const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<AdminLibrary | null>(null);
+
+  const openAdd = async () => {
+    if (await AddLibraryModal.call()) reload();
+  };
+  const openManage = async (lib: AdminLibrary) => {
+    if (await ManageLibraryModal.call({ lib })) reload();
+  };
 
   const libraries = data?.libraries ?? [];
 
@@ -53,7 +58,7 @@ function LibrariesPageInner() {
       <PageHeader
         title={t('admin.librariesTitle')}
         subtitle={t('admin.librariesSub')}
-        action={<HeaderAction label={t('admin.addLibrary')} onClick={() => setAdding(true)} />}
+        action={<HeaderAction label={t('admin.addLibrary')} onClick={() => void openAdd()} />}
       />
 
       {data === null ? <TableSkeleton rows={4} /> : null}
@@ -61,7 +66,12 @@ function LibrariesPageInner() {
       {libraries.length > 0 ? (
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           {libraries.map((l) => (
-            <LibraryCard key={l.id} lib={l} onChanged={reload} onManage={() => setEditing(l)} />
+            <LibraryCard
+              key={l.id}
+              lib={l}
+              onChanged={reload}
+              onManage={() => void openManage(l)}
+            />
           ))}
         </div>
       ) : null}
@@ -69,27 +79,7 @@ function LibrariesPageInner() {
         <EmptyState
           icon={<IconLibrary size={32} stroke={1.5} />}
           title={t('admin.noLibraries')}
-          action={<HeaderAction label={t('admin.addLibrary')} onClick={() => setAdding(true)} />}
-        />
-      ) : null}
-
-      {adding ? (
-        <AddLibraryModal
-          onClose={() => setAdding(false)}
-          onCreated={() => {
-            setAdding(false);
-            reload();
-          }}
-        />
-      ) : null}
-      {editing ? (
-        <ManageLibraryModal
-          lib={editing}
-          onClose={() => setEditing(null)}
-          onChanged={() => {
-            setEditing(null);
-            reload();
-          }}
+          action={<HeaderAction label={t('admin.addLibrary')} onClick={() => void openAdd()} />}
         />
       ) : null}
     </>

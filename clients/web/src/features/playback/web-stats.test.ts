@@ -34,7 +34,6 @@ const input = (over: Partial<WebStatsInput> = {}): WebStatsInput =>
     baseSec: 10,
     audioTracks,
     audioIndex: 0,
-    hlsRef: { current: null },
     bytes: 1_000_000_000,
     t,
     ...over,
@@ -94,5 +93,53 @@ describe('buildWebStats', () => {
     const rows = buildWebStats(input()).extra ?? [];
     expect(rows.find((r) => r.label === 'stats.container')?.value).toBe('MKV');
     expect(rows.find((r) => r.label === 'stats.volume')?.value).toBe('100%');
+  });
+
+  it('sets a formatted fps headline when the sampler reports one', () => {
+    expect(buildWebStats(input({ fps: 23.976 })).fps).toBe('23.98 fps');
+    expect(buildWebStats(input({ fps: 0 })).fps).toBeUndefined();
+    expect(buildWebStats(input()).fps).toBeUndefined();
+  });
+
+  it('adds live engine rows (bitrate, bandwidth, stalls, downloaded, codecs)', () => {
+    const rows =
+      buildWebStats(
+        input({
+          engine: {
+            streamBitrateKbps: 8200,
+            estBandwidthKbps: 512,
+            stalls: 2,
+            bufferingSec: 3.25,
+            bytesDownloaded: 1_500_000_000,
+            currentCodecs: 'avc1.640028,mp4a.40.2',
+          },
+        }),
+      ).extra ?? [];
+    const val = (label: string) => rows.find((r) => r.label === label)?.value;
+    expect(val('stats.streamBitrate')).toBe('8.20 Mb/s');
+    expect(val('stats.bandwidth')).toBe('512 kb/s');
+    expect(val('stats.stalls')).toBe('2 (3.3s)');
+    expect(val('stats.downloaded')).toBe('1.50 Go');
+    expect(val('stats.codecs')).toBe('avc1.640028,mp4a.40.2');
+  });
+
+  it('omits engine rows entirely when no engine metrics are present', () => {
+    const labels = (buildWebStats(input()).extra ?? []).map((r) => r.label);
+    expect(labels).not.toContain('stats.streamBitrate');
+    expect(labels).not.toContain('stats.bandwidth');
+    expect(labels).not.toContain('stats.stalls');
+  });
+
+  it('always emits a buffer meter, adding bandwidth/bitrate when the engine reports them', () => {
+    const bufferOnly = buildWebStats(input()).meters ?? [];
+    expect(bufferOnly.map((m) => m.key)).toEqual(['buffer']);
+    expect(bufferOnly[0]?.value).toBe(60); // bufEnd 100 - cur 40
+
+    const withEngine =
+      buildWebStats(input({ engine: { estBandwidthKbps: 512, streamBitrateKbps: 8200 } })).meters ??
+      [];
+    expect(withEngine.map((m) => m.key)).toEqual(['buffer', 'bandwidth', 'bitrate']);
+    expect(withEngine.find((m) => m.key === 'bandwidth')?.display).toBe('512 kb/s');
+    expect(withEngine.find((m) => m.key === 'bitrate')?.value).toBe(8200);
   });
 });

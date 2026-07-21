@@ -8,6 +8,7 @@ import {
 } from '@kroma/ui';
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WebEnginePref } from '#web/features/playback/engine-pref';
+import { makeFpsSampler, readEngineStats } from '#web/features/playback/engine-stats';
 import { useVideoPlayback } from '#web/features/playback/use-video-playback';
 import { useWebSubtitles } from '#web/features/playback/use-web-subtitles';
 import { buildWebStats } from '#web/features/playback/web-stats';
@@ -121,6 +122,8 @@ export function useWebController(item: MovieView): WebController {
     };
   }, [item.stream]);
 
+  // Measured-FPS sampler (stateful across polls) + engine live-stats reader.
+  const fpsSamplerRef = useRef(makeFpsSampler());
   // Stats snapshot via a stable getter reading the latest values.
   const statsRef = useRef<() => PlayerStats>(() => ({}));
   statsRef.current = () =>
@@ -136,7 +139,8 @@ export function useWebController(item: MovieView): WebController {
       baseSec: pb.baseSec,
       audioTracks: pb.audioTracks,
       audioIndex: pb.audioIndex,
-      hlsRef: pb.hlsRef,
+      fps: fpsSamplerRef.current(pb.videoRef.current),
+      engine: readEngineStats(pb.hlsRef.current, pb.shakaRef.current),
       bytes,
       t,
     });
@@ -148,13 +152,17 @@ export function useWebController(item: MovieView): WebController {
     return [{ id: 'auto', label: `${t('player.qualityAuto')}${badgeSuffix}` }];
   }, [item.video, t]);
 
-  // Manual engine override (web has two real pipelines: bare <video> direct-play
-  // vs the server HLS remux). `auto` defers to the runtime-cap decision.
+  // Manual engine override. Web has a bare <video> direct-play path plus the
+  // server HLS remux; the remux plays through Shaka Player BY DEFAULT (`shaka`
+  // forces it even for direct-play-able files), with hls.js kept as the `remux`
+  // escape hatch. `auto` defers to the runtime-cap decision (direct when it can,
+  // else the Shaka-driven master).
   const engines = useMemo(
     () => [
       { id: 'auto', label: t('playbackEngine.auto') },
       { id: 'direct', label: t('playbackEngine.webview') },
       { id: 'remux', label: t('playbackEngine.remux') },
+      { id: 'shaka', label: t('playbackEngine.shaka') },
     ],
     [t],
   );

@@ -73,7 +73,58 @@ All configuration is via environment variables:
 | `KROMA_DATA_DIR`    | `./data`    | Where the SQLite database (`kroma.db`) lives.                          |
 | `KROMA_TMDB_API_KEY`| *(empty)*   | TMDB API key → enables movie/show metadata. Unset = feature off.       |
 | `KROMA_TMDB_LANGUAGE`| `en-US`    | TMDB language for titles/overviews, e.g. `fr-FR`.                      |
+| `KROMA_HTTPS`       | `0`         | Set to `1` to *also* serve HTTPS with an auto self-signed cert (off by default). |
+| `KROMA_HTTPS_PORT`  | `4443`      | Port for the HTTPS listener (only used when `KROMA_HTTPS=1`).          |
+| `KROMA_TLS_SANS`    | *(empty)*   | Extra cert names/IPs, comma/space separated. See [HTTPS](#https-on-the-lan-optional). |
+| `KROMA_HTTPS_REDIRECT`| `0`       | Set to `1` to redirect all HTTP traffic to HTTPS (needs `KROMA_HTTPS=1`). |
 | `RUST_LOG`         | `info`      | Standard `tracing` filter, e.g. `kroma_server=debug`.                  |
+
+## HTTPS on the LAN (optional)
+
+By default the server speaks plain HTTP, which is usually fine on a LAN. But a
+browser refuses the **Web Crypto API** (`crypto.subtle`, WebAuthn/passkeys) on a
+non-`localhost` HTTP origin, so a phone hitting `http://192.168.x.y:4040` can't
+use those. A LAN box has no public DNS name for Let's Encrypt, so KROMA can
+instead serve HTTPS with an **auto-generated self-signed certificate**:
+
+- Enable it with `KROMA_HTTPS=1` (or the `httpsEnabled` admin setting; the env
+  wins). The plain-HTTP listener keeps running in parallel HTTPS is additive.
+- The cert is generated once and persisted under `<data>/tls/` (`cert.pem` +
+  `key.pem`, key `0600`), then reused on restart. Delete that folder to force a
+  regen (e.g. after changing the SANs below).
+- The listener binds `KROMA_HTTPS_PORT` (default **4443**).
+- Its SANs cover the box's local identities automatically: `localhost`,
+  loopback, the hostname, `<hostname>.local`, and the primary LAN IP.
+- Download the public cert from `/api/tls/cert.pem` to trust it once per device.
+
+If the cert can't be prepared, HTTPS is skipped and HTTP keeps serving (logged);
+the feature never blocks startup.
+
+**Redirect HTTP → HTTPS (optional).** By default HTTP keeps serving the app
+directly. Set `KROMA_HTTPS_REDIRECT=1` (or the `httpsRedirect` admin toggle) to
+make the HTTP listener 307-redirect everything to HTTPS instead. It is off by
+default on purpose: a self-signed origin shows a trust prompt until the cert is
+imported, and some TV / native clients can't follow the redirect. The cert
+download (`/api/tls/cert.pem`) stays reachable over plain HTTP either way, so a
+device can still bootstrap trust.
+
+### Adding names/IPs to the cert (`KROMA_TLS_SANS`)
+
+A browser only accepts the cert for an address listed in its SANs. When the
+auto-detected identities don't match how clients actually reach the box, add the
+missing ones. Each entry is parsed as an IP if it looks like one, else a DNS
+name; separate them with commas, spaces or `;`:
+
+```bash
+KROMA_TLS_SANS="192.168.1.50, nas.home, kroma.stmx.ch"
+```
+
+This matters most **in Docker**: on the default bridge network the container's
+hostname is its random ID and its "primary LAN IP" is the Docker bridge address
+(`172.x`), not your host's LAN IP, so the auto-detected SANs won't match the
+address clients use. Pass the host's real IP / DNS name here (or run with
+`--network host`, where auto-detection sees the host's identities). See the
+[Docker](#https-in-docker) section for a full example.
 
 ## Data model
 
@@ -229,7 +280,8 @@ docker run -d --name kroma \
   ghcr.io/maxscharwath/kroma:latest
 ```
 
-Or the same as compose:
+Or the same as compose (a ready-to-run [`docker-compose.yml`](../docker-compose.yml)
+sits at the repo root run `docker compose up -d`):
 
 ```yaml
 services:
@@ -244,6 +296,52 @@ services:
 volumes:
   kroma-data:
 ```
+
+### HTTPS in Docker
+
+To also serve the self-signed HTTPS listener (see
+[HTTPS on the LAN](#https-on-the-lan-optional)), **publish its port** and turn it
+on. The base image only `EXPOSE`s HTTP, so map `4443` yourself. And because the
+bridge network hides your host's real identity, pass it via `KROMA_TLS_SANS` so
+the cert is valid from other devices:
+
+```bash
+docker run -d --name kroma \
+  -p 4040:4040 -p 4443:4443 \
+  -e KROMA_HTTPS=1 \
+  -e KROMA_TLS_SANS="192.168.1.50,nas.home" \
+  -v kroma-data:/data \
+  -v /path/on/host/media:/media \
+  -e KROMA_MEDIA_DIRS=/media \
+  ghcr.io/maxscharwath/kroma:latest
+```
+
+Or as compose:
+
+```yaml
+services:
+  kroma:
+    image: ghcr.io/maxscharwath/kroma:latest
+    ports:
+      - "4040:4040"
+      - "4443:4443"
+    environment:
+      KROMA_MEDIA_DIRS: /media
+      KROMA_HTTPS: "1"
+      # Your host's real LAN IP / DNS name(s) the bridge can't detect them.
+      KROMA_TLS_SANS: "192.168.1.50,nas.home"
+    volumes:
+      - kroma-data:/data
+      - /path/on/host/media:/media
+volumes:
+  kroma-data:
+```
+
+The cert lives in the `/data` volume (`/data/tls/`), so it survives restarts;
+delete it (or the volume) after changing `KROMA_TLS_SANS` to force a regen. Then
+reach the box at `https://<host>:4443` and grab `/api/tls/cert.pem` to trust it
+on each device. Running with `--network host` instead lets the auto-detection see
+the host's real hostname/IP, so `KROMA_TLS_SANS` isn't needed.
 
 ### Volumes: what needs to be writable
 

@@ -6,6 +6,7 @@
 
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { GateLoading } from '#web/features/accounts/auth-gate';
+import { CatalogModalHosts } from '#web/features/catalog/modal-hosts';
 import { MobileTopbar, Sidebar } from '#web/features/catalog/sidebar';
 import { ensureSession, isAuthed } from '#web/shared/lib/api';
 import { useRequireAuth } from '#web/shared/lib/require-auth';
@@ -33,6 +34,10 @@ function AppLayout() {
       <Sidebar />
       <MobileTopbar />
       <Outlet />
+      {/* Roots for the catalogue's imperative modals (media info, rematch,
+          report), so pages open them with `await X.call(...)` and hold no
+          open-state. */}
+      <CatalogModalHosts />
     </div>
   );
 }

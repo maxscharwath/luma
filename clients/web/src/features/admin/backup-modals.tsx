@@ -4,6 +4,7 @@
 
 import { useT } from '@kroma/ui';
 import { useState } from 'react';
+import { createCallable } from 'react-call';
 import { Field, Modal, ModalActions, TextInput, Toggle } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
 
@@ -51,7 +52,7 @@ function ToggleRow({
   );
 }
 
-export function ExportModal({ onClose }: Readonly<{ onClose: () => void }>) {
+export const ExportModal = createCallable<void, boolean>(({ call }) => {
   const t = useT();
   const { client } = useAuth();
   const [encrypt, setEncrypt] = useState(false);
@@ -75,7 +76,7 @@ export function ExportModal({ onClose }: Readonly<{ onClose: () => void }>) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      onClose();
+      call.end(true);
     } catch (e) {
       setError(errMessage(e, t('admin.backupExportFailed')));
     } finally {
@@ -84,7 +85,7 @@ export function ExportModal({ onClose }: Readonly<{ onClose: () => void }>) {
   }
 
   return (
-    <Modal title={t('admin.backupExportTitle')} onClose={busy ? () => {} : onClose}>
+    <Modal title={t('admin.backupExportTitle')} onClose={busy ? () => {} : () => call.end(false)}>
       <ToggleRow
         label={t('admin.backupEncrypt')}
         hint={t('admin.backupEncryptHint')}
@@ -98,7 +99,7 @@ export function ExportModal({ onClose }: Readonly<{ onClose: () => void }>) {
       ) : null}
       {error ? <ErrorLine text={error} /> : null}
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={() => void run()}
         confirmLabel={busy ? t('admin.backupExporting') : t('admin.backupExport')}
@@ -107,72 +108,64 @@ export function ExportModal({ onClose }: Readonly<{ onClose: () => void }>) {
       />
     </Modal>
   );
-}
+});
 
-export function ImportModal({
-  file,
-  encrypted,
-  onClose,
-  onDone,
-}: Readonly<{
-  file: File;
-  encrypted: boolean;
-  onClose: () => void;
-  onDone: (msg: string) => void;
-}>) {
-  const t = useT();
-  const { client } = useAuth();
-  const [password, setPassword] = useState('');
-  const [reset, setReset] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const ImportModal = createCallable<{ file: File; encrypted: boolean }, string | null>(
+  ({ call, file, encrypted }) => {
+    const t = useT();
+    const { client } = useAuth();
+    const [password, setPassword] = useState('');
+    const [reset, setReset] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  const canImport = !encrypted || password.trim().length > 0;
+    const canImport = !encrypted || password.trim().length > 0;
 
-  async function run() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await client.importBackup(file, {
-        password: encrypted ? password.trim() || undefined : undefined,
-        reset,
-      });
-      onDone(t('admin.backupImported', { users: res.imported.users ?? 0 }));
-    } catch (e) {
-      setError(errMessage(e, t('admin.backupImportFailed')));
-    } finally {
-      setBusy(false);
+    async function run() {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await client.importBackup(file, {
+          password: encrypted ? password.trim() || undefined : undefined,
+          reset,
+        });
+        call.end(t('admin.backupImported', { users: res.imported.users ?? 0 }));
+      } catch (e) {
+        setError(errMessage(e, t('admin.backupImportFailed')));
+      } finally {
+        setBusy(false);
+      }
     }
-  }
 
-  return (
-    <Modal title={t('admin.backupImportTitle')} onClose={busy ? () => {} : onClose}>
-      <Field label={t('admin.backupFile')}>
-        <div className="truncate rounded-[9px] border border-border-strong bg-[#0F0F13] px-3.5 py-2.25 text-[13.5px] font-semibold text-text">
-          {file.name}
-        </div>
-      </Field>
-      {encrypted ? (
-        <Field label={t('admin.backupPassword')} hint={t('admin.backupEncryptedFile')}>
-          <TextInput type="password" value={password} onChange={setPassword} className="w-full" />
+    return (
+      <Modal title={t('admin.backupImportTitle')} onClose={busy ? () => {} : () => call.end(null)}>
+        <Field label={t('admin.backupFile')}>
+          <div className="truncate rounded-[9px] border border-border-strong bg-[#0F0F13] px-3.5 py-2.25 text-[13.5px] font-semibold text-text">
+            {file.name}
+          </div>
         </Field>
-      ) : null}
-      <ToggleRow
-        label={t('admin.backupReset')}
-        hint={t('admin.backupResetHint')}
-        on={reset}
-        onChange={setReset}
-      />
-      <p className="mb-2 text-[12.5px] leading-relaxed text-dim">{t('admin.backupImportDesc')}</p>
-      {error ? <ErrorLine text={error} /> : null}
-      <ModalActions
-        onCancel={onClose}
-        cancelLabel={t('common.cancel')}
-        onConfirm={() => void run()}
-        confirmLabel={busy ? t('admin.backupImporting') : t('admin.backupRestoreConfirm')}
-        busy={busy}
-        disabled={!canImport}
-      />
-    </Modal>
-  );
-}
+        {encrypted ? (
+          <Field label={t('admin.backupPassword')} hint={t('admin.backupEncryptedFile')}>
+            <TextInput type="password" value={password} onChange={setPassword} className="w-full" />
+          </Field>
+        ) : null}
+        <ToggleRow
+          label={t('admin.backupReset')}
+          hint={t('admin.backupResetHint')}
+          on={reset}
+          onChange={setReset}
+        />
+        <p className="mb-2 text-[12.5px] leading-relaxed text-dim">{t('admin.backupImportDesc')}</p>
+        {error ? <ErrorLine text={error} /> : null}
+        <ModalActions
+          onCancel={() => call.end(null)}
+          cancelLabel={t('common.cancel')}
+          onConfirm={() => void run()}
+          confirmLabel={busy ? t('admin.backupImporting') : t('admin.backupRestoreConfirm')}
+          busy={busy}
+          disabled={!canImport}
+        />
+      </Modal>
+    );
+  },
+);

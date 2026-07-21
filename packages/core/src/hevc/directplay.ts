@@ -122,12 +122,20 @@ export function canSeamlessAudioSwitch(
  * track is natively decodable AND fMP4-copy-safe here (TV/Safari with
  * AC3/EAC3/AAC). Otherwise e.g. AC3/EAC3/DTS on Chrome, which can't decode them
  * via MSE every rendition is AAC so the browser can decode (and switch) them.
+ *
+ * With UNKNOWN audio (an unprobed file has no track list) we must assume the
+ * worst and transcode to AAC: stream-copying an unknown codec risks handing the
+ * browser something it can't decode (e.g. EAC3/DTS), which stalls the whole load
+ * on `HAVE_NOTHING`. AAC is the universally-decodable safe default until a probe
+ * fills in the real codecs.
  */
 export function masterNeedsAac(
   item: MediaItem,
   caps: PlaybackCapabilities = capabilities(),
 ): boolean {
-  return !audioTracksOf(item).every(
+  const tracks = audioTracksOf(item);
+  if (tracks.length === 0) return true; // unprobed / unknown audio → safe AAC
+  return !tracks.every(
     (t) => !!t.codec && canDecodeAudioCodec(t.codec, caps) && FMP4_COPY_CODECS.has(t.codec),
   );
 }

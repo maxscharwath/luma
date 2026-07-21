@@ -7,7 +7,7 @@ import { PageHeader, usePoll } from '#web/features/admin/shell';
 import { C, Card, ProgressBar, Section, Select, StatCard } from '#web/features/admin/ui';
 import { formatBytes } from '#web/shared/lib/adminFormat';
 import { useAuth } from '#web/shared/lib/auth';
-import { EmptyState } from '#web/shared/ui';
+import { confirmDialog, EmptyState } from '#web/shared/ui';
 
 export const Route = createFileRoute('/admin/storage')({
   component: StoragePage,
@@ -35,7 +35,14 @@ function StoragePage() {
   }
 
   async function resetMetadata() {
-    if (!confirm(t('admin.resetMetadataConfirm'))) return;
+    const ok = await confirmDialog({
+      title: t('admin.resetMetadata'),
+      message: t('admin.resetMetadataConfirm'),
+      confirmLabel: t('admin.resetMetadataBtn'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
     setResetting(true);
     try {
       await client.resetMetadata();

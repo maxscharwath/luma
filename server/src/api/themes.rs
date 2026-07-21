@@ -6,6 +6,7 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::Response;
 
 use crate::api::error::json_error;
+use crate::infra::metrics::ByteSink;
 use crate::infra::stream::stream_file;
 use crate::infra::theme::themes_dir;
 use crate::state::SharedState;
@@ -42,7 +43,8 @@ pub async fn theme(
     }
 
     let path = themes_dir(&state.config.data_dir).join(&name);
-    let mut resp = stream_file(&path, &headers).await;
+    // UI theme songs aren't media playback; keep them out of the bandwidth chart.
+    let mut resp = stream_file(&path, &headers, ByteSink::none()).await;
     // Themes are effectively immutable for a given show; let clients cache them.
     if resp.status().is_success() {
         resp.headers_mut().insert(

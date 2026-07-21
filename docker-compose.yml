@@ -1,0 +1,42 @@
+# Example KROMA deployment. Ready to run:
+#
+#     docker compose up -d
+#
+# It pulls the published multi-arch image (linux/amd64 + linux/arm64, e.g. a
+# Raspberry Pi 4/5 on a 64-bit OS), serves the API + web app on :4040, keeps its
+# database/caches/modules in the `kroma-data` volume, and scans the media you
+# bind-mount below. See server/README.md for the full option reference.
+services:
+  kroma:
+    image: ghcr.io/maxscharwath/kroma:latest
+    container_name: kroma
+    restart: unless-stopped
+    ports:
+      - "4040:4040" # HTTP + web app
+      # - "4443:4443"   # uncomment with KROMA_HTTPS=1 below
+    environment:
+      # Library roots INSIDE the container (match the bind-mounts below).
+      KROMA_MEDIA_DIRS: /media
+      # TMDB works out of the box; set your own key to raise rate limits.
+      # KROMA_TMDB_API_KEY: "your-key"
+      # KROMA_TMDB_LANGUAGE: "fr-FR"
+
+      # --- Optional HTTPS on the LAN (auto self-signed cert, off by default) ---
+      # Unlocks the browser Web Crypto API (passkeys) on non-localhost origins.
+      # Also publish 4443 above. On this (bridge) network the container can't
+      # detect the host's real address, so list it in KROMA_TLS_SANS (IP or DNS,
+      # comma/space separated). The cert persists in the volume (/data/tls); grab
+      # it from https://<host>:4443/api/tls/cert.pem to trust it per device.
+      # KROMA_HTTPS: "1"
+      # KROMA_TLS_SANS: "192.168.1.50,nas.home"
+      # Force HTTP -> HTTPS (needs KROMA_HTTPS=1). Off by default: a self-signed
+      # origin prompts for trust and some TV/native clients can't follow it.
+      # KROMA_HTTPS_REDIRECT: "1"
+    volumes:
+      - kroma-data:/data
+      # Mount media READ-WRITE if you use the built-in requests/downloads (import
+      # writes into the library); :ro is only safe for a pre-existing library.
+      - /path/on/host/media:/media
+
+volumes:
+  kroma-data:

@@ -175,6 +175,7 @@ fn defaults() -> BTreeMap<String, Value> {
     // override the stored values). See src/tls.rs.
     m.insert("httpsEnabled".into(), json!(false));
     m.insert("httpsPort".into(), json!("4443"));
+    m.insert("httpsRedirect".into(), json!(false));
     m.insert("ipv6".into(), json!(false));
     m.insert("localDiscovery".into(), json!(true));
     m.insert("localNetworks".into(), json!("192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12"));

@@ -91,6 +91,14 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 async fn main() -> anyhow::Result<()> {
     // Seed the uptime clock (now owned by kroma-engine).
     kroma_engine::process_started();
+    // Hand the engine our real build identity: the settings schema lives in the
+    // engine crate, whose own CARGO_PKG_VERSION is a stale 0.1.0 - only this binary
+    // knows the released version + the commit it was built from (see build.rs).
+    kroma_engine::services::settings::set_build_info(
+        env!("CARGO_PKG_VERSION"),
+        env!("KROMA_GIT_HASH"),
+        env!("KROMA_BUILD_DATE"),
+    );
     let config = Config::from_env();
     // Keep the appender guard alive for the whole process so buffered log lines
     // are flushed to disk.
@@ -322,9 +330,10 @@ async fn main() -> anyhow::Result<()> {
         .playback
         .spawn_reaper(state.db.clone(), state.events.clone());
 
-    // Sample CPU / RAM (and bandwidth from the playback registry) for the
-    // admin dashboard charts.
-    state.metrics.spawn_sampler(state.playback.clone());
+    // Sample CPU / RAM for the admin dashboard charts. Bandwidth is metered
+    // separately: the media handlers feed delivered bytes into the sampler's
+    // LAN/WAN counters (via `ByteSink`), which it converts to Mb/s each tick.
+    state.metrics.spawn_sampler();
 
     // Start the background-job cron scheduler (cache cleanup, recommendations
     // refresh, …). Manual + scheduled runs are tracked in the admin "Tâches" UI.
@@ -349,36 +358,37 @@ async fn main() -> anyhow::Result<()> {
     // additive to the plain-HTTP port so nothing existing breaks. Set up here so
     // the cert-download route can be merged into the router before we serve.
     let https = build_https(&state).await;
+    // Public cert bytes (the cert is public), shared by the HTTPS app's download
+    // route and, when the redirect is on, the HTTP listener's exempt route so a
+    // LAN device can fetch + trust the cert without shell access to the box.
+    let mut cert_pem_shared: Option<std::sync::Arc<String>> = None;
     if let Some((cert_path, _, _)) = &https {
         let cert_pem =
             std::sync::Arc::new(std::fs::read_to_string(cert_path).unwrap_or_default());
-        // Public route (the cert is public): lets a LAN device download + trust
-        // the certificate without shell access to the box.
-        app = app.route(
-            "/api/tls/cert.pem",
-            axum::routing::get(move || {
-                let pem = cert_pem.clone();
-                async move {
-                    (
-                        [
-                            (axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
-                            (
-                                axum::http::header::CONTENT_DISPOSITION,
-                                "attachment; filename=\"kroma-cert.pem\"",
-                            ),
-                        ],
-                        (*pem).clone(),
-                    )
-                }
-            }),
-        );
+        app = app.route("/api/tls/cert.pem", cert_download_route(cert_pem.clone()));
+        cert_pem_shared = Some(cert_pem);
     }
+
+    // When HTTPS is running, optionally turn the plain-HTTP listener into a
+    // redirect to it (env override wins over the `httpsRedirect` setting). Off by
+    // default: a hard redirect onto a self-signed origin walls every client
+    // behind a trust prompt, and some TV/native clients can't take it.
+    let https_port = https.as_ref().map(|(_, _, sock)| sock.port());
+    let redirect_to_https = https.is_some()
+        && state
+            .config
+            .https_redirect_override
+            .unwrap_or_else(|| state.settings.get_bool("httpsRedirect", false));
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("failed to bind {addr}"))?;
 
-    info!("KROMA listening on http://{addr}  (API under /api)");
+    if redirect_to_https {
+        info!("KROMA listening on http://{addr}  (redirecting to https)");
+    } else {
+        info!("KROMA listening on http://{addr}  (API under /api)");
+    }
 
     // Bring up every installed out-of-process module whose enabled flag is on.
     // (mDNS advertising moved into the `tv.kroma.mdns` module; install its .kmod
@@ -420,11 +430,22 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // The HTTP listener serves the full app, or (opt-in) a thin router that
+    // redirects to HTTPS while still exposing the cert download over plain HTTP.
+    let http_app = if redirect_to_https {
+        https_redirect_router(
+            https_port.expect("redirect_to_https implies HTTPS is running"),
+            cert_pem_shared,
+        )
+    } else {
+        app
+    };
+
     // `into_make_service_with_connect_info` so handlers can read the client's
     // socket address (LAN/WAN classification for playback sessions).
     axum::serve(
         listener,
-        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        http_app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await
@@ -447,6 +468,61 @@ async fn main() -> anyhow::Result<()> {
     supervisor.stop_all();
 
     Ok(())
+}
+
+/// The public certificate download route (`GET /api/tls/cert.pem`), served as an
+/// attachment. Shared by the HTTPS app and the HTTP redirect router the latter
+/// keeps it reachable over plain HTTP so a device can bootstrap trust first.
+fn cert_download_route(cert_pem: std::sync::Arc<String>) -> axum::routing::MethodRouter {
+    axum::routing::get(move || {
+        let pem = cert_pem.clone();
+        async move {
+            (
+                [
+                    (axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
+                    (
+                        axum::http::header::CONTENT_DISPOSITION,
+                        "attachment; filename=\"kroma-cert.pem\"",
+                    ),
+                ],
+                (*pem).clone(),
+            )
+        }
+    })
+}
+
+/// A thin HTTP router that redirects every request to the HTTPS origin (same
+/// host, `https_port`), while keeping the cert download reachable over plain
+/// HTTP so a device can trust the self-signed cert first. Uses a *temporary*
+/// (307) redirect so browsers don't cache it past a later toggle-off, and 307
+/// (not 303) so non-GET API calls keep their method + body.
+fn https_redirect_router(
+    https_port: u16,
+    cert_pem: Option<std::sync::Arc<String>>,
+) -> axum::Router {
+    use axum::http::{header, HeaderMap, StatusCode, Uri};
+    use axum::response::{IntoResponse, Redirect};
+
+    let mut router = axum::Router::new();
+    if let Some(cert_pem) = cert_pem {
+        router = router.route("/api/tls/cert.pem", cert_download_route(cert_pem));
+    }
+    router.fallback(move |headers: HeaderMap, uri: Uri| async move {
+        // Build the target from the request's own Host header (works whether the
+        // client reached us by IP or by name), swapping in the HTTPS port.
+        let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+        let hostname = host.split(':').next().unwrap_or("").trim();
+        if hostname.is_empty() {
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+        let path = uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
+        let target = if https_port == 443 {
+            format!("https://{hostname}{path}")
+        } else {
+            format!("https://{hostname}:{https_port}{path}")
+        };
+        Redirect::temporary(&target).into_response()
+    })
 }
 
 /// Decide whether HTTPS is on (env override wins over the `httpsEnabled`

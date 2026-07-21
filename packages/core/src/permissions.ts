@@ -30,4 +30,9 @@ export const PERMISSIONS: readonly PermissionMeta[] = [
     hintKey: 'admin.permRequestManageHint',
   },
   { key: 'requests.auto', labelKey: 'admin.permRequestAuto', hintKey: 'admin.permRequestAutoHint' },
+  {
+    key: 'reports.manage',
+    labelKey: 'admin.permReportsManage',
+    hintKey: 'admin.permReportsManageHint',
+  },
 ];

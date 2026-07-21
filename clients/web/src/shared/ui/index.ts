@@ -7,6 +7,8 @@ export type { ButtonProps, ButtonSize, ButtonVariant } from '#web/shared/ui/butt
 export { Button } from '#web/shared/ui/button';
 export type { ChipProps } from '#web/shared/ui/chip';
 export { Chip } from '#web/shared/ui/chip';
+export type { ConfirmProps } from '#web/shared/ui/confirm';
+export { ConfirmDialog, confirmDialog } from '#web/shared/ui/confirm';
 export type { OtpProps } from '#web/shared/ui/otp';
 export { Otp } from '#web/shared/ui/otp';
 export { EmptyState, PAGE_MAIN, PAGE_SUBTITLE, PAGE_TITLE } from '#web/shared/ui/page';

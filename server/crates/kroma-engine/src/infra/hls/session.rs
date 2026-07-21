@@ -38,23 +38,29 @@ const FILE_WAIT: Duration = Duration::from_secs(20);
 /// concurrent sessions don't thrash the disk / network mount racing to buffer the
 /// whole file. Also bounds the on-disk footprint, which then grows at ~playback
 /// rate rather than all-at-once.
-const READRATE: &str = "1.5";
+/// 2.0 (not 1.0) so the produced edge pulls AHEAD of the playhead over time,
+/// letting clients build a deep forward buffer (the web engines now target ~120s;
+/// see FORWARD_BUFFER_SEC in video-engine.ts) instead of riding the live edge.
+const READRATE: &str = "2.0";
 /// Seconds of stream read at FULL speed before [`READRATE`] throttling kicks in,
-/// so playback still starts instantly. Needs ffmpeg >= 6.1 (see [`detect_burst`]).
-const READRATE_BURST: &str = "30";
+/// so playback starts instantly AND a chunk of head-start buffer lands up front.
+/// Needs ffmpeg >= 6.1 (see [`detect_burst`]).
+const READRATE_BURST: &str = "60";
 /// A session whose last access is more recent than this is treated as actively
 /// playing: it is NEVER evicted to reclaim disk (that would stall a live stream)
 /// and is dropped under the concurrency cap only as a last resort.
 /// Superseded anchors / finished sessions go idle at once, so they free quickly.
 const BUDGET_GRACE: Duration = Duration::from_secs(45);
 /// Per-session sliding window: keep this many segments BEHIND the furthest one the
-/// client has requested (its playhead + read-ahead), delete older ones. ~30 x 6s =
-/// 180s, comfortably more than hls.js's back-buffer (~90s), so this bounds a single
-/// long stream's footprint without ever pruning a segment the player still holds.
+/// client has requested (its playhead + read-ahead), delete older ones. ~45 x 6s =
+/// 270s. The furthest requested segment sits ~forward-buffer ahead of the playhead
+/// (the web engines now target ~120s), so this must exceed forward+back buffer in
+/// segments (~30) with margin, or it would prune a segment the client still holds
+/// in its back-buffer and stall a backward seek.
 /// Safe with no client change: the player NATIVE-seeks only into already-buffered
 /// ranges and re-anchors (fresh session) otherwise, so a pruned segment is never
 /// re-fetched (see `seekTo` in the web `useVideoPlayback`).
-const KEEP_BEHIND_SEGS: u64 = 30;
+const KEEP_BEHIND_SEGS: u64 = 45;
 
 struct Session {
     dir: PathBuf,

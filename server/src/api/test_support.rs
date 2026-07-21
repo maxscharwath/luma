@@ -62,18 +62,9 @@ fn test_config(data_dir: PathBuf) -> Config {
     Config {
         host: "127.0.0.1".into(),
         port: 0,
-        media_dirs: Vec::new(),
-        movies_dirs: Vec::new(),
-        series_dirs: Vec::new(),
         data_dir,
-        tmdb_api_key: None,
         tmdb_language: "en-US".into(),
-        tmdb_enrich: false,
-        web_url: None,
-        web_dir: None,
-        https_override: None,
-        https_port_override: None,
-        tls_extra_sans: Vec::new(),
+        ..Default::default()
     }
 }
 

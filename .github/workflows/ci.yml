@@ -160,11 +160,15 @@ jobs:
       - name: Fetch bundled mpv (Linux sidecar)
         run: bash clients/desktop/scripts/fetch-mpv.sh
 
-      # Compiles the Linux-only mpv IPC module (watchdog, mpv_status, events)
-      # that macOS dev machines cannot check.
+      # Compiles the Linux binary-engine path (mpv.rs IPC + mpv_dispatch routing)
+      # that macOS dev machines cannot check. --no-default-features = WITHOUT the
+      # in-process libmpv engine: ubuntu-22.04's libmpv is too old for the libmpv2
+      # crate (needs .so.2 / mpv 0.35+), and the Linux release ships the binary
+      # engine anyway. The libmpv paths are compile-checked cross-platform (macOS
+      # dev / Windows via cargo-xwin); the Linux libmpv build needs a modern distro.
       - name: cargo check
         working-directory: clients/desktop/src-tauri
-        run: cargo check --all-targets
+        run: cargo check --all-targets --no-default-features
 
   server:
     name: Server (Rust) clippy + test

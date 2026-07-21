@@ -17,17 +17,12 @@ import {
   useT,
 } from '@kroma/module-sdk';
 import { useState } from 'react';
+import { createCallable } from 'react-call';
 
-export function DownloadClientModal({
-  client,
-  onClose,
-  onSaved,
-}: Readonly<{
-  /** The external client being edited (kind is fixed). */
-  client: DownloadClientView;
-  onClose: () => void;
-  onSaved: () => void;
-}>) {
+export const DownloadClientModal = createCallable<
+  { /** The external client being edited (kind is fixed). */ client: DownloadClientView },
+  boolean
+>(({ call, client }) => {
   const t = useT();
   const { client: api } = useAdminKit();
   const { busy, error, run } = useAsyncAction();
@@ -49,8 +44,7 @@ export function DownloadClientModal({
           priority: null,
         };
         await api.updateDownloadClient(client.id, body);
-        onSaved();
-        onClose();
+        call.end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
@@ -59,14 +53,13 @@ export function DownloadClientModal({
     run(
       async () => {
         await api.deleteDownloadClient(client.id);
-        onSaved();
-        onClose();
+        call.end(true);
       },
       (e) => apiErrorText(e, t('requests.actionFailed')),
     );
 
   return (
-    <Modal title={t('dlclients.edit')} onClose={onClose}>
+    <Modal title={t('dlclients.edit')} onClose={() => call.end(false)}>
       <Field label={t('dlclients.name')}>
         <TextInput value={name} onChange={setName} placeholder={client.kind} className="w-full" />
       </Field>
@@ -91,7 +84,7 @@ export function DownloadClientModal({
       </div>
       {error ? <p className="mt-1 text-[13px] font-semibold text-[#EF8091]">{error}</p> : null}
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={save}
         confirmLabel={busy ? t('common.saving') : t('common.save')}
@@ -105,4 +98,4 @@ export function DownloadClientModal({
       />
     </Modal>
   );
-}
+});

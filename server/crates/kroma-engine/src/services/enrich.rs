@@ -147,28 +147,42 @@ fn build_jobs(items: &[MediaItem], shows: &[Show], pins: &Pins) -> Vec<Job> {
     jobs
 }
 
-/// Operator-pinned TMDB ids, loaded once per enrichment run instead of once per
-/// title (two indexed scans of a table that is empty in the common case).
+/// Authoritative TMDB ids to adopt instead of guessing from a title, loaded once
+/// per enrichment run instead of once per title. Merges two sources, operator
+/// first: an operator's `tmdb_pin` correction, then the id an acquisition import
+/// recorded against the file it wrote (`acq_file_tmdb`, resolved through the
+/// item's files). The operator's choice always wins.
 #[derive(Default)]
 struct Pins {
     items: std::collections::HashMap<String, u64>,
     shows: std::collections::HashMap<String, u64>,
 }
 
-/// One subject's operator-chosen id. Best-effort: a lookup failure just means
-/// this call falls back to automatic matching.
+/// One subject's id to adopt: the operator's correction first, else the id an
+/// acquisition import recorded for one of its files (a show resolves through any
+/// of its episodes' files, a movie through its own). Best-effort: a lookup
+/// failure just means this call falls back to automatic title matching.
 fn pin_for(state: &SharedState, kind: &str, id: &str) -> Option<u64> {
     let conn = state.db.get().ok()?;
-    db::tmdb_pin::get(&conn, kind, id).ok().flatten()
+    if let Some(p) = db::tmdb_pin::get(&conn, kind, id).ok().flatten() {
+        return Some(p);
+    }
+    if kind == db::metadata_core::SHOW {
+        db::acq_tmdb_for_show(&conn, id).ok().flatten()
+    } else {
+        db::acq_tmdb_for_item(&conn, id).ok().flatten()
+    }
 }
 
 fn load_pins(pool: &Pool) -> Pins {
     // Best-effort: a pin lookup failure must not stop enrichment, it only means
-    // this run falls back to automatic matching.
-    Pins {
-        items: db::tmdb_pin::all_for_kind(pool, db::metadata_core::ITEM).unwrap_or_default(),
-        shows: db::tmdb_pin::all_for_kind(pool, db::metadata_core::SHOW).unwrap_or_default(),
-    }
+    // this run falls back to automatic matching. Start from the acquisition
+    // hints, then let operator corrections override them (operator wins).
+    let mut items = db::acq_tmdb_by_item(pool).unwrap_or_default();
+    let mut shows = db::acq_tmdb_by_show(pool).unwrap_or_default();
+    items.extend(db::tmdb_pin::all_for_kind(pool, db::metadata_core::ITEM).unwrap_or_default());
+    shows.extend(db::tmdb_pin::all_for_kind(pool, db::metadata_core::SHOW).unwrap_or_default());
+    Pins { items, shows }
 }
 
 fn engine_for(state: &SharedState, api_key: String) -> Engine {
@@ -599,10 +613,9 @@ pub fn enrich_one(state: &SharedState, id: &str, is_show: bool) -> anyhow::Resul
         };
         let on_file = item.metadata.as_ref().map(|m| m.tmdb_id).filter(|&i| i != 0);
         // An operator correction wins; else adopt the id an acquisition import
-        // already knew, so the real movie is fetched instead of a title guess.
-        let pin = pin_for(state, db::metadata_core::ITEM, id)
-            .or_else(|| state.db.get().ok().and_then(|c| db::tmdb_hint(&c, id).ok().flatten()))
-            .filter(|&p| Some(p) != on_file);
+        // already knew (via `pin_for`), so the real movie is fetched instead of a
+        // title guess.
+        let pin = pin_for(state, db::metadata_core::ITEM, id).filter(|&p| Some(p) != on_file);
         Job {
             id: item.id.clone(),
             target: Target::Movie,

@@ -70,6 +70,22 @@ export interface Chapter {
   kind?: 'intro' | 'credits' | 'chapter';
 }
 
+/** One live numeric series for the stats panel's sparklines. `value` is the
+ * instantaneous sample the panel appends to its own rolling history; `display`
+ * is the already-formatted current value shown beside the graph. */
+export interface PlayerMeter {
+  /** Stable id keying the panel's per-series history (never localized). */
+  key: string;
+  /** Localized row label. */
+  label: string;
+  /** Instantaneous numeric sample (graph is auto-scaled to the window). */
+  value: number;
+  /** Formatted current value, e.g. "8.20 Mb/s". */
+  display: string;
+  /** Stroke colour for the sparkline (CSS colour). */
+  color?: string;
+}
+
 /** Live "stats for nerds" snapshot (§9). All optional: TV fills what it can. */
 export interface PlayerStats {
   resolution?: string;
@@ -81,6 +97,8 @@ export interface PlayerStats {
   buffer?: string;
   mode?: string;
   extra?: { label: string; value: string }[];
+  /** Live numeric series rendered as sparklines under the text rows. */
+  meters?: PlayerMeter[];
 }
 
 /** The video surface kind the controller drives. `video` = an in-page element;

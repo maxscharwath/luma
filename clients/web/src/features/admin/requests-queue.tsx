@@ -43,8 +43,6 @@ export function RequestsQueuePage() {
 
   const [bucket, setBucket] = useState('pending');
   const [q, setQ] = useState('');
-  const [drawer, setDrawer] = useState<MediaRequest | null>(null);
-  const [busy, setBusy] = useState(false);
   const { toast, flash } = useConsoleToast();
 
   const { data, reload } = usePoll(
@@ -66,32 +64,33 @@ export function RequestsQueuePage() {
     return () => ev.close();
   }, [throttledReload]);
 
-  // Keep the open drawer fresh across reloads.
-  useEffect(() => {
-    if (!drawer || !data) return;
-    const fresh = data.requests.find((r) => r.id === drawer.id);
-    setDrawer(fresh ?? null);
-  }, [data, drawer]);
-
+  // Actions return the settle promise so the drawer can track its own busy state
+  // while the queue keeps owning the toast + list refresh. The open drawer stays
+  // fresh by subscribing to this same query (shared cache), so no push is needed.
   const act = (label: string, fn: () => Promise<unknown>) => {
-    if (!canReview) return;
-    setBusy(true);
-    fn()
+    if (!canReview) return Promise.resolve();
+    return fn()
       .then(() => {
         flash(label);
         reload();
       })
-      .catch(() => flash(t('requests.actionFailed')))
-      .finally(() => setBusy(false));
+      .catch(() => flash(t('requests.actionFailed')));
   };
   const approve = (r: MediaRequest) =>
     act(`« ${r.title} » ${t('requests.toastApproved')}`, () => client.approveRequest(r.id));
   const deny = (r: MediaRequest, note?: string) =>
     act(`« ${r.title} » ${t('requests.toastDenied')}`, () => client.denyRequest(r.id, note));
-  const removeReq = (r: MediaRequest) => {
-    setDrawer(null);
+  const removeReq = (r: MediaRequest) =>
     act(`« ${r.title} » ${t('requests.toastDeleted')}`, () => client.deleteRequest(r.id));
-  };
+
+  const openDrawer = (r: MediaRequest) =>
+    void RequestDrawer.call({
+      req: r,
+      canReview,
+      onApprove: approve,
+      onDeny: (req, note) => deny(req, note || undefined),
+      onDelete: removeReq,
+    });
 
   const all = data?.requests ?? [];
   const c = data?.counts;
@@ -170,7 +169,7 @@ export function RequestsQueuePage() {
             key={r.id}
             req={r}
             canReview={canReview}
-            onOpen={() => setDrawer(r)}
+            onOpen={() => openDrawer(r)}
             onApprove={() => approve(r)}
             onDeny={() => deny(r)}
           />
@@ -187,16 +186,6 @@ export function RequestsQueuePage() {
           </div>
         ) : null}
       </div>
-
-      <RequestDrawer
-        req={drawer}
-        busy={busy}
-        canReview={canReview}
-        onClose={() => setDrawer(null)}
-        onApprove={() => drawer && approve(drawer)}
-        onDeny={(note) => drawer && deny(drawer, note || undefined)}
-        onDelete={() => drawer && removeReq(drawer)}
-      />
 
       <ConsoleToast toast={toast} />
     </>

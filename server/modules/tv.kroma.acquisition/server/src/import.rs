@@ -32,22 +32,40 @@ pub struct ImportSummary {
 }
 
 /// After a successful import: fulfill the linked request directly (no fragile
-/// tmdbId round-trip) and pin the known tmdbId onto the item so its poster +
-/// metadata resolve and the discover UI recognizes it (no request/library dupe).
-fn finalize_import<S: HostCtx>(state: &S, row: &DownloadRow) {
+/// tmdbId round-trip) and record the known tmdbId against every file we wrote, so
+/// enrichment adopts the real id instead of guessing from the filename (and the
+/// movie/show resolves its poster + shows as in-library in Discover).
+fn finalize_import<S: HostCtx>(state: &S, row: &DownloadRow, written: &[String]) {
     if let Some(req_id) = row.request_id.as_deref() {
         if let Err(e) = kroma_module_sdk::engine::services::requests::on_download_imported(state, req_id) {
             tracing::warn!(request = %req_id, error = %format!("{e:#}"), "post-import request update failed");
         }
     }
     if row.tmdb_id != 0 {
-        if let Err(e) = pin_item_tmdb(state, row) {
-            tracing::debug!(id = %row.id, error = %format!("{e:#}"), "could not pin item tmdbId");
-        }
+        record_file_tmdb(state, row.tmdb_id, written);
     }
     // Optionally free the download folder + stop seeding now that it's imported.
     if state.setting_bool("acqDeleteAfterImport", false) {
         crate::downloads(state).drop_data(state, row);
+    }
+}
+
+/// Pin the download's known TMDB id to every path we just wrote, keyed by the
+/// canonical absolute path the scanner will index it under. Path-keyed rather
+/// than by a recomputed logical id: the import knows exactly where it placed the
+/// file, so the hint can never orphan on a title-parse difference. Works for
+/// movies and episodes alike (a show adopts the id via any episode file).
+fn record_file_tmdb<S: HostCtx>(state: &S, tmdb_id: u64, written: &[String]) {
+    for path in written {
+        // Match the scanner's key: it canonicalizes and stores the real path in
+        // `files.abs_path`. `canonicalize` succeeds here (the file exists) and
+        // yields the same string, so the enrichment join lines up.
+        let key = std::fs::canonicalize(path)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| path.clone());
+        if let Err(e) = db::set_file_tmdb(state.db(), &key, tmdb_id) {
+            tracing::debug!(path = %key, error = %format!("{e:#}"), "could not record file tmdbId");
+        }
     }
 }
 
@@ -63,7 +81,7 @@ pub fn import_pass<S: HostCtx>(state: &S, log: &dyn Fn(String)) -> Result<Import
                 summary.imported += 1;
                 summary.files += paths.len();
                 crate::download_db(state).mark_download_imported(state, &row.id, &paths, now_ms())?;
-                finalize_import(state, &row);
+                finalize_import(state, &row, &paths);
             }
             Err(e) => {
                 log(format!("import failed for \"{}\": {e:#}", row.release_title));
@@ -219,19 +237,6 @@ fn stem_of(path: &Path) -> &str {
 
 /// The library folder new files go into: the configured library (by name) or
 /// the first one whose kind matches, falling back to any library.
-/// Pin the download's known TMDB id to the logical item id the import will
-/// create, so enrichment adopts it (poster/metadata) and Discover sees it as
-/// in-library. Movies only for now (episode ids need the show key).
-fn pin_item_tmdb<S: HostCtx>(state: &S, row: &DownloadRow) -> Result<()> {
-    let meta = resolve_meta(state, row)?;
-    if meta.kind != RequestKind::Movie {
-        return Ok(());
-    }
-    let def = target_library_def(state, meta.kind)?;
-    let logical = kroma_module_sdk::engine::services::scan::movie_logical_id(&def.id, &meta.title, meta.year);
-    db::set_tmdb_hint(state.db(), &logical, row.tmdb_id)
-}
-
 fn target_library_root<S: HostCtx>(state: &S, kind: RequestKind) -> Result<PathBuf> {
     let def = target_library_def(state, kind)?;
     let folder = def.folders.first().ok_or_else(|| anyhow!("library {} has no folder", def.name))?;

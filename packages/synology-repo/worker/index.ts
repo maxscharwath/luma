@@ -7,7 +7,8 @@
  *
  * Routes:
  *   POST /              DSM Package Center (form params: arch, major, package_update_channel, ...)
- *   GET  /              browser landing page listing EVERY release, both channels
+ *   GET  /              DSM catalog JSON; a browser (Accept: text/html) is 302'd to /browse
+ *   GET  /browse        browser landing page listing EVERY release, both channels
  *   GET  /catalog.json  latest stable, DSM catalog shape (static-source compatible)
  *   GET  /nightly.json  nightly channel, DSM catalog shape
  *   GET  /all.json      every entry (machine-readable)
@@ -23,6 +24,7 @@ import {
   type Catalog,
   cmpDsmVersion,
   DEFAULT_REPO,
+  dsmVersion,
   type Entry,
   type Env,
   entryVersion,
@@ -64,11 +66,14 @@ function dsmPackages(catalog: Catalog, params: URLSearchParams, origin: string) 
   const stable = catalog.entries.find((e) => e.channel === 'stable');
   const nightly = catalog.entries.find((e) => e.channel === 'nightly');
 
+  // Compare on the version DSM actually SEES (dsmVersion), not the raw stamp.
+  // When a nightly shares a normalized version with stable, prefer stable - its
+  // .spk is the released one and it is not flagged `beta:true`.
   let pick: Entry | undefined = stable;
   if (
     beta &&
     nightly &&
-    (!stable || cmpDsmVersion(entryVersion(nightly), entryVersion(stable)) > 0)
+    (!stable || cmpDsmVersion(dsmVersion(entryVersion(nightly)), dsmVersion(entryVersion(stable))) > 0)
   ) {
     pick = nightly;
   }
@@ -137,6 +142,13 @@ export default {
         const nightly = catalog.entries.find((e) => e.channel === 'nightly');
         return json({ packages: nightly ? [toDsmPackage(nightly, origin, catalog.repo)] : [] });
       }
+      case '/browse':
+        return new Response(renderLanding(catalog, origin), {
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'public, max-age=300',
+          },
+        });
       case '/all.json':
         return json({
           fetchedAt: catalog.fetchedAt,
@@ -152,20 +164,21 @@ export default {
           })),
         });
       default: {
-        // DSM POSTs to whatever base URL the user pasted; browsers GET it.
+        // DSM POSTs (or GETs with params) to whatever base URL the user pasted;
+        // browsers GET it with `Accept: text/html`. A browser is 302'd to the
+        // landing rather than served a 200 HTML body at the root, because DSM's
+        // add-source probe ALSO sends a browser-like `Accept: text/html` with no
+        // arch/unique params: returning HTML there made DSM parse it as JSON,
+        // fail, and show nothing (a static .json source worked because it only
+        // ever returns JSON). SynoCommunity/Homebridge do the same - their bare
+        // URL 302-redirects browsers and only ever hands DSM JSON. Params or a
+        // non-text/html Accept fall straight through to the catalog JSON.
         const wantsHtml =
           request.method === 'GET' &&
           (request.headers.get('accept') ?? '').includes('text/html') &&
           !url.searchParams.has('arch') &&
           !url.searchParams.has('unique');
-        if (wantsHtml) {
-          return new Response(renderLanding(catalog, origin), {
-            headers: {
-              'content-type': 'text/html; charset=utf-8',
-              'cache-control': 'public, max-age=300',
-            },
-          });
-        }
+        if (wantsHtml) return Response.redirect(`${origin}/browse`, 302);
         return json(dsmPackages(catalog, await dsmParams(request, url), origin));
       }
     }

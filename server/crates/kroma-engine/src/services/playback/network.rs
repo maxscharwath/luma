@@ -5,22 +5,25 @@ use std::net::IpAddr;
 /// Classify a client IP as `LAN` or `WAN` against the configured local networks
 /// (CIDR `a.b.c.d/n` or a bare prefix like `192.168.`). Loopback is always LAN.
 pub fn classify_network(ip: &str, local_nets: &[String]) -> String {
+    if is_lan(ip, local_nets) {
+        "LAN".into()
+    } else {
+        "WAN".into()
+    }
+}
+
+/// Whether a client IP counts as LAN: loopback, an RFC1918 / link-local / IPv6
+/// unique-local address (always local regardless of config), or a match against
+/// a configured local network. Backs both the session label and the dashboard's
+/// LAN/WAN byte-throughput split. An unparseable IP is treated as WAN.
+pub fn is_lan(ip: &str, local_nets: &[String]) -> bool {
     let Ok(addr) = ip.parse::<IpAddr>() else {
-        return "WAN".into();
+        return false;
     };
-    if addr.is_loopback() {
-        return "LAN".into();
+    if addr.is_loopback() || is_private(&addr) {
+        return true;
     }
-    // RFC1918 / link-local are LAN regardless of config.
-    if is_private(&addr) {
-        return "LAN".into();
-    }
-    for net in local_nets {
-        if cidr_contains(net, &addr) {
-            return "LAN".into();
-        }
-    }
-    "WAN".into()
+    local_nets.iter().any(|net| cidr_contains(net, &addr))
 }
 
 fn is_private(addr: &IpAddr) -> bool {
@@ -88,6 +91,15 @@ mod tests {
     fn invalid_ip_is_wan() {
         assert_eq!(classify_network("not-an-ip", &nets()), "WAN");
         assert_eq!(classify_network("", &nets()), "WAN");
+    }
+
+    #[test]
+    fn is_lan_mirrors_classify_network() {
+        assert!(is_lan("127.0.0.1", &[]));
+        assert!(is_lan("192.168.1.10", &[]));
+        assert!(is_lan("203.0.113.42", &nets()));
+        assert!(!is_lan("8.8.8.8", &nets()));
+        assert!(!is_lan("not-an-ip", &nets()));
     }
 
     #[test]

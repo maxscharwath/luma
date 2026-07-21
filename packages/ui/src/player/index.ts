@@ -25,6 +25,7 @@ export type {
   PlaneRect,
   PlayerController,
   PlayerFlags,
+  PlayerMeter,
   PlayerQuality,
   PlayerStats,
   PlayerSub,

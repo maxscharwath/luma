@@ -15,6 +15,7 @@ export const Permission = z.enum([
   'requests.create',
   'requests.manage',
   'requests.auto',
+  'reports.manage',
 ]);
 
 /** A full account (`GET /auth/me`, login/exchange results). `avatarUrl` etc. are

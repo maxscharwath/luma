@@ -305,4 +305,13 @@ describe('masterNeedsAac', () => {
     expect(masterNeedsAac(item, MSE_CAPS)).toBe(true);
     expect(masterNeedsAac(item, SAFARI_CAPS)).toBe(false);
   });
+
+  it('forces AAC when the audio is unknown (unprobed file, no track list)', () => {
+    // A stream-copy of an unknown codec risks handing MSE undecodable audio
+    // (e.g. EAC3), which stalls the whole load. AAC is the safe default.
+    const item = makeItem({ audio: [] });
+    expect(masterNeedsAac(item, MSE_CAPS)).toBe(true);
+    expect(masterNeedsAac(item, SAFARI_CAPS)).toBe(true);
+    expect(masterNeedsAac(item, NATIVE_TV_CAPS)).toBe(true);
+  });
 });

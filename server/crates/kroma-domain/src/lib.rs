@@ -16,6 +16,7 @@ pub mod pipeline;
 pub mod naming;
 pub mod matching;
 pub mod requests;
+pub mod reports;
 pub mod section;
 
 // Flat re-export (mirrors the server's former `model.rs`). `naming` / `matching`
@@ -29,4 +30,5 @@ pub use metadata::*;
 pub use pipeline::*;
 pub use playback::*;
 pub use requests::*;
+pub use reports::*;
 pub use section::*;

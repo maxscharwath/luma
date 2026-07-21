@@ -27,6 +27,7 @@ export type ServerEvent =
   | { type: 'job.finished'; key: string; runId: string; status: string }
   | { type: 'pipeline.stats'; stages: StageStat[] }
   | { type: 'request.updated'; id: string; status: string }
+  | { type: 'report.updated'; id: string; status: string }
   | {
       type: 'download.progress';
       id: string;

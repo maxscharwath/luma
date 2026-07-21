@@ -14,7 +14,51 @@ import type { AudioTrack, EngineDecision } from '@kroma/core';
 import type { WebEnginePref } from '#web/features/playback/engine-pref';
 import { kromaClient, type MovieView } from '#web/shared/lib/api';
 
-type HlsInstance = import('hls.js').default;
+export type HlsInstance = import('hls.js').default;
+
+// Forward-buffer tuning, shared intent across the MSE engines: buffer well ahead
+// so playback rides out network dips instead of stalling. The engine defaults are
+// stingy - hls.js caps at 30s AND 60 MB (the byte cap is what stops high-bitrate
+// streams at ~15-30s), and Shaka's `bufferingGoal` is only 10s. The server remux
+// produces ahead (readrate 1.5 + burst), so a bigger client goal actually fills.
+const FORWARD_BUFFER_SEC = 120;
+const MAX_FORWARD_BUFFER_SEC = 600;
+const BACK_BUFFER_SEC = 60;
+const MAX_BUFFER_BYTES = 500 * 1000 * 1000; // 500 MB (vs hls.js's 60 MB default)
+
+/** The subset of Shaka's live `getStats()` snapshot the stats panel reads. Shaka
+ * reports bandwidth in bits/s and times in seconds. */
+export interface ShakaStatsLike {
+  /** Bitrate of the currently-playing variant (video+audio), bits/s. */
+  streamBandwidth: number;
+  /** Rolling bandwidth estimate the ABR uses, bits/s. */
+  estimatedBandwidth: number;
+  /** Rebuffering events detected this session. */
+  stallsDetected: number;
+  /** Total time spent buffering/stalled this session, seconds. */
+  bufferingTime: number;
+  /** Bytes fetched over the network this session. */
+  bytesDownloaded: number;
+  /** Active codec string, e.g. "avc1.640028,mp4a.40.2". */
+  currentCodecs: string;
+  droppedFrames: number;
+  decodedFrames: number;
+}
+
+/** The slice of the Shaka Player API this engine touches. We type it structurally
+ * rather than pulling Shaka's (large, generated) namespace types into the hook,
+ * and cast the dynamically-imported module to it. */
+export interface ShakaPlayerLike {
+  attach(media: HTMLMediaElement): Promise<void>;
+  load(uri: string, startTime?: number | null): Promise<void>;
+  destroy(): Promise<void>;
+  getStats(): ShakaStatsLike;
+  configure(config: Record<string, unknown>): boolean;
+}
+interface ShakaStatic {
+  Player: { new (): ShakaPlayerLike; isBrowserSupported(): boolean };
+  polyfill: { installAll(): void };
+}
 
 export interface VideoPlayback {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -34,7 +78,7 @@ export interface VideoPlayback {
   /** True when audio/video is delivered via the HLS master (hls.js / native HLS)
    * rather than a plain direct-play `<video src>`. */
   useHls: boolean;
-  /** The manual engine override (Settings): `auto` | `direct` | `remux`. */
+  /** The manual engine override (Settings): `auto` | `direct` | `remux` | `shaka`. */
   enginePref: WebEnginePref;
   /** Set the engine override (persists + re-anchors to apply it live). */
   setEnginePref: (p: WebEnginePref) => void;
@@ -57,6 +101,9 @@ export interface VideoPlayback {
   /** The live hls.js instance (or null), so the stats panel can read the actually
    * -playing audio rendition to diagnose selection-vs-playback mismatches. */
   hlsRef: { current: HlsInstance | null };
+  /** The live Shaka Player instance (or null) when the Shaka engine is active, so
+   * the stats panel can read its `getStats()` transport metrics. */
+  shakaRef: { current: ShakaPlayerLike | null };
   scrubbing: boolean;
   setScrubbing: (v: boolean) => void;
   /** Previewed absolute position (s) while dragging the bar, else null. */
@@ -112,6 +159,11 @@ export function bindMediaEvents(
   item: MovieView,
   setters: MediaEventSetters,
   baseSec = 0,
+  /** True total length (ms) from the catalog OR the server's `X-Media-Duration`
+   * header. Preferred over the element's `duration`, which for the growing HLS
+   * EVENT playlist is only the produced (live) edge, not the whole movie. 0 =
+   * unknown, then fall back to the element clock. */
+  knownDurationMs = 0,
 ): () => void {
   const {
     setCur,
@@ -124,9 +176,10 @@ export function bindMediaEvents(
     setRate,
     setReady,
   } = setters;
+  const durMs = knownDurationMs || item.durationMs || 0;
   const onTime = () => setCur(baseSec + v.currentTime);
   const onDur = () => {
-    const total = item.durationMs ? item.durationMs / 1000 : 0;
+    const total = durMs ? durMs / 1000 : 0;
     if (total > 0) setDur(total);
     else if (Number.isFinite(v.duration)) setDur(baseSec + v.duration);
   };
@@ -190,6 +243,10 @@ export interface AttachSourceOptions {
   decision: EngineDecision;
   /** Use the browser's native HLS (Safari/iOS) instead of hls.js. */
   useNativeHls: boolean;
+  /** Play the HLS master through Shaka Player instead of hls.js / native HLS.
+   * Set when the user picks the `shaka` engine override; wins over `useNativeHls`
+   * so an explicit Shaka choice is honoured even on Safari. */
+  useShaka: boolean;
   /** Anchor position (s): the HLS stream is remuxed from here (input `-ss`); the
    * hook adds it back for the absolute position. For direct-play it is a plain
    * absolute start seek. 0 = from the start. */
@@ -197,6 +254,9 @@ export interface AttachSourceOptions {
   /** Audio-relative track index to MUX into the stream (the chosen language). */
   audioRel: number;
   hlsRef: { current: HlsInstance | null };
+  /** The live Shaka Player instance (or null), so the stats panel can read its
+   * `getStats()` transport metrics. Only set on the `useShaka` path. */
+  shakaRef: { current: ShakaPlayerLike | null };
   setUseHls: (b: boolean) => void;
   setReady: (b: boolean) => void;
 }
@@ -225,7 +285,19 @@ function seekToAnchor(v: HTMLVideoElement, startSec: number): void {
  * (the parent remounts the element); there is no in-place audio switch.
  */
 export function attachMediaSource(opts: AttachSourceOptions): () => void {
-  const { v, item, decision, useNativeHls, startSec, audioRel, hlsRef, setUseHls, setReady } = opts;
+  const {
+    v,
+    item,
+    decision,
+    useNativeHls,
+    useShaka,
+    startSec,
+    audioRel,
+    hlsRef,
+    shakaRef,
+    setUseHls,
+    setReady,
+  } = opts;
   setReady(false);
 
   if (decision.kind === 'direct') {
@@ -246,6 +318,43 @@ export function attachMediaSource(opts: AttachSourceOptions): () => void {
   const url = kromaClient().hlsMasterUrl(item.id, decision.aacMaster, startSec, audioRel);
   let destroyed = false;
 
+  if (useShaka) {
+    // Shaka plays the same anchored master over MSE (like hls.js). It reports the
+    // stream's own relative clock, so the hook still adds `startSec` back for the
+    // absolute position (bindMediaEvents `baseSec`). The chosen audio is muxed in
+    // via the URL, so there is no in-place rendition switch here either.
+    void import('shaka-player/dist/shaka-player.compiled.js').then((mod) => {
+      if (destroyed) return;
+      const shaka = (mod as unknown as { default: ShakaStatic }).default;
+      shaka.polyfill.installAll();
+      if (!shaka.Player.isBrowserSupported()) {
+        v.src = url; // let the element's native HLS (if any) try
+        return;
+      }
+      const player = new shaka.Player();
+      shakaRef.current = player;
+      // Buffer far ahead: Shaka's default bufferingGoal is only 10s.
+      player.configure({
+        streaming: {
+          bufferingGoal: FORWARD_BUFFER_SEC,
+          bufferBehind: BACK_BUFFER_SEC,
+          rebufferingGoal: 4,
+        },
+      });
+      player
+        .attach(v)
+        .then(() => player.load(url))
+        .catch(() => undefined);
+    });
+    return () => {
+      destroyed = true;
+      void shakaRef.current?.destroy();
+      shakaRef.current = null;
+      v.removeAttribute('src');
+      v.load();
+    };
+  }
+
   if (useNativeHls) {
     v.src = url; // Safari/iOS: native HLS plays the muxed program
     v.preload = 'auto';
@@ -261,8 +370,18 @@ export function attachMediaSource(opts: AttachSourceOptions): () => void {
       v.src = url;
       return;
     }
-    // startPosition 0 = the start of the (relative) anchored stream.
-    const hls = new Hls({ enableWorker: true, lowLatencyMode: false, startPosition: 0 });
+    // startPosition 0 = the start of the (relative) anchored stream. The buffer
+    // caps are raised well above hls.js's stingy 30s / 60 MB defaults so playback
+    // buffers far ahead (see FORWARD_BUFFER_SEC).
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      startPosition: 0,
+      maxBufferLength: FORWARD_BUFFER_SEC,
+      maxMaxBufferLength: MAX_FORWARD_BUFFER_SEC,
+      maxBufferSize: MAX_BUFFER_BYTES,
+      backBufferLength: BACK_BUFFER_SEC,
+    });
     hlsRef.current = hls;
     hls.loadSource(url);
     hls.attachMedia(v);

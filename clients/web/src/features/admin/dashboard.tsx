@@ -1,3 +1,4 @@
+import { OptionSelect } from '@kroma/admin-kit';
 import type { MetricsSnapshot, PlaybackSession, TopUser } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { IconPlayerPlay, IconUsers } from '@tabler/icons-react';
@@ -10,10 +11,45 @@ import { decimal, formatDuration, formatMbps } from '#web/shared/lib/adminFormat
 import { useAuth } from '#web/shared/lib/auth';
 import { EmptyState } from '#web/shared/ui';
 
+/** A range picker for the day-scoped stats sections (Top users, Play history),
+ * bound to the `?days=` the backend already accepts. Replaces the old static,
+ * chevroned caption that looked like a dropdown but did nothing. */
+function RangeSelect({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: Readonly<{
+  value: number;
+  onChange: (days: number) => void;
+  options: number[];
+  ariaLabel: string;
+}>) {
+  const t = useT();
+  return (
+    <OptionSelect
+      ariaLabel={ariaLabel}
+      value={String(value)}
+      onChange={(v) => onChange(Number(v))}
+      options={options.map((d) => ({
+        value: String(d),
+        label: t('admin.lastNdays', { count: d }),
+      }))}
+    />
+  );
+}
+
+/** Seconds between server metric samples, from the snapshot (falls back to 3s). */
+const sampleSec = (metrics: MetricsSnapshot | null) => (metrics?.sampleIntervalMs ?? 3000) / 1000;
+
 export function DashboardScreen() {
   const t = useT();
   const { client } = useAuth();
   const { serverInfo } = useAdmin();
+
+  // Day-scoped ranges for the two analytics sections (the backend clamps them).
+  const [topDays, setTopDays] = useState(7);
+  const [historyDays, setHistoryDays] = useState(30);
 
   const { data: sessionsData, reload: reloadSessions } = usePoll(
     ['admin', 'sessions'],
@@ -22,10 +58,15 @@ export function DashboardScreen() {
   );
   // The server samples every 3s; polling faster only redraws identical charts.
   const { data: metrics } = usePoll(['admin', 'metrics'], () => client.adminMetrics(), 5000);
-  const { data: top } = usePoll(['admin', 'topUsers', 7], () => client.topUsers(7), 30000);
+  // The range is in the poll key, so changing it refetches immediately.
+  const { data: top } = usePoll(
+    ['admin', 'topUsers', topDays],
+    () => client.topUsers(topDays),
+    30000,
+  );
   const { data: history } = usePoll(
-    ['admin', 'playHistory', 28],
-    () => client.playHistory(28),
+    ['admin', 'playHistory', historyDays],
+    () => client.playHistory(historyDays),
     60000,
   );
   // Avatars for the now-playing cards come from the authenticated admin roster,
@@ -34,8 +75,12 @@ export function DashboardScreen() {
   // to name-based avatars), which is harmless.
   const { data: usersData } = usePoll(['admin', 'users'], () => client.adminUsers(), 60000);
 
-  const [stopTarget, setStopTarget] = useState<PlaybackSession | null>(null);
   const sessions = sessionsData?.sessions ?? [];
+  // Open the stop-stream confirmation imperatively; it resolves `true` once the
+  // session was terminated, so we refresh the live list.
+  const askStop = async (session: PlaybackSession) => {
+    if (await StopStreamModal.call({ session })) reloadSessions();
+  };
   // Map each streaming user to their uploaded avatar (sessions carry only a name).
   const avatarByUser = useMemo(() => {
     const m = new Map<string, string | null>();
@@ -64,23 +109,12 @@ export function DashboardScreen() {
                 key={s.id}
                 s={s}
                 avatarUrl={s.userId ? avatarByUser.get(s.userId) : null}
-                onStop={() => setStopTarget(s)}
+                onStop={() => void askStop(s)}
               />
             ))}
           </div>
         )}
       </Section>
-
-      {stopTarget ? (
-        <StopStreamModal
-          session={stopTarget}
-          onClose={() => setStopTarget(null)}
-          onStopped={() => {
-            setStopTarget(null);
-            reloadSessions();
-          }}
-        />
-      ) : null}
 
       <BandwidthSection metrics={metrics} />
       <CpuSection metrics={metrics} />
@@ -88,7 +122,14 @@ export function DashboardScreen() {
 
       <Section
         title={t('admin.topUsers')}
-        right={<FilterLabel>{t('admin.last7days')}</FilterLabel>}
+        right={
+          <RangeSelect
+            ariaLabel={t('admin.topUsers')}
+            value={topDays}
+            onChange={setTopDays}
+            options={[7, 30, 90]}
+          />
+        }
       >
         {top && top.users.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -103,7 +144,14 @@ export function DashboardScreen() {
 
       <Section
         title={t('admin.playHistory')}
-        right={<FilterLabel>{t('admin.last30days')}</FilterLabel>}
+        right={
+          <RangeSelect
+            ariaLabel={t('admin.playHistory')}
+            value={historyDays}
+            onChange={setHistoryDays}
+            options={[30, 90, 180]}
+          />
+        }
       >
         {history ? <HistoryBars buckets={history.buckets} /> : null}
       </Section>
@@ -123,9 +171,13 @@ function BandwidthSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | nul
   const remote = metrics?.series.bwRemote ?? [];
   const max = Math.max(1, ...local, ...remote);
   return (
-    <Section title={t('admin.bandwidth')} right={<FilterLabel>{t('admin.realtime')}</FilterLabel>}>
+    <Section
+      title={t('admin.bandwidth')}
+      right={<FilterLabel plain>{t('admin.realtime')}</FilterLabel>}
+    >
       <MetricsChart
         max={max}
+        sampleSec={sampleSec(metrics)}
         formatValue={formatMbps}
         series={[
           { label: t('admin.legendRemote'), data: remote, color: C.blue },
@@ -149,9 +201,10 @@ function CpuSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) 
   const kroma = metrics?.series.cpuKroma ?? [];
   const sys = metrics?.series.cpuSystem ?? [];
   return (
-    <Section title={t('admin.cpu')} right={<FilterLabel>{t('admin.realtime')}</FilterLabel>}>
+    <Section title={t('admin.cpu')} right={<FilterLabel plain>{t('admin.realtime')}</FilterLabel>}>
       <MetricsChart
         max={100}
+        sampleSec={sampleSec(metrics)}
         formatValue={pct}
         series={[
           { label: t('admin.legendSystem'), data: sys, color: C.cpuRed },
@@ -175,9 +228,10 @@ function RamSection({ metrics }: Readonly<{ metrics: MetricsSnapshot | null }>) 
   const kroma = metrics?.series.ramKroma ?? [];
   const sys = metrics?.series.ramSystem ?? [];
   return (
-    <Section title={t('admin.ram')} right={<FilterLabel>{t('admin.realtime')}</FilterLabel>}>
+    <Section title={t('admin.ram')} right={<FilterLabel plain>{t('admin.realtime')}</FilterLabel>}>
       <MetricsChart
         max={100}
+        sampleSec={sampleSec(metrics)}
         formatValue={pct}
         series={[
           { label: t('admin.legendSystem'), data: sys, color: C.purple },

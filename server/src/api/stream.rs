@@ -3,22 +3,34 @@
 //! and on-demand WebVTT subtitle extraction. Responses are media bytes / HLS
 //! playlists, not JSON.
 
+use std::net::SocketAddr;
+
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::Response;
 use serde::Deserialize;
 
 use crate::api::error::json_error;
-use crate::api::util::query;
+use crate::api::util::{client_ip, query};
 use crate::db;
 use crate::infra::hls::StreamMode;
 use crate::infra::stream::stream_or_demo_error;
 use crate::infra::subtitles;
 use crate::model::MediaItem;
+use crate::services::playback;
+use crate::services::settings;
 use crate::state::SharedState;
 use axum::routing::get;
 use axum::Router;
+
+/// The byte sink for a media request, targeting the LAN or WAN bandwidth counter
+/// by the client's network class (same classification as playback sessions).
+fn byte_sink(state: &SharedState, headers: &HeaderMap, addr: &SocketAddr) -> crate::infra::metrics::ByteSink {
+    let ip = client_ip(headers, addr);
+    let is_lan = playback::is_lan(&ip, &settings::local_networks(&state.settings));
+    state.metrics.sink(is_lan)
+}
 
 /// Direct-play streaming, HLS remux, storyboard previews and subtitle tracks.
 pub fn routes() -> Router<SharedState> {
@@ -43,13 +55,15 @@ pub async fn stream_item(
     State(state): State<SharedState>,
     Path(id): Path<String>,
     Query(q): Query<StreamQuery>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
 ) -> Result<Response, Response> {
     let item = query(&state.db, move |pool| db::get_item(&pool, &id))
         .await?
         .ok_or_else(|| json_error(StatusCode::NOT_FOUND, "item not found"))?;
     let abs_path = pick_file_path(&item, q.file.as_deref());
-    Ok(stream_or_demo_error(abs_path.as_deref(), &headers).await)
+    let sink = byte_sink(&state, &headers, &addr);
+    Ok(stream_or_demo_error(abs_path.as_deref(), &headers, sink).await)
 }
 
 /// Resolve which physical file to stream: an explicit `?file=<id>` when it
@@ -104,6 +118,19 @@ pub async fn hls_master(
             if let Ok(v) = header::HeaderValue::from_str(&format!("{start:.3}")) {
                 resp.headers_mut().insert("X-Hls-Start", v);
             }
+            // `X-Media-Duration` is the TRUE total length (s): the DB duration when
+            // the file was probed, else a cached on-demand ffprobe. The client uses
+            // it when its catalog `durationMs` is missing so the slider spans the
+            // whole movie instead of the growing EVENT playlist's live edge.
+            let dur_ms = match item.duration_ms {
+                Some(d) => Some(d),
+                None => state.hls.input_duration_ms(&abs).await,
+            };
+            if let Some(secs) = dur_ms.map(|ms| ms as f64 / 1000.0).filter(|s| *s > 0.0) {
+                if let Ok(v) = header::HeaderValue::from_str(&format!("{secs:.3}")) {
+                    resp.headers_mut().insert("X-Media-Duration", v);
+                }
+            }
             resp
         }
         None => json_error(StatusCode::INTERNAL_SERVER_ERROR, "HLS remux unavailable (is ffmpeg installed?)"),
@@ -116,13 +143,20 @@ pub async fn hls_master(
 pub async fn hls_file(
     State(state): State<SharedState>,
     Path((id, mode, anchor, audio, file)): Path<(String, String, u64, u32, String)>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Response {
     let Some(mode) = StreamMode::parse(&mode) else {
         return json_error(StatusCode::BAD_REQUEST, "bad mode");
     };
     let immutable = !file.ends_with(".m3u8"); // segments/init are fixed per anchor; playlists grow
     match state.hls.file(&id, mode, anchor, audio, &file).await {
-        Some((bytes, ct)) => Response::builder()
+        Some((bytes, ct)) => {
+            // Meter the segment/playlist bytes into the bandwidth chart. The
+            // whole body is buffered, so count it up front (it delivers within a
+            // sample or two); playlists are tiny.
+            byte_sink(&state, &headers, &addr).add(bytes.len() as u64);
+            Response::builder()
             .header(header::CONTENT_TYPE, ct)
             // Each anchor's URLs are unique, so a segment's bytes never change →
             // safe to cache immutably. Playlists grow (event) → no-store.
@@ -131,7 +165,8 @@ pub async fn hls_file(
                 if immutable { "public, max-age=31536000, immutable" } else { "no-store" },
             )
             .body(Body::from(bytes))
-            .unwrap(),
+            .unwrap()
+        }
         None => json_error(StatusCode::NOT_FOUND, "segment not found (session expired?)"),
     }
 }

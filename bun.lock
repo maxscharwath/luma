@@ -123,8 +123,10 @@
         "hls.js": "^1.5.0",
         "input-otp": "^1.4.2",
         "react": "^19.2.0",
+        "react-call": "^2.0.2",
         "react-chartjs-2": "^5.3.1",
         "react-dom": "^19.2.0",
+        "shaka-player": "^5.2.2",
       },
       "devDependencies": {
         "@babel/core": "^8.0.1",
@@ -175,6 +177,7 @@
         "@radix-ui/react-select": "^2",
         "@tabler/icons-react": "^3.44.0",
         "@tanstack/react-query": "^5.101.2",
+        "react-call": "^2.0.2",
       },
       "devDependencies": {
         "@types/react": "^19",
@@ -305,6 +308,7 @@
       "dependencies": {
         "@kroma/module-sdk": "workspace:*",
         "@tabler/icons-react": "^3.44.0",
+        "react-call": "^2.0.2",
       },
       "devDependencies": {
         "@types/react": "^19",
@@ -337,6 +341,7 @@
         "@radix-ui/react-dropdown-menu": "^2",
         "@tabler/icons-react": "^3.44.0",
         "@tanstack/react-router": "^1.170.16",
+        "react-call": "^2.0.2",
       },
       "devDependencies": {
         "@types/react": "^19",
@@ -1069,6 +1074,8 @@
 
     "react": ["react@19.2.7", "", {}, "sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ=="],
 
+    "react-call": ["react-call@2.0.2", "", { "peerDependencies": { "react": ">=18", "react-dom": ">=18", "vite": ">=8" }, "optionalPeers": ["react-dom", "vite"] }, "sha512-egXLdccpWeRq+6XmR+jm/4Lg0w5zLAe/2jMzYdWtQkfe5qgfUJReZWdLWyPIfzZt215FBF6wFOZPaqne6MhNNw=="],
+
     "react-chartjs-2": ["react-chartjs-2@5.3.1", "", { "peerDependencies": { "chart.js": "^4.1.1", "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-h5IPXKg9EXpjoBzUfyWJvllMjG2mQ4EiuHQFhms/AjUm0XSZHhyRy2xVmLXHKrtcdrPO4mnGqRtYoD0vp95A0A=="],
 
     "react-dom": ["react-dom@19.2.7", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.7" } }, "sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ=="],
@@ -1102,6 +1109,8 @@
     "seroval": ["seroval@1.5.5", "", {}, "sha512-bSjOuPcwPKLSJNhr9+bZxA20nQxVle5J5MNsYRVE6cIg7KpRLXGupymePavu0jrxlPiPsr4xGZSB8yUY2sH2sw=="],
 
     "seroval-plugins": ["seroval-plugins@1.5.5", "", { "peerDependencies": { "seroval": "^1.0" } }, "sha512-+BDhqYM6CEn3x09v44dpa9p6974FuUB2dxk+Ctn04k0cO1Zt6QODTXfmEZK0eBaTe/fJBvP4NMGuNJ+R8T+QMg=="],
+
+    "shaka-player": ["shaka-player@5.2.2", "", {}, "sha512-1Z5Sxqz7nEAtvp4zlZKAHQSEq6cUlw5CKAdUxqmuMNeZgu23090VXMcEDdiSLU5qtMn1skFOzq+KKCVX71bHqw=="],
 
     "shell-quote": ["shell-quote@1.8.4", "", {}, "sha512-VsC6n6vz1ihYYyZZwX7YZSF5l5x36ca17OC+a69h94YqB7X6XLwf+5MOgynYir2SLFUbl8gIYvBo8K8RoNQ6bQ=="],
 

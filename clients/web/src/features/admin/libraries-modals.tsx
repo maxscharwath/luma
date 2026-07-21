@@ -1,10 +1,12 @@
 import type { AdminLibrary } from '@kroma/core';
 import { useT } from '@kroma/ui';
 import { useState } from 'react';
+import { createCallable } from 'react-call';
 import { FolderPicker } from '#web/features/admin/folder-picker';
 import { useAsyncAction } from '#web/features/admin/shell';
 import { Field, Modal, ModalActions, SegmentedControl } from '#web/features/admin/ui';
 import { useAuth } from '#web/shared/lib/auth';
+import { confirmDialog } from '#web/shared/ui';
 
 /** Library kind as accepted by the create/update API: `""` = Auto. */
 export type LibKind = '' | 'movies' | 'shows' | 'mixed';
@@ -39,10 +41,7 @@ export function LibraryTypeSelect({
   );
 }
 
-export function AddLibraryModal({
-  onClose,
-  onCreated,
-}: Readonly<{ onClose: () => void; onCreated: () => void }>) {
+export const AddLibraryModal = createCallable<void, boolean>(({ call }) => {
   const t = useT();
   const { client } = useAuth();
   const [name, setName] = useState('');
@@ -58,12 +57,12 @@ export function AddLibraryModal({
         kind,
         folders: folder.trim() ? [folder.trim()] : [],
       });
-      onCreated();
+      call.end(true);
     });
   };
 
   return (
-    <Modal title={t('admin.addLibrary')} onClose={onClose}>
+    <Modal title={t('admin.addLibrary')} onClose={() => call.end(false)}>
       <Field label={t('admin.name')}>
         <input
           value={name}
@@ -79,7 +78,7 @@ export function AddLibraryModal({
         <FolderPicker value={folder} onChange={setFolder} />
       </Field>
       <ModalActions
-        onCancel={onClose}
+        onCancel={() => call.end(false)}
         cancelLabel={t('common.cancel')}
         onConfirm={() => {
           create();
@@ -90,69 +89,70 @@ export function AddLibraryModal({
       />
     </Modal>
   );
-}
+});
 
-export function ManageLibraryModal({
-  lib,
-  onClose,
-  onChanged,
-}: Readonly<{
-  lib: AdminLibrary;
-  onClose: () => void;
-  onChanged: () => void;
-}>) {
-  const t = useT();
-  const { client } = useAuth();
-  const [name, setName] = useState(lib.name);
-  const [autoScan, setAutoScan] = useState(lib.autoScan);
-  const { busy, run } = useAsyncAction();
+export const ManageLibraryModal = createCallable<{ lib: AdminLibrary }, boolean>(
+  ({ call, lib }) => {
+    const t = useT();
+    const { client } = useAuth();
+    const [name, setName] = useState(lib.name);
+    const [autoScan, setAutoScan] = useState(lib.autoScan);
+    const { busy, run } = useAsyncAction();
 
-  const save = () =>
-    run(async () => {
-      await client.updateLibrary(lib.id, { name: name.trim(), autoScan });
-      onChanged();
-    });
-  const remove = () => {
-    if (!confirm(t('admin.confirmDeleteLibrary', { name: lib.name }))) return;
-    run(async () => {
-      await client.deleteLibrary(lib.id);
-      onChanged();
-    });
-  };
+    const save = () =>
+      run(async () => {
+        await client.updateLibrary(lib.id, { name: name.trim(), autoScan });
+        call.end(true);
+      });
+    const remove = async () => {
+      const ok = await confirmDialog({
+        title: t('common.delete'),
+        message: t('admin.confirmDeleteLibrary', { name: lib.name }),
+        confirmLabel: t('common.delete'),
+        cancelLabel: t('common.cancel'),
+        destructive: true,
+      });
+      if (!ok) return;
+      run(async () => {
+        await client.deleteLibrary(lib.id);
+        call.end(true);
+      });
+    };
 
-  return (
-    <Modal title={t('admin.manageLibrary', { name: lib.name })} onClose={onClose}>
-      <Field label={t('admin.name')}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px]"
+    return (
+      <Modal title={t('admin.manageLibrary', { name: lib.name })} onClose={() => call.end(false)}>
+        <Field label={t('admin.name')}>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px]"
+          />
+        </Field>
+        <label className="mb-4 flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={autoScan}
+            onChange={(e) => setAutoScan(e.target.checked)}
+            className="h-4 w-4 accent-(--kroma-accent)"
+          />
+          <span className="text-[14px] font-semibold">{t('admin.autoScan')}</span>
+        </label>
+        <ModalActions
+          onCancel={() => call.end(false)}
+          cancelLabel={t('common.cancel')}
+          onConfirm={() => {
+            save();
+          }}
+          confirmLabel={busy ? t('common.saving') : t('common.save')}
+          busy={busy}
+          destructive={{
+            label: t('common.delete'),
+            onClick: () => {
+              void remove();
+            },
+          }}
         />
-      </Field>
-      <label className="mb-4 flex cursor-pointer items-center gap-3">
-        <input
-          type="checkbox"
-          checked={autoScan}
-          onChange={(e) => setAutoScan(e.target.checked)}
-          className="h-4 w-4 accent-(--kroma-accent)"
-        />
-        <span className="text-[14px] font-semibold">{t('admin.autoScan')}</span>
-      </label>
-      <ModalActions
-        onCancel={onClose}
-        cancelLabel={t('common.cancel')}
-        onConfirm={() => {
-          save();
-        }}
-        confirmLabel={busy ? t('common.saving') : t('common.save')}
-        busy={busy}
-        destructive={{
-          label: t('common.delete'),
-          onClick: () => {
-            remove();
-          },
-        }}
-      />
-    </Modal>
-  );
-}
+      </Modal>
+    );
+  },
+);

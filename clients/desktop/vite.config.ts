@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type UserConfig } from 'vite';
+import { clientVersion } from '../tv-build/shell';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -15,6 +16,9 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 export default defineConfig(
   ({ command }): UserConfig => ({
     plugins: [tailwindcss(), react()],
+    // This build's version, for the server-compatibility banner (see @kroma/tv
+    // CompatBanner / @kroma/core checkServerCompat).
+    define: { __KROMA_VERSION__: JSON.stringify(clientVersion(repoRoot)) },
     // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
     resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) } },
     // Loadable both from a served origin and directly via file:// in a kiosk, so keep

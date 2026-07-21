@@ -6,9 +6,16 @@
 
 import { type CastMember, formatRuntime, type MediaItem, posterColors } from '@kroma/core';
 import { Image, useT } from '@kroma/ui';
-import { IconCheck, IconChevronRight, IconPlayerPlayFilled, IconPlus } from '@tabler/icons-react';
+import {
+  IconCheck,
+  IconChevronRight,
+  IconFlag,
+  IconPlayerPlayFilled,
+  IconPlus,
+} from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { CastRail } from '#web/features/catalog/detail';
+import { ReportDialog } from '#web/features/catalog/report-dialog';
 import { RequestStatusChip } from '#web/features/requests/request-status-chip';
 import { kromaClient } from '#web/shared/lib/api';
 import type { TitleSeason } from '#web/shared/lib/titleView';
@@ -31,6 +38,11 @@ function EpisodeRow({
   const runtime = formatRuntime(episode.durationMs);
   const synopsis = episode.metadata?.overview;
   const still = kromaClient().backdropFor(episode);
+  const num =
+    episode.season != null && episode.episode != null
+      ? `S${String(episode.season).padStart(2, '0')}E${String(episode.episode).padStart(2, '0')} · `
+      : '';
+  const reportLabel = `${num}${episode.episodeTitle ?? episode.title}`;
   return (
     <div
       className={`group flex items-center gap-3 rounded-[14px] border bg-white/2.5 p-3.5 transition-colors hover:bg-white/6 sm:gap-5 ${
@@ -81,6 +93,21 @@ function EpisodeRow({
             </p>
           ) : null}
         </div>
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void ReportDialog.call({
+            subjectKind: 'episode',
+            subjectId: episode.id,
+            subjectTitle: reportLabel,
+          })
+        }
+        aria-label={t('report.action')}
+        title={t('report.action')}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-white/5 text-text opacity-60 transition-colors hover:bg-white/15 hover:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+      >
+        <IconFlag size={16} stroke={2} />
       </button>
       <button
         type="button"

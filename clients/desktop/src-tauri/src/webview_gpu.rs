@@ -1,12 +1,16 @@
 // Persisted opt-in for the WebKitGTK DMABUF (GPU) renderer on Linux/Deck.
 //
-// prepare_linux_env (main.rs) hard-disables the renderer because the Deck's
-// webview aborted on EGL - but that workaround predates fix-appimage.sh
-// removing the poisoned bundled libwayland, so GPU rendering may be healthy
-// now, and it is a massive perf win on a 4K TV. This module stores the user's
-// choice (the "GPU rendering" row in the TV profile menu) in the app config
-// dir and applies it before WebKitGTK initialises; flipping it therefore only
-// takes effect on a fresh boot, so the frontend relaunches right after.
+// GPU (DMABUF) rendering is the DEFAULT now (DEFAULT_GPU). main.rs used to
+// hard-DISABLE the renderer because the Deck's webview aborted on EGL, but that
+// workaround predates fix-appimage.sh removing the poisoned bundled libwayland:
+// EGL is healthy again (mpv's gpu-next comes up clean on the Deck) and forcing
+// software rendering black-screened the transform-composited app layer under the
+// transparent window (nothing painted, the mpv plane showed through). It is a
+// massive perf win on a 4K TV besides. So we default to GPU and treat the menu
+// row as an opt-OUT to software. This module stores the user's choice (the "GPU
+// rendering" row in the TV profile menu) in the app config dir and applies it
+// before WebKitGTK initialises; flipping it therefore only takes effect on a
+// fresh boot, so the frontend relaunches right after.
 //
 // Boot guard: a GPU boot arms a probe marker that the frontend disarms once it
 // is actually running (`webview_boot_ok`). A marker still present at the next
@@ -17,6 +21,12 @@
 // menu row away.)
 
 use std::path::PathBuf;
+
+/// GPU (DMABUF) rendering is on by default (opt-out via the menu). See the
+/// module header for why software rendering was retired as the default. The
+/// crash guard in `apply_env` reverts a GPU boot that never reaches the frontend
+/// back to software, so a genuinely broken GPU stack still recovers on its own.
+const DEFAULT_GPU: bool = true;
 
 /// The app's XDG config dir; mirrors Tauri's `app_config_dir` for our
 /// identifier without needing an `AppHandle` (this runs before the app is
@@ -37,14 +47,17 @@ fn probe_path() -> Option<PathBuf> {
     config_dir().map(|d| d.join("webview-gpu.probe"))
 }
 
-/// The persisted choice; absent/unreadable reads as "software rendering".
+/// Whether the WebKitGTK GPU (DMABUF) renderer should be used this boot. GPU is
+/// the default (DEFAULT_GPU), so only an explicit opt-OUT via the menu
+/// (`{"dmabuf": false}`) selects software rendering; an absent / unreadable /
+/// malformed settings file reads as GPU-enabled.
 fn gpu_enabled() -> bool {
-    let Some(path) = settings_path() else { return false };
-    let Ok(raw) = std::fs::read_to_string(path) else { return false };
+    let Some(path) = settings_path() else { return DEFAULT_GPU };
+    let Ok(raw) = std::fs::read_to_string(path) else { return DEFAULT_GPU };
     serde_json::from_str::<serde_json::Value>(&raw)
         .ok()
         .and_then(|v| v.get("dmabuf").and_then(serde_json::Value::as_bool))
-        .unwrap_or(false)
+        .unwrap_or(DEFAULT_GPU)
 }
 
 /// Best-effort persist; a write failure only costs the preference.

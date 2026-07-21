@@ -50,11 +50,23 @@ const YEAR_FAR: f32 = -0.35;
 /// enough that it can never overturn a title or year signal.
 const VOTES_WEIGHT: f32 = 0.03;
 const VOTES_CAP: u32 = 2000;
+/// A match that only holds after dropping a leading article ("Matrix" onto "The
+/// Matrix") is still a match, but it must never *tie* a literally-exact title:
+/// otherwise "A Scary Movie" folds onto "Scary Movie" and outranks the real
+/// "Scary Movie" on nothing but TMDB's result ordering. Cap what the
+/// article-tolerant path can award just below a perfect score.
+const ARTICLE_MATCH_CEIL: f32 = 0.97;
 
 /// Score one candidate in `0.0..=1.0`. See [`MIN_SCORE`] for the accept cutoff.
 pub fn score(query: &Query, candidate: &Candidate) -> f32 {
-    let sim = similarity(query.title, &candidate.title)
-        .max(similarity(query.title, &candidate.original_title));
+    score_parts(query, candidate).0
+}
+
+/// [`score`] plus the tiebreak signal `pick_best` needs beyond the clamped
+/// number: whether the title matched *literally* (equal without dropping an
+/// article), so an exact hit beats an article-variant even when both clamp to 1.0.
+fn score_parts(query: &Query, candidate: &Candidate) -> (f32, bool) {
+    let (sim, exact) = title_match(query.title, candidate);
     let year_adj = match (query.year, candidate.year) {
         (Some(a), Some(b)) if a == b => YEAR_EXACT,
         (Some(a), Some(b)) if a.abs_diff(b) <= 1 => YEAR_NEAR,
@@ -64,16 +76,54 @@ pub fn score(query: &Query, candidate: &Candidate) -> f32 {
         _ => 0.0,
     };
     let votes = VOTES_WEIGHT * (candidate.votes.min(VOTES_CAP) as f32 / VOTES_CAP as f32);
-    (SIM_WEIGHT * sim + year_adj + votes).clamp(0.0, 1.0)
+    ((SIM_WEIGHT * sim + year_adj + votes).clamp(0.0, 1.0), exact)
+}
+
+/// Best title similarity in `0.0..=1.0` across the candidate's localized and
+/// original titles, plus whether that best was a *literal* match. A literal match
+/// is reserved the perfect 1.0; a match that only holds once a leading article is
+/// dropped is capped at [`ARTICLE_MATCH_CEIL`], so an exact title always outranks a
+/// namesake that merely folds onto it.
+fn title_match(query: &str, candidate: &Candidate) -> (f32, bool) {
+    let (sim_t, exact_t) = title_similarity(query, &candidate.title);
+    let (sim_o, exact_o) = title_similarity(query, &candidate.original_title);
+    (sim_t.max(sim_o), exact_t || exact_o)
+}
+
+/// Similarity of one title to the query, and whether it was literal. `strict`
+/// keeps articles so an exact title scores a true 1.0; the article-tolerant
+/// `loose` path only rescues an article difference ("Matrix" vs "The Matrix") and
+/// is capped below 1.0 so it can never tie the literal form.
+fn title_similarity(query: &str, title: &str) -> (f32, bool) {
+    let q = normalize_core(query);
+    let t = normalize_core(title);
+    let strict = dice(&q, &t);
+    if strict >= 1.0 {
+        return (1.0, true);
+    }
+    let loose = dice(&strip_article(&q), &strip_article(&t));
+    (strict.max(ARTICLE_MATCH_CEIL * loose), false)
 }
 
 /// The best candidate and its score, or `None` when nothing clears [`MIN_SCORE`].
 pub fn pick_best<'a>(query: &Query, candidates: &'a [Candidate]) -> Option<(&'a Candidate, f32)> {
     candidates
         .iter()
-        .map(|c| (c, score(query, c)))
-        .filter(|&(_, s)| s >= MIN_SCORE)
-        .max_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|c| {
+            let (s, exact) = score_parts(query, c);
+            (c, s, exact)
+        })
+        .filter(|&(_, s, _)| s >= MIN_SCORE)
+        // Rank by score, then break ties deterministically so the pick never rides
+        // on TMDB's result ordering: a literal-exact title over an article-variant,
+        // then the better-known film (votes), then the lower id.
+        .max_by(|a, b| {
+            a.1.total_cmp(&b.1)
+                .then(a.2.cmp(&b.2))
+                .then(a.0.votes.cmp(&b.0.votes))
+                .then(b.0.tmdb_id.cmp(&a.0.tmdb_id))
+        })
+        .map(|(c, s, _)| (c, s))
 }
 
 /// Sorensen-Dice coefficient over the character bigrams of the two normalized
@@ -81,14 +131,20 @@ pub fn pick_best<'a>(query: &Query, candidates: &'a [Candidate]) -> Option<(&'a 
 /// word-order-tolerant: a missing subtitle degrades gracefully instead of falling
 /// off a cliff, and a transposed word costs far less than it would in Levenshtein.
 pub fn similarity(a: &str, b: &str) -> f32 {
-    let (a, b) = (normalize(a), normalize(b));
+    dice(&normalize(a), &normalize(b))
+}
+
+/// Sorensen-Dice coefficient over two already-normalized strings. Split out from
+/// [`similarity`] so title scoring can run it over both the article-stripped and
+/// the article-preserving forms without re-folding.
+fn dice(a: &str, b: &str) -> f32 {
     if a.is_empty() || b.is_empty() {
         return 0.0;
     }
     if a == b {
         return 1.0;
     }
-    let (mut left, right) = (bigrams(&a), bigrams(&b));
+    let (mut left, right) = (bigrams(a), bigrams(b));
     if left.is_empty() || right.is_empty() {
         return 0.0;
     }
@@ -107,6 +163,13 @@ pub fn similarity(a: &str, b: &str) -> f32 {
 /// Fold a title to its comparable form: lowercase, accents stripped, every run of
 /// punctuation reduced to one space, leading article dropped.
 pub fn normalize(raw: &str) -> String {
+    strip_article(&normalize_core(raw))
+}
+
+/// [`normalize`] without dropping a leading article. Used where the article is
+/// signal rather than noise: telling a literal title match ("Scary Movie") apart
+/// from one that only holds once the article is stripped ("A Scary Movie").
+fn normalize_core(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for ch in raw.chars() {
         if ch.is_ascii_alphanumeric() {
@@ -121,7 +184,7 @@ pub fn normalize(raw: &str) -> String {
             None => {}
         }
     }
-    strip_article(out.trim())
+    out.trim().to_string()
 }
 
 /// Lowercase + de-accent one non-ASCII-alphanumeric char; `None` for anything
@@ -303,6 +366,48 @@ mod tests {
             votes: 0,
         };
         assert!(pick_best(&q, &[c]).is_some());
+    }
+
+    #[test]
+    fn an_article_variant_scores_below_a_literal_title() {
+        // "A Scary Movie" folds onto "Scary Movie" once the article is dropped, so
+        // it used to score an identical 1.0. It must now land just under the exact
+        // title so the picker can tell them apart.
+        let q = Query { title: "Scary Movie", year: Some(2026) };
+        let exact = score(&q, &cand(1, "Scary Movie", Some(2026)));
+        let variant = score(&q, &cand(2, "A Scary Movie", Some(2026)));
+        assert_eq!(exact, 1.0);
+        assert!(variant < exact, "variant {variant} should sit below exact {exact}");
+        // Still clearly a match, just not the winner: the article rescue is intact.
+        assert!(variant > 0.9, "variant {variant} should stay a strong match");
+    }
+
+    #[test]
+    fn pick_best_prefers_an_exact_title_over_an_article_variant() {
+        // The reported failure: a file "Scary Movie (2026)" matched "A Scary Movie"
+        // (an unrelated 2026 documentary) because dropping the leading article made
+        // the titles score identically and TMDB's ordering broke the tie.
+        let q = Query { title: "Scary Movie", year: Some(2026) };
+        let exact = Candidate {
+            tmdb_id: 1273221,
+            title: "Scary Movie".to_string(),
+            original_title: "Scary Movie".to_string(),
+            year: Some(2026),
+            votes: 40,
+        };
+        let variant = Candidate {
+            tmdb_id: 1513026,
+            title: "A Scary Movie".to_string(),
+            original_title: "Una película de miedo".to_string(),
+            year: Some(2026),
+            votes: 3,
+        };
+        // Either ordering must pick the exact title. The variant-last case is the
+        // one that used to fail: `max_by` returns the last of equal maxima.
+        let exact_first = [exact.clone(), variant.clone()];
+        assert_eq!(pick_best(&q, &exact_first).expect("a match").0.tmdb_id, 1273221);
+        let variant_first = [variant, exact];
+        assert_eq!(pick_best(&q, &variant_first).expect("a match").0.tmdb_id, 1273221);
     }
 
     #[test]

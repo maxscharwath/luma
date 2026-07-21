@@ -2,6 +2,7 @@ import type { PlaybackSession } from '@kroma/core';
 import { Image, useT } from '@kroma/ui';
 import { IconPlayerStopFilled } from '@tabler/icons-react';
 import { useId, useState } from 'react';
+import { createCallable } from 'react-call';
 import { Avatar, C, Card, Modal, ProgressBar } from '#web/features/admin/ui';
 import { useStoryboard } from '#web/features/playback/use-storyboard';
 import { formatMbps, posterGradient, timecode } from '#web/shared/lib/adminFormat';
@@ -204,63 +205,67 @@ function Stat({ label, children }: Readonly<{ label: string; children: React.Rea
   );
 }
 
-export function StopStreamModal({
-  session,
-  onClose,
-  onStopped,
-}: Readonly<{ session: PlaybackSession; onClose: () => void; onStopped: () => void }>) {
-  const t = useT();
-  const { client } = useAuth();
-  const messageId = useId();
-  const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
+/**
+ * The "stop this stream" confirmation, as an imperative callable: open it with
+ * `await StopStreamModal.call({ session })`, which resolves `true` once the
+ * session was terminated (so the caller can refresh) or `false` if dismissed.
+ * Its root is mounted once by `AdminModalHosts`; no open-state at the call site.
+ */
+export const StopStreamModal = createCallable<{ session: PlaybackSession }, boolean>(
+  ({ call, session }) => {
+    const t = useT();
+    const { client } = useAuth();
+    const messageId = useId();
+    const [message, setMessage] = useState('');
+    const [busy, setBusy] = useState(false);
 
-  async function stop() {
-    setBusy(true);
-    try {
-      await client.terminateSession(session.id, message);
-      onStopped();
-    } finally {
-      setBusy(false);
+    async function stop() {
+      setBusy(true);
+      try {
+        await client.terminateSession(session.id, message);
+        call.end(true);
+      } finally {
+        setBusy(false);
+      }
     }
-  }
 
-  return (
-    <Modal title={t('admin.stopStreamTitle')} onClose={onClose}>
-      <p className="mb-4 text-[13px] text-dim">
-        {t('admin.stopStreamDesc', { user: session.username })}
-      </p>
-      <label
-        htmlFor={messageId}
-        className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim"
-      >
-        {t('admin.stopMessageLabel')}
-      </label>
-      <textarea
-        id={messageId}
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        rows={2}
-        placeholder={t('admin.stopMessagePlaceholder')}
-        className="mb-5 w-full resize-none rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px] outline-none focus:border-accent/60"
-      />
-      <div className="flex justify-end gap-2.5">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
+    return (
+      <Modal title={t('admin.stopStreamTitle')} onClose={() => call.end(false)}>
+        <p className="mb-4 text-[13px] text-dim">
+          {t('admin.stopStreamDesc', { user: session.username })}
+        </p>
+        <label
+          htmlFor={messageId}
+          className="mb-1.5 block text-[12px] font-bold uppercase tracking-[.12em] text-dim"
         >
-          {t('common.cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={() => void stop()}
-          disabled={busy}
-          className="rounded-md bg-[#E8536A] px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-50"
-        >
-          {busy ? '…' : t('admin.stopStream')}
-        </button>
-      </div>
-    </Modal>
-  );
-}
+          {t('admin.stopMessageLabel')}
+        </label>
+        <textarea
+          id={messageId}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={2}
+          placeholder={t('admin.stopMessagePlaceholder')}
+          className="mb-5 w-full resize-none rounded-lg border border-border-strong bg-surface-2 px-3 py-2.5 text-[14px] outline-none focus:border-accent/60"
+        />
+        <div className="flex justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={() => call.end(false)}
+            className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-muted"
+          >
+            {t('common.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void stop()}
+            disabled={busy}
+            className="rounded-md bg-[#E8536A] px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-50"
+          >
+            {busy ? '…' : t('admin.stopStream')}
+          </button>
+        </div>
+      </Modal>
+    );
+  },
+);
