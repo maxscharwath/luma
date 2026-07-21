@@ -14,6 +14,21 @@
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
+    <!-- Android 11+ package visibility: to publish into the launcher home rows
+         (the "Continue watching" / Watch Next row + the recommendations preview
+         channel) the app must be able to see and message the TV launcher. Without
+         this the AppsFilter BLOCKS the interaction, so requestChannelBrowsable
+         never reaches the launcher and our rows never surface. Declare the Google
+         TV launcher/recommendation packages plus the channel-browsable request
+         intent (which also covers non-Google TV launchers). -->
+    <queries>
+        <package android:name="com.google.android.tvlauncher" />
+        <package android:name="com.google.android.tvrecommendations" />
+        <intent>
+            <action android:name="android.media.tv.action.REQUEST_CHANNEL_BROWSABLE" />
+        </intent>
+    </queries>
+
     <application
         android:label="@string/app_name"
         android:icon="@drawable/tv_banner"

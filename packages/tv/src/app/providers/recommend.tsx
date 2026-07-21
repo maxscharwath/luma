@@ -12,29 +12,52 @@ import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { getExo } from '#tv/features/playback/player/engine';
 
-/** Flatten the home sections (recently added + suggestions) into the KROMA
- * preview-channel program list the native Android shell consumes. Movies only:
- * the Watch Next / preview deep link resolves a movie id. The art is the public
- * composited card (backdrop + KROMA logo), same vignette as Tizen. */
-function toHomeChannel(sections: Section[], client: KromaClient) {
-  const seen = new Set<string>();
-  const out: { id: string; title: string; subtitle: string; imageUrl: string; kind: string }[] = [];
-  for (const s of sections) {
+type HomeProgram = { id: string; title: string; subtitle: string; imageUrl: string; kind: string };
+// The native shell keys each launcher channel by its ROW INDEX (see HomeChannel.kt),
+// so the section id is not sent - only the display title + its programs.
+type HomeChannelSpec = { title: string; items: HomeProgram[] };
+
+/** The GENERIC, evergreen home rows to mirror onto the launcher, in display order.
+ * `/api/home` also returns personalized/themed rows ("Because you watched X",
+ * "Aventures fantastiques légères", curated editorial) - those make poor, unstable
+ * launcher channels, so only these stable, self-explanatory categories are published
+ * (their server ids are fixed; see services/sections build_home). */
+const GENERIC_HOME_ROWS = ['recent', 'for-you', 'trending'] as const;
+
+/** Map the generic home sections into named launcher rows (one KROMA preview channel
+ * each) the native Android shell publishes to the Google TV home - the multi-row
+ * equivalent of the Tizen shortcuts. Movies only (the preview deep link resolves a
+ * movie id); the art is the public composited card (backdrop + KROMA logo). */
+function toHomeChannels(sections: Section[], client: KromaClient): HomeChannelSpec[] {
+  const byId = new Map(sections.map((s) => [s.id, s]));
+  const channels: HomeChannelSpec[] = [];
+  for (const id of GENERIC_HOME_ROWS) {
+    const s = byId.get(id);
+    if (!s) continue;
+    const seen = new Set<string>();
+    const items: HomeProgram[] = [];
     for (const e of s.items) {
       if (e.type !== 'movie' || seen.has(e.item.id)) continue;
       seen.add(e.item.id);
       const m = e.item;
-      out.push({
+      items.push({
         id: m.id,
         title: m.title,
         subtitle: m.year ? String(m.year) : '',
         imageUrl: `${client.baseUrl}/api/items/${encodeURIComponent(m.id)}/card?v=${encodeURIComponent(m.addedAt)}`,
         kind: 'movie',
       });
-      if (out.length >= 40) return out; // preview channels cap ~50; stay lean
+      if (items.length >= 20) break; // per-row cap; the launcher shows only a handful
     }
+    if (items.length) channels.push({ title: s.title, items });
   }
-  return out;
+  // The generic rows are matched by fixed server section ids; if the server ever
+  // renames them we'd silently publish nothing, so surface that instead of a blank
+  // launcher (loud in dev; harmless in prod).
+  if (!channels.length && sections.length) {
+    console.warn('[KROMA] no generic home rows matched section ids', GENERIC_HOME_ROWS);
+  }
+  return channels;
 }
 
 interface Recommend {
@@ -93,9 +116,9 @@ export function RecommendProvider({ children }: Readonly<{ children: ReactNode }
   useEffect(() => {
     const exo = getExo();
     if (!exo?.setHomeChannel || !client) return;
-    const json = JSON.stringify(toHomeChannel(sections, client));
+    const json = JSON.stringify(toHomeChannels(sections, client));
     if (json === lastPushed.current) return;
-    // Don't create an empty channel on the first (pre-load) render; an empty push
+    // Don't create empty channels on the first (pre-load) render; an empty push
     // is only meaningful as a clear AFTER we've published something.
     if (json === '[]' && lastPushed.current === '') return;
     lastPushed.current = json;

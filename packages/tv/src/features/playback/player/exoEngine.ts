@@ -55,7 +55,7 @@ export class ExoEngine extends BaseTvEngine {
   private readonly bridge: ExoShellBridge;
   private bufSec = 0;
 
-  constructor(opts: EngineOptions) {
+  constructor(opts: EngineOptions & { forceVlc?: boolean }) {
     super(opts);
     // ExoPlayer reports its playing/paused state via events; assume paused until
     // the first `state` event arrives.
@@ -66,6 +66,13 @@ export class ExoEngine extends BaseTvEngine {
     (globalThis as ExoEventGlobal).__kromaExoEvent = (e) => {
       if (!this.destroyed) this.onEvent(e);
     };
+    // The "libVLC" engine: have the bridge software-decode every item from the
+    // start (not just as a decode-failure fallback). Set the mode UNCONDITIONALLY
+    // (before the first load()): the bridge is a long-lived singleton shared by
+    // every engine instance, so switching AWAY from libVLC must actively reset it,
+    // or a stale forceVlc would keep software-decoding later titles. An older APK
+    // without setEngine stays ExoPlayer-first (harmless).
+    this.bridge.setEngine?.(opts.forceVlc ? 'vlc' : 'exo');
     this.open();
   }
 

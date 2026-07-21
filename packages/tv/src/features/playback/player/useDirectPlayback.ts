@@ -23,6 +23,7 @@ import {
 } from '@kroma/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  availableEngines,
   type EnginePref,
   getEnginePref,
   setEnginePref as persistEnginePref,
@@ -141,6 +142,10 @@ type Engine = 'mpv' | 'exo' | 'avplay' | 'video-direct' | 'video-remux';
  * isn't available on this platform (e.g. `mpv` off the Linux shell, `avplay` off
  * Tizen) quietly falls through to `auto`. */
 function resolveEngine(pref: EnginePref, env: PlayEnv, autoDirect: boolean): Engine {
+  // A stored engine no longer offered on this platform (e.g. a device left on
+  // `remux` after it was retired on Android TV, where the WebView cannot decode
+  // HEVC) must not strand playback on a dead engine - degrade it to `auto`.
+  if (pref !== 'auto' && !availableEngines().includes(pref)) pref = 'auto';
   const tizenNative = env.platform === 'tizen' && avplayAvailable();
   // Manual overrides.
   if (pref === 'avplay' && tizenNative) return 'avplay';
@@ -148,6 +153,9 @@ function resolveEngine(pref: EnginePref, env: PlayEnv, autoDirect: boolean): Eng
   if (pref === 'remux') return 'video-remux';
   if (pref === 'mpv' && mpvAvailable()) return 'mpv';
   if (pref === 'exo' && exoAvailable()) return 'exo';
+  // libVLC runs on the same native bridge as ExoPlayer (surface 'exo'); the
+  // forceVlc flag (see planEngine) tells the bridge to software-decode from the start.
+  if (pref === 'vlc' && exoAvailable()) return 'exo';
   // auto:
   if (tizenNative) return 'avplay';
   if (env.platform === 'desktop' && mpvAvailable()) return 'mpv';
@@ -203,6 +211,9 @@ interface EnginePlan {
   useAvplay: boolean;
   avplayDirect: boolean;
   exoDirect: boolean;
+  /** The user forced the "libVLC" engine: play every item through libVLC (software
+   * decode) from the start, on the ExoPlayer bridge/surface. */
+  forceVlc: boolean;
   direct: boolean;
   masterAac: boolean;
   playbackMode: 'direct' | 'remux' | 'transcode';
@@ -250,10 +261,14 @@ function planEngine(item: MediaItem, env: PlayEnv, pref: EnginePref): EnginePlan
   const useMpv = eng === 'mpv';
   const useExo = eng === 'exo';
   const useAvplay = eng === 'avplay';
+  // The user forced libVLC (runs on the exo bridge). It software-decodes ANY
+  // codec, so it always opens the ORIGINAL file directly (no pointless server
+  // remux), regardless of what the device's hardware decoders can handle.
+  const forceVlc = useExo && pref === 'vlc';
   // ExoPlayer demuxes (at least) the same container set AVPlay does, so the same
   // gate decides whether it opens the ORIGINAL file (zero server work).
   const avplayDirect = useAvplay && avplayDirectPlayable(item);
-  const exoDirect = useExo && avplayDirectPlayable(item);
+  const exoDirect = useExo && (forceVlc || avplayDirectPlayable(item));
   const direct = eng === 'video-direct';
   return {
     eng,
@@ -263,6 +278,7 @@ function planEngine(item: MediaItem, env: PlayEnv, pref: EnginePref): EnginePlan
     useAvplay,
     avplayDirect,
     exoDirect,
+    forceVlc,
     direct,
     // Env-aware: Safari's native HLS decodes AC3/E-AC3 so its master is stream-copied
     // (5.1 kept); Chromium/webOS MSE can't, so `selectEngine` marks those AAC.
@@ -291,6 +307,7 @@ function createTvEngine(args: {
   startSec: number;
   exoDirect: boolean;
   avplayDirect: boolean;
+  forceVlc: boolean;
   direct: boolean;
   masterAac: boolean;
   audioFilter: AudioFilterMode;
@@ -307,6 +324,7 @@ function createTvEngine(args: {
     startSec,
     exoDirect,
     avplayDirect,
+    forceVlc,
     direct,
     masterAac: aacMaster,
     audioFilter,
@@ -333,6 +351,7 @@ function createTvEngine(args: {
   if (eng === 'exo') {
     // Native ExoPlayer opens the original file directly (hardware decode); an
     // internal direct->master fallback covers the rare file it cannot open.
+    // `forceVlc` makes libVLC the primary player (software-decode every codec).
     return new ExoEngine({
       client,
       item,
@@ -340,6 +359,7 @@ function createTvEngine(args: {
       initialRendition: rendition,
       startSec,
       direct: exoDirect,
+      forceVlc,
       audioFilter,
       listeners,
     });
@@ -400,6 +420,9 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(true);
   const [ready, setReady] = useState(false);
+  // Liveness heartbeat: bumped on every buffering signal so the load watchdog can
+  // tell "slow but alive" (keep waiting) from "dead" (fail). See the watchdog effect.
+  const [loadBeat, setLoadBeat] = useState(0);
   // Optimistic: a native plane is assumed to have DSP until its engine says
   // otherwise (the Android bridge only learns on the first real attempt, and
   // AVPlay only when the server's filtered remux fails).
@@ -432,8 +455,18 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   // lecture") re-plans + rebuilds the engine live. Seeded from the per-device
   // pref (shared with the profile-menu picker).
   const [enginePref, setEnginePrefState] = useState<EnginePref>(getEnginePref);
-  const { eng, surface, useMpv, useExo, avplayDirect, exoDirect, direct, masterAac, playbackMode } =
-    planEngine(item, env, enginePref);
+  const {
+    eng,
+    surface,
+    useMpv,
+    useExo,
+    avplayDirect,
+    exoDirect,
+    forceVlc,
+    direct,
+    masterAac,
+    playbackMode,
+  } = planEngine(item, env, enginePref);
   const durationSec = item.durationMs ? item.durationMs / 1000 : 0;
   // The runtime decode verdict for this item (from probed `capabilities()`). Drives
   // the pre-play warning and, when a `<video>`-engine attempt fails, the SPECIFIC
@@ -512,13 +545,26 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
         setWaiting(false);
       },
       onPause: () => setPlaying(false),
-      onWaiting: () => setWaiting(true),
+      onWaiting: () => {
+        setWaiting(true);
+        // Proof of life for the load watchdog: a slowly-opening native plane
+        // (libVLC software-decoding 10-bit) keeps emitting buffering signals, so
+        // resetting the timer on each one lets it take as long as it needs while a
+        // truly dead load (no signals) still fails after the grace period.
+        setLoadBeat((n) => n + 1);
+      },
       onPlaying: () => setWaiting(false),
       onEnded: () => setEndedNonce((n) => n + 1),
       onError: () => setError(failKey),
       onAudioFilterUnavailable: () => setAudioFilterSupported(false),
       onReady: () => {
         setReady(true);
+        // A load that finally signals ready IS working - clear any premature error
+        // the load watchdog raised (libVLC software-decoding 10-bit HEVC at a deep
+        // resume point can take longer than the grace period to reach ready, but it
+        // recovers). Without this the "codec not supported" toast lingers over a
+        // playing video.
+        setError(null);
         // Ready-gated, resilient autoplay: retry until playback actually starts,
         // then stop so we never fight a real user pause.
         if (!startedRef.current) engineRef.current?.play();
@@ -534,6 +580,7 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
       startSec,
       exoDirect,
       avplayDirect,
+      forceVlc,
       direct,
       masterAac,
       // Persisted mode, read at build time so a remembered filter is active from
@@ -579,22 +626,31 @@ export function useDirectPlayback(client: KromaClient, item: MediaItem): Playbac
   // prepare errors. After a grace period, log what we know and surface the failure.
   useEffect(() => {
     if (surface === 'avplay' || ready || error) return;
+    // The native software-decode planes (ExoPlayer's libVLC fallback, mpv) can take
+    // much longer than a hardware/`<video>` load to reach ready - libVLC decoding
+    // 10-bit HEVC at a deep resume point over the LAN routinely needs 20s+ - so give
+    // them a longer grace before crying failure, or the video plays UNDER a false
+    // "codec not supported" toast. `loadBeat` is in the deps: each buffering signal
+    // re-arms this timer, so a slow-but-alive load never trips it (and a dead one,
+    // which emits nothing, still fails after the grace).
+    const graceMs = surface === 'exo' || surface === 'mpv' ? 30000 : 15000;
+    const graceS = graceMs / 1000;
     const id = window.setTimeout(() => {
       if (surface === 'mpv' || surface === 'exo') {
-        console.error(`[KROMA] ${surface} engine did not signal ready in 15s`);
+        console.error(`[KROMA] ${surface} engine did not signal ready in ${graceS}s`);
       } else {
         const v = videoRef.current;
         const e = v?.error;
         console.error(
-          `[KROMA] stream did not load in 15s: networkState=${v?.networkState} ` +
+          `[KROMA] stream did not load in ${graceS}s: networkState=${v?.networkState} ` +
             `readyState=${v?.readyState} errorCode=${e?.code ?? '-'} ${e?.message ?? ''} ` +
             `src=${v?.currentSrc || v?.src || '(none)'}`,
         );
       }
       setError(failKey);
-    }, 15000);
+    }, graceMs);
     return () => window.clearTimeout(id);
-  }, [surface, ready, error, failKey]);
+  }, [surface, ready, error, failKey, loadBeat]);
 
   const getPosition = useCallback(() => engineRef.current?.position() ?? 0, []);
   // Resize the native video plane (shrink into the settings card, or null =

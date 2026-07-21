@@ -175,6 +175,11 @@ export interface ExoShellBridge {
   /** Terminate the whole app (the "Quitter" menu row). Optional: an older
    *  installed APK does not expose it, so the quit row stays hidden there. */
   quit?(): void;
+  /** Force the native playback engine for subsequent loads: `'vlc'` makes libVLC
+   *  the primary player (software-decode every codec), any other value restores
+   *  the ExoPlayer-first default. Optional: an older APK ignores the "libVLC"
+   *  engine choice and stays on ExoPlayer+fallback. */
+  setEngine?(mode: string): void;
   /** Publish the "continue watching" list to the launcher's system Watch Next
    *  row. JSON array of `{id,title,subtitle?,imageUrl?,progressMs,durationMs,
    *  kind}`; `[]` clears it. Optional: absent on older installed APKs. */

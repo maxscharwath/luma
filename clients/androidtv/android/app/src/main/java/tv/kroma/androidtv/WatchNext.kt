@@ -58,6 +58,7 @@ object WatchNext {
             for ((itemId, rows) in existing) {
                 if (!wanted.containsKey(itemId)) for (rowId in rows) removeRow(context, rowId)
             }
+            Log.i(TAG, "watch-next synced ${wanted.size} item(s)")
         } catch (e: Exception) {
             Log.w(TAG, "watch-next sync failed", e)
         }

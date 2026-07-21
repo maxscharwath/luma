@@ -25,9 +25,26 @@ class VlcPlayer(
 ) {
     // --no-drop-late-frames / --no-skip-frames: software HEVC on a weak box is slow;
     // keep every frame rather than stutter-skip. network-caching smooths HTTP range.
+    // --no-spdif: never bitstream-passthrough (S/PDIF / HDMI) the audio - always
+    // decode it to PCM. Passthrough asks the platform AudioTrack whether it can
+    // forward the compressed E-AC3 / DTS / TrueHD to a receiver; many Android sinks
+    // (and the emulator) answer yes but with a bogus sample rate 0, and VLC then
+    // fails to open ANY audio output ("too low audio sample frequency (0)", silent
+    // playback). Decoded PCM plays on every sink, which is the whole point of the
+    // libVLC fallback: sound for any codec, everywhere.
     private val libVlc = LibVLC(
         context,
-        arrayListOf("--no-drop-late-frames", "--no-skip-frames", "--network-caching=1500"),
+        arrayListOf(
+            "--no-drop-late-frames",
+            "--no-skip-frames",
+            "--network-caching=1500",
+            "--no-spdif",
+            // Never render VLC's own subtitles: KROMA draws them in the React
+            // overlay (fetched + styled + synced by the web player), so a burned-in
+            // VLC subtitle track would double up and ignore the app's styling.
+            "--no-spu",
+            "--no-sub-autodetect-file",
+        ),
     )
     private val player = MediaPlayer(libVlc)
     private var attached = false
@@ -66,11 +83,14 @@ class VlcPlayer(
     fun pause() = player.pause()
     fun seek(sec: Double) { player.time = (sec * 1000).toLong().coerceAtLeast(0) }
 
-    /** Select an audio track by its ZERO-BASED order among audio tracks (the web
-     * engine speaks audio-relative indices; VLC ids are absolute, so map them). */
+    /** Select an audio track by its ZERO-BASED order among the REAL audio tracks
+     * (the web engine speaks audio-relative, file-order indices). VLC's track list
+     * begins with a synthetic "Disable" entry (id -1) and the real tracks carry
+     * arbitrary ids, so drop the disable entry before mapping: indexing the raw list
+     * would pick "Disable" for index 0 and silence the audio entirely. */
     fun setAudio(index: Int) {
-        val ids = player.audioTracks?.map { it.id } ?: return
-        ids.getOrNull(index)?.let { player.audioTrack = it }
+        val real = player.audioTracks?.filter { it.id >= 0 } ?: return
+        real.getOrNull(index)?.let { player.audioTrack = it.id }
     }
 
     fun stop() {
