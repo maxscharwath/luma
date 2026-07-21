@@ -233,6 +233,17 @@ kroma-module-manifest = { workspace = true }
 kroma-module-supervisor = { workspace = true }
 rand = "0.10"
 
+# Optional HTTPS listener with an auto-generated self-signed certificate (src/tls.rs).
+# `axum-server` terminates TLS with rustls while keeping axum's make-service +
+# SocketAddr connect-info; `rcgen` mints the self-signed cert (LAN SANs). Both
+# pin the `ring` rustls provider (no aws-lc C build, matches the musl policy);
+# we install it explicitly at boot since more than one provider is in the graph.
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# Cross-platform hostname for the certificate's DNS SANs (<host>, <host>.local).
+hostname = "0.4"
+
 # Smart Hub preview "cards" (api/card.rs): composite a backdrop + logo + title
 # into a JPEG in-process. tiny-skia raster, fontdue glyphs, jpeg-encoder output.
 tiny-skia = { workspace = true }

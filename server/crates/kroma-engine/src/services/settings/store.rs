@@ -167,6 +167,14 @@ fn defaults() -> BTreeMap<String, Value> {
     m.insert("remoteAccessToken".into(), json!(""));
     m.insert("upLimit".into(), json!("Illimité"));
     m.insert("https".into(), json!("Préférées"));
+    // Optional HTTPS listener with an auto-generated self-signed certificate,
+    // for LAN use where a secure origin unlocks the Web Crypto API (passkeys /
+    // subtle crypto refuse to run over plain HTTP on a non-localhost host). Off
+    // by default; the plain-HTTP port keeps serving either way. Applied at boot,
+    // so a change needs a server restart (`KROMA_HTTPS` / `KROMA_HTTPS_PORT` env
+    // override the stored values). See src/tls.rs.
+    m.insert("httpsEnabled".into(), json!(false));
+    m.insert("httpsPort".into(), json!("4443"));
     m.insert("ipv6".into(), json!(false));
     m.insert("localDiscovery".into(), json!(true));
     m.insert("localNetworks".into(), json!("192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12"));

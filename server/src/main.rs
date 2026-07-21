@@ -16,6 +16,7 @@
 // call sites in api/ keep resolving. Lower layers (config/db/domain) are their
 // own crates, likewise aliased.
 mod api;
+mod tls;
 use kroma_config as config;
 use kroma_db as db;
 use kroma_engine::{i18n, infra, model, services, state};
@@ -341,7 +342,37 @@ async fn main() -> anyhow::Result<()> {
 
     // The supervisor was built earlier (before the module services) so ported
     // modules resolve as client proxies to their sidecars.
-    let app = api::router(state.clone(), supervisor.clone());
+    let mut app = api::router(state.clone(), supervisor.clone());
+
+    // Optional HTTPS listener with an auto-generated self-signed certificate.
+    // Enabled by the `httpsEnabled` setting (or the `KROMA_HTTPS` env override);
+    // additive to the plain-HTTP port so nothing existing breaks. Set up here so
+    // the cert-download route can be merged into the router before we serve.
+    let https = build_https(&state).await;
+    if let Some((cert_path, _, _)) = &https {
+        let cert_pem =
+            std::sync::Arc::new(std::fs::read_to_string(cert_path).unwrap_or_default());
+        // Public route (the cert is public): lets a LAN device download + trust
+        // the certificate without shell access to the box.
+        app = app.route(
+            "/api/tls/cert.pem",
+            axum::routing::get(move || {
+                let pem = cert_pem.clone();
+                async move {
+                    (
+                        [
+                            (axum::http::header::CONTENT_TYPE, "application/x-pem-file"),
+                            (
+                                axum::http::header::CONTENT_DISPOSITION,
+                                "attachment; filename=\"kroma-cert.pem\"",
+                            ),
+                        ],
+                        (*pem).clone(),
+                    )
+                }
+            }),
+        );
+    }
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
@@ -370,6 +401,25 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Serve HTTPS in parallel with plain HTTP when enabled (axum-server
+    // terminates TLS; it keeps the SocketAddr connect-info). Its `Handle` is
+    // shut down after the HTTP listener drains, so both stop together.
+    let https_handle = axum_server::Handle::new();
+    if let Some((_cert, rustls_config, https_socket)) = https {
+        info!("KROMA listening on https://{https_socket}  (self-signed)");
+        let handle = https_handle.clone();
+        let app_https = app.clone();
+        tokio::spawn(async move {
+            if let Err(e) = axum_server::bind_rustls(https_socket, rustls_config)
+                .handle(handle)
+                .serve(app_https.into_make_service_with_connect_info::<std::net::SocketAddr>())
+                .await
+            {
+                warn!(error = %e, "HTTPS listener stopped");
+            }
+        });
+    }
+
     // `into_make_service_with_connect_info` so handlers can read the client's
     // socket address (LAN/WAN classification for playback sessions).
     axum::serve(
@@ -379,6 +429,9 @@ async fn main() -> anyhow::Result<()> {
     .with_graceful_shutdown(shutdown_signal())
     .await
     .context("server error")?;
+
+    // HTTP has drained (shutdown signalled); bring the HTTPS listener down too.
+    https_handle.graceful_shutdown(Some(std::time::Duration::from_secs(3)));
 
     // Drain before exiting: ask running jobs to cancel (each records itself
     // `cancelled` instead of showing up as "interrupted by server restart" at
@@ -394,6 +447,52 @@ async fn main() -> anyhow::Result<()> {
     supervisor.stop_all();
 
     Ok(())
+}
+
+/// Decide whether HTTPS is on (env override wins over the `httpsEnabled`
+/// setting), and if so ensure the self-signed cert exists and build the rustls
+/// config. Returns `(cert_pem_path, rustls_config, bind_addr)`, or `None` when
+/// disabled or when cert/config setup fails (logged; HTTP still serves).
+async fn build_https(
+    state: &state::SharedState,
+) -> Option<(std::path::PathBuf, axum_server::tls_rustls::RustlsConfig, std::net::SocketAddr)> {
+    let config = &state.config;
+    let enabled = config
+        .https_override
+        .unwrap_or_else(|| state.settings.get_bool("httpsEnabled", false));
+    if !enabled {
+        return None;
+    }
+
+    // The rustls crypto provider must be installed before any TLS config is built.
+    tls::install_crypto_provider();
+
+    let paths = match tls::ensure_self_signed(&config.tls_dir(), &config.tls_extra_sans) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(error = %format!("{e:#}"), "HTTPS enabled but the certificate could not be prepared; serving HTTP only");
+            return None;
+        }
+    };
+
+    let rustls_config = match axum_server::tls_rustls::RustlsConfig::from_pem_file(
+        &paths.cert_pem,
+        &paths.key_pem,
+    )
+    .await
+    {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(error = %e, "failed to load the TLS certificate; serving HTTP only");
+            return None;
+        }
+    };
+
+    let port = config
+        .https_port_override
+        .unwrap_or_else(|| state.settings.get_i64("httpsPort", 4443).clamp(1, 65535) as u16);
+    let socket = tls::https_addr(&config.host, port);
+    Some((paths.cert_pem, rustls_config, socket))
 }
 
 /// Log whether `ffprobe` was found (full metadata vs extension-inferred).

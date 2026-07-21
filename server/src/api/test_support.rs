@@ -71,6 +71,9 @@ fn test_config(data_dir: PathBuf) -> Config {
         tmdb_enrich: false,
         web_url: None,
         web_dir: None,
+        https_override: None,
+        https_port_override: None,
+        tls_extra_sans: Vec::new(),
     }
 }
 

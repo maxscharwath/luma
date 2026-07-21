@@ -88,6 +88,8 @@ pub fn groups(
                 row("port", t("admin.port"), Some(t("admin.portHint")), "value", &[], json!(config.port.to_string()), true),
                 row("localDiscovery", t("admin.localDiscovery"), Some(t("admin.localDiscoveryHint")), "toggle", &[], g("localDiscovery"), true),
                 row("localNetworks", t("admin.localNetworks"), Some(t("admin.localNetworksHint")), "text", &[], g("localNetworks"), true),
+                row("httpsEnabled", t("admin.httpsEnabled"), Some(t("admin.httpsEnabledHint")), "toggle", &[], g("httpsEnabled"), true),
+                row("httpsPort", t("admin.httpsPort"), Some(t("admin.httpsPortHint")), "text", &[], g("httpsPort"), true),
             ],
         )],
         "transcoder" => vec![group(
@@ -221,6 +223,9 @@ mod tests {
             tmdb_enrich: false,
             web_url: None,
             web_dir: None,
+            https_override: None,
+            https_port_override: None,
+            tls_extra_sans: Vec::new(),
         }
     }
 

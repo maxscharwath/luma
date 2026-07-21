@@ -43,6 +43,17 @@ pub struct Config {
     /// as the API (the single-binary deploy, e.g. the Synology package). `None` →
     /// API only (dev, where the web runs on its own Vite server).
     pub web_dir: Option<PathBuf>,
+    /// Force-enable the HTTPS listener regardless of the stored setting
+    /// (`KROMA_HTTPS=1`). `None` = defer to the `httpsEnabled` setting; `Some`
+    /// pins it either way (env wins over the admin toggle).
+    pub https_override: Option<bool>,
+    /// HTTPS port override (`KROMA_HTTPS_PORT`). `None` = use the `httpsPort`
+    /// setting (default 4443). The plain-HTTP `port` keeps serving too.
+    pub https_port_override: Option<u16>,
+    /// Extra certificate SANs (`KROMA_TLS_SANS`, comma/space separated): a static
+    /// LAN IP or custom hostname to add to the auto-generated self-signed cert,
+    /// on top of the auto-detected localhost / hostname / primary LAN IP.
+    pub tls_extra_sans: Vec<String>,
 }
 
 impl Config {
@@ -102,6 +113,25 @@ impl Config {
             .map(|s| PathBuf::from(s.trim()))
             .filter(|p| !p.as_os_str().is_empty() && p.join("_shell.html").is_file());
 
+        let https_override = env::var("KROMA_HTTPS")
+            .ok()
+            .map(|v| !matches!(v.trim(), "0" | "false" | "no" | "off" | ""));
+
+        let https_port_override = env::var("KROMA_HTTPS_PORT")
+            .ok()
+            .and_then(|p| p.trim().parse::<u16>().ok());
+
+        let tls_extra_sans = env::var("KROMA_TLS_SANS")
+            .ok()
+            .map(|raw| {
+                raw.split([',', ' ', ';'])
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Config {
             host,
             port,
@@ -114,7 +144,15 @@ impl Config {
             tmdb_enrich,
             web_url,
             web_dir,
+            https_override,
+            https_port_override,
+            tls_extra_sans,
         }
+    }
+
+    /// Directory holding the auto-generated TLS certificate + key.
+    pub fn tls_dir(&self) -> PathBuf {
+        self.data_dir.join("tls")
     }
 
     /// The socket address to bind. Falls back to `0.0.0.0` if the host string
@@ -193,6 +231,9 @@ mod tests {
             tmdb_enrich: true,
             web_url: None,
             web_dir: None,
+            https_override: None,
+            https_port_override: None,
+            tls_extra_sans: Vec::new(),
         }
     }
 
