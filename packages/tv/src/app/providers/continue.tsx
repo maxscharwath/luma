@@ -13,6 +13,17 @@ import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { getExo } from '#tv/features/playback/player/engine';
 
+/** The server-composited 16:9 "card" (backdrop + KROMA logo + "Reprendre" badge +
+ * resume bar) - the same vignette the Tizen Smart Hub tiles use. Public endpoint,
+ * so the launcher can fetch it without the app's auth. `v` busts the launcher's
+ * image cache when the art changes. */
+function cardArt(c: ContinueItem, client: KromaClient): string {
+  const progress = c.durationMs ? c.positionMs / c.durationMs : 0;
+  const params = new URLSearchParams({ label: 'Reprendre', v: c.item.addedAt });
+  if (progress > 0) params.set('progress', progress.toFixed(3));
+  return `${client.baseUrl}/api/items/${encodeURIComponent(c.item.id)}/card?${params}`;
+}
+
 /** Shape the native Android shell's Watch Next row consumes (see WatchNext.kt). */
 function toWatchNext(items: ContinueItem[], client: KromaClient) {
   return items.map((c) => {
@@ -21,7 +32,7 @@ function toWatchNext(items: ContinueItem[], client: KromaClient) {
       id: it.id,
       title: it.showTitle ?? it.title,
       subtitle: it.episodeTitle ?? (it.year ? String(it.year) : ''),
-      imageUrl: client.backdropFor(it) ?? client.posterFor(it),
+      imageUrl: cardArt(c, client),
       progressMs: Math.round(c.positionMs),
       durationMs: Math.round(c.durationMs ?? 0),
       kind: it.kind,
