@@ -179,6 +179,10 @@ export interface ExoShellBridge {
    *  row. JSON array of `{id,title,subtitle?,imageUrl?,progressMs,durationMs,
    *  kind}`; `[]` clears it. Optional: absent on older installed APKs. */
   setContinueWatching?(json: string): void;
+  /** Publish the recently-added + suggested titles to a KROMA preview channel
+   *  (a dedicated row on the launcher home). JSON array of
+   *  `{id,title,subtitle?,imageUrl?,kind}`; `[]` clears it. Optional. */
+  setHomeChannel?(json: string): void;
 }
 
 /** The injected ExoPlayer bridge when running inside the Android TV shell, else null. */

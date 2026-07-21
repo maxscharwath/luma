@@ -211,6 +211,15 @@ class ExoBridge(
         Thread { WatchNext.sync(ctx, json) }.start()
     }
 
+    /** Publish the recently-added + suggested titles to the KROMA preview channel
+     * (a dedicated row on the launcher home). `[{id,title,subtitle?,imageUrl?,
+     * kind}]`; `[]` clears it. Runs off the JS thread (provider I/O). */
+    @JavascriptInterface
+    fun setHomeChannel(json: String) {
+        val ctx = activity.applicationContext
+        Thread { HomeChannel.sync(ctx, json) }.start()
+    }
+
     /** Audio filter / volume normalizer (0 off, 1 standard, 2 night): a
      * single-band DynamicsProcessing compressor + safety limiter on the player's
      * audio session, tuned to MATCH the web client's Web Audio compressor so
