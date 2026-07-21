@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
@@ -62,10 +63,17 @@ export function ContinueProvider({ children }: Readonly<{ children: ReactNode }>
   // Mirror the list into the Android TV / Google TV launcher's system "Continue
   // watching" (Watch Next) row, so it shows on the platform home even when the
   // app is closed. No-op off the Android shell (getExo() null / no method).
+  // Guard on the serialized payload: this effect re-runs on every `items`/render
+  // churn, and pushing the SAME list repeatedly raced the native sync into
+  // duplicate rows - only push when the content actually changed.
+  const lastPushed = useRef<string>('');
   useEffect(() => {
     const exo = getExo();
     if (!exo?.setContinueWatching || !client) return;
-    exo.setContinueWatching(JSON.stringify(toWatchNext(items, client)));
+    const json = JSON.stringify(toWatchNext(items, client));
+    if (json === lastPushed.current) return;
+    lastPushed.current = json;
+    exo.setContinueWatching(json);
   }, [items, client]);
 
   const value = useMemo<Continue>(() => ({ items, refresh }), [items, refresh]);
