@@ -35,6 +35,11 @@ describe('readDeepLink', () => {
     expect(readDeepLink()).toBeNull();
   });
 
+  it('reads the Android TV ?deeplink= param as a movie target', () => {
+    vi.stubGlobal('location', { search: '?deeplink=itm42' });
+    expect(readDeepLink()).toEqual({ type: 'movie', id: 'itm42' });
+  });
+
   it('decodes a direct JSON payload', () => {
     stubTizen({ payload: JSON.stringify({ type: 'movie', id: 'abc' }) });
     expect(readDeepLink()).toEqual({ type: 'movie', id: 'abc' });

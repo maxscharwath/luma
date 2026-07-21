@@ -180,6 +180,15 @@ class ExoBridge(
         main.post { activity.finishAndRemoveTask() }
     }
 
+    /** Publish the "continue watching" list into the launcher's system Watch Next
+     * row (`[{id,title,subtitle?,imageUrl?,progressMs,durationMs,kind}]`). Runs
+     * off the JS thread (provider I/O). Passing `[]` clears the row (sign-out). */
+    @JavascriptInterface
+    fun setContinueWatching(json: String) {
+        val ctx = activity.applicationContext
+        Thread { WatchNext.sync(ctx, json) }.start()
+    }
+
     /** Audio filter / volume normalizer (0 off, 1 standard, 2 night): a
      * single-band DynamicsProcessing compressor + safety limiter on the player's
      * audio session, tuned to MATCH the web client's Web Audio compressor so

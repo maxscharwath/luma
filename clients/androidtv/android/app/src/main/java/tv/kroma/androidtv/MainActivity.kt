@@ -20,7 +20,9 @@ package tv.kroma.androidtv
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -32,6 +34,10 @@ import android.widget.FrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
+import org.json.JSONObject
+
+/** The bundled web app, served over the WebViewAssetLoader virtual https origin. */
+private const val APP_URL = "https://appassets.androidplatform.net/assets/kroma/index.html"
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -81,7 +87,24 @@ class MainActivity : Activity() {
         root.addView(webView)
         setContentView(root)
 
-        webView.loadUrl("https://appassets.androidplatform.net/assets/kroma/index.html")
+        // A cold launch from a Watch Next `kroma://item/<id>` deep link carries the
+        // id as a query param the web app reads on boot; a normal launch omits it.
+        val deepLink = itemIdFromDeepLink(intent?.data)
+        val url = StringBuilder(APP_URL)
+        if (deepLink != null) url.append("?deeplink=").append(Uri.encode(deepLink))
+        webView.loadUrl(url.toString())
+    }
+
+    // A deep link arriving while the app is already running (warm start): hand the
+    // id to the web app via a DOM event instead of reloading the whole page.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val id = itemIdFromDeepLink(intent.data) ?: return
+        if (!::webView.isInitialized) return
+        webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('kroma-deeplink',{detail:${JSONObject.quote(id)}}))",
+            null,
+        )
     }
 
     // Keys Android consumes before the WebView: re-injected as the DOM key names

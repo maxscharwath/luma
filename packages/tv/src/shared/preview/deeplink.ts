@@ -31,10 +31,20 @@ function parsePayload(raw: string): DeepLink | null {
   return null;
 }
 
+/** The Android TV shell (MainActivity) hands a Watch Next tile's item id in via
+ *  `?deeplink=<id>` on cold launch. We don't know movie-vs-show here, so target
+ *  the movie catalog (the common continue-watching case); an unmatched id simply
+ *  doesn't navigate. */
+function readAndroidDeepLink(): DeepLink | null {
+  if (typeof location === 'undefined') return null;
+  const id = new URLSearchParams(location.search).get('deeplink');
+  return id ? { type: 'movie', id } : null;
+}
+
 /** The tile selection that launched/targeted the app, or null. */
 export function readDeepLink(): DeepLink | null {
   const t = tizen();
-  if (!t) return null;
+  if (!t) return readAndroidDeepLink();
   try {
     const req = t.application.getCurrentApplication().getRequestedAppControl();
     const payload = req?.appControl.data.find((d) => d.key === 'PAYLOAD')?.value?.[0];
@@ -48,11 +58,23 @@ export function readDeepLink(): DeepLink | null {
  *  launch is covered by readDeepLink(); this handles selection while open.
  *  Returns a cleanup function. */
 export function onDeepLink(cb: (link: DeepLink) => void): () => void {
-  if (!tizen()) return () => undefined;
+  if (typeof window === 'undefined') return () => undefined;
+  // Android TV warm start: MainActivity dispatches `kroma-deeplink` with the item
+  // id as `detail` (see MainActivity.onNewIntent).
+  const android = (e: Event) => {
+    const id = (e as CustomEvent<string>).detail;
+    if (typeof id === 'string' && id) cb({ type: 'movie', id });
+  };
+  window.addEventListener('kroma-deeplink', android);
+
+  if (!tizen()) return () => window.removeEventListener('kroma-deeplink', android);
   const handler = () => {
     const link = readDeepLink();
     if (link) cb(link);
   };
   window.addEventListener('appcontrol', handler);
-  return () => window.removeEventListener('appcontrol', handler);
+  return () => {
+    window.removeEventListener('appcontrol', handler);
+    window.removeEventListener('kroma-deeplink', android);
+  };
 }

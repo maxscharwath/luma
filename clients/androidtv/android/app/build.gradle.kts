@@ -55,6 +55,9 @@ dependencies {
     // HLS media source: the stream-copy master fallback (`master=true` loads).
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
+    // TvProvider: publish the "continue watching" list into the launcher's
+    // system Watch Next row (the Tizen Smart Hub carousel equivalent). See WatchNext.kt.
+    implementation("androidx.tvprovider:tvprovider:1.0.0")
     // WebViewAssetLoader: serve the bundled web app over a real https origin
     // (appassets.androidplatform.net) instead of file://, so the Vite ES-module
     // bundle (`<script type="module">` + dynamic import()) actually loads. From

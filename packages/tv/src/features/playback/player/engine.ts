@@ -175,6 +175,10 @@ export interface ExoShellBridge {
   /** Terminate the whole app (the "Quitter" menu row). Optional: an older
    *  installed APK does not expose it, so the quit row stays hidden there. */
   quit?(): void;
+  /** Publish the "continue watching" list to the launcher's system Watch Next
+   *  row. JSON array of `{id,title,subtitle?,imageUrl?,progressMs,durationMs,
+   *  kind}`; `[]` clears it. Optional: absent on older installed APKs. */
+  setContinueWatching?(json: string): void;
 }
 
 /** The injected ExoPlayer bridge when running inside the Android TV shell, else null. */
