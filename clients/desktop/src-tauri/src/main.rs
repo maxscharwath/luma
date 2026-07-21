@@ -27,6 +27,14 @@ mod webview_gpu;
 #[allow(dead_code)]
 mod libmpv_mac;
 
+// In-process libmpv (Windows, `libmpv` feature): decodes what WebView2 can't
+// (HEVC without the extension, AV1, MKV, surround), embedded into the window's
+// HWND via `--wid`. Off by default; the default Windows build uses the in-page
+// <video>. See Cargo.toml + libmpv_win.rs.
+#[cfg(all(target_os = "windows", feature = "libmpv"))]
+#[allow(dead_code)]
+mod libmpv_win;
+
 /// WebKitGTK env fixups applied before the webview initialises (Deck / Linux).
 /// Each var is only set when the user hasn't already pinned an explicit value.
 #[cfg(target_os = "linux")]
@@ -93,6 +101,29 @@ fn init_libmpv_deferred(app: &tauri::AppHandle) {
                     // Advertise mpv to the frontend ONLY after the engine is up,
                     // so playback started early can't invoke a no-op mpv_load.
                     if libmpv_mac::init(&h, nsw) {
+                        let _ = win.eval("window.__KROMA_MPV__ = true;");
+                    }
+                }
+            }
+        });
+    });
+}
+
+// Windows: build the in-process libmpv engine embedded in the window's HWND,
+// once the window (and its WebView2 child) exists. Deferred a beat so the HWND
+// + webview are laid out before mpv attaches its `--wid` render surface. Same
+// contract as macOS: advertise mpv to the frontend only after the engine is up.
+#[cfg(all(target_os = "windows", feature = "libmpv"))]
+fn init_libmpv_win_deferred(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let h = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            if let Some(win) = h.webview_windows().values().next() {
+                if let Ok(hwnd) = win.hwnd() {
+                    if libmpv_win::init(&h, hwnd.0 as isize as i64) {
                         let _ = win.eval("window.__KROMA_MPV__ = true;");
                     }
                 }
@@ -171,8 +202,23 @@ fn main() {
                 app_relaunch
             ]);
     }
-    // Remaining shells (macOS without libmpv, Windows) still need the app commands.
-    #[cfg(not(any(target_os = "linux", all(target_os = "macos", feature = "libmpv"))))]
+    #[cfg(all(target_os = "windows", feature = "libmpv"))]
+    {
+        builder = builder
+            .manage(libmpv_win::MpvState::default())
+            .invoke_handler(tauri::generate_handler![
+                libmpv_win::mpv_load,
+                libmpv_win::mpv_command,
+                app_quit,
+                app_relaunch
+            ]);
+    }
+    // Remaining shells (macOS/Windows without libmpv) still need the app commands.
+    #[cfg(not(any(
+        target_os = "linux",
+        all(target_os = "macos", feature = "libmpv"),
+        all(target_os = "windows", feature = "libmpv")
+    )))]
     {
         builder = builder.invoke_handler(tauri::generate_handler![app_quit, app_relaunch]);
     }
@@ -208,6 +254,12 @@ fn main() {
             {
                 use tauri::Manager;
                 init_libmpv_deferred(_app.handle());
+            }
+            // Windows: same, embedding into the window HWND (see [`init_libmpv_win_deferred`]).
+            #[cfg(all(target_os = "windows", feature = "libmpv"))]
+            {
+                use tauri::Manager;
+                init_libmpv_win_deferred(_app.handle());
             }
             Ok(())
         })

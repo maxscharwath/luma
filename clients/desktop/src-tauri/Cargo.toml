@@ -46,6 +46,14 @@ codegen-units = 1
 [target.'cfg(target_os = "macos")'.dependencies]
 libmpv2 = { version = "6.0.0", optional = true }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+# In-process libmpv on Windows, embedded into the window's HWND via `--wid`
+# (mpv's built-in d3d11/gpu VO renders into it; no Obj-C/GL shim needed, unlike
+# macOS). Decodes what WebView2 can't (HEVC without the extension, AV1, MKV,
+# surround audio). Off by default (the `libmpv` feature); a build with it needs
+# `libmpv` (mpv-2.dll + import lib) at link time, like macOS needs `brew mpv`.
+libmpv2 = { version = "6.0.0", optional = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 # Process-group kill of the mpv sidecar tree (the AppImage runtime execs the real
 # mpv as a grandchild, so Child::kill alone orphans the player).
