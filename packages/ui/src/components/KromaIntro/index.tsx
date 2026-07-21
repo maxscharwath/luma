@@ -42,6 +42,13 @@ export interface KromaIntroProps {
   lite?: boolean;
 }
 
+/** A solid #0A0A0C poster (2x2 PNG). Without a poster the WebView paints its own
+ * placeholder for an un-started <video> - on Android TV a light panel with a
+ * centre play glyph, which flashes for a few frames before the film decodes.
+ * A matching-black poster keeps the stage black through the load instead. */
+const POSTER =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR42mPg4uIBIgYIBQADhgCBD73RIwAAAABJRU5ErkJggg==';
+
 /** Seconds before the end of the film when the tagline overlay fades in. */
 const TAGLINE_LEAD_S = 2.6;
 /** Slack added to the video duration for the stall-safety timer (ms). */
@@ -213,6 +220,7 @@ function VideoIntro({
         ref={videoRef}
         playsInline
         preload="metadata"
+        poster={POSTER}
         style={{
           position: 'absolute',
           inset: 0,
