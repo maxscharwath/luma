@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080, user-scalable=no" />
     <title>KROMA</title>
+    <!-- Critical: paint the stage black from the very first frame, before the
+         bundled CSS loads, so the launch never flashes a white body. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0a0a0c;
+        color-scheme: dark;
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

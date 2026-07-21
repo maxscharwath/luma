@@ -11,19 +11,25 @@
 //               anything the server can remux, incl. MKV; video is stream-copied).
 //  - mpv      : force the native mpv engine (VA-API on the Linux/Deck shell).
 //  - exo      : force the native media3/ExoPlayer engine (Android TV shell).
+//  - vlc      : force the native libVLC engine (Android TV shell) - software
+//               decode of EVERY codec, the same fallback ExoPlayer hands off to,
+//               but made the primary player (the Android equivalent of mpv).
 
 import { isTizenRuntime, isWebOsRuntime, type MessageKey } from '@kroma/core';
 import { reactivePref } from '#tv/app/settings/store';
 import { exoAvailable, mpvAvailable } from '#tv/features/playback/player/engine';
 
-export type EnginePref = 'auto' | 'avplay' | 'webview' | 'remux' | 'mpv' | 'exo';
+export type EnginePref = 'auto' | 'avplay' | 'webview' | 'remux' | 'mpv' | 'exo' | 'vlc';
 
-const ALL: readonly EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo'];
+const ALL: readonly EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo', 'vlc'];
 
 /** The reactive store behind the pref (the settings registry binds rows to it). */
 export const enginePrefStore = reactivePref('kroma:engine', ALL, 'auto');
 
-/** The saved engine preference for this device, or `auto`. */
+/** The saved engine preference for this device, or `auto`. A stored engine no
+ * longer offered on THIS platform (e.g. a device left on `remux` before it was
+ * retired on Android TV, where the WebView cannot decode HEVC) is degraded to
+ * `auto` by the playback engine resolver, not here. */
 export function getEnginePref(): EnginePref {
   return enginePrefStore.get();
 }
@@ -40,7 +46,12 @@ export function setEnginePref(p: EnginePref): void {
  * desktop shell. A single-entry list (unknown/other) hides the row. */
 export function availableEngines(): EnginePref[] {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  if (exoAvailable()) return ['auto', 'exo', 'remux'];
+  // Android TV: ExoPlayer (hardware) with a libVLC software-decode fallback plays
+  // EVERY codec, including the HEVC 10-bit / E-AC3 the Chromium WebView cannot.
+  // The `<video>` + hls.js remux path is therefore strictly inferior here (no HEVC
+  // decode at all), so it is not offered - it would only ever be a dead end.
+  // `vlc` forces that software decoder as the PRIMARY player (like mpv on desktop).
+  if (exoAvailable()) return ['auto', 'exo', 'vlc'];
   if (isTizenRuntime(ua)) return ['auto', 'avplay', 'remux'];
   if (isWebOsRuntime(ua)) return ['auto', 'webview', 'remux'];
   const list: EnginePref[] = ['auto', 'webview', 'remux'];
@@ -58,4 +69,5 @@ export const ENGINE_LABEL_KEY: Record<EnginePref, MessageKey> = {
   remux: 'playbackEngine.remux',
   mpv: 'playbackEngine.mpv',
   exo: 'playbackEngine.exo',
+  vlc: 'playbackEngine.vlc',
 };

@@ -17,6 +17,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.SurfaceView
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.media3.common.C
@@ -36,12 +38,24 @@ import org.json.JSONObject
 private const val TAG = "KromaExo"
 
 class ExoBridge(
-    activity: Activity,
+    private val activity: Activity,
     private val webView: WebView,
     private val playerView: PlayerView,
+    private val vlcSurface: SurfaceView,
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val player: ExoPlayer = ExoPlayer.Builder(activity).build()
+
+    // libVLC software-decode fallback (lazy: only built the first time ExoPlayer
+    // hits a codec the device can't decode). `vlcActive` routes commands to it.
+    private var vlc: VlcPlayer? = null
+    private var vlcActive = false
+    private var currentUrl: String? = null
+
+    // When true, EVERY item plays through libVLC from the start (the "libVLC"
+    // engine the user can force in Settings), not only as an ExoPlayer
+    // decode-failure fallback. Set by setEngine() before the first load().
+    private var forceVlc = false
 
     // Audio filter / volume normalizer: a DynamicsProcessing compressor+limiter on
     // the player's audio session (levels: 0 off, 1 standard, 2 night), re-attached
@@ -96,7 +110,17 @@ class ExoBridge(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            emit(JSONObject().put("t", "error").put("message", error.errorCodeName))
+            // Anything the device's hardware/platform decoders can't handle - VIDEO
+            // (10-bit HEVC Main10, ...) OR AUDIO (E-AC3/DTS/TrueHD) - hands off to
+            // libVLC, which software-decodes any codec with full surround. This is
+            // the "plays any file" path; it's transparent to the web engine (VLC
+            // emits the same events). Only a non-decode failure (demux, network)
+            // falls through to the web engine's own retry.
+            if (!vlcActive && (videoUnsupported() || audioUnsupported())) {
+                switchToVlc()
+                return
+            }
+            emit(JSONObject().put("t", "error").put("message", error.errorCodeName).put("audio", false))
         }
 
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -123,6 +147,13 @@ class ExoBridge(
         playerView.player = player
         player.addListener(listener)
         player.addAnalyticsListener(analytics)
+        // Never let ExoPlayer render subtitles: KROMA draws them in the React overlay
+        // (fetched + styled + synced by the web player). A selected text track would
+        // paint a second, unstyled copy in the PlayerView's SubtitleView.
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            .build()
         main.post(ticker)
     }
 
@@ -130,6 +161,19 @@ class ExoBridge(
     @JavascriptInterface
     fun load(url: String, startSec: Double, master: Boolean) {
         main.post {
+            currentUrl = url
+            // The forced "libVLC" engine: software-decode this item from the start.
+            if (forceVlc) {
+                loadVlc(url, startSec)
+                return@post
+            }
+            // A new item always tries ExoPlayer (hardware) first; drop any VLC
+            // fallback from the previous item.
+            if (vlcActive) {
+                vlc?.stop()
+                vlcActive = false
+                playerView.visibility = View.VISIBLE
+            }
             val item = MediaItem.Builder()
                 .setUri(url)
                 .apply { if (master) setMimeType(MimeTypes.APPLICATION_M3U8) }
@@ -141,12 +185,65 @@ class ExoBridge(
         }
     }
 
+    /** True when the current media has a VIDEO track the device can't decode and
+     * none it can (10-bit HEVC Main10, etc.) - the signal to hand off to libVLC.
+     * Main thread only (onPlayerError runs there). */
+    private fun videoUnsupported(): Boolean {
+        var sawVideo = false
+        for (group in player.currentTracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            sawVideo = true
+            for (i in 0 until group.length) if (group.isTrackSupported(i)) return false
+        }
+        return sawVideo
+    }
+
+    /** Stop ExoPlayer and resume the current URL in libVLC (software decode) at the
+     * same position - the web engine keeps driving through the same event contract. */
+    private fun switchToVlc() {
+        val url = currentUrl ?: return
+        val posSec = player.currentPosition / 1000.0
+        player.stop()
+        loadVlc(url, posSec)
+    }
+
+    /** Bring up the libVLC plane and (software-)decode `url` from `posSec`, hiding
+     * the ExoPlayer surface. Shared by the decode-failure fallback (switchToVlc)
+     * and the forced "libVLC" engine (load with forceVlc). */
+    private fun loadVlc(url: String, posSec: Double) {
+        playerView.visibility = View.GONE
+        vlcActive = true
+        val v = vlc ?: VlcPlayer(activity, vlcSurface) { emit(it) }.also { vlc = it }
+        v.load(url, posSec)
+    }
+
     /** `{op: 'play'|'pause'|'seek'|'audio'|'filter'|'stop'|'rect', value?, x?,y?,w?,h?}`. */
     @JavascriptInterface
     fun command(json: String) {
         val cmd = JSONObject(json)
         main.post {
-            when (cmd.optString("op")) {
+            val op = cmd.optString("op")
+            // When libVLC is driving, route transport (and `rect`, so the video
+            // shrinks into the settings card like the ExoPlayer plane does) to it.
+            // `filter` (a DynamicsProcessing effect on the Exo audio session) has no
+            // VLC equivalent, so it no-ops there.
+            val v = vlc
+            if (vlcActive && v != null) {
+                when (op) {
+                    "play" -> v.play()
+                    "pause" -> v.pause()
+                    "seek" -> v.seek(cmd.optDouble("value", 0.0))
+                    "audio" -> v.setAudio(cmd.optInt("value", 0))
+                    "rect" -> setRect(cmd)
+                    "stop" -> {
+                        v.stop()
+                        vlcActive = false
+                        playerView.visibility = View.VISIBLE
+                    }
+                }
+                return@post
+            }
+            when (op) {
                 "play" -> player.play()
                 "pause" -> player.pause()
                 "seek" -> player.seekTo((cmd.optDouble("value", 0.0) * 1000).toLong())
@@ -170,6 +267,59 @@ class ExoBridge(
      * main thread may do. A `filterSupported` event follows if the answer flips. */
     @JavascriptInterface
     fun audioFilterSupported(): Boolean = filterSupported
+
+    /** Terminate the whole app (the "Quitter" menu row in the TV shell). Android
+     * TV runs a single fullscreen activity with no window chrome, so - like the
+     * desktop shell's `app_quit` - the UI must offer the way out. Removes the
+     * task from Recents for a clean exit; onDestroy then releases the player. */
+    @JavascriptInterface
+    fun quit() {
+        main.post { activity.finishAndRemoveTask() }
+    }
+
+    /** Force the playback engine for subsequent loads: "vlc" makes libVLC the
+     * primary player (software-decode EVERYTHING, not just codecs ExoPlayer can't
+     * handle); any other value restores the default ExoPlayer-first path. The web
+     * ExoEngine calls this at construction when the user picks the "libVLC" engine
+     * in Settings. Optional on the bridge: an older APK simply ignores it. */
+    @JavascriptInterface
+    fun setEngine(mode: String) {
+        main.post { forceVlc = mode == "vlc" }
+    }
+
+    /** True when the current media carries an audio track this device cannot
+     * decode and NONE it can (e.g. E-AC3/DTS/TrueHD without a hardware decoder) -
+     * the signal for the web engine to reopen the AAC-transcoded master. Reads
+     * the player, so only call from the main thread (onPlayerError runs there). */
+    private fun audioUnsupported(): Boolean {
+        var sawAudio = false
+        for (group in player.currentTracks.groups) {
+            if (group.type != C.TRACK_TYPE_AUDIO) continue
+            sawAudio = true
+            for (i in 0 until group.length) if (group.isTrackSupported(i)) return false
+        }
+        return sawAudio
+    }
+
+    /** Publish the "continue watching" list into the launcher's system Watch Next
+     * row (`[{id,title,subtitle?,imageUrl?,progressMs,durationMs,kind}]`). Runs
+     * off the JS thread (provider I/O). Passing `[]` clears the row (sign-out). */
+    @JavascriptInterface
+    fun setContinueWatching(json: String) {
+        val ctx = activity.applicationContext
+        Log.i(TAG, "setContinueWatching: ${json.length} chars")
+        Thread { WatchNext.sync(ctx, json) }.start()
+    }
+
+    /** Publish the recently-added + suggested titles to the KROMA preview channel
+     * (a dedicated row on the launcher home). `[{id,title,subtitle?,imageUrl?,
+     * kind}]`; `[]` clears it. Runs off the JS thread (provider I/O). */
+    @JavascriptInterface
+    fun setHomeChannel(json: String) {
+        val ctx = activity.applicationContext
+        Log.i(TAG, "setHomeChannel: ${json.length} chars")
+        Thread { HomeChannel.sync(ctx, json) }.start()
+    }
 
     /** Audio filter / volume normalizer (0 off, 1 standard, 2 night): a
      * single-band DynamicsProcessing compressor + safety limiter on the player's
@@ -243,14 +393,17 @@ class ExoBridge(
         emit(JSONObject().put("t", "filterSupported").put("supported", supported))
     }
 
-    /** Shrink/restore the video plane: resize the PlayerView to a fraction-rect of
-     * its (full-screen FrameLayout) parent so the video lands in the settings card;
-     * a `rect` with no bounds restores fullscreen (MATCH_PARENT). */
+    /** Shrink/restore the ACTIVE video plane: resize it to a fraction-rect of its
+     * (full-screen FrameLayout) parent so the video lands in the settings card; a
+     * `rect` with no bounds restores fullscreen (MATCH_PARENT). Targets the libVLC
+     * SurfaceView when VLC is driving (resizing it fires surfaceChanged, which feeds
+     * VLC the new render size) and the ExoPlayer PlayerView otherwise. */
     private fun setRect(cmd: JSONObject) {
-        val parent = playerView.parent as? android.view.View ?: return
+        val target: View = if (vlcActive) vlcSurface else playerView
+        val parent = target.parent as? android.view.View ?: return
         val pw = parent.width
         val ph = parent.height
-        val lp = playerView.layoutParams as? android.widget.FrameLayout.LayoutParams ?: return
+        val lp = target.layoutParams as? android.widget.FrameLayout.LayoutParams ?: return
         if (cmd.has("w") && pw > 0 && ph > 0) {
             lp.width = (cmd.optDouble("w", 1.0) * pw).toInt()
             lp.height = (cmd.optDouble("h", 1.0) * ph).toInt()
@@ -263,7 +416,7 @@ class ExoBridge(
             lp.leftMargin = 0
             lp.topMargin = 0
         }
-        playerView.layoutParams = lp
+        target.layoutParams = lp
     }
 
     /** Select the Nth audio track group (audio-relative index, file order) in
@@ -292,6 +445,8 @@ class ExoBridge(
             dynamics?.release()
             dynamics = null
             player.release()
+            vlc?.release()
+            vlc = null
         }
     }
 }

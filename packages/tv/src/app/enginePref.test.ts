@@ -68,10 +68,10 @@ describe('getEnginePref / setEnginePref', () => {
 });
 
 describe('availableEngines', () => {
-  it('offers exo + remux on the Android TV shell', () => {
+  it('offers exo + vlc on the Android TV shell (not remux - the WebView cannot decode HEVC)', () => {
     vi.stubGlobal('__KROMA_ANDROID__', exo);
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Linux; Android 12)' });
-    expect(availableEngines()).toEqual(['auto', 'exo', 'remux']);
+    expect(availableEngines()).toEqual(['auto', 'exo', 'vlc']);
   });
 
   it('offers avplay + remux on Tizen', () => {
@@ -111,7 +111,7 @@ describe('availableEngines', () => {
 
 describe('ENGINE_LABEL_KEY', () => {
   it('maps every engine to its i18n label key', () => {
-    const engines: EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo'];
+    const engines: EnginePref[] = ['auto', 'avplay', 'webview', 'remux', 'mpv', 'exo', 'vlc'];
     for (const e of engines) {
       expect(ENGINE_LABEL_KEY[e]).toBe(`playbackEngine.${e}`);
     }

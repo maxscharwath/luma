@@ -78,7 +78,7 @@ export const gpuRenderingSetting: SettingsItem = toggleItem({
   },
 });
 
-/** Quit the app - desktop shell only (fullscreen without window chrome). */
+/** Quit the app - desktop + Android TV shells (fullscreen, no window chrome). */
 export const quitAppItem: SettingsItem = actionItem({
   id: 'quitApp',
   label: 'profileMenu.quitApp',

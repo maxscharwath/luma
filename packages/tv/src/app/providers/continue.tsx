@@ -1,4 +1,4 @@
-import type { ContinueItem } from '@kroma/core';
+import type { ContinueItem, KromaClient } from '@kroma/core';
 import {
   createContext,
   type ReactNode,
@@ -6,10 +6,40 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
+import { getExo } from '#tv/features/playback/player/engine';
+
+/** The server-composited 16:9 "card" (backdrop + KROMA logo + "Reprendre" badge +
+ * resume bar) - the same vignette the Tizen Smart Hub tiles use. Public endpoint,
+ * so the launcher can fetch it without the app's auth. `v` busts the launcher's
+ * image cache when the art changes. */
+function cardArt(c: ContinueItem, client: KromaClient): string {
+  const progress = c.durationMs ? c.positionMs / c.durationMs : 0;
+  const params = new URLSearchParams({ label: 'Reprendre', v: c.item.addedAt });
+  if (progress > 0) params.set('progress', progress.toFixed(3));
+  return `${client.baseUrl}/api/items/${encodeURIComponent(c.item.id)}/card?${params}`;
+}
+
+/** Shape the native Android shell's Watch Next row consumes (see WatchNext.kt). */
+function toWatchNext(items: ContinueItem[], client: KromaClient) {
+  return items.map((c) => {
+    const it = c.item;
+    return {
+      id: it.id,
+      title: it.showTitle ?? it.title,
+      subtitle: it.episodeTitle ?? (it.year ? String(it.year) : ''),
+      imageUrl: cardArt(c, client),
+      progressMs: Math.round(c.positionMs),
+      durationMs: Math.round(c.durationMs ?? 0),
+      kind: it.kind,
+      updatedAtMs: Date.parse(c.updatedAt) || Date.now(),
+    };
+  });
+}
 
 interface Continue {
   items: ContinueItem[];
@@ -40,6 +70,22 @@ export function ContinueProvider({ children }: Readonly<{ children: ReactNode }>
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Mirror the list into the Android TV / Google TV launcher's system "Continue
+  // watching" (Watch Next) row, so it shows on the platform home even when the
+  // app is closed. No-op off the Android shell (getExo() null / no method).
+  // Guard on the serialized payload: this effect re-runs on every `items`/render
+  // churn, and pushing the SAME list repeatedly raced the native sync into
+  // duplicate rows - only push when the content actually changed.
+  const lastPushed = useRef<string>('');
+  useEffect(() => {
+    const exo = getExo();
+    if (!exo?.setContinueWatching || !client) return;
+    const json = JSON.stringify(toWatchNext(items, client));
+    if (json === lastPushed.current) return;
+    lastPushed.current = json;
+    exo.setContinueWatching(json);
+  }, [items, client]);
 
   const value = useMemo<Continue>(() => ({ items, refresh }), [items, refresh]);
   return <ContinueCtx.Provider value={value}>{children}</ContinueCtx.Provider>;

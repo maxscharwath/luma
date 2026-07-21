@@ -55,6 +55,11 @@ export abstract class BaseTvEngine implements TvEngine {
    * (the backend has none); turning the filter off drops back to the direct
    * file, and a remux failure degrades rather than costing the title. */
   protected filterMaster = false;
+  /** Force the server to TRANSCODE the audio to stereo AAC in the master. Set
+   * (one-shot) after the device fails to decode the source audio (e.g. E-AC3 /
+   * DTS / TrueHD with no hardware decoder), so the movie plays at the cost of
+   * surround rather than not at all. */
+  protected forceAac = false;
   /** Set on a re-anchor so playback resumes once the new source has loaded. */
   protected resumeOnLoad = false;
 
@@ -80,16 +85,28 @@ export abstract class BaseTvEngine implements TvEngine {
   protected sourceUrl(): string {
     return this.mode === 'direct'
       ? this.client.streamUrl(this.item.id)
-      : this.client.hlsMasterUrl(this.item.id, false, this.baseSec, this.rendition);
+      : this.client.hlsMasterUrl(this.item.id, this.forceAac, this.baseSec, this.rendition);
   }
 
-  /** A prepare/playback failure: a direct attempt retries ONCE as the master at
-   * the same position (a file the backend can't demux still plays, remuxed); a
-   * filter-forced master degrades ONCE to the clean direct file; anything else
-   * is surfaced. */
-  protected fail(): void {
+  /** A prepare/playback failure. `audioUnsupported` = the device can't decode the
+   * source audio track (the master must then transcode it to AAC). Otherwise a
+   * direct attempt retries ONCE as the master at the same position (a file the
+   * backend can't demux still plays, remuxed); a filter-forced master degrades
+   * ONCE to the clean direct file; anything else is surfaced. */
+  protected fail(audioUnsupported = false): void {
     if (this.destroyed) return;
     const pos = this.position();
+    // Audio the device has no decoder for: open the AAC-transcoded master (once).
+    // Works whether we were direct or on a copy-audio master that still carried
+    // the undecodable track.
+    if (audioUnsupported && !this.forceAac) {
+      this.forceAac = true;
+      this.fellBack = true; // an unrelated direct failure afterwards still errors
+      this.mode = 'master';
+      this.listeners.onWaiting();
+      this.reanchor(pos);
+      return;
+    }
     if (this.mode === 'direct' && !this.fellBack) {
       this.fellBack = true;
       this.mode = 'master';

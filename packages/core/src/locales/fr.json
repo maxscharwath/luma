@@ -177,6 +177,7 @@
   "playbackEngine.remux": "Remux serveur",
   "playbackEngine.mpv": "mpv (natif)",
   "playbackEngine.exo": "ExoPlayer (natif)",
+  "playbackEngine.vlc": "libVLC (tout codec)",
   "keyboardLayout.title": "Disposition du clavier",
   "keyboardLayout.abc": "ABC",
   "keyboardLayout.azerty": "AZERTY",
