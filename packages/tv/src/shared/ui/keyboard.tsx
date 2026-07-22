@@ -1,30 +1,34 @@
 // The two remote-driven on-screen keyboards: a full layout for server URLs and a
-// dedicated search layout (matching the KROMA design). Everything interactive
-// carries `data-focus` so the spatial focus nav (useFocusNav) reaches it and OK
-// activates via the native click. Letter ordering follows the device's persisted
-// layout preference (ABC / AZERTY / QWERTY / QWERTZ, see keyboardLayoutPref).
+// dedicated search layout (matching the KROMA design). Every key is a
+// <Focusable>, so the spatial focus nav reaches it and OK activates it. Letter
+// ordering follows the device's persisted layout preference (ABC / AZERTY /
+// QWERTY / QWERTZ, see keyboardLayoutPref).
 
-import { IconBackspace, IconSpace, IconX } from '@tabler/icons-react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Focusable, Icon, type IconName, Txt } from '@kroma/ui/kit';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getKeyboardLayoutPref, type KeyboardLayoutPref } from '#tv/app/keyboardLayoutPref';
 import { useEnv } from '#tv/app/providers/env';
 import { LAYOUT_LETTER_ROWS, urlRows } from './keyboardLayouts';
 
 // ----- physical-keyboard bridge -------------------------------------------------
 
-/** On devices with a hardware keyboard (useEnv().physicalKeyboard never a real
+/** On devices with a hardware keyboard (useEnv().physicalKeyboard: never a real
  * TV shell), let the user type straight into the value while the on-screen
- * keyboard is up, whatever element holds the spatial focus. The real `<input>`
- * (TvTextEntry) handles its own typing, so events targeting it are skipped;
- * printable keys and Backspace are consumed here (Space intentionally types a
- * space instead of activating the focused key typing wins on keyboard devices).
- * D-pad / Enter / Escape stay with the focus nav. */
+ * keyboard is up, whatever element holds the spatial focus. The real text input
+ * handles its own typing, so events targeting it are skipped; printable keys and
+ * Backspace are consumed here (Space intentionally types a space instead of
+ * activating the focused key: typing wins on keyboard devices). D-pad / Enter /
+ * Escape stay with the focus nav.
+ *
+ * A DOM listener, which is exactly right: `physicalKeyboard` is only ever true
+ * on a browser-based shell. The capability check keeps that explicit rather than
+ * implied, so the native builds cannot trip over it. */
 function usePhysicalTyping(value: string, onChange: (next: string) => void) {
   const { physicalKeyboard } = useEnv();
   const stateRef = useRef({ value, onChange });
   stateRef.current = { value, onChange };
   useEffect(() => {
-    if (!physicalKeyboard) return;
+    if (!physicalKeyboard || typeof window.addEventListener !== 'function') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
       const t = e.target;
@@ -48,21 +52,69 @@ function usePhysicalTyping(value: string, onChange: (next: string) => void) {
 // ----- layout preference ------------------------------------------------------
 
 /** The device's layout preference mapped through `derive`, computed ONCE per
- * mount. Both keyboards re-render on EVERY keystroke, and `localStorage.getItem`
- * is a blocking cross-process hop on the old TV webviews, so neither the read
- * nor the row building it feeds may sit in the render body. Changing the layout
- * still lands: its picker is a screen of its own (the profile menu), so the
- * keyboard is unmounted while it happens and the next mount reads the new value.
- * `derive` must be a module-level (stable) function. */
+ * mount. Both keyboards re-render on EVERY keystroke, and reading the stored
+ * preference is a blocking cross-process hop on the old TV webviews, so neither
+ * the read nor the row building it feeds may sit in the render body. Changing the
+ * layout still lands: its picker is a screen of its own (the profile menu), so
+ * the keyboard is unmounted while it happens and the next mount reads the new
+ * value. `derive` must be a module-level (stable) function. */
 function useLayout<T>(derive: (layout: KeyboardLayoutPref) => T): T {
   const [layout] = useState(getKeyboardLayoutPref);
   return useMemo(() => derive(layout), [derive, layout]);
 }
 
-// ----- on-screen keyboard -----------------------------------------------------
+// ----- shared key -------------------------------------------------------------
 
-const KB_KEY =
-  'flex cursor-pointer items-center justify-center rounded-xl bg-[rgba(255,255,255,0.05)] font-sans font-bold text-text transition-transform focus:scale-[1.08] focus:bg-[rgba(244,182,66,0.18)] focus:text-accent';
+const KEY_FACE = { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: 16 } as const;
+
+/** One keyboard key. `focusFill` is what the focused key becomes: the URL
+ * keyboard tints amber, the search keyboard fills solid for a stronger 10-foot
+ * cue at its larger size. */
+function Key({
+  label,
+  icon,
+  iconSize,
+  onPress,
+  style,
+  textStyle,
+  focusFill,
+  focusInk,
+}: Readonly<{
+  label?: string;
+  icon?: IconName;
+  iconSize?: number;
+  onPress: () => void;
+  style?: Record<string, unknown>;
+  textStyle?: Record<string, unknown>;
+  focusFill: string;
+  focusInk: string;
+}>) {
+  return (
+    <Focusable
+      onPress={onPress}
+      label={label}
+      focusScale={1.08}
+      ring={false}
+      style={[KEY_FACE, { alignItems: 'center', justifyContent: 'center' }, style]}
+      focusedStyle={{ backgroundColor: focusFill }}
+    >
+      {({ focused }) =>
+        icon ? (
+          <Icon
+            name={icon}
+            size={iconSize ?? 24}
+            stroke={1.8}
+            color={focused ? focusInk : 'text'}
+          />
+        ) : (
+          <Txt style={[{ fontWeight: '700' }, textStyle]} color={focused ? focusInk : 'text'}>
+            {label}
+          </Txt>
+        )
+      }
+    </Focusable>
+  );
+}
 
 /** A remote-driven on-screen keyboard. The caller owns the text value; each key
  * mutates it through `onChange`, and the special keys (space / delete / clear /
@@ -93,6 +145,8 @@ export function OnScreenKeyboard({
   );
 }
 
+const URL_FOCUS_FILL = 'rgba(244, 182, 66, 0.18)';
+
 /** The server-URL keyboard: a digit row, the preferred layout's letters as rows
  * of ten lowercase keys with the URL specials appended, then clear / "." / the
  * optional submit button. */
@@ -112,52 +166,64 @@ function UrlKeyboard({
     if (k === '⌫') onChange(value.slice(0, -1));
     else onChange(value + k);
   };
+  const face = { height: 52, flex: 1 };
+  const text = { fontSize: 20 };
   return (
-    <div className="flex flex-col gap-3">
+    <Box gap={12}>
       {rows.map((row) => (
-        <div key={row.join('')} className="flex gap-3">
+        <Box key={row.join('')} row gap={12}>
           {row.map((k) => (
-            <button
+            <Key
               key={k}
-              data-focus=""
-              type="button"
-              onClick={() => press(k)}
-              className={`${KB_KEY} h-13 flex-1 text-[20px]`}
-            >
-              {k}
-            </button>
+              label={k}
+              onPress={() => press(k)}
+              style={face}
+              textStyle={text}
+              focusFill={URL_FOCUS_FILL}
+              focusInk="accent"
+            />
           ))}
-        </div>
+        </Box>
       ))}
-      <div className="flex gap-3">
-        <button
-          data-focus=""
-          type="button"
-          onClick={() => onChange('')}
-          className={`${KB_KEY} h-13 flex-2 text-[16px]`}
-        >
-          ⌧
-        </button>
-        <button
-          data-focus=""
-          type="button"
-          onClick={() => onChange(`${value}.`)}
-          className={`${KB_KEY} h-13 flex-1 text-[20px]`}
-        >
-          .
-        </button>
+      <Box row gap={12}>
+        <Key
+          label="⌧"
+          onPress={() => onChange('')}
+          style={{ height: 52, flex: 2 }}
+          textStyle={{ fontSize: 16 }}
+          focusFill={URL_FOCUS_FILL}
+          focusInk="accent"
+        />
+        <Key
+          label="."
+          onPress={() => onChange(`${value}.`)}
+          style={face}
+          textStyle={text}
+          focusFill={URL_FOCUS_FILL}
+          focusInk="accent"
+        />
         {onSubmit ? (
-          <button
-            data-focus=""
-            type="button"
-            onClick={onSubmit}
-            className="flex h-13 flex-3 cursor-pointer items-center justify-center rounded-xl bg-accent font-sans text-[17px] font-bold text-accent-ink transition-transform focus:scale-[1.06]"
+          <Focusable
+            onPress={onSubmit}
+            label={submitLabel}
+            focusScale={1.06}
+            ring={false}
+            style={{
+              height: 52,
+              flex: 3,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 16,
+              backgroundColor: '#F4B642',
+            }}
           >
-            {submitLabel}
-          </button>
+            <Txt style={{ fontSize: 17, fontWeight: '700' }} color="accentInk">
+              {submitLabel}
+            </Txt>
+          </Focusable>
         ) : null}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
 
@@ -167,8 +233,8 @@ const SEARCH_DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
 /** Everything the search keyboard's look derives from a layout's letter rows.
  * Typewriter layouts run ten keys per row; in the 520px column that only reads
- * as a keyboard with uniform fixed near-square keys and centered rows (the
- * natural stagger). Stretchy flex-1 keys would give every row a different key
+ * as a keyboard with uniform fixed near-square keys and centred rows (the
+ * natural stagger). Stretchy flexible keys would give every row a different key
  * width. The ABC grid keeps the original roomy 6-column design. Built once per
  * mount (see {@link useLayout}), never per keystroke. */
 function searchLook(layout: KeyboardLayoutPref) {
@@ -178,10 +244,10 @@ function searchLook(layout: KeyboardLayoutPref) {
     letterRows,
     lastRow: letterRows.at(-1) ?? [],
     wide,
-    cell: `flex cursor-pointer items-center justify-center rounded-xl bg-[rgba(255,255,255,0.05)] font-sans font-bold text-text transition-transform focus:scale-[1.08] focus:bg-accent focus:text-accent-ink ${
-      wide ? 'h-12 w-11 flex-none text-[19px]' : 'h-14 flex-1 text-[22px]'
-    }`,
-    rowCls: wide ? 'flex justify-center gap-2' : 'flex gap-3',
+    face: wide ? { height: 48, width: 44, flexShrink: 0 } : { height: 56, flex: 1 },
+    text: { fontSize: wide ? 19 : 22 },
+    rowGap: wide ? 8 : 12,
+    centred: wide,
     iconSize: wide ? 22 : 26,
   };
 }
@@ -196,33 +262,52 @@ function SearchKeyboard({
   onChange,
   onClose,
 }: Readonly<{ value: string; onChange: (next: string) => void; onClose?: () => void }>) {
-  const { letterRows, lastRow, wide, cell, rowCls, iconSize } = useLayout(searchLook);
-  // A render helper (not a nested component) so the <button> element type stays
-  // stable across the per-keypress re-render and focus is never lost.
-  const key = (id: string, label: ReactNode, onPress: () => void) => (
-    <button key={id} data-focus="" type="button" onClick={onPress} className={cell}>
-      {label}
-    </button>
+  const { letterRows, lastRow, wide, face, text, rowGap, centred, iconSize } =
+    useLayout(searchLook);
+  const key = (id: string, label: string, onPress: () => void) => (
+    <Key
+      key={id}
+      label={label}
+      onPress={onPress}
+      style={face}
+      textStyle={text}
+      focusFill="#F4B642"
+      focusInk="accentInk"
+    />
+  );
+  const glyph = (id: string, icon: IconName, size: number, onPress: () => void) => (
+    <Key
+      key={id}
+      icon={icon}
+      iconSize={size}
+      onPress={onPress}
+      style={face}
+      focusFill="#F4B642"
+      focusInk="accentInk"
+    />
   );
   const letter = (l: string) => key(l, l, () => onChange(value + l.toLowerCase()));
+  const row = (children: React.ReactNode, id: string) => (
+    <Box key={id} row gap={rowGap} justify={centred ? 'center' : undefined}>
+      {children}
+    </Box>
+  );
   return (
-    <div className={`flex flex-col ${wide ? 'gap-2' : 'gap-3'}`}>
-      <div className={rowCls}>{SEARCH_DIGITS.map((d) => key(d, d, () => onChange(value + d)))}</div>
-      {letterRows.slice(0, -1).map((row) => (
-        <div key={row.join('')} className={rowCls}>
-          {row.map(letter)}
-        </div>
-      ))}
-      <div className={rowCls}>
-        {lastRow.map(letter)}
-        {key('space', <IconSpace size={wide ? 24 : 28} stroke={1.8} />, () =>
-          onChange(`${value} `),
-        )}
-        {key('delete', <IconBackspace size={iconSize} stroke={1.8} />, () =>
-          onChange(value.slice(0, -1)),
-        )}
-        {key('close', <IconX size={wide ? 20 : 24} stroke={2} />, () => onClose?.())}
-      </div>
-    </div>
+    <Box gap={rowGap}>
+      {row(
+        SEARCH_DIGITS.map((d) => key(d, d, () => onChange(value + d))),
+        'digits',
+      )}
+      {letterRows.slice(0, -1).map((r) => row(r.map(letter), r.join('')))}
+      {row(
+        <>
+          {lastRow.map(letter)}
+          {glyph('space', 'space', wide ? 24 : 28, () => onChange(`${value} `))}
+          {glyph('delete', 'backspace', iconSize, () => onChange(value.slice(0, -1)))}
+          {glyph('close', 'x', wide ? 20 : 24, () => onClose?.())}
+        </>,
+        'last',
+      )}
+    </Box>
   );
 }

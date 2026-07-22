@@ -30,6 +30,9 @@ const chip = sv({
     variant: {
       solid: {},
       subtle: { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 0 },
+      /** An opaque raised chip, for strips that sit on the page rather than over
+       *  artwork (the season picker on a series detail screen). */
+      surface: { backgroundColor: colors.surface2, borderWidth: 0 },
     },
     size: {
       sm: {},
@@ -51,7 +54,7 @@ const LABEL = {
 export interface ChipProps extends Omit<FocusableProps, 'children' | 'style' | 'label'> {
   active?: boolean;
   size?: 'sm' | 'tv';
-  variant?: 'solid' | 'subtle';
+  variant?: 'solid' | 'subtle' | 'surface';
   /** Leading glyph, before the label. */
   icon?: IconName;
   label?: string;
@@ -69,7 +72,9 @@ export function Chip({
   style,
   ...focusProps
 }: Readonly<ChipProps>) {
-  const idle = variant === 'subtle' ? colors.textMuted : colors.text;
+  // `subtle` and `surface` both recede until focused, so their idle label is
+  // muted; the default solid chip carries full-strength text.
+  const idle = variant === 'solid' ? colors.text : colors.textMuted;
   return (
     <Focusable
       {...focusProps}

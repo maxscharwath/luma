@@ -8,16 +8,28 @@ import {
   sizedImageUrl,
 } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import {
+  Box,
+  Focusable,
+  fonts,
+  gradient,
+  Img,
+  Txt,
+  tintGradient,
+  useFocusNav,
+} from '@kroma/ui/kit';
 import { useMemo } from 'react';
+import { ScrollView } from 'react-native';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
-import { TvArt } from '#tv/shared/TvMedia';
+
+// clamp(34px, 5.5vh, 60px) resolves to 59px on the fixed 1080-tall stage.
+const TITLE = { fontSize: 59, lineHeight: 58, fontWeight: '700' as const, letterSpacing: -1.18 };
 
 /** Genre picker: every genre in the library (movies + shows), most common first.
  * Selecting one drills into {@link TvGenreGrid}. Derives the genre list from the
- * already-loaded catalogue no extra request, like {@link TvPerson}. Each card is
+ * already-loaded catalogue: no extra request, like {@link TvPerson}. Each card is
  * fronted by the genre's best-rated backdrop, washed in its signature colour. */
 export function TvGenres() {
   const { movies, shows } = useConnection();
@@ -31,16 +43,20 @@ export function TvGenres() {
   const showcases = useMemo(() => genreShowcases(catalogue), [catalogue]);
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-bg animate-[tv-fade-in_0.3s_ease]">
-      <header className="px-16 pb-4 pt-28">
-        <h1 className="m-0 font-display text-[clamp(34px,5.5vh,60px)] font-bold leading-[0.98] tracking-[-0.02em]">
+    <Box fill bg="bg" overflow="hidden">
+      <Box px={64} pt={112} pb={16}>
+        <Txt variant="hero" style={TITLE}>
           {t('nav.genres')}
-        </h1>
-      </header>
+        </Txt>
+      </Box>
 
       {genres.length ? (
-        <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-16 pb-18 pt-2">
-          <div className="flex flex-wrap gap-3">
+        <ScrollView
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 64, paddingTop: 8, paddingBottom: 72 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Box row wrap gap={12}>
             {genres.map((g) => {
               const pick = showcases.get(g.name);
               return (
@@ -49,62 +65,70 @@ export function TvGenres() {
                   genre={g}
                   count={t('person.titleCount', { count: g.count })}
                   backdrop={pick ? client.backdropFor(pick) : null}
-                  onClick={() => nav.go('genre', { name: g.name })}
+                  onPress={() => nav.go('genre', { name: g.name })}
                 />
               );
             })}
-          </div>
-        </div>
+          </Box>
+        </ScrollView>
       ) : (
-        <div className="flex flex-1 items-center justify-center px-16">
-          <p className="max-w-160 text-center font-sans text-[18px] font-medium text-dim">
+        <Box flex center px={64}>
+          <Txt
+            style={{ fontSize: 18, fontWeight: '500', textAlign: 'center', maxWidth: 640 }}
+            color="textDim"
+          >
             {t('genres.empty')}
-          </p>
-        </div>
+          </Txt>
+        </Box>
       )}
 
-      {/* Persistent nav last in DOM so a genre tile keeps the initial focus. */}
+      {/* Persistent nav last in the tree so a genre tile keeps the initial focus. */}
       <TvTopNav active="genres" />
-    </div>
+    </Box>
   );
 }
 
 /** One genre tile: library backdrop (or the genre-colour gradient) under a
- * bottom-heavy wash of the genre's hue. The button's own padding keeps the
- * global amber focus ring clear of the artwork. */
+ * bottom-heavy wash of the genre's hue. The tile's own padding keeps the amber
+ * focus ring clear of the artwork. */
 function GenreCard({
   genre,
   count,
   backdrop,
-  onClick,
-}: Readonly<{ genre: GenreCount; count: string; backdrop: string | null; onClick: () => void }>) {
+  onPress,
+}: Readonly<{ genre: GenreCount; count: string; backdrop: string | null; onPress: () => void }>) {
   return (
-    <button
-      type="button"
-      data-focus=""
-      onClick={onClick}
-      className="w-85 flex-none cursor-pointer rounded-[20px] border-none bg-transparent p-1.5 text-left outline-none transition-transform focus:scale-[1.04]"
-    >
-      <div className="relative aspect-video overflow-hidden rounded-[14px] bg-surface-1 shadow-card [contain-intrinsic-size:328px_185px] [content-visibility:auto]">
-        <TvArt
+    <Focusable onPress={onPress} label={genre.name} focusScale={1.04} style={CARD}>
+      <Box aspect={16 / 9} radius={14} overflow="hidden" bg="surface1" shadow="card">
+        <Img
           src={sizedImageUrl(backdrop, 328)}
-          colors={genreColors(genre.name)}
+          background={tintGradient(genreColors(genre.name))}
           position="50% 25%"
+          fill
         />
-        <div className="absolute inset-0" style={{ background: genreTint(genre.name) }} />
-        <div className="absolute inset-x-5 bottom-4">
-          <div
-            className="mb-2 h-1 w-7 rounded-full"
-            style={{ background: genreAccent(genre.name) }}
-          />
-          <div className="font-display text-[23px] font-bold leading-[1.05] text-white">
-            {genre.name}
-          </div>
-          <div className="mt-0.5 font-sans text-[14px] font-semibold text-[rgba(255,255,255,0.72)] tabular-nums">
-            {count}
-          </div>
-        </div>
-      </div>
-    </button>
+        <Box fill pointerEvents="none" style={gradient(genreTint(genre.name))} />
+        <Box absolute left={20} right={20} bottom={16} gap={2}>
+          <Box h={4} w={28} radius="pill" bg={genreAccent(genre.name)} mb={8} />
+          <Txt style={NAME}>{genre.name}</Txt>
+          <Txt style={COUNT}>{count}</Txt>
+        </Box>
+      </Box>
+    </Focusable>
   );
 }
+
+const CARD = { width: 340, flexShrink: 0, padding: 6, borderRadius: 20 } as const;
+const NAME = {
+  fontFamily: fonts.display,
+  fontSize: 23,
+  lineHeight: 24,
+  fontWeight: '700' as const,
+  color: '#FFFFFF',
+};
+const COUNT = {
+  fontFamily: fonts.ui,
+  fontSize: 14,
+  fontWeight: '600' as const,
+  color: 'rgba(255, 255, 255, 0.72)',
+  fontVariant: ['tabular-nums' as const],
+};

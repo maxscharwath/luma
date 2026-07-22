@@ -89,6 +89,8 @@ export type { SpinnerProps } from './primitives/Spinner';
 export { Spinner } from './primitives/Spinner';
 export type { TxtProps } from './primitives/Text';
 export { Txt } from './primitives/Text';
+export type { TextFieldProps } from './primitives/TextField';
+export { TextField } from './primitives/TextField';
 
 // ---- stage ----
 export type { TvStageProps } from './stage/TvStage';

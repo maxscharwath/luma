@@ -6,12 +6,24 @@ import {
   type UpNext,
 } from '@kroma/core';
 import { useLocale, useT, useThemeAudio } from '@kroma/ui';
-import { IconClock } from '@tabler/icons-react';
+import {
+  Box,
+  Button,
+  Chip,
+  Focusable,
+  Icon,
+  Img,
+  Progress,
+  Rail,
+  Txt,
+  tintGradient,
+  useFocusNav,
+  WatchedBadge,
+} from '@kroma/ui/kit';
 import { useEffect, useMemo, useState } from 'react';
 import { useMyList } from '#tv/app/providers/mylist';
 import { useWatched } from '#tv/app/providers/watched';
 import { useClient, useNav, useParams } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { TvDetailScaffold } from '#tv/features/catalog/detail/DetailScaffold';
 import {
   CastRow,
@@ -21,7 +33,6 @@ import {
   ThemeButton,
   WatchedButton,
 } from '#tv/features/catalog/detail/parts';
-import { PlayGlyph, TV_PLAY_BTN, TvArt, WatchedBadge } from '#tv/shared/TvMedia';
 
 export function TvShowDetail() {
   const nav = useNav();
@@ -129,60 +140,58 @@ export function TvShowDetail() {
       badge={qualityBadgeForVideo(show.video)}
       overview={meta?.overview}
     >
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          className={TV_PLAY_BTN}
-          data-focus=""
+      <Box row align="center" gap={16}>
+        <Button
+          size="lg"
+          icon="player-play-filled"
           disabled={!playTarget}
-          onClick={() => playTarget && nav.go('player', { item: playTarget })}
-        >
-          <PlayGlyph />
-          {playTarget
-            ? t(playLabelKey, {
-                season: playTarget.season ?? 0,
-                episode: playTarget.episode ?? 0,
-              })
-            : t('player.play')}
-        </button>
+          label={
+            playTarget
+              ? t(playLabelKey, {
+                  season: playTarget.season ?? 0,
+                  episode: playTarget.episode ?? 0,
+                })
+              : t('player.play')
+          }
+          onPress={() => playTarget && nav.go('player', { item: playTarget })}
+        />
         <ListButton inList={myList.has(show.id)} onToggle={() => myList.toggle(show.id)} />
         <WatchedButton watched={watched.has(show.id)} onToggle={() => watched.toggle(show.id)} />
         {theme.active ? <ThemeButton muted={theme.muted} onToggle={theme.toggle} /> : null}
-      </div>
+      </Box>
       {/* Match the Play button's target (resume/next episode), not always ep 1. */}
       <EndsAtHint runtimeMs={playTarget?.durationMs} />
 
       {error ? (
-        <p className="mt-6 font-display text-[20px] font-normal text-muted">
+        <Txt variant="title" color="textMuted" style={STATUS}>
           {t('content.loadEpisodesFailed', { error })}
-        </p>
+        </Txt>
       ) : null}
       {!detail && !error ? (
-        <p className="mt-6 font-display text-[20px] font-normal text-muted">
+        <Txt variant="title" color="textMuted" style={STATUS}>
           {t('content.loadingEpisodes')}
-        </p>
+        </Txt>
       ) : null}
 
       {detail && detail.seasons.length > 1 ? (
-        <div className="mt-7.5 flex items-center gap-4.5">
-          <span className="font-sans text-[15px] font-bold tracking-[0.04em] text-muted">
+        <Box row align="center" gap={18} mt={30}>
+          <Txt style={SEASON_LABEL} color="textMuted">
             {t('content.seasonsHeader')}
-          </span>
-          <div className="scrollbar-none flex gap-2.5 overflow-x-auto px-3 py-4">
+          </Txt>
+          <Rail inset={12} gap={10}>
             {detail.seasons.map((s) => (
-              <button
+              <Chip
                 key={s.number}
-                type="button"
-                className="shrink-0 cursor-pointer rounded-full border-none bg-surface-2 px-5 py-2.25 font-sans text-[15px] font-semibold text-muted transition-transform focus:scale-[1.05] aria-current:bg-accent aria-current:text-accent-ink"
-                data-focus=""
-                aria-current={s.number === activeSeason?.number}
-                onClick={() => setSeason(s.number)}
-              >
-                {t('content.season', { number: s.number })}
-              </button>
+                variant="surface"
+                focusScale={1.05}
+                active={s.number === activeSeason?.number}
+                label={t('content.season', { number: s.number })}
+                onPress={() => setSeason(s.number)}
+                style={SEASON_CHIP}
+              />
             ))}
-          </div>
-        </div>
+          </Rail>
+        </Box>
       ) : null}
 
       {/* Cast for the selected season (TMDB season credits), falling back to the
@@ -190,61 +199,80 @@ export function TvShowDetail() {
       <CastRow cast={activeSeason?.cast?.length ? activeSeason.cast : meta?.cast} />
 
       {activeSeason ? (
-        <div className="mt-8">
-          <div className="mb-4 font-sans text-[15px] font-bold uppercase tracking-[0.04em] text-[rgba(244,243,240,0.55)]">
+        <Box mt={32} gap={16}>
+          <Txt style={EPISODES_LABEL} color="rgba(244, 243, 240, 0.55)">
             {t('content.episodesHeader')}
-          </div>
-          <div className="scrollbar-none -mx-6 flex gap-4.5 overflow-x-auto px-6 py-5">
+          </Txt>
+          <Rail inset={0} gap={18}>
             {activeSeason.episodes.map((ep) => (
               // The focus ring belongs to the thumbnail only (design) title +
               // meta sit below it, outside the amber border.
-              <div key={ep.id} className="w-65 shrink-0">
-                <button
-                  type="button"
-                  data-focus=""
-                  onClick={() => nav.go('player', { item: ep })}
-                  className="block w-full cursor-pointer rounded-[12px] border-none bg-transparent p-0"
+              <Box key={ep.id} w={260} shrink={0} gap={9}>
+                {/* The focus ring belongs to the thumbnail only (design): title
+                    and meta sit below it, outside the amber border. */}
+                <Focusable
+                  onPress={() => nav.go('player', { item: ep })}
+                  label={ep.episodeTitle ?? ep.title}
+                  style={{ borderRadius: 12 }}
                 >
-                  <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-[12px] bg-surface-1">
-                    <TvArt
+                  <Box aspect={16 / 9} center radius={12} overflow="hidden" bg="surface1">
+                    <Img
                       src={client.backdropFor(ep) ?? backdrop}
-                      colors={posterColors(ep.id)}
+                      background={tintGradient(posterColors(ep.id))}
                       position="50% 30%"
+                      fill
                     />
                     {watched.has(ep.id) ? <WatchedBadge size={26} /> : null}
-                    <div className="relative flex h-11.5 w-11.5 items-center justify-center rounded-full bg-[rgba(10,10,12,0.5)] text-white">
-                      <PlayGlyph size={18} />
-                    </div>
+                    <Box w={46} h={46} center radius="pill" bg="rgba(10, 10, 12, 0.5)">
+                      <Icon name="player-play-filled" size={18} color="#FFFFFF" />
+                    </Box>
                     {epProgress[ep.id] != null && !watched.has(ep.id) ? (
-                      <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[rgba(255,255,255,0.25)]">
-                        <div
-                          className="h-full bg-accent"
-                          style={{ width: `${epProgress[ep.id]}%` }}
-                        />
-                      </div>
+                      <Box absolute left={0} right={0} bottom={0}>
+                        <Progress value={(epProgress[ep.id] ?? 0) / 100} />
+                      </Box>
                     ) : null}
-                  </div>
-                </button>
-                <div className="mt-2.25 text-left font-sans text-[15px] font-semibold text-text">
-                  {ep.episode}. {ep.episodeTitle ?? ep.title}
-                </div>
-                <div className="flex items-center gap-2 font-sans text-[13px] font-medium text-dim tabular-nums">
-                  <span>{formatRuntime(ep.durationMs)}</span>
+                  </Box>
+                </Focusable>
+                <Txt style={EPISODE_TITLE}>{`${ep.episode}. ${ep.episodeTitle ?? ep.title}`}</Txt>
+                <Box row align="center" gap={8}>
+                  <Txt style={EPISODE_META} color="textDim">
+                    {formatRuntime(ep.durationMs)}
+                  </Txt>
                   {endsAtClock(ep.durationMs, locale) ? (
                     <>
-                      <span className="opacity-40">·</span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <IconClock size={12} className="text-accent" stroke={2} />
-                        {t('content.endsAtShort', { time: endsAtClock(ep.durationMs, locale) })}
-                      </span>
+                      <Txt style={[EPISODE_META, { opacity: 0.4 }]} color="textDim">
+                        ·
+                      </Txt>
+                      <Box row align="center" gap={6}>
+                        <Icon name="clock" size={12} stroke={2} color="accent" />
+                        <Txt style={EPISODE_META} color="textDim">
+                          {t('content.endsAtShort', { time: endsAtClock(ep.durationMs, locale) })}
+                        </Txt>
+                      </Box>
                     </>
                   ) : null}
-                </div>
-              </div>
+                </Box>
+              </Box>
             ))}
-          </div>
-        </div>
+          </Rail>
+        </Box>
       ) : null}
     </TvDetailScaffold>
   );
 }
+
+const STATUS = { marginTop: 24, fontWeight: '400' as const };
+const SEASON_LABEL = { fontSize: 15, fontWeight: '700' as const, letterSpacing: 0.6 };
+const SEASON_CHIP = { paddingVertical: 9, paddingHorizontal: 20, borderWidth: 0 } as const;
+const EPISODES_LABEL = {
+  fontSize: 15,
+  fontWeight: '700' as const,
+  letterSpacing: 0.6,
+  textTransform: 'uppercase' as const,
+};
+const EPISODE_TITLE = { fontSize: 15, fontWeight: '600' as const };
+const EPISODE_META = {
+  fontSize: 13,
+  fontWeight: '500' as const,
+  fontVariant: ['tabular-nums' as const],
+};
