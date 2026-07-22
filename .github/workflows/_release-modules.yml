@@ -1,0 +1,205 @@
+name: Release module bundles
+
+# Module half of the release fleet, called by release.yml: the per-target .kmod
+# bundles plus the modules.json store catalog that merges them. Never triggered
+# on its own; the version/channel decisions all come from the caller's `version`
+# job.
+#
+# `targets` is read straight off `github.event.inputs` rather than through a
+# workflow input: in a called workflow the `github` context is still the
+# CALLER's, so the gating expressions stay byte-identical to the ones these jobs
+# had when they lived in release.yml.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Full release version (may carry a -nightly.YYYYMMDD suffix).'
+        type: string
+        required: true
+      channel:
+        description: 'stable | nightly | none. Decides which release the catalog points its download base at.'
+        type: string
+        required: true
+      proceed:
+        description: 'false when a nightly has nothing new to build.'
+        type: string
+        required: true
+
+permissions:
+  contents: write # create the Release + upload assets
+
+env:
+  BUN_VERSION: '1.3.14' # keep in sync with release.yml
+
+jobs:
+  # Runtime-installable module bundles: every module packed to a zstd .kmod the
+  # in-app Store installs (or an admin uploads) with no server rebuild. Built
+  # PER TARGET (a sidecar .kmod carries a native binary, so its platform must
+  # match the server): each matrix entry cross-compiles the sidecar binaries and
+  # suffixes the bundle with the triple; the catalog job below merges every
+  # target into one published index. The musl builds are fully static, so one
+  # build per CPU arch covers everything on Linux: x86_64 musl serves the
+  # Synology .spk, the linux/amd64 Docker image and any x86_64 host; aarch64
+  # musl serves the linux/arm64 Docker image (Raspberry Pi & co) and any ARM64
+  # host.
+  #
+  # Per-target build strategy:
+  #  - linux musl: built INSIDE the same musl cross-toolchain image the Synology
+  #    .spk build uses (messense/rust-musl-cross), which is proven to link the
+  #    heavy sidecars (candle in whisper/vector, librqbit in torrents) for musl
+  #    a plain host `musl-gcc` lacks the C/C++ sysroot they need. The build plan
+  #    is derived from each module's Cargo.toml, then run in the container; the
+  #    .kmod staging + zstd packing (and each vite frontend) run on the host.
+  #  - macOS arm64 (dev servers): built natively on a macos runner, no container
+  #    (modules:pack compiles + packs in one step).
+  modules:
+    name: Modules (.kmod ${{ matrix.target }})
+    if: ${{ inputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets)) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        # Add an entry to publish more platforms (image = cross container, blank
+        # = native build); the catalog picks up whatever targets appear.
+        include:
+          # Digest-pinned: a moving tag swaps rustc underneath and invalidates
+          # the whole cached target dir (same pin as clients/synology/build.sh).
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            image: messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a
+          # aarch64 flavor of the same cross image: ARM64 Linux hosts (Raspberry
+          # Pi 4/5, ARM servers) + the linux/arm64 half of the Docker image.
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            image: messense/rust-musl-cross:aarch64-musl@sha256:ecae5dd62d1c938c14f8071d36c16fa699860aace03bfb5284fb1216474d2643
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            image: ''
+    env:
+      KMOD_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        if: matrix.image == ''
+        with:
+          targets: ${{ matrix.target }}
+
+      # Cache the cargo registry + server/target (mounted into the container on
+      # the cross legs) so a re-run doesn't rebuild candle from scratch.
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: server
+          key: kmod-${{ matrix.target }}
+
+      # Cross legs: compile every sidecar binary in the proven musl toolchain
+      # image. Mirrors clients/synology/build.sh: server/ -> /home/rust/src
+      # (WORKDIR), packages/ -> /home/rust/packages (kroma-i18n `include_str!`s
+      # the shared locale catalogs from outside server/), cargo registry cached.
+      - name: Cross-compile sidecar binaries (container)
+        if: matrix.image != ''
+        run: |
+          set -euo pipefail
+          bun run scripts/kmod-build-plan.ts > /tmp/kmod-build.sh
+          echo "=== build plan ==="; cat /tmp/kmod-build.sh
+          mkdir -p "$HOME/.cargo/registry"
+          docker run --rm \
+            -v "$PWD/server":/home/rust/src \
+            -v "$PWD/packages":/home/rust/packages \
+            -v "$HOME/.cargo/registry":/root/.cargo/registry \
+            -v /tmp/kmod-build.sh:/tmp/kmod-build.sh:ro \
+            "${{ matrix.image }}" \
+            bash -euo pipefail /tmp/kmod-build.sh
+
+      # The container runs as root and leaves root-owned files in server/target
+      # AND in the mounted ~/.cargo/registry; rust-cache's post-save step then
+      # died on the registry half ("tar: ../../../.cargo/registry/...: Cannot
+      # open: Permission denied" -> exit 2 -> "Failed to save"), so the cache
+      # NEVER persisted and every release recompiled the full dep tree (candle,
+      # librqbit, ... ~11 min). rust-cache saves ~/.cargo too, so BOTH trees
+      # must be handed back before anything tries to read or save them.
+      - name: Fix target ownership (container leg)
+        if: always() && matrix.image != ''
+        run: sudo chown -R "$(id -u):$(id -g)" server/target "$HOME/.cargo" || true
+
+      # Stage + zstd-pack each binary (and build its vite frontend) into
+      # dist/modules/<id>-<target>.kmod (+ a .sha256 sidecar each). On cross
+      # legs KMOD_SKIP_BUILD reuses the binaries the container just produced;
+      # native legs compile with the host toolchain inside modules:pack.
+      - name: Pack all modules
+        env:
+          KMOD_SKIP_BUILD: ${{ matrix.image != '' && '1' || '0' }}
+        run: bun run modules:pack
+
+      - name: Upload .kmod artifacts (+ checksums)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-modules-${{ matrix.target }}
+          path: dist/modules/*.kmod*
+          if-no-files-found: error
+
+  # The module registry index: merge every target's bundles, generate the
+  # machine-readable catalog (schema 2: per-target artifacts, sha256, deps,
+  # minServer), and attach EVERYTHING to the Release together. The catalog is
+  # published as `modules.json`, so
+  #   https://github.com/<owner>/<repo>/releases/latest/download/modules.json
+  # is the stable store URL the server's Admin -> Modules page browses.
+  modules-catalog:
+    name: Modules catalog (modules.json)
+    needs: modules
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Collect every target's bundles
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: kroma-modules-*
+          path: dist/modules
+          merge-multiple: true
+
+      - name: Generate the catalog
+        run: |
+          # Nightly bundles live under the rolling `nightly` release, stable
+          # ones under the version tag.
+          if [ "${{ inputs.channel }}" = "nightly" ]; then
+            REF="nightly"
+          else
+            REF="v${{ inputs.version }}"
+          fi
+          bun run scripts/gen-registry.ts \
+            --base "https://github.com/${{ github.repository }}/releases/download/$REF"
+          cp dist/registry/catalog.json dist/registry/modules.json
+
+      - name: Upload registry artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-modules-registry
+          path: dist/registry/modules.json
+          if-no-files-found: error
+
+      - name: Attach bundles + catalog to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
+          files: |
+            dist/modules/*.kmod*
+            dist/registry/modules.json

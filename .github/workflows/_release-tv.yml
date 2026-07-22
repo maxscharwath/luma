@@ -1,0 +1,230 @@
+name: Release TV clients
+
+# TV half of the release fleet, called by release.yml: the LG webOS .ipk, the
+# Samsung Tizen .wgt and the Android TV .apk. Never triggered on its own; the
+# version/channel decisions all come from the caller's `version` job.
+#
+# `targets` is read straight off `github.event.inputs` rather than through a
+# workflow input: in a called workflow the `github` context is still the
+# CALLER's, so the gating expression stays byte-identical to the one these jobs
+# had when they lived in release.yml.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Full release version (may carry a -nightly.YYYYMMDD suffix).'
+        type: string
+        required: true
+      triplet:
+        description: 'Sanitized x.y.z the TV stores require (appinfo.json / config.xml reject suffixes).'
+        type: string
+        required: true
+      proceed:
+        description: 'false when a nightly has nothing new to build.'
+        type: string
+        required: true
+
+permissions:
+  contents: write # create the Release + upload assets
+
+env:
+  BUN_VERSION: '1.3.14' # keep in sync with release.yml
+
+jobs:
+  webos:
+    name: webOS .ipk (modern + legacy tiers)
+    if: ${{ inputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Builds BOTH tiers (modern ESM + legacy ES2015/flattened CSS + the
+      # runtime engine gate in index.html) and runs the Chromium-53 compat guard.
+      - name: Build (production, both tiers)
+        run: bun run build:webos
+
+      # webOS requires a plain x.y.z in appinfo.json.
+      - name: Stamp version ${{ inputs.triplet }}
+        run: |
+          node -e "const f='clients/webos/dist/appinfo.json';const fs=require('fs');const j=JSON.parse(fs.readFileSync(f,'utf8'));j.version='${{ inputs.triplet }}';fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+
+      # ares-package needs no signing; TVs install the .ipk via the Dev Mode app.
+      # --no-minify: the bundles are already minified by Vite, and ares' own
+      # (ancient) minifier cannot parse modern ES2020 output (hls.js chunk).
+      - name: Package .ipk
+        run: |
+          npm install -g @webos-tools/cli
+          ares-package clients/webos/dist -o clients/webos/out --no-minify
+
+      - name: Upload .ipk artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-webos-ipk
+          path: clients/webos/out/*.ipk
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
+          files: clients/webos/out/*.ipk
+
+  tizen:
+    name: Tizen .wgt (dev-certificate signed)
+    if: ${{ inputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TIZEN_STUDIO_VER: '6.0'
+      # Throwaway author certificate generated per run: Samsung TVs in developer
+      # mode accept any author cert (re-installing over an app signed with a
+      # DIFFERENT cert requires uninstalling it first).
+      TIZEN_CERT_PASS: kromaci-2026
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build (production)
+        run: bun run build:tizen
+
+      # Tizen requires a plain x.y.z in config.xml (the <widget> tag, line 2).
+      - name: Stamp version ${{ inputs.triplet }}
+        run: |
+          sed -i -E 's/(<widget[^>]*version=")[^"]*/\1${{ inputs.triplet }}/' clients/tizen/dist/config.xml
+          grep -o 'version="[^"]*"' clients/tizen/dist/config.xml | head -1
+
+      - name: Cache Tizen Studio installer
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: web-cli.bin
+          key: tizen-cli-${{ env.TIZEN_STUDIO_VER }}
+
+      - name: Install Tizen Studio CLI
+        run: |
+          if [ ! -f web-cli.bin ]; then
+            wget -q -O web-cli.bin "https://download.tizen.org/sdk/Installer/tizen-studio_${TIZEN_STUDIO_VER}/web-cli_Tizen_Studio_${TIZEN_STUDIO_VER}_ubuntu-64.bin"
+          fi
+          chmod +x web-cli.bin
+          ./web-cli.bin --accept-license --no-java-check "$HOME/tizen-studio"
+          echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
+
+      - name: Create signing profile (throwaway author certificate)
+        run: |
+          tizen certificate -a KROMA -p "$TIZEN_CERT_PASS" -f kroma-ci
+          tizen security-profiles add -n kroma-ci \
+            -a "$HOME/tizen-studio-data/keystore/author/kroma-ci.p12" -p "$TIZEN_CERT_PASS"
+          # The CLI records password FILE references it cannot read back in a
+          # headless run; inline the plaintext passwords (no-ops if not present).
+          P="$HOME/tizen-studio-data/profile/profiles.xml"
+          sed -i "s|password=\"[^\"]*kroma-ci\.pwd\"|password=\"$TIZEN_CERT_PASS\"|g" "$P"
+          sed -i "s|password=\"[^\"]*tizen-distributor-signer\.pwd\"|password=\"tizenpkcs12passfordsigner\"|g" "$P"
+
+      - name: Package .wgt
+        run: tizen package -t wgt -s kroma-ci -- clients/tizen/dist
+
+      - name: Upload .wgt artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-tizen-wgt
+          path: clients/tizen/dist/*.wgt
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
+          files: clients/tizen/dist/*.wgt
+
+  androidtv:
+    name: Android TV .apk
+    if: ${{ inputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          gradle-version: '8.13'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Web bundle (production) -> synced into android/app/src/main/assets/kroma.
+      - name: Build web bundle
+        run: bun run build:androidtv
+
+      # Release-sign when the keystore secrets exist; otherwise ship the
+      # debug-signed APK (installable via adb / Downloader for sideloading).
+      - name: Release keystore (optional)
+        id: ks
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: .github/scripts/androidtv-release-keystore.sh
+
+      - name: Build APK
+        run: |
+          # versionCode: minutes since 2020, monotonic across releases.
+          VC=$(( ( $(date -u +%s) - 1577836800 ) / 60 ))
+          gradle -p clients/androidtv/android ${{ steps.ks.outputs.task }} \
+            -PkromaVersion="${{ inputs.triplet }}" -PkromaVersionCode="$VC"
+          mkdir -p out
+          cp "clients/androidtv/android/app/build/outputs/apk/${{ steps.ks.outputs.apk }}" \
+            "out/KROMA-androidtv-${{ inputs.version }}.apk"
+
+      - name: Upload .apk artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-androidtv-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
+          files: out/*.apk

@@ -1,0 +1,272 @@
+name: Release desktop installers
+
+# Desktop half of the release fleet, called by release.yml: the macOS .dmg, the
+# Windows .exe/.msi and the Linux .AppImage/.deb, one matrix leg per OS. Never
+# triggered on its own; the version/channel decisions all come from the caller's
+# `version` job.
+#
+# `targets` is read straight off `github.event.inputs` rather than through a
+# workflow input: in a called workflow the `github` context is still the
+# CALLER's, so the gating expression stays byte-identical to the one this job
+# had when it lived in release.yml.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Full release version (may carry a -nightly.YYYYMMDD suffix).'
+        type: string
+        required: true
+      channel:
+        description: 'stable | nightly | none (none = build-only dispatch).'
+        type: string
+        required: true
+      proceed:
+        description: 'false when a nightly has nothing new to build.'
+        type: string
+        required: true
+
+permissions:
+  contents: write # create the Release + upload assets
+
+env:
+  BUN_VERSION: '1.3.14' # keep in sync with release.yml
+
+jobs:
+  desktop:
+    name: Desktop ${{ matrix.label }}
+    if: ${{ inputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","desktop"]'), github.event.inputs.targets)) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon .dmg (+ .app). Intel/universal would be a separate matrix
+          # entry (macos-13) - most Macs are arm64 now.
+          - os: macos-14
+            label: 'macOS (.dmg)'
+            bundles: app,dmg
+            artifact: kroma-desktop-macos
+            files: |
+              clients/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          # NSIS .exe installer + .msi. Nightly builds drop the .msi: WiX wants
+          # a numeric a.b.c[.d] and rejects the -nightly.YYYYMMDD prerelease.
+          - os: windows-latest
+            label: 'Windows (.exe + .msi)'
+            bundles: nsis,msi
+            nightly_bundles: nsis
+            artifact: kroma-desktop-windows
+            files: |
+              clients/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+              clients/desktop/src-tauri/target/release/bundle/msi/*.msi
+          # Steam Deck / Linux .AppImage. Ubuntu 22.04 = oldest base with WebKitGTK
+          # 4.1 (Tauri v2's floor), keeping the AppImage's glibc low enough for SteamOS.
+          - os: ubuntu-22.04
+            label: 'Linux (.AppImage + .deb)'
+            bundles: appimage,deb
+            artifact: kroma-desktop-linux
+            files: |
+              clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+              clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # The repo's rust-toolchain.toml pins the exact version; this just ensures
+      # rustup is present so it can auto-install the pin.
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+
+      # shared-key `desktop-release`: the SAME release build runs here and in
+      # desktop-autoupdate.yml, which used to cache under two different
+      # job-derived keys (~400 MB x 3 OSes, twice over) and warm neither. One
+      # key per OS = half the quota and a warm start for whichever runs next.
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: clients/desktop/src-tauri
+          shared-key: desktop-release
+
+      # Tauri v2 Linux system deps. NB: the Linux release is built --no-default-features
+      # (see the build step), i.e. WITHOUT the in-process libmpv engine, so no
+      # libmpv-dev here: ubuntu-22.04 (kept for its low glibc = SteamOS compat) only
+      # ships libmpv.so.1 (mpv 0.34), too old for the libmpv2 crate (needs .so.2 /
+      # mpv 0.35+). Linux keeps the mpv BINARY (which is itself libmpv, out-of-process);
+      # the in-process engine ships in source, ready once a Deck-compatible libmpv.so.2
+      # is sourced. mac/Windows DO bundle in-process libmpv (their own modern libmpv).
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev \
+            patchelf \
+            file
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Stamp the release version into the installers so a desktop build always
+      # matches the release (stable tag = X.Y.Z, nightly = X.Y.Z-nightly.DATE).
+      # Skipped only for a bare build-only dispatch (channel none).
+      - name: Stamp release version
+        if: inputs.channel != 'none'
+        shell: bash
+        env:
+          VER: ${{ inputs.version }}
+        run: |
+          node -e "const f='clients/desktop/src-tauri/tauri.conf.json';const fs=require('fs');const j=JSON.parse(fs.readFileSync(f,'utf8'));j.version=process.env.VER;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+
+      # Bundle a self-contained mpv (pinned pkgforge AppImage, sha256-verified) as
+      # the `kroma-mpv` sidecar: SteamOS ships no mpv and its rootfs is read-only.
+      # Still needed: the binary is the Linux libmpv fallback (fix-appimage.sh
+      # restores its pristine bytes; the .deb depends on the system mpv).
+      - name: Fetch bundled mpv (Linux sidecar)
+        if: runner.os == 'Linux'
+        run: bash clients/desktop/scripts/fetch-mpv.sh
+
+      # macOS: libmpv to LINK against (brew) + dylibbundler to EMBED it (+ its ffmpeg
+      # dylib tree) into KROMA.app so the .dmg runs without Homebrew. See the
+      # "Bundle libmpv into the .app" step below.
+      - name: Install libmpv build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install mpv dylibbundler
+
+      # Windows: fetch a pinned libmpv-2.dll + synthesise the MSVC import lib mpv.lib
+      # from it (LLVM is pre-installed on the runner). Sets KROMA_MPV_LIB_DIR (consumed
+      # by build.rs's link search) + KROMA_MPV_DLL (bundled next to the .exe) in
+      # $GITHUB_ENV. The DLL is self-contained (ffmpeg statically linked in), so one
+      # file ships beside the executable.
+      - name: Fetch + prepare libmpv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./clients/desktop/scripts/fetch-libmpv-windows.ps1
+
+      # Stage the DLL at a FIXED path the bundler config references (tauri.windows.
+      # conf.json bundle.resources), since KROMA_MPV_DLL is a dynamic scratch path.
+      - name: Stage libmpv-2.dll for bundling (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item "$env:KROMA_MPV_DLL" clients/desktop/src-tauri/libmpv-2.dll -Force
+
+      # Windows Authenticode: import the PFX + inject its thumbprint so `tauri build`
+      # signs the .exe/.msi. No-ops (unsigned) when the secret is unset.
+      - name: Windows code-signing setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) { Write-Host 'No WINDOWS_CERTIFICATE secret; building unsigned.'; exit 0 }
+          $pfx = "$env:RUNNER_TEMP\cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $pass = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pass
+          $conf = 'clients/desktop/src-tauri/tauri.conf.json'
+          $json = Get-Content $conf -Raw | ConvertFrom-Json
+          if (-not $json.bundle.PSObject.Properties['windows']) { $json.bundle | Add-Member windows (@{}) }
+          $json.bundle.windows | Add-Member certificateThumbprint $cert.Thumbprint -Force
+          $json | ConvertTo-Json -Depth 30 | Set-Content $conf
+          Write-Host "Signing with thumbprint $($cert.Thumbprint)"
+
+      # beforeBuildCommand builds the @kroma/tv frontend to dist, then Tauri bundles the
+      # shell + frontend into the platform installer(s). Signing is driven by repo
+      # secrets: on macOS Tauri imports APPLE_CERTIFICATE + notarizes with APPLE_ID/etc;
+      # on Windows the step above injects the cert. With NO secrets set the bundles are
+      # unsigned (macOS shows a Gatekeeper prompt, Windows a SmartScreen one).
+      # macOS: only sign if APPLE_CERTIFICATE actually imports - otherwise build UNSIGNED
+      # (Gatekeeper prompt) instead of hard-failing the release, mirroring the Windows guard.
+      - name: Check macOS signing cert
+        if: runner.os == 'macOS'
+        id: macsign
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: .github/scripts/macos-check-signing-cert.sh
+
+      # Windows/Linux: tauri builds + signs in one pass (Windows Authenticode via the
+      # thumbprint injected earlier). macOS is handled separately below - it must EMBED
+      # libmpv into the .app before the dmg is sealed, and sign AFTER that. NO APPLE_*
+      # env here (an empty APPLE_CERTIFICATE would make tauri's `security import` fail).
+      # TAURI_SIGNING_PRIVATE_KEY signs the updater artifacts (createUpdaterArtifacts).
+      # Windows builds WITH libmpv (default features) + the fetched mpv.lib/dll; Linux
+      # builds --no-default-features (mpv binary engine only) because ubuntu-22.04's
+      # libmpv is too old for the libmpv2 crate (see the deps step above).
+      - name: Build installer(s) (Windows/Linux)
+        if: runner.os != 'macOS'
+        working-directory: clients/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        # `--no-default-features` is a cargo flag: the Tauri v2 CLI only forwards it
+        # to the runner after `--` (a bare `--no-default-features` is rejected).
+        run: bun run tauri build --bundles ${{ inputs.channel == 'nightly' && matrix.nightly_bundles || matrix.bundles }} ${{ runner.os == 'Linux' && '-- --no-default-features' || '' }}
+
+      # macOS: build the .app UNSIGNED, embed libmpv so it is self-contained, THEN sign
+      # + notarize + package the dmg. This order is REQUIRED: dylibbundler rewrites the
+      # Mach-O load commands (invalidating any signature), and the dmg must carry the
+      # already-embedded app. This replaces tauri's built-in macOS sign/notarize/dmg.
+      - name: Build .app (macOS)
+        if: runner.os == 'macOS'
+        working-directory: clients/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: bun run tauri build --bundles app
+
+      - name: Embed libmpv into the .app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          APP=$(find clients/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -n1)
+          bash clients/desktop/scripts/bundle-libmpv-macos.sh "$APP"
+
+      # Sign deep (incl. the embedded dylibs) + notarize when a Developer ID cert is
+      # present, then package the dmg. The macsign step already validated + then DELETED
+      # its keychain, so re-import the cert here. NOTE: the signed path needs a CI run
+      # with the real APPLE_* secrets to confirm end-to-end; the unsigned path (hdiutil
+      # dmg) mirrors what was validated locally.
+      - name: Sign + notarize + package dmg (macOS)
+        if: runner.os == 'macOS'
+        env:
+          SIGN: ${{ steps.macsign.outputs.sign }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: .github/scripts/macos-sign-and-package-dmg.sh
+
+      # Tauri's default bundler sweeps the runner's wayland/glib/gstreamer libs
+      # into the AppImage, which breaks it on Mesa 25+ hosts (SteamOS 3.7+,
+      # Fedora 41+: "Could not create default EGL display: EGL_BAD_PARAMETER",
+      # no window) - tauri-apps/tauri#15665. Strip + repack. No .sig concern
+      # here: this workflow ships no updater artifacts (the desktop-latest
+      # channel does; its workflow re-signs after the same fix).
+      - name: Fix AppImage over-bundling (tauri#15665)
+        if: runner.os == 'Linux'
+        run: bash clients/desktop/scripts/fix-appimage.sh clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          # Attach into a DRAFT: `releases/latest` ignores drafts, so the
+          # previous complete release keeps serving modules.json until the
+          # publish job below flips this one live with every asset present.
+          draft: true
+          files: ${{ matrix.files }}

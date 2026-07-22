@@ -1,0 +1,236 @@
+name: Release mobile beta channels
+
+# The phone/tablet client goes to the two beta channels BETA.md points testers
+# at: Firebase App Distribution (Android) and TestFlight (iOS). Stable tags
+# only - a nightly would burn a TestFlight build number and spam every tester.
+#
+# Both legs stamp the release version and a monotonic build number INTO
+# app.json before `expo prebuild`, because that is the only moment the values
+# reach the generated projects (the template bakes `versionCode 1` /
+# `versionName` from it). Re-uploading a build number App Store Connect has
+# already seen is rejected outright, so the number must never repeat.
+#
+# `expo prebuild` runs under NODE, never under the bun runtime: bun's runtime
+# corrupts the template extraction (NUL-padded files). bun stays the package
+# manager.
+#
+# Called by release.yml, and deliberately NOT in the publish job's `needs`: a
+# beta-channel hiccup must never hold back a server release.
+#
+# `targets` is read straight off `github.event.inputs` rather than through a
+# workflow input: in a called workflow the `github` context is still the
+# CALLER's, so the gating expressions stay byte-identical to the ones these
+# jobs had when they lived in release.yml.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Full release version (may carry a -nightly.YYYYMMDD suffix).'
+        type: string
+        required: true
+      triplet:
+        description: 'Sanitized x.y.z stamped into app.json before `expo prebuild`.'
+        type: string
+        required: true
+      channel:
+        description: 'stable | nightly | none. Only `stable` reaches the beta channels.'
+        type: string
+        required: true
+      proceed:
+        description: 'false when a nightly has nothing new to build.'
+        type: string
+        required: true
+
+permissions:
+  contents: write # create the Release + upload assets
+
+env:
+  BUN_VERSION: '1.3.14' # keep in sync with release.yml
+
+jobs:
+  mobile-android:
+    name: Mobile .apk (Firebase)
+    if: ${{ inputs.proceed == 'true' && inputs.channel == 'stable' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","mobile"]'), github.event.inputs.targets)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Stamp version + build number into app.json
+        run: node .github/scripts/stamp-mobile-version.mjs "${{ inputs.triplet }}"
+
+      - name: Prebuild the Android project
+        working-directory: clients/mobile
+        run: npx expo prebuild --platform android --no-install
+
+      # The Expo template signs `release` with the DEBUG keystore. That is fine
+      # for App Distribution (it is not the Play Store), but it does mean this
+      # APK and a future Play build are signed by different keys, so testers
+      # would have to reinstall rather than update. Revisit when/if this ships
+      # to the Play Store.
+      - name: Build APK
+        working-directory: clients/mobile/android
+        run: |
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp app/build/outputs/apk/release/app-release.apk \
+            "$GITHUB_WORKSPACE/out/KROMA-mobile-${{ inputs.version }}.apk"
+
+      - name: Upload .apk artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-mobile-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+      # Skipped (not failed) without the secrets, like every other optional
+      # signing/publishing step in this workflow: the APK is still built and
+      # attached to the Release, it just is not pushed to the testers.
+      # The secrets check lives INSIDE the script, not in `if:`: a step's own
+      # `env:` block is not readable from its `if:` (that context is evaluated
+      # first), and `secrets` is not available there at all. Same shape as the
+      # optional keystore step in the Android TV job.
+      - name: Distribute to Firebase App Distribution
+        if: github.event_name == 'push'
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TESTER_GROUPS: ${{ vars.FIREBASE_TESTER_GROUPS || 'testers' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_APP_ID" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "No FIREBASE_APP_ID / FIREBASE_SERVICE_ACCOUNT; the APK is built and"
+            echo "attached to the Release, but not pushed to the testers."
+            exit 0
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx --yes firebase-tools appdistribution:distribute \
+            "out/KROMA-mobile-${{ inputs.version }}.apk" \
+            --app "$FIREBASE_APP_ID" \
+            --release-notes-file clients/mobile/distribution/release-notes.txt \
+            --groups "$FIREBASE_TESTER_GROUPS"
+          rm -f "$RUNNER_TEMP/firebase-sa.json"
+
+      - name: Attach to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          draft: true
+          files: out/*.apk
+
+  mobile-ios:
+    name: Mobile .ipa (TestFlight)
+    if: ${{ inputs.proceed == 'true' && inputs.channel == 'stable' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","mobile"]'), github.event.inputs.targets)) }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: '22'
+
+      # An App Store build needs a real Apple Distribution identity and an
+      # App Store provisioning profile for tv.kroma.mobile. Without them there
+      # is nothing uploadable, so the whole job no-ops rather than failing the
+      # release (the desktop job takes the same stance on its signing cert).
+      - name: Check signing secrets
+        id: signing
+        env:
+          IOS_CERTIFICATE: ${{ secrets.MOBILE_IOS_CERTIFICATE }}
+          IOS_PROFILE: ${{ secrets.MOBILE_IOS_PROVISIONING_PROFILE }}
+        run: |
+          if [ -z "$IOS_CERTIFICATE" ] || [ -z "$IOS_PROFILE" ]; then
+            echo "No MOBILE_IOS_CERTIFICATE / MOBILE_IOS_PROVISIONING_PROFILE; skipping the iOS build."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.signing.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Stamp version + build number into app.json
+        if: steps.signing.outputs.ready == 'true'
+        run: node .github/scripts/stamp-mobile-version.mjs "${{ inputs.triplet }}"
+
+      - name: Prebuild the iOS project
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: clients/mobile
+        run: |
+          npx expo prebuild --platform ios --no-install
+          cd ios && pod install
+
+      - name: Import certificate + provisioning profile
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          IOS_CERTIFICATE: ${{ secrets.MOBILE_IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.MOBILE_IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE: ${{ secrets.MOBILE_IOS_PROVISIONING_PROFILE }}
+        run: .github/scripts/ios-import-signing-assets.sh
+
+      - name: Archive + export .ipa
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: clients/mobile/ios
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ inputs.version }}
+        # Called by absolute path: this step runs from clients/mobile/ios.
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/ios-archive-export-ipa.sh"
+
+      # An App Store Connect API key is preferred; the app-specific password the
+      # desktop job already uses for notarization is the fallback.
+      - name: Upload to TestFlight
+        if: ${{ steps.signing.outputs.ready == 'true' && github.event_name == 'push' }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          IPA="out/KROMA-mobile-${{ inputs.version }}.ipa"
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_PRIVATE_KEY" ]; then
+            mkdir -p "$HOME/.appstoreconnect/private_keys"
+            printf '%s' "$ASC_PRIVATE_KEY" \
+              > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+            xcrun altool --upload-app -f "$IPA" -t ios \
+              --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+            rm -rf "$HOME/.appstoreconnect"
+          elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ]; then
+            xcrun altool --upload-app -f "$IPA" -t ios -u "$APPLE_ID" -p "$APPLE_PASSWORD"
+          else
+            echo "No App Store Connect credentials; the .ipa is built but not uploaded."
+          fi
+
+      - name: Upload .ipa artifact
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kroma-mobile-ipa
+          path: out/*.ipa
+          if-no-files-found: error
