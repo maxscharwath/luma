@@ -1,6 +1,6 @@
+import { Box, Grid, PosterCard, useGrowingCount } from '@kroma/ui/kit';
 import { memo } from 'react';
-import { useGrowingCount } from '#tv/features/catalog/home/useGrowingCount';
-import { TvPoster } from '#tv/shared/TvMedia';
+import { ScrollView } from 'react-native';
 
 export interface GridCard {
   id: string;
@@ -19,31 +19,41 @@ export interface GridCard {
 // Grid renders in chunks (grows on scroll) so a 1000-item library never mounts at once.
 const GRID_STEP = 120;
 
+// The 1920px stage makes the column maths static: 1792px of content is exactly
+// 8 x 203px tiles plus 7 x 24px gaps. Flex wrap, never CSS grid, because the
+// legacy webOS tier (Chromium 53) has no grid and React Native has none either.
+const CONTENT_WIDTH = 1792;
+const COLUMNS = 8;
+
 /** Incrementally-rendered 2:3 poster grid for the Films / Séries browse views. */
 function TvGridImpl({ cards }: Readonly<{ cards: GridCard[] }>) {
-  const [count, sentinel] = useGrowingCount(cards.length, GRID_STEP);
+  const { count, onScroll, scrollEventThrottle } = useGrowingCount(cards.length, GRID_STEP);
   return (
-    <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-16 pt-6 pb-18">
-      {/* flex-wrap, NOT CSS grid: the fixed 1920px stage makes the column math
-          static (1792px content = 8 x 203px + 7 x 24px gaps), and flex survives
-          the legacy webOS tier (Chromium 53) where grid does not exist. */}
-      <div className="flex flex-wrap gap-x-6 gap-y-8">
+    <ScrollView
+      style={{ flex: 1, minHeight: 0 }}
+      contentContainerStyle={{ paddingHorizontal: 64, paddingTop: 24, paddingBottom: 72 }}
+      showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={scrollEventThrottle}
+    >
+      <Grid width={CONTENT_WIDTH} columns={COLUMNS} gap={24} rowGap={32}>
         {cards.slice(0, count).map((c) => (
-          <div key={c.id} className="w-[203px]">
-            <TvPoster
-              title={c.title}
-              poster={c.poster}
-              colors={c.colors}
-              watched={c.watched}
-              progress={c.progress}
-              onClick={c.onClick}
-              onFocus={c.onFocus}
-            />
-          </div>
+          <PosterCard
+            key={c.id}
+            title={c.title}
+            art={c.poster}
+            tint={c.colors}
+            watched={c.watched}
+            // GridCard carries a percentage (the server's series-completion
+            // figure); <PosterCard> takes a 0..1 ratio.
+            progress={c.progress == null ? null : c.progress / 100}
+            onPress={c.onClick}
+            onFocus={c.onFocus}
+          />
         ))}
-      </div>
-      {count < cards.length ? <div ref={sentinel} className="h-12 w-full" /> : null}
-    </div>
+      </Grid>
+      {count < cards.length ? <Box h={48} /> : null}
+    </ScrollView>
   );
 }
 

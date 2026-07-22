@@ -1,3 +1,5 @@
+/// <reference path="./types/react-native-tv.d.ts" />
+/// <reference path="./types/react-native-web.d.ts" />
 // @kroma/ui/kit: the universal component library.
 //
 // One source of components that renders natively on Apple TV / Android TV
@@ -16,6 +18,19 @@ export { Focusable } from './focus/Focusable';
 export { armPressGuard, clearPressGuard, PRESS_GUARD_MS, pressGuardActive } from './focus/guard';
 export { useFocusNav } from './focus/nav';
 export type { FocusEngine, FocusHostProps, FocusNavHandlers } from './focus/types';
+// ---- media ----
+export type { GridProps } from './media/Grid';
+export { cellWidth, Grid } from './media/Grid';
+export type { MediaCardProps } from './media/MediaCard';
+export { CARD_SCRIM, MediaCard, tintGradient } from './media/MediaCard';
+export type { PosterCardProps } from './media/PosterCard';
+export { POSTER_SCRIM, PosterCard } from './media/PosterCard';
+export type { RailProps } from './media/Rail';
+export { Rail } from './media/Rail';
+export type { GrowingCount } from './media/useGrowingCount';
+export { useGrowingCount } from './media/useGrowingCount';
+export type { WatchedBadgeProps } from './media/WatchedBadge';
+export { WatchedBadge } from './media/WatchedBadge';
 // ---- primitives ----
 export type { AvatarProps } from './primitives/Avatar';
 export { AVATAR_GRADIENT, Avatar, initialsOf } from './primitives/Avatar';
@@ -43,12 +58,17 @@ export type { ImgProps } from './primitives/img-types';
 export { IMG_FADE_MS } from './primitives/img-types';
 export type { ProgressProps } from './primitives/Progress';
 export { clamp01, Progress } from './primitives/Progress';
+export type { ProgressRingProps } from './primitives/ProgressRing';
+export { ProgressRing } from './primitives/ProgressRing';
+export type { RingGeometry, RingProps } from './primitives/ring';
+export { RING_ROTATION, ringGeometry } from './primitives/ring';
 export type { SkeletonProps } from './primitives/Skeleton';
 export { Skeleton } from './primitives/Skeleton';
 export type { SpinnerProps } from './primitives/Spinner';
 export { Spinner } from './primitives/Spinner';
 export type { TxtProps } from './primitives/Text';
 export { Txt } from './primitives/Text';
+
 // ---- stage ----
 export type { TvStageProps } from './stage/TvStage';
 export { TvStage } from './stage/TvStage';

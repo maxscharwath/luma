@@ -20,12 +20,14 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "react-native": "*"
   },
   "devDependencies": {
     "@types/qrcode-generator": "^1.0.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "react-native": "npm:react-native-tvos@0.86.0-2"
   }
 }

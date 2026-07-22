@@ -1,3 +1,5 @@
+/// <reference path="../types/react-native-tv.d.ts" />
+/// <reference path="../types/react-native-web.d.ts" />
 // Native focus engine (Apple TV / Android TV).
 //
 // The OS focus engine owns directional movement: UIFocusEngine on tvOS, the
