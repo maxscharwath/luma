@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["react", "react-dom"]
+    "types": ["react", "react-dom", "node"]
   },
-  "include": ["src"]
+  "include": ["src", "scripts"]
 }

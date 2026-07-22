@@ -21,6 +21,7 @@ import react from '@vitejs/plugin-react';
 import type { ConfigEnv, UserConfig } from 'vite';
 import { tvFrame } from '../tv-frame.vite';
 import { legacyFinalize } from './legacy-finalize';
+import { RNW_OPTIMIZE_INCLUDE, webResolve } from './rnw';
 
 export interface TvTarget {
   /** Which TV this shell is for (diagnostics label; playback wiring is runtime-detected). */
@@ -73,8 +74,9 @@ export function tvShellConfig(shellUrl: string, target: TvTarget) {
     // 1920x1080 stage in a desktop browser; on a real TV the panel already is
     // that canvas, so device mode turns it off.
     plugins: [tailwindcss(), react(), tvFrame({ enabled: !deviceDev })],
-    // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths).
-    resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', shellUrl)) } },
+    // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths), plus
+    // the react-native -> react-native-web redirect every browser target needs.
+    resolve: webResolve({ '#tv': fileURLToPath(new URL('../../packages/tv/src', shellUrl)) }),
     // Packaged TV apps load from a local path: assets must be referenced relatively.
     base: './',
     server: {
@@ -83,7 +85,10 @@ export function tvShellConfig(shellUrl: string, target: TvTarget) {
       hmr: deviceDev ? { host: lanIp(), protocol: 'ws' } : undefined,
       fs: { allow: [repoRoot] },
     },
-    optimizeDeps: { exclude: ['@kroma/ui', '@kroma/core', '@kroma/tv'] },
+    optimizeDeps: {
+      exclude: ['@kroma/ui', '@kroma/core', '@kroma/tv'],
+      include: RNW_OPTIMIZE_INCLUDE,
+    },
     // Down-level the modern CSS Tailwind emits (color-mix, oklch) to plain
     // fallbacks. Fonts load via <link> in index.html so no remote @import
     // reaches the transformer. Version encoding: major << 16.
@@ -129,7 +134,7 @@ export function tvShellLegacyConfig(shellUrl: string, target: TvTarget): UserCon
       react(),
       legacyFinalize({ distDir: fileURLToPath(new URL('dist', shellUrl)), chrome }),
     ],
-    resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', shellUrl)) } },
+    resolve: webResolve({ '#tv': fileURLToPath(new URL('../../packages/tv/src', shellUrl)) }),
     base: './',
     // appinfo/manifest + icons are already copied into dist/ by the modern build.
     publicDir: false,

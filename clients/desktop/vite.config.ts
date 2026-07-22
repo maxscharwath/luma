@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type UserConfig } from 'vite';
+import { RNW_OPTIMIZE_INCLUDE, webResolve } from '../tv-build/rnw';
 import { clientVersion } from '../tv-build/shell';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -19,8 +20,9 @@ export default defineConfig(
     // This build's version, for the server-compatibility banner (see @kroma/tv
     // CompatBanner / @kroma/core checkServerCompat).
     define: { __KROMA_VERSION__: JSON.stringify(clientVersion(repoRoot)) },
-    // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths; Vite needs it explicitly).
-    resolve: { alias: { '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) } },
+    // `#tv/*` -> the @kroma/tv package src (mirrors tsconfig.base paths; Vite needs
+    // it explicitly), plus the shared react-native -> react-native-web redirect.
+    resolve: webResolve({ '#tv': fileURLToPath(new URL('../../packages/tv/src', import.meta.url)) }),
     // Loadable both from a served origin and directly via file:// in a kiosk, so keep
     // assets relative. The app talks to the KROMA server cross-origin either way (same
     // as the TV clients), via the in-app connect flow.
@@ -34,7 +36,10 @@ export default defineConfig(
       port: 5178,
       fs: { allow: [repoRoot] },
     },
-    optimizeDeps: { exclude: ['@kroma/ui', '@kroma/core', '@kroma/tv'] },
+    optimizeDeps: {
+      exclude: ['@kroma/ui', '@kroma/core', '@kroma/tv'],
+      include: RNW_OPTIMIZE_INCLUDE,
+    },
     build: {
       target: 'es2022',
       outDir: 'dist',
