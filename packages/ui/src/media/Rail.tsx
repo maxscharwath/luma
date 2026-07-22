@@ -5,13 +5,15 @@
 // navigator calls scrollIntoView after every move.
 
 import type { ReactNode } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, type StyleProp, type TextStyle } from 'react-native';
 import { Txt } from '../primitives/Text';
 import { Box } from '../system/Box';
 import { gutter } from '../tokens';
 
 export interface RailProps {
   title?: string;
+  /** Override the title's type. The home rows run larger than the default h2. */
+  titleStyle?: StyleProp<TextStyle>;
   /** Gap between tiles. */
   gap?: number;
   /** Side padding. Defaults to the overscan-safe 10-foot gutter, and it is
@@ -21,11 +23,17 @@ export interface RailProps {
   children: ReactNode;
 }
 
-export function Rail({ title, gap = 24, inset = gutter.tv, children }: Readonly<RailProps>) {
+export function Rail({
+  title,
+  titleStyle,
+  gap = 24,
+  inset = gutter.tv,
+  children,
+}: Readonly<RailProps>) {
   return (
     <Box gap={16}>
       {title ? (
-        <Txt variant="h2" style={{ paddingLeft: inset }}>
+        <Txt variant="h2" style={[{ paddingLeft: inset }, titleStyle]}>
           {title}
         </Txt>
       ) : null}

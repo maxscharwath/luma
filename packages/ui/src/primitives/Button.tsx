@@ -46,6 +46,8 @@ const button = sv({
       sm: { paddingVertical: 9, paddingHorizontal: 16 },
       md: { paddingVertical: 14, paddingHorizontal: 28 },
       lg: { paddingVertical: 17, paddingHorizontal: 38 },
+      /** The 10-foot primary action (the home hero, a detail screen's Lecture). */
+      tv: { paddingVertical: 18, paddingHorizontal: 40 },
     },
     block: {
       true: { alignSelf: 'stretch' },
@@ -62,16 +64,17 @@ const button = sv({
 });
 
 export type ButtonVariant = 'primary' | 'glass' | 'ghost' | 'danger' | 'outline';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'tv';
 
 /** Label metrics per size, matching the design's button scale. */
 const LABEL = {
   sm: { fontSize: 13, fontWeight: '600' as const },
   md: { fontSize: 16, fontWeight: '700' as const },
   lg: { fontSize: 19, fontWeight: '700' as const },
+  tv: { fontSize: 20, fontWeight: '700' as const },
 } satisfies Record<ButtonSize, { fontSize: number; fontWeight: '600' | '700' }>;
 
-const ICON_SIZE = { sm: 16, md: 20, lg: 22 } satisfies Record<ButtonSize, number>;
+const ICON_SIZE = { sm: 16, md: 20, lg: 22, tv: 22 } satisfies Record<ButtonSize, number>;
 
 /** Ink colour per variant: amber fills carry the dark ink, everything else the
  * body text colour. */
