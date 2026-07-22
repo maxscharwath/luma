@@ -4,7 +4,6 @@ import { TvApp, type TvAppProps } from '#tv/app/TvApp';
 
 export type { TvAppProps } from '#tv/app/TvApp';
 export { TvApp } from '#tv/app/TvApp';
-export { useFocusNav } from '#tv/app/useFocusNav';
 
 /** Mount the shared TV experience into #root. Called by each platform shell. */
 export function mountTv(props: TvAppProps = {}): void {

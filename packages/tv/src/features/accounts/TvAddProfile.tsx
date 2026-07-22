@@ -1,10 +1,10 @@
 import { normalizeServerUrl as norm } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { IconChevronRight, IconPlus, IconServer2 } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { useServersHealth } from '#tv/app/useServersHealth';
 import { StatusDot } from '#tv/features/accounts/ServerStatus';
 import { AuthScreen, hostOf } from '#tv/shared/ui';

@@ -1,17 +1,10 @@
 import { useT } from '@kroma/ui';
-import { IconWorldSearch } from '@tabler/icons-react';
+import { Box, Button, TextField, Txt, useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
+import { useEnv } from '#tv/app/providers/env';
 import { useNav } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
-import {
-  AuthScreen,
-  InputGroup,
-  InputGroupAddon,
-  KromaMark,
-  OnScreenKeyboard,
-  TvTextEntry,
-} from '#tv/shared/ui';
+import { AuthScreen, KromaMark, OnScreenKeyboard } from '#tv/shared/ui';
 
 /**
  * Add a (distant) server by address, via an on-screen URL keyboard. Reached on
@@ -23,6 +16,7 @@ export function TvConnect() {
   const nav = useNav();
   const t = useT();
   const { addServer, discover, discovered, discovering } = useConnection();
+  const { physicalKeyboard } = useEnv();
   const [value, setValue] = useState('');
   // `connect` is only ever reached from the Add-profile wizard, so Back returns
   // there (never a dead-end at the launch screen).
@@ -51,41 +45,51 @@ export function TvConnect() {
 
   return (
     <AuthScreen>
-      <div className="mb-6">
+      <Box mb={24}>
         <KromaMark size={32} />
-      </div>
-      <div className="w-full max-w-[720px]">
-        <h1 className="m-0 mb-1.5 text-center font-display text-[38px] font-semibold">
+      </Box>
+      <Box w="100%" maxW={720}>
+        <Txt variant="h1" style={{ fontSize: 38, fontWeight: '600', textAlign: 'center' }}>
           {t('connect.addServerTitle')}
-        </h1>
-        <p className="m-0 mb-6 text-center font-sans text-[16px] font-medium text-dim">
+        </Txt>
+        <Txt
+          style={{
+            fontSize: 16,
+            fontWeight: '500',
+            textAlign: 'center',
+            marginTop: 6,
+            marginBottom: 24,
+          }}
+          color="textDim"
+        >
           {t('connect.addServerSub')}
-        </p>
+        </Txt>
 
-        <InputGroup className="mb-5 gap-3 rounded-lg bg-[#0F0F13] px-5 py-4">
-          <InputGroupAddon>
-            <IconWorldSearch size={20} className="text-dim" stroke={1.7} />
-          </InputGroupAddon>
-          <TvTextEntry
-            value={value}
-            onChange={setValue}
-            onSubmit={submit}
-            placeholder={t('connect.serverPlaceholder')}
-            ariaLabel={t('connect.addServerTitle')}
-            inputMode="url"
-            textClassName="min-w-0 flex-1 overflow-hidden whitespace-nowrap font-sans text-[20px] font-semibold text-text"
-            placeholderClassName="text-[rgba(244,243,240,0.3)]"
-            cursorClassName="ml-px inline-block h-5.5 w-0.5 translate-y-1 bg-accent animate-[tv-blink_1s_step-end_infinite]"
-          />
-          <button
-            data-focus=""
-            type="button"
-            onClick={discover}
-            className="flex-none cursor-pointer rounded-lg border border-border-strong bg-transparent px-4 py-2 font-sans text-[14px] font-semibold text-muted outline-none transition-transform focus:scale-[1.05] focus:border-accent focus:text-accent"
-          >
-            {discovering ? t('common.detecting') : t('connect.detect')}
-          </button>
-        </InputGroup>
+        <TextField
+          value={value}
+          onChange={setValue}
+          onSubmit={submit}
+          icon="world-search"
+          placeholder={t('connect.serverPlaceholder')}
+          label={t('connect.addServerTitle')}
+          keyboardType="url"
+          physicalKeyboard={physicalKeyboard}
+          mb={20}
+          py={16}
+          radius="md"
+          bg="#0F0F13"
+          textStyle={{ fontSize: 20, fontWeight: '600' }}
+          trailing={
+            <Button
+              variant="glass"
+              size="sm"
+              focusScale={1.05}
+              label={discovering ? t('common.detecting') : t('connect.detect')}
+              onPress={discover}
+              style={DETECT}
+            />
+          }
+        />
 
         <OnScreenKeyboard
           value={value}
@@ -95,10 +99,15 @@ export function TvConnect() {
           submitLabel={t('connect.connect')}
         />
 
-        <div className="mt-5 text-center font-sans text-[14px] font-medium text-[rgba(244,243,240,0.4)]">
+        <Txt
+          style={{ fontSize: 14, fontWeight: '500', textAlign: 'center', marginTop: 20 }}
+          color="rgba(244, 243, 240, 0.4)"
+        >
           {t('connect.keyboardHint')}
-        </div>
-      </div>
+        </Txt>
+      </Box>
     </AuthScreen>
   );
 }
+
+const DETECT = { flexShrink: 0, backgroundColor: 'transparent', paddingHorizontal: 16 } as const;

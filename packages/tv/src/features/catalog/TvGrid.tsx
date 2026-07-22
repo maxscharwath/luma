@@ -9,12 +9,12 @@ import {
   sortTitles,
 } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useMyList } from '#tv/app/providers/mylist';
 import { useWatched } from '#tv/app/providers/watched';
 import { useClient, useNav, useParams } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import {
   AmbientBackdrop,
   type CatalogEntry as Entry,

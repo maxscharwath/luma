@@ -6,12 +6,12 @@ import {
   type User,
 } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useEnv } from '#tv/app/providers/env';
 import { useNav, useParams } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { AuthScreen, artUrl, Keypad, LockGlyph, ProfileAvatar } from '#tv/shared/ui';
 
 /** PINs are a fixed 4 digits; the last digit auto-validates (no OK press). */

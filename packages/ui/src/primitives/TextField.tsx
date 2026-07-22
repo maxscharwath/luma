@@ -12,7 +12,7 @@
 // letting the 10-foot amber ring box the inner control, which is the shadcn
 // InputGroup behaviour this replaces.
 
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, type StyleProp, TextInput, type TextStyle } from 'react-native';
 import { Box, type BoxProps } from '../system/Box';
 import { colors, radius as radii } from '../tokens';
@@ -27,6 +27,9 @@ export interface TextFieldProps extends Omit<BoxProps, 'children' | 'onChange'> 
   placeholder?: string;
   /** Leading glyph inside the field. */
   icon?: IconName;
+  /** Control rendered after the entry, inside the field (a Detect button, a
+   *  clear button). It keeps its own focus treatment. */
+  trailing?: ReactNode;
   /** True when the shell has a real keyboard: renders an editable TextInput.
    *  False (a TV) renders the value plus a blinking caret. */
   physicalKeyboard?: boolean;
@@ -44,6 +47,7 @@ export function TextField({
   onSubmit,
   placeholder,
   icon,
+  trailing,
   physicalKeyboard = false,
   autoFocus = true,
   keyboardType = 'default',
@@ -94,6 +98,7 @@ export function TextField({
           <Caret />
         </Box>
       )}
+      {trailing}
     </Box>
   );
 }

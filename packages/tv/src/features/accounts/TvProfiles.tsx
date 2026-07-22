@@ -1,11 +1,11 @@
 import { normalizeServerUrl as norm, type StoredSession } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { IconPlus, IconSettings } from '@tabler/icons-react';
 import { useMemo } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { useServersHealth } from '#tv/app/useServersHealth';
 import { StatusDot } from '#tv/features/accounts/ServerStatus';
 import { AuthScreen, artUrl, hostOf, KromaMark, ProfileAvatar } from '#tv/shared/ui';

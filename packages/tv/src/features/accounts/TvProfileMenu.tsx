@@ -1,11 +1,11 @@
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { IconLock, IconLogout, IconUsersGroup } from '@tabler/icons-react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
 import { actionItem } from '#tv/app/settings/items';
 import { PROFILE_SETTINGS, quitAppItem } from '#tv/app/settings/registry';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { AuthScreen, ProfileAvatar } from '#tv/shared/ui';
 import { SettingsRows } from './SettingsRows';
 

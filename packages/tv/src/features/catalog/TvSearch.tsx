@@ -1,21 +1,14 @@
 import type { SearchHit } from '@kroma/core';
 import { posterColors, qualityBadge, qualityBadgeForVideo } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { IconSearch } from '@tabler/icons-react';
+import { Box, Chip, Grid, PosterCard, TextField, Txt, useFocusNav } from '@kroma/ui/kit';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { useConnection } from '#tv/app/providers/connection';
+import { useEnv } from '#tv/app/providers/env';
 import { useClient, useNav } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { addRecentSearch, getRecentSearches } from '#tv/features/catalog/searchHistory';
-import { TvPoster } from '#tv/shared/TvMedia';
-import {
-  InputGroup,
-  InputGroupAddon,
-  KromaMark,
-  OnScreenKeyboard,
-  TvBackButton,
-  TvTextEntry,
-} from '#tv/shared/ui';
+import { KromaMark, OnScreenKeyboard, TvBackButton } from '#tv/shared/ui';
 
 interface Hit {
   id: string;
@@ -40,6 +33,7 @@ export function TvSearch() {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<Hit[]>([]);
   const [recent, setRecent] = useState<string[]>(getRecentSearches);
+  const { physicalKeyboard } = useEnv();
   useFocusNav({ onBack: nav.back });
 
   // A search "counts" once the user opens one of its results: remember the
@@ -116,87 +110,93 @@ export function TvSearch() {
   }, [query, client, toHit, localHits]);
 
   return (
-    <div className="fixed inset-0 z-10 flex flex-col bg-bg px-16 py-11 animate-[tv-fade-in_0.3s_ease]">
-      <div className="mb-7 flex items-center gap-3.5">
+    <Box fill z={10} bg="bg" px={64} py={44}>
+      <Box row align="center" gap={14} mb={28}>
         <TvBackButton />
         <KromaMark size={28} />
-        <span className="ml-auto font-sans text-[14px] font-semibold text-dim">
+        <Box flex />
+        <Txt style={{ fontSize: 14, fontWeight: '600' }} color="textDim">
           {t('search.backHint')}
-        </span>
-      </div>
+        </Txt>
+      </Box>
 
-      <div className="flex min-h-0 flex-1 gap-13">
-        <div className="flex w-[520px] flex-none flex-col">
-          <InputGroup className="mb-6.5 h-17 gap-3.5 rounded-2xl bg-[rgba(255,255,255,0.05)] px-5.5">
-            <InputGroupAddon>
-              <IconSearch size={24} stroke={1.8} color="rgba(244,243,240,0.5)" />
-            </InputGroupAddon>
-            <TvTextEntry
-              value={query}
-              onChange={setQuery}
-              ariaLabel={t('nav.search')}
-              inputMode="search"
-              textClassName="min-w-0 flex-1 truncate font-sans text-[24px] font-semibold text-text"
-              cursorClassName="h-7 w-0.5 bg-accent animate-[tv-breathe_1.1s_ease-in-out_infinite]"
-            />
-          </InputGroup>
+      <Box row flex gap={52} style={{ minHeight: 0 }}>
+        <Box w={520} shrink={0}>
+          <TextField
+            value={query}
+            onChange={setQuery}
+            icon="search"
+            label={t('nav.search')}
+            physicalKeyboard={physicalKeyboard}
+            h={68}
+            mb={26}
+            bg="rgba(255, 255, 255, 0.05)"
+            textStyle={{ fontSize: 24, fontWeight: '600' }}
+          />
           <OnScreenKeyboard value={query} onChange={setQuery} onClose={nav.back} layout="search" />
 
           {/* recent searches: focusable pills that re-run the query */}
           {recent.length ? (
-            <div className="mt-7 min-h-0">
-              <div className="mb-3 font-sans text-[13px] font-bold tracking-[0.04em] text-dim">
+            <Box mt={28} gap={12} style={{ minHeight: 0 }}>
+              <Txt style={RECENT_LABEL} color="textDim">
                 {t('search.recent')}
-              </div>
-              <div className="flex flex-wrap gap-2.5">
+              </Txt>
+              <Box row wrap gap={10}>
                 {recent.map((term) => (
-                  <button
+                  <Chip
                     key={term}
-                    data-focus=""
-                    type="button"
-                    onClick={() => setQuery(term)}
-                    className="max-w-[240px] cursor-pointer truncate rounded-full border-none bg-[rgba(255,255,255,0.05)] px-4.5 py-2 font-sans text-[15px] font-semibold text-muted outline-none transition-transform focus:scale-[1.06] focus:bg-accent focus:text-accent-ink"
-                  >
-                    {term}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-5 pb-8">
-          <div className="mb-4.5 flex flex-wrap items-center gap-3.5">
-            <span className="font-sans text-[15px] font-bold tracking-[0.04em] text-muted">
-              {t('search.results')}
-            </span>
-            <span className="font-sans text-[12px] font-semibold text-[rgba(244,243,240,0.34)]">
-              {t('search.hint')}
-            </span>
-          </div>
-          {/* flex-wrap, NOT CSS grid (legacy webOS tier has no grid). The results
-              pane is a fixed 1180px (1792 content - 520 keyboard - 52 gap - 40
-              px-5), so 4 columns = (1180 - 3 x 24px gaps) / 4 = 277px each. */}
-          {hits.length ? (
-            <div className="flex flex-wrap gap-6">
-              {hits.map((h) => (
-                <div key={h.id} className="w-[277px]">
-                  <TvPoster
-                    title={h.title}
-                    poster={h.poster}
-                    colors={h.colors}
-                    onClick={() => openHit(h)}
+                    variant="subtle"
+                    focusScale={1.06}
+                    label={term}
+                    onPress={() => setQuery(term)}
+                    style={{ maxWidth: 240, paddingHorizontal: 18, paddingVertical: 8 }}
                   />
-                </div>
+                ))}
+              </Box>
+            </Box>
+          ) : null}
+        </Box>
+
+        <ScrollView
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Box row wrap align="center" gap={14} mb={18}>
+            <Txt style={{ fontSize: 15, fontWeight: '700', letterSpacing: 0.6 }} color="textMuted">
+              {t('search.results')}
+            </Txt>
+            <Txt style={{ fontSize: 12, fontWeight: '600' }} color="rgba(244, 243, 240, 0.34)">
+              {t('search.hint')}
+            </Txt>
+          </Box>
+          {/* The results pane is a fixed 1180px (1792 content - 520 keyboard -
+              52 gap - 40 padding), so 4 columns of 277px with 24px gaps. */}
+          {hits.length ? (
+            <Grid width={RESULTS_WIDTH} columns={4} gap={24}>
+              {hits.map((h) => (
+                <PosterCard
+                  key={h.id}
+                  title={h.title}
+                  art={h.poster}
+                  tint={h.colors}
+                  onPress={() => openHit(h)}
+                />
               ))}
-            </div>
+            </Grid>
           ) : (
-            <p className="pt-5 font-sans text-[17px] font-medium text-[rgba(244,243,240,0.4)]">
+            <Txt
+              style={{ fontSize: 17, fontWeight: '500', paddingTop: 20 }}
+              color="rgba(244, 243, 240, 0.4)"
+            >
               {query.trim() ? t('search.noResults') : t('search.empty')}
-            </p>
+            </Txt>
           )}
-        </div>
-      </div>
-    </div>
+        </ScrollView>
+      </Box>
+    </Box>
   );
 }
+
+const RESULTS_WIDTH = 1180;
+const RECENT_LABEL = { fontSize: 13, fontWeight: '700' as const, letterSpacing: 0.52 };

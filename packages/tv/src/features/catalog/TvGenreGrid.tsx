@@ -1,9 +1,9 @@
 import { compareTitles, hasGenre, posterColors, type SortMode } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import {
   AmbientBackdrop,
   type CatalogEntry as Entry,

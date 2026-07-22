@@ -1,7 +1,7 @@
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { useNav } from '#tv/app/router';
 import { DEVICE_SETTINGS } from '#tv/app/settings/registry';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { AuthScreen, KromaMark } from '#tv/shared/ui';
 import { SettingsRows } from './SettingsRows';
 

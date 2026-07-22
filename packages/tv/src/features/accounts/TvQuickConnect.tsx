@@ -1,10 +1,10 @@
 import type { AuthResult, KromaClient, MessageKey, QuickConnectInit } from '@kroma/core';
 import { useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { AuthScreen, KromaMark } from '#tv/shared/ui';
 
 /** Regenerate the code this many seconds before the server-side TTL lapses. */

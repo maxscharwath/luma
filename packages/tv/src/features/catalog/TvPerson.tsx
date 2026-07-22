@@ -1,10 +1,10 @@
 import type { Metadata } from '@kroma/core';
 import { creditsPerson, personInvolvement, posterColors, roleLabels } from '@kroma/core';
 import { Image, useT } from '@kroma/ui';
+import { useFocusNav } from '@kroma/ui/kit';
 import { useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';
-import { useFocusNav } from '#tv/app/useFocusNav';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
 import { gradFor, initials } from '#tv/shared/ui';
