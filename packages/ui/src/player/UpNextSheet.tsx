@@ -1,9 +1,16 @@
 import type { RemoteKey, Translate } from '@kroma/core';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Animated, Easing, type LayoutChangeEvent, Pressable, ScrollView } from 'react-native';
 import { useT } from '../i18n';
+import { gradient } from '../primitives/css';
+import { Txt } from '../primitives/Text';
+import { Box } from '../system/Box';
+import { fonts, motion } from '../tokens';
+import { IconCollapse } from './icons';
 import type { PanelHandle } from './nav';
-import { EYEBROW } from './tw';
-import { UpNextCard, type UpNextItem } from './UpNextCard';
+import { EYEBROW } from './style';
+import { cellWidth } from '../media/Grid';
+import { UP_NEXT_COLUMNS, UP_NEXT_GAP, UpNextCard, type UpNextItem } from './UpNextCard';
 import { useGridFocus } from './useGridFocus';
 
 export type { UpNextItem };
@@ -21,16 +28,20 @@ export interface UpNextSheetProps {
   open: boolean;
   /** Chrome visible; the peek shows ONLY when revealed AND there is data. */
   revealed: boolean;
-  /** Header click / ▼ from the controls: the shell opens the sheet. */
+  /** Header press / ▼ from the controls: the shell opens the sheet. */
   onOpen: () => void;
   onClose: () => void;
   onPlay: (item: UpNextItem) => void;
 }
 
-/** Flat-grid column count (peek + open share it). */
-const COLS = 3;
 /** Pixels of the sheet that peek above the bottom edge while parked (§10). */
 const PEEK_HEIGHT = 150;
+/** Sheet height as a fraction of the player surface. */
+const SHEET_FRACTION = 0.82;
+
+const SCRIM = 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.55) 45%)';
+const SHEET_FILL =
+  'linear-gradient(180deg, transparent, rgba(10,10,12,0.55) 12%, rgba(10,10,12,0.97) 30%)';
 
 interface Section {
   id: string;
@@ -62,6 +73,7 @@ function buildSections(data: UpNextData, t: Translate): Section[] {
   return sections;
 }
 
+
 /**
  * The YouTube-TV-style "À suivre" surface (§10): ONE sliding sheet with two
  * positions. Parked (peek) it sits low so only the header + a clipped card row
@@ -79,7 +91,7 @@ export const UpNextSheet = forwardRef<PanelHandle, UpNextSheetProps>(function Up
 
   const grid = useGridFocus({
     count: items.length,
-    cols: COLS,
+    cols: UP_NEXT_COLUMNS,
     onActivate: (i) => {
       const it = items[i];
       if (it) onPlay(it);
@@ -97,14 +109,36 @@ export const UpNextSheet = forwardRef<PanelHandle, UpNextSheetProps>(function Up
     [open, grid.onKey],
   );
 
-  // Scroll the focused card into view on D-pad nav only (grid.keyNonce bumps on
-  // arrow keys, not hover), so the ring never leaves the viewport on TV while a
-  // pointer hover leaves the scroll position - and the layout under it - untouched.
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // Rise / park. Animated rather than a CSS transition so the one sheet slides
+  // the same way on every target.
+  const slide = useRef(new Animated.Value(open ? 0 : 1)).current;
+  useEffect(() => {
+    const anim = Animated.timing(slide, {
+      toValue: open ? 0 : 1,
+      duration: 340,
+      easing: Easing.bezier(...(motion.bezier.out as [number, number, number, number])),
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [open, slide]);
+
+  // Scroll the focused card into view on D-pad nav ONLY (keyNonce bumps on arrow
+  // keys, not on hover), so the ring never leaves the viewport on a TV while a
+  // pointer hover leaves the scroll position, and the layout under it, untouched.
+  // Row offsets come from onLayout rather than from the DOM, so this works on a
+  // TV where there is no scrollIntoView.
+  const scroller = useRef<ScrollView>(null);
+  const rowTop = useRef(new Map<number, number>());
+  // React Native has no calc(), so the three-across card width is computed from
+  // the measured row width instead of expressed as calc((100% - 52px) / 3).
+  const [rowWidth, setRowWidth] = useState(0);
+  const card = rowWidth > 0 ? cellWidth(rowWidth, UP_NEXT_COLUMNS, UP_NEXT_GAP) : undefined;
   // biome-ignore lint/correctness/useExhaustiveDependencies: grid.keyNonce is a change-trigger (re-run on D-pad moves only), intentionally not read in the body.
   useEffect(() => {
     if (!open) return;
-    scrollRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' });
+    const y = rowTop.current.get(Math.floor(grid.index / UP_NEXT_COLUMNS));
+    if (y != null) scroller.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
   }, [grid.keyNonce, open]);
 
   if (!open && (!revealed || items.length === 0)) return null;
@@ -114,76 +148,133 @@ export const UpNextSheet = forwardRef<PanelHandle, UpNextSheetProps>(function Up
 
   return (
     <>
-      <button
-        type="button"
-        aria-label={t('player.back')}
-        tabIndex={-1}
-        onClick={onClose}
-        className={`absolute inset-0 z-43 border-none bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.55)_45%)] transition-opacity duration-340 ${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+      <Pressable
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t('player.back')}
+        focusable={false}
+        pointerEvents={open ? 'auto' : 'none'}
+        style={[SCRIM_BOX, gradient(SCRIM), { opacity: open ? 1 : 0 }]}
       />
-      <div
-        ref={scrollRef}
-        className={`absolute inset-x-0 bottom-0 z-45 h-[82%] overflow-x-hidden bg-[linear-gradient(180deg,transparent,rgba(10,10,12,0.55)_12%,rgba(10,10,12,0.97)_30%)] transition-transform duration-340 ease-out ${open ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
-        style={{ transform: open ? 'translateY(0)' : `translateY(calc(100% - ${PEEK_HEIGHT}px))` }}
+      <Animated.View
+        style={[
+          SHEET_BOX,
+          gradient(SHEET_FILL),
+          {
+            transform: [
+              {
+                translateY: slide.interpolate({
+                  inputRange: [0, 1],
+                  // Parked, all but PEEK_HEIGHT of the sheet sits below the edge.
+                  outputRange: ['0%', `${100 - (PEEK_HEIGHT / (SHEET_FRACTION * 1080)) * 100}%`],
+                }),
+              },
+            ],
+          },
+        ]}
       >
-        <SheetHeader
-          open={open}
-          title={t('player.upNextTitle')}
-          onToggle={open ? onClose : onOpen}
-        />
-        <div className="px-14 pt-1 pb-14">
+        <SheetHeader open={open} title={t('player.upNextTitle')} onToggle={open ? onClose : onOpen} />
+        <ScrollView
+          ref={scroller}
+          scrollEnabled={open}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 56, paddingTop: 4, paddingBottom: 56 }}
+        >
           {sections.map((sec) => (
-            <section key={sec.id} className="mb-8 last:mb-0">
-              {grouped ? <div className={`${EYEBROW} mb-3.5`}>{sec.title}</div> : null}
-              <div className="flex flex-wrap items-start gap-[26px]">
+            <Box key={sec.id} mb={32}>
+              {grouped ? <Txt style={[EYEBROW, { marginBottom: 14 }]}>{sec.title}</Txt> : null}
+              <Box
+                row
+                wrap
+                align="flex-start"
+                gap={UP_NEXT_GAP}
+                onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+              >
                 {sec.items.map((it, li) => {
                   const flat = sec.offset + li;
                   return (
-                    <UpNextCard
+                    <CardCell
                       key={it.id}
-                      item={it}
-                      focused={open && grid.index === flat}
-                      onActivate={() => onPlay(it)}
-                      onFocus={open ? grid.hover(flat) : undefined}
-                    />
+                      row={Math.floor(flat / UP_NEXT_COLUMNS)}
+                      width={card}
+                      onRowTop={(row, y) => rowTop.current.set(row, y)}
+                    >
+                      <UpNextCard
+                        item={it}
+                        focused={open && grid.index === flat}
+                        onActivate={() => onPlay(it)}
+                        onFocus={open ? grid.hover(flat) : undefined}
+                      />
+                    </CardCell>
                   );
                 })}
-              </div>
-            </section>
+              </Box>
+            </Box>
           ))}
-        </div>
-      </div>
+        </ScrollView>
+      </Animated.View>
     </>
   );
 });
 
-/** The clickable header: title + a chevron that flips between the two states. */
+/** Reports where its row starts, so the sheet can scroll a D-pad move into view
+ * without reaching for the DOM. */
+function CardCell({
+  row,
+  width,
+  onRowTop,
+  children,
+}: Readonly<{
+  row: number;
+  width?: number;
+  onRowTop: (row: number, y: number) => void;
+  children: React.ReactNode;
+}>) {
+  const onLayout = (e: LayoutChangeEvent) => onRowTop(row, e.nativeEvent.layout.y);
+  return (
+    <Box onLayout={onLayout} w={width}>
+      {children}
+    </Box>
+  );
+}
+
+const SCRIM_BOX = {
+  position: 'absolute' as const,
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+  zIndex: 43,
+};
+
+const SHEET_BOX = {
+  position: 'absolute' as const,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  height: `${SHEET_FRACTION * 100}%` as const,
+  zIndex: 45,
+  overflow: 'hidden' as const,
+};
+
+/** The pressable header: title + a chevron that flips between the two states. */
 function SheetHeader({
   open,
   title,
   onToggle,
 }: Readonly<{ open: boolean; title: string; onToggle: () => void }>) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full cursor-pointer items-center gap-3.5 border-none bg-transparent px-14 pt-6 pb-4 text-left outline-none"
-    >
-      <span className="font-display text-[22px] font-bold text-text">{title}</span>
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        strokeWidth={2.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="stroke-accent transition-transform duration-300"
-        style={{ transform: open ? 'rotate(0deg)' : 'rotate(180deg)' }}
-        aria-hidden="true"
-      >
-        <path d="M6 9l6 6 6-6" />
-      </svg>
-    </button>
+    <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={title}>
+      <Box row align="center" gap={14} px={56} pt={24} pb={16}>
+        <Txt style={{ fontFamily: fonts.display, fontSize: 22, fontWeight: '700' }}>{title}</Txt>
+        <Box style={{ transform: [{ rotate: open ? '0deg' : '180deg' }] }}>
+          <Chevron />
+        </Box>
+      </Box>
+    </Pressable>
   );
+}
+
+function Chevron() {
+  return <IconCollapse size={20} stroke={2.2} color="accent" />;
 }

@@ -1,12 +1,17 @@
+import { Pressable } from 'react-native';
 import { useT } from '../i18n';
+import { gradient } from '../primitives/css';
+import { Txt } from '../primitives/Text';
+import { Box } from '../system/Box';
+import { fonts } from '../tokens';
 import { IconBack } from './icons';
-import { FOCUS_RING } from './tw';
+import { FOCUS_SCALE, FOCUS_SHADOW } from './style';
 
 /**
  * Player top chrome (§ top chrome): a gradient bar holding the round back
- * button, the title + subtitle, and an optional warning pill on the right
- * (e.g. a transcode / unsupported-codec notice). Rendered over the video, so
- * the bar itself is click-through and only the back button captures the pointer.
+ * button, the title + subtitle, and an optional warning pill on the right (a
+ * transcode / unsupported-codec notice, say). Rendered over the video, so the
+ * bar itself is click-through and only the back button captures the pointer.
  */
 export interface TopBarProps {
   title: string;
@@ -18,33 +23,60 @@ export interface TopBarProps {
   backFocused?: boolean;
 }
 
+const SCRIM = 'linear-gradient(180deg, rgba(0,0,0,0.65), transparent)';
+
 export function TopBar({ title, subtitle, warn, onBack, backFocused }: Readonly<TopBarProps>) {
   const t = useT();
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-[18px] bg-[linear-gradient(180deg,rgba(0,0,0,0.65),transparent)] px-[34px] py-[26px]">
-      <button
-        type="button"
-        aria-label={t('player.back')}
-        onClick={onBack}
-        className={`pointer-events-auto flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full border border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.1)] text-white outline-none transition-[transform,box-shadow] duration-150 ease-out ${backFocused ? FOCUS_RING : ''}`}
-      >
-        <IconBack size={20} />
-      </button>
-      <div className="min-w-0">
-        <div className="overflow-hidden text-ellipsis whitespace-nowrap font-display text-[19px] font-bold text-white">
+    <Box
+      absolute
+      left={0}
+      right={0}
+      top={0}
+      row
+      align="center"
+      gap={18}
+      px={34}
+      py={26}
+      pointerEvents="box-none"
+      style={gradient(SCRIM)}
+    >
+      <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={t('player.back')}>
+        <Box
+          w={42}
+          h={42}
+          shrink={0}
+          center
+          radius="pill"
+          borderWidth={1}
+          border="rgba(255, 255, 255, 0.14)"
+          bg="rgba(255, 255, 255, 0.1)"
+          style={backFocused ? FOCUSED : null}
+        >
+          <IconBack size={20} />
+        </Box>
+      </Pressable>
+      <Box style={{ minWidth: 0 }}>
+        <Txt lines={1} style={TITLE}>
           {title}
-        </div>
+        </Txt>
         {subtitle ? (
-          <div className="overflow-hidden text-ellipsis whitespace-nowrap font-sans text-[13px] font-medium text-[rgba(244,243,240,0.6)]">
+          <Txt lines={1} style={SUBTITLE} color="rgba(244, 243, 240, 0.6)">
             {subtitle}
-          </div>
+          </Txt>
         ) : null}
-      </div>
+      </Box>
       {warn ? (
-        <span className="ml-auto flex-none whitespace-nowrap rounded-full bg-accent-soft px-3.5 py-2 font-sans text-[13px] font-semibold text-accent">
-          {warn}
-        </span>
+        <Box shrink={0} ml="auto" radius="pill" bg="accentSoft" px={14} py={8}>
+          <Txt style={{ fontFamily: fonts.ui, fontSize: 13, fontWeight: '600' }} color="accent">
+            {warn}
+          </Txt>
+        </Box>
       ) : null}
-    </div>
+    </Box>
   );
 }
+
+const FOCUSED = { boxShadow: FOCUS_SHADOW, transform: [{ scale: FOCUS_SCALE }] };
+const TITLE = { fontFamily: fonts.display, fontSize: 19, fontWeight: '700' as const, color: '#FFFFFF' };
+const SUBTITLE = { fontFamily: fonts.ui, fontSize: 13, fontWeight: '500' as const };

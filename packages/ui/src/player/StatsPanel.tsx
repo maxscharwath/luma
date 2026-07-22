@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { Pressable } from 'react-native';
 import { useT } from '../i18n';
+import { Polyline, Svg } from '../primitives/svg';
+import { Txt } from '../primitives/Text';
+import { Box } from '../system/Box';
+import { fonts } from '../tokens';
 import { IconClose } from './icons';
 import type { PlayerController, PlayerMeter, PlayerStats } from './types';
 
@@ -8,11 +13,12 @@ const HISTORY = 80;
 const SPARK_W = 148;
 const SPARK_H = 30;
 
-/** A tiny auto-scaled line chart for one live series. Pure SVG (no canvas / lib)
- * so it renders on legacy TV webviews too. The window is scaled to its own
- * min/max with a hair of headroom, and a faint area fill sits under the line. */
+/** A tiny auto-scaled line chart for one live series. Plain SVG (no canvas, no
+ * charting library) so it renders on a legacy TV webview and on a native TV
+ * alike. The window is scaled to its own min/max with a hair of headroom, and a
+ * faint area fill sits under the line. */
 function Sparkline({ data, color }: Readonly<{ data: number[]; color: string }>) {
-  if (data.length < 2) return <svg width={SPARK_W} height={SPARK_H} aria-hidden="true" />;
+  if (data.length < 2) return <Svg width={SPARK_W} height={SPARK_H} />;
   let min = Math.min(...data);
   let max = Math.max(...data);
   if (max === min) {
@@ -25,9 +31,9 @@ function Sparkline({ data, color }: Readonly<{ data: number[]; color: string }>)
   const line = data.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const area = `0,${SPARK_H} ${line} ${SPARK_W},${SPARK_H}`;
   return (
-    <svg width={SPARK_W} height={SPARK_H} aria-hidden="true" style={{ display: 'block' }}>
-      <polyline points={area} fill={color} fillOpacity={0.12} stroke="none" />
-      <polyline
+    <Svg width={SPARK_W} height={SPARK_H}>
+      <Polyline points={area} fill={color} fillOpacity={0.12} stroke="none" />
+      <Polyline
         points={line}
         fill="none"
         stroke={color}
@@ -35,7 +41,7 @@ function Sparkline({ data, color }: Readonly<{ data: number[]; color: string }>)
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-    </svg>
+    </Svg>
   );
 }
 
@@ -43,15 +49,25 @@ function Sparkline({ data, color }: Readonly<{ data: number[]; color: string }>)
 function MeterRow({ meter, data }: Readonly<{ meter: PlayerMeter; data: number[] }>) {
   const color = meter.color ?? 'rgba(244,243,240,0.7)';
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex justify-between gap-6 font-sans text-[13px] font-medium">
-        <span className="text-[rgba(244,243,240,0.5)]">{meter.label}</span>
-        <span className="whitespace-nowrap text-right tabular-nums text-[rgba(244,243,240,0.82)]">
-          {meter.display}
-        </span>
-      </div>
+    <Box gap={4}>
+      <StatRow label={meter.label} value={meter.display} />
       <Sparkline data={data} color={color} />
-    </div>
+    </Box>
+  );
+}
+
+/** One label / value line. The value is tabular so the numbers stop jittering
+ * as they tick. */
+function StatRow({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <Box row between gap={24}>
+      <Txt style={STAT_LABEL} color="rgba(244, 243, 240, 0.5)">
+        {label}
+      </Txt>
+      <Txt style={STAT_VALUE} color="rgba(244, 243, 240, 0.82)">
+        {value}
+      </Txt>
+    </Box>
   );
 }
 
@@ -130,37 +146,64 @@ export function StatsPanel({
   const meters = s.meters ?? [];
 
   return (
-    <div className="absolute top-[100px] left-[34px] z-20 min-w-[280px] rounded-[14px] border border-[rgba(255,255,255,0.1)] bg-[rgba(8,8,11,0.74)] px-[22px] py-[18px] backdrop-blur-lg">
-      <div className="mb-3 flex items-center justify-between gap-6">
-        <span className="font-sans text-[11px] font-bold uppercase tracking-[0.16em] text-[rgba(244,243,240,0.5)]">
+    <Box
+      absolute
+      top={100}
+      left={34}
+      z={20}
+      minW={280}
+      radius={14}
+      borderWidth={1}
+      border="rgba(255, 255, 255, 0.1)"
+      bg="rgba(8, 8, 11, 0.74)"
+      px={22}
+      py={18}
+    >
+      <Box row align="center" between gap={24} mb={12}>
+        <Txt style={PANEL_TITLE} color="rgba(244, 243, 240, 0.5)">
           {t('stats.title')}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('common.close')}
-          className="flex flex-none cursor-pointer items-center justify-center rounded-full border-none bg-[rgba(255,255,255,0.08)] p-1 text-[rgba(244,243,240,0.5)] outline-none"
-        >
-          <IconClose size={15} />
-        </button>
-      </div>
-      <div className="flex flex-col gap-2">
+        </Txt>
+        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+          <Box shrink={0} center radius="pill" bg="rgba(255, 255, 255, 0.08)" p={4}>
+            <IconClose size={15} color="rgba(244, 243, 240, 0.5)" />
+          </Box>
+        </Pressable>
+      </Box>
+      <Box gap={8}>
         {rows.map(([k, val]) => (
-          <div key={k} className="flex justify-between gap-6 font-sans text-[13px] font-medium">
-            <span className="text-[rgba(244,243,240,0.5)]">{k}</span>
-            <span className="whitespace-nowrap text-right tabular-nums text-[rgba(244,243,240,0.82)]">
-              {val}
-            </span>
-          </div>
+          <StatRow key={k} label={k} value={val} />
         ))}
-      </div>
-      {meters.length > 0 && (
-        <div className="mt-3 flex flex-col gap-3 border-t border-[rgba(255,255,255,0.08)] pt-3">
+      </Box>
+      {meters.length > 0 ? (
+        <Box
+          gap={12}
+          mt={12}
+          pt={12}
+          style={{ borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.08)' }}
+        >
           {meters.map((m) => (
             <MeterRow key={m.key} meter={m} data={historyRef.current.get(m.key) ?? []} />
           ))}
-        </div>
-      )}
-    </div>
+        </Box>
+      ) : null}
+    </Box>
   );
 }
+
+const PANEL_TITLE = {
+  fontFamily: fonts.ui,
+  fontSize: 11,
+  fontWeight: '700' as const,
+  letterSpacing: 1.76,
+  textTransform: 'uppercase' as const,
+};
+
+const STAT_LABEL = { fontFamily: fonts.ui, fontSize: 13, fontWeight: '500' as const };
+
+const STAT_VALUE = {
+  fontFamily: fonts.ui,
+  fontSize: 13,
+  fontWeight: '500' as const,
+  textAlign: 'right' as const,
+  fontVariant: ['tabular-nums' as const],
+};

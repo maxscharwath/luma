@@ -1,12 +1,17 @@
-import { Image } from '../components/Image';
-import { FOCUS_RING } from './tw';
+import { type DimensionValue, Pressable } from 'react-native';
+import { gradient } from '../primitives/css';
+import { Img } from '../primitives/Img';
+import { Txt } from '../primitives/Text';
+import { Box } from '../system/Box';
+import { colors, fonts } from '../tokens';
+import { FOCUS_SCALE, FOCUS_SHADOW } from './style';
 
 /**
  * One "À suivre" tile (§10): a 16:9 thumbnail with a duration badge, then a
  * category eyebrow, a title and an optional meta line. The same card renders in
  * the parked peek and inside the open sheet (no zoom between states); focus is
- * state-driven, so the amber ring + spring pop come from `FOCUS_RING` and hover
- * just moves focus via `onFocus` (§15).
+ * state-driven, so the ring comes from the `focused` prop and a pointer entering
+ * the card only moves focus via `onFocus` (§15).
  */
 export interface UpNextItem {
   id: string;
@@ -26,13 +31,13 @@ export interface UpNextCardProps {
   focused: boolean;
   onActivate: () => void;
   onFocus?: () => void;
+  /** Explicit width. The sheet lays three across, the peek shows one. */
+  width?: DimensionValue;
 }
 
-/**
- * Card column width inside the sheet's `flex flex-wrap gap-[26px]` (3 per row,
- * legacy-safe, no CSS grid): 3 cards + 2 gaps of 26px === 100%.
- */
-export const UP_NEXT_CARD_W = 'w-[calc((100%-52px)/3)]';
+/** Three cards across with 26px gaps, which is the sheet's layout. */
+export const UP_NEXT_COLUMNS = 3;
+export const UP_NEXT_GAP = 26;
 
 /** Deterministic, subtle amber-into-charcoal placeholder when there is no still. */
 function placeholderGradient(id: string): string {
@@ -42,40 +47,73 @@ function placeholderGradient(id: string): string {
   return `linear-gradient(${tilt}deg, rgba(244,182,66,0.16) 0%, rgba(20,18,22,0.96) 64%)`;
 }
 
-export function UpNextCard({ item, focused, onActivate, onFocus }: Readonly<UpNextCardProps>) {
+const VIGNETTE = 'radial-gradient(120% 120% at 50% 25%, transparent, rgba(0,0,0,0.42))';
+
+export function UpNextCard({
+  item,
+  focused,
+  onActivate,
+  onFocus,
+  width = '100%',
+}: Readonly<UpNextCardProps>) {
   return (
-    <button
-      type="button"
-      // Marks the D-pad-focused card so the sheet can scroll it into view on key
-      // nav ONLY (scrolling on pointer hover would shift the sheet under the cursor
-      // and land clicks on the wrong card).
-      data-focused={focused || undefined}
-      onClick={onActivate}
-      onMouseEnter={onFocus}
-      className={`${UP_NEXT_CARD_W} block cursor-pointer rounded-[14px] border-none bg-transparent p-0 text-left outline-none transition-[transform,box-shadow] duration-180 ease-out ${focused ? FOCUS_RING : ''}`}
+    <Pressable
+      onPress={onActivate}
+      onPointerEnter={onFocus}
+      accessibilityRole="button"
+      accessibilityLabel={item.title}
+      style={[{ width, borderRadius: 14 }, focused ? FOCUSED : null]}
     >
-      <div className="relative aspect-video w-full overflow-hidden rounded-[14px] bg-surface-1">
-        <Image src={item.posterUrl} fit="cover" background={placeholderGradient(item.id)} fill />
-        <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_25%,transparent,rgba(0,0,0,0.42))]" />
+      <Box aspect={16 / 9} w="100%" radius={14} overflow="hidden" bg="surface1">
+        <Img src={item.posterUrl ?? null} background={placeholderGradient(item.id)} fill />
+        <Box fill pointerEvents="none" style={gradient(VIGNETTE)} />
         {item.durationLabel ? (
-          <span className="absolute right-2.5 bottom-2.5 rounded-[7px] bg-[rgba(0,0,0,0.72)] px-[9px] py-[3px] font-sans text-[12px] font-bold tabular-nums text-white">
-            {item.durationLabel}
-          </span>
+          <Box absolute right={10} bottom={10} radius={7} bg="rgba(0, 0, 0, 0.72)" px={9} py={3}>
+            <Txt style={DURATION}>{item.durationLabel}</Txt>
+          </Box>
         ) : null}
-      </div>
+      </Box>
       {item.categoryLabel ? (
-        <div className="mt-3 truncate font-sans text-[11px] font-bold uppercase tracking-[0.09em] text-accent">
+        <Txt lines={1} style={CATEGORY} color="accent">
           {item.categoryLabel}
-        </div>
+        </Txt>
       ) : null}
-      <div className="mt-1 font-sans text-[17px] font-semibold leading-tight text-text">
-        {item.title}
-      </div>
+      <Txt style={TITLE}>{item.title}</Txt>
       {item.subtitle ? (
-        <div className="mt-[3px] font-sans text-[14px] font-medium text-[rgba(244,243,240,0.5)]">
+        <Txt style={SUBTITLE} color="rgba(244, 243, 240, 0.5)">
           {item.subtitle}
-        </div>
+        </Txt>
       ) : null}
-    </button>
+    </Pressable>
   );
 }
+
+const FOCUSED = { boxShadow: FOCUS_SHADOW, transform: [{ scale: FOCUS_SCALE }] };
+
+const DURATION = {
+  fontFamily: fonts.ui,
+  fontSize: 12,
+  fontWeight: '700' as const,
+  color: '#FFFFFF',
+  fontVariant: ['tabular-nums' as const],
+};
+
+const CATEGORY = {
+  marginTop: 12,
+  fontFamily: fonts.ui,
+  fontSize: 11,
+  fontWeight: '700' as const,
+  letterSpacing: 0.99,
+  textTransform: 'uppercase' as const,
+};
+
+const TITLE = {
+  marginTop: 4,
+  fontFamily: fonts.ui,
+  fontSize: 17,
+  lineHeight: 21,
+  fontWeight: '600' as const,
+  color: colors.text,
+};
+
+const SUBTITLE = { marginTop: 3, fontFamily: fonts.ui, fontSize: 14, fontWeight: '500' as const };
