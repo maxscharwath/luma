@@ -198,6 +198,12 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           VERSION: ${{ inputs.version }}
+          # Authenticates `-allowProvisioningUpdates`: the Expo template leaves
+          # the project on automatic signing, so xcodebuild resolves the App
+          # Store profile itself and cannot do it anonymously.
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         # Called by absolute path: this step runs from clients/mobile/ios.
         run: bash "$GITHUB_WORKSPACE/.github/scripts/ios-archive-export-ipa.sh"
 

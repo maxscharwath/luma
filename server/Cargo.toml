@@ -1,6 +1,6 @@
 [package]
 name = "kroma-server"
-version = "0.1.32"
+version = "0.1.33"
 edition.workspace = true
 rust-version.workspace = true
 description = "KROMA a self-hosted, direct-play media streaming server"
