@@ -106,6 +106,8 @@ jobs:
     needs: version
     if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","modules"]'), github.event.inputs.targets)) }}
     uses: ./.github/workflows/_release-modules.yml
+    permissions:
+      contents: write # passed down to the called workflow
     with:
       version: ${{ needs.version.outputs.version }}
       channel: ${{ needs.version.outputs.channel }}
@@ -120,6 +122,8 @@ jobs:
     needs: version
     if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","tv"]'), github.event.inputs.targets)) }}
     uses: ./.github/workflows/_release-tv.yml
+    permissions:
+      contents: write # passed down to the called workflow
     with:
       version: ${{ needs.version.outputs.version }}
       triplet: ${{ needs.version.outputs.triplet }}
@@ -136,6 +140,8 @@ jobs:
     needs: version
     if: ${{ needs.version.outputs.proceed == 'true' && (needs.version.outputs.channel == 'stable' || github.event_name == 'workflow_dispatch') && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","mobile"]'), github.event.inputs.targets)) }}
     uses: ./.github/workflows/_release-mobile.yml
+    permissions:
+      contents: write # passed down to the called workflow
     with:
       version: ${{ needs.version.outputs.version }}
       triplet: ${{ needs.version.outputs.triplet }}
@@ -151,6 +157,8 @@ jobs:
     needs: version
     if: ${{ needs.version.outputs.proceed == 'true' && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","desktop"]'), github.event.inputs.targets)) }}
     uses: ./.github/workflows/_release-desktop.yml
+    permissions:
+      contents: write # passed down to the called workflow
     with:
       version: ${{ needs.version.outputs.version }}
       channel: ${{ needs.version.outputs.channel }}
