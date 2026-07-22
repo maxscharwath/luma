@@ -21,3 +21,25 @@ export const Polyline: El<SVGPolylineElement> = (props) => <polyline {...props} 
 export const Polygon: El<SVGPolygonElement> = (props) => <polygon {...props} />;
 export const Ellipse: El<SVGEllipseElement> = (props) => <ellipse {...props} />;
 export const G: El<SVGGElement> = (props) => <g {...props} />;
+
+/** Render a raw SVG document string.
+ *
+ * The QR code is generated as SVG markup by qrcode-generator, and both worlds
+ * need a way to display a document they did not build element by element:
+ * react-native-svg parses it, and the browser simply is an SVG parser. The
+ * markup is app-generated from a trusted server URL plus a server-issued code,
+ * never user input. */
+export function SvgXml({
+  xml,
+  width,
+  height,
+}: Readonly<{ xml: string | null; width?: number | string; height?: number | string }>) {
+  if (!xml) return null;
+  return (
+    <div
+      style={{ width, height, display: 'flex' }}
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: app-generated QR SVG built by qrcode-generator from a trusted server URL + server-issued code, never user input.
+      dangerouslySetInnerHTML={{ __html: xml }}
+    />
+  );
+}

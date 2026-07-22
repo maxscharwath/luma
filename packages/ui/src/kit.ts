@@ -87,6 +87,7 @@ export type { SkeletonProps } from './primitives/Skeleton';
 export { Skeleton } from './primitives/Skeleton';
 export type { SpinnerProps } from './primitives/Spinner';
 export { Spinner } from './primitives/Spinner';
+export { SvgXml } from './primitives/svg';
 export type { TxtProps } from './primitives/Text';
 export { Txt } from './primitives/Text';
 export type { TextFieldProps } from './primitives/TextField';

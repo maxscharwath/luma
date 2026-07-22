@@ -1,8 +1,7 @@
 import { normalizeServerUrl as norm } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { useFocusNav } from '@kroma/ui/kit';
-import { IconChevronRight, IconPlus, IconServer2 } from '@tabler/icons-react';
-import { type ReactNode, useEffect, useMemo } from 'react';
+import { Box, Focusable, Icon, type IconName, Spinner, Txt, useFocusNav } from '@kroma/ui/kit';
+import { useEffect, useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useNav } from '#tv/app/router';
 import { useServersHealth } from '#tv/app/useServersHealth';
@@ -11,7 +10,7 @@ import { AuthScreen, hostOf } from '#tv/shared/ui';
 
 interface Row {
   key: string;
-  icon: ReactNode;
+  icon: IconName;
   iconAccent?: boolean;
   title: string;
   sub: string;
@@ -62,7 +61,7 @@ export function TvAddProfile() {
       const saved = servers.find((s) => s.url === url);
       out.push({
         key: `srv-${url}`,
-        icon: <IconServer2 size={24} stroke={1.7} />,
+        icon: 'server-2',
         title: saved?.name || (hostOf(url) ?? url),
         sub: saved ? addrOf(url) : `${addrOf(url)} · ${t('addProfile.new')}`,
         url,
@@ -72,7 +71,7 @@ export function TvAddProfile() {
     for (const s of servers.filter((sv) => !localUrls.includes(sv.url))) {
       out.push({
         key: `srv-${s.url}`,
-        icon: <IconServer2 size={24} stroke={1.7} />,
+        icon: 'server-2',
         title: s.name || (hostOf(s.url) ?? s.url),
         sub: addrOf(s.url),
         url: s.url,
@@ -81,7 +80,7 @@ export function TvAddProfile() {
     }
     out.push({
       key: 'manual',
-      icon: <IconPlus size={24} stroke={1.7} />,
+      icon: 'plus',
       iconAccent: true,
       title: t('addProfile.addManually'),
       sub: t('addProfile.addManuallySub'),
@@ -96,58 +95,92 @@ export function TvAddProfile() {
 
   return (
     <AuthScreen>
-      <div className="w-full max-w-[720px]">
-        <h1 className="m-0 mb-1.5 text-center font-display text-[40px] font-semibold">
+      <Box w="100%" maxW={720}>
+        <Txt
+          variant="h1"
+          style={{ fontSize: 40, fontWeight: '600', textAlign: 'center', marginBottom: 6 }}
+        >
           {t('addProfile.title')}
-        </h1>
-        <p className="m-0 mb-9 text-center font-sans text-[16px] font-medium text-dim">
+        </Txt>
+        <Txt
+          style={{ fontSize: 16, fontWeight: '500', textAlign: 'center', marginBottom: 36 }}
+          color="textDim"
+        >
           {t('addProfile.subtitle')}
-        </p>
+        </Txt>
 
-        <div className="mb-3 flex items-center gap-2.5">
-          <span className="font-sans text-[12px] font-bold uppercase tracking-[0.16em] text-[rgba(244,243,240,0.42)]">
+        <Box row align="center" gap={10} mb={12}>
+          <Txt style={SECTION} color="rgba(244, 243, 240, 0.42)">
             {t('addProfile.availableServers')}
-          </span>
-          {discovering ? (
-            <span className="h-3.25 w-3.25 rounded-full border-2 border-[rgba(244,180,66,0.3)] border-t-accent animate-[tvp-spin_0.8s_linear_infinite]" />
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-3">
+          </Txt>
+          {discovering ? <Spinner size={13} thickness={2} /> : null}
+        </Box>
+        <Box gap={12}>
           {rows.map((r) => (
-            <button
+            <Focusable
               key={r.key}
-              data-focus=""
-              type="button"
-              onClick={r.onSelect}
-              className="flex items-center gap-4 rounded-[15px] border border-border bg-[rgba(255,255,255,0.03)] px-5 py-4 text-left outline-none transition-transform focus:scale-[1.02] focus:border-accent"
+              onPress={r.onSelect}
+              label={r.title}
+              focusScale={1.02}
+              ring={false}
+              style={ROW}
+              focusedStyle={{ borderColor: '#F4B642' }}
             >
-              <span
-                className={`flex h-11.5 w-11.5 flex-none items-center justify-center rounded-xl ${
-                  r.iconAccent
-                    ? 'bg-accent-soft text-accent'
-                    : 'bg-[rgba(255,255,255,0.06)] text-muted'
-                }`}
+              <Box
+                w={46}
+                h={46}
+                shrink={0}
+                center
+                radius="xl"
+                bg={r.iconAccent ? 'accentSoft' : 'rgba(255, 255, 255, 0.06)'}
               >
-                {r.icon}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-sans text-[19px] font-bold text-text">
+                <Icon
+                  name={r.icon}
+                  size={24}
+                  stroke={1.7}
+                  color={r.iconAccent ? 'accent' : 'textMuted'}
+                />
+              </Box>
+              <Box flex style={{ minWidth: 0 }}>
+                <Txt lines={1} style={{ fontSize: 19, fontWeight: '700' }}>
                   {r.title}
-                </span>
-                <span className="block truncate font-sans text-[14px] font-medium text-dim">
+                </Txt>
+                <Txt lines={1} style={{ fontSize: 14, fontWeight: '500' }} color="textDim">
                   {r.sub}
-                </span>
-              </span>
+                </Txt>
+              </Box>
               {r.url ? <StatusDot online={health[r.url]} /> : null}
-              <IconChevronRight size={22} className="flex-none text-dim" />
-            </button>
+              <Icon name="chevron-right" size={22} color="textDim" />
+            </Focusable>
           ))}
-        </div>
+        </Box>
 
-        <div className="mt-7 text-center font-sans text-[14px] font-medium text-[rgba(244,243,240,0.4)]">
+        <Txt
+          style={{ fontSize: 14, fontWeight: '500', textAlign: 'center', marginTop: 28 }}
+          color="rgba(244, 243, 240, 0.4)"
+        >
           {t('addProfile.navHint')}
-        </div>
-      </div>
+        </Txt>
+      </Box>
     </AuthScreen>
   );
 }
+
+const SECTION = {
+  fontSize: 12,
+  fontWeight: '700' as const,
+  letterSpacing: 1.92,
+  textTransform: 'uppercase' as const,
+};
+
+const ROW = {
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  gap: 16,
+  borderRadius: 15,
+  borderWidth: 1,
+  borderColor: 'rgba(255, 255, 255, 0.08)',
+  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  paddingHorizontal: 20,
+  paddingVertical: 16,
+};

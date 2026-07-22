@@ -1,5 +1,5 @@
 import { useT } from '@kroma/ui';
-import { useFocusNav } from '@kroma/ui/kit';
+import { Box, Txt, useFocusNav } from '@kroma/ui/kit';
 import { useNav } from '#tv/app/router';
 import { DEVICE_SETTINGS } from '#tv/app/settings/registry';
 import { AuthScreen, KromaMark } from '#tv/shared/ui';
@@ -18,20 +18,26 @@ export function TvDeviceSettings() {
 
   return (
     <AuthScreen>
-      <div className="mb-8">
+      <Box mb={32}>
         <KromaMark size={40} />
-      </div>
-      <h1 className="m-0 mb-9 font-display text-[44px] font-semibold leading-none">
+      </Box>
+      <Txt
+        variant="hero"
+        style={{ fontSize: 44, lineHeight: 44, fontWeight: '600', marginBottom: 36 }}
+      >
         {t('deviceSettings.title')}
-      </h1>
+      </Txt>
 
-      <div className="flex w-full max-w-[560px] flex-col gap-3">
+      <Box w="100%" maxW={560} gap={12}>
         <SettingsRows items={DEVICE_SETTINGS} />
-      </div>
+      </Box>
 
-      <div className="mt-7 font-sans text-[14px] font-medium text-[rgba(244,243,240,0.4)]">
+      <Txt
+        style={{ fontSize: 14, fontWeight: '500', marginTop: 28 }}
+        color="rgba(244, 243, 240, 0.4)"
+      >
         {t('profileMenu.navHint')}
-      </div>
+      </Txt>
     </AuthScreen>
   );
 }

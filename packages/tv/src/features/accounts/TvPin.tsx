@@ -6,13 +6,13 @@ import {
   type User,
 } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { useFocusNav } from '@kroma/ui/kit';
+import { Box, Icon, Spinner, Txt, useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
 import { useEnv } from '#tv/app/providers/env';
 import { useNav, useParams } from '#tv/app/router';
-import { AuthScreen, artUrl, Keypad, LockGlyph, ProfileAvatar } from '#tv/shared/ui';
+import { AuthScreen, artUrl, Keypad, ProfileAvatar } from '#tv/shared/ui';
 
 /** PINs are a fixed 4 digits; the last digit auto-validates (no OK press). */
 const PIN_LENGTH = 4;
@@ -224,53 +224,58 @@ export function TvPin() {
           src={headerUser.src}
         />
       ) : null}
-      <h1 className="m-0 mt-6 mb-1 font-display text-[32px] font-semibold">{headerUser?.name}</h1>
-      <div className="flex items-center gap-2 font-sans text-[15px] font-medium text-dim">
-        <span className="text-accent">
-          <LockGlyph size={14} />
-        </span>
-        {t(subtitle)}
-      </div>
+      <Txt variant="h1" style={{ fontSize: 32, fontWeight: '600', marginTop: 24, marginBottom: 4 }}>
+        {headerUser?.name}
+      </Txt>
+      <Box row align="center" gap={8}>
+        <Icon name="lock" size={14} color="accent" />
+        <Txt style={{ fontSize: 15, fontWeight: '500' }} color="textDim">
+          {t(subtitle)}
+        </Txt>
+      </Box>
 
-      <div
-        key={shake}
-        className={`mt-8 flex gap-4.5 ${shake ? 'animate-[tv-shake_0.4s_ease]' : ''} ${busy ? 'animate-pulse' : ''}`}
-      >
+      <Box key={shake} row gap={18} mt={32} opacity={busy ? 0.6 : 1}>
         {PIN_DOTS.map((dotKey, i) => (
-          <span
+          <Box
             key={dotKey}
-            className="h-4.5 w-4.5 rounded-full border-2 transition-all"
-            style={{
-              background: i < buffer.length ? '#F4B642' : 'transparent',
-              borderColor: i < buffer.length ? '#F4B642' : 'rgba(255,255,255,0.25)',
-            }}
+            w={18}
+            h={18}
+            radius="pill"
+            borderWidth={2}
+            bg={i < buffer.length ? '#F4B642' : 'transparent'}
+            border={i < buffer.length ? '#F4B642' : 'rgba(255, 255, 255, 0.25)'}
           />
         ))}
-      </div>
+      </Box>
 
-      <div className="flex h-6 items-center gap-2">
+      <Box row align="center" gap={8} h={24}>
         {busy ? (
           <>
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[rgba(255,255,255,0.25)] border-t-accent" />
-            <span className="font-sans text-[14px] font-medium text-dim">{t('pin.verifying')}</span>
+            <Spinner size={16} thickness={2} />
+            <Txt style={{ fontSize: 14, fontWeight: '500' }} color="textDim">
+              {t('pin.verifying')}
+            </Txt>
           </>
         ) : null}
         {!busy && error ? (
-          <span className="font-sans text-[14px] font-semibold text-danger">
+          <Txt style={{ fontSize: 14, fontWeight: '600' }} color="danger">
             {error === 'auth.pinLocked' && cooldown > 0
               ? t('pin.lockedRetry', { seconds: cooldown })
               : t(error)}
-          </span>
+          </Txt>
         ) : null}
-      </div>
+      </Box>
 
-      <div className="mt-2">
+      <Box mt={8}>
         <Keypad onDigit={addDigit} onDelete={removeDigit} />
-      </div>
+      </Box>
 
-      <span className="mt-7 font-sans text-[14px] font-medium text-[rgba(244,243,240,0.38)]">
+      <Txt
+        style={{ fontSize: 14, fontWeight: '500', marginTop: 28 }}
+        color="rgba(244, 243, 240, 0.38)"
+      >
         {t('pin.backHint')}
-      </span>
+      </Txt>
     </AuthScreen>
   );
 }

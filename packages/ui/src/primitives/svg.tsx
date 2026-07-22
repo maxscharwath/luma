@@ -15,4 +15,5 @@ export {
   Polygon,
   Polyline,
   Rect,
+  SvgXml,
 } from 'react-native-svg';

@@ -1,7 +1,6 @@
 import { normalizeServerUrl as norm, type StoredSession } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { useFocusNav } from '@kroma/ui/kit';
-import { IconPlus, IconSettings } from '@tabler/icons-react';
+import { Box, Chip, Focusable, Icon, Txt, useFocusNav } from '@kroma/ui/kit';
 import { useMemo } from 'react';
 import { useAuth } from '#tv/app/providers/auth';
 import { useConnection } from '#tv/app/providers/connection';
@@ -62,34 +61,45 @@ export function TvProfiles() {
 
   return (
     <AuthScreen>
-      <div className="mb-7">
+      <Box mb={28}>
         <KromaMark size={34} />
-      </div>
-      <h1 className="m-0 mb-3 font-display text-[50px] font-semibold leading-none">
+      </Box>
+      <Txt
+        variant="hero"
+        style={{ fontSize: 50, lineHeight: 50, fontWeight: '600', marginBottom: 12 }}
+      >
         {t('auth.whoWatching')}
-      </h1>
-      <p className="m-0 mb-11 font-sans text-[17px] font-medium text-dim">
+      </Txt>
+      <Txt style={{ fontSize: 17, fontWeight: '500', marginBottom: 44 }} color="textDim">
         {t('profiles.subtitle')}
-      </p>
+      </Txt>
 
-      {/* No own scroll/clip the page (AuthScreen) scrolls, so focus zoom + the
-          amber ring/glow are never cropped. Gutters keep edge tiles' rings clear. */}
-      <div className="flex w-full max-w-[1100px] flex-wrap content-start items-start justify-center gap-x-7 gap-y-9 px-6 py-4">
+      {/* No own scroll or clip: the page (AuthScreen) scrolls, so the focus zoom
+          and the amber ring are never cropped. Gutters keep the edge tiles'
+          rings clear. */}
+      <Box
+        row
+        wrap
+        justify="center"
+        align="flex-start"
+        gap={28}
+        w="100%"
+        maxW={1100}
+        px={24}
+        py={16}
+      >
         {tiles.map(({ key, account, serverName }) => {
           const up = health[norm(account.serverUrl ?? '')];
           const offline = up === false;
           return (
-            <div key={key} className="flex w-[150px] flex-col items-center gap-3">
-              <button
-                data-focus=""
-                type="button"
-                onClick={() => onSelect(account, offline)}
-                aria-disabled={offline}
-                className={`relative rounded-3xl border-none bg-transparent p-0 outline-none transition-transform focus:scale-[1.07] ${
-                  offline ? 'cursor-not-allowed' : 'cursor-pointer'
-                }`}
+            <Box key={key} w={150} align="center" gap={12}>
+              <Focusable
+                onPress={() => onSelect(account, offline)}
+                label={account.user.username}
+                focusScale={1.07}
+                style={{ borderRadius: 24 }}
               >
-                <div className={offline ? 'opacity-40 grayscale' : ''}>
+                <Box opacity={offline ? 0.4 : 1}>
                   <ProfileAvatar
                     name={account.user.username}
                     seed={account.user.id}
@@ -98,55 +108,84 @@ export function TvProfiles() {
                     src={artUrl(norm(account.serverUrl), account.user.avatarUrl)}
                     locked={account.user.hasPin}
                   />
-                </div>
-              </button>
-              <div className="flex flex-col items-center gap-1.25">
-                <span className="font-sans text-[18px] font-medium text-[rgba(244,243,240,0.82)]">
+                </Box>
+              </Focusable>
+              <Box align="center" gap={5}>
+                <Txt style={{ fontSize: 18, fontWeight: '500' }} color="rgba(244, 243, 240, 0.82)">
                   {account.user.username}
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1.5 font-sans text-[12px] font-semibold ${
-                    offline ? 'text-danger' : 'text-[rgba(244,243,240,0.42)]'
-                  }`}
-                >
+                </Txt>
+                <Box row align="center" gap={6}>
                   <StatusDot online={up} />
-                  {offline ? t('connection.offline') : serverName}
-                </span>
-              </div>
-            </div>
+                  <Txt
+                    style={{ fontSize: 12, fontWeight: '600' }}
+                    color={offline ? 'danger' : 'rgba(244, 243, 240, 0.42)'}
+                  >
+                    {offline ? t('connection.offline') : serverName}
+                  </Txt>
+                </Box>
+              </Box>
+            </Box>
           );
         })}
 
-        <div className="flex w-[150px] flex-col items-center gap-3">
-          <button
-            data-focus=""
-            type="button"
-            onClick={() => nav.go('addProfile')}
-            className="flex h-[146px] w-[146px] cursor-pointer items-center justify-center rounded-3xl border-2 border-dashed border-[rgba(255,255,255,0.18)] bg-transparent text-[rgba(255,255,255,0.35)] outline-none transition-transform focus:scale-[1.07] focus:border-accent focus:text-accent"
+        <Box w={150} align="center" gap={12}>
+          <Focusable
+            onPress={() => nav.go('addProfile')}
+            label={t('profiles.addProfile')}
+            focusScale={1.07}
+            ring={false}
+            style={ADD_TILE}
+            focusedStyle={{ borderColor: '#F4B642' }}
           >
-            <IconPlus size={46} stroke={1.6} />
-          </button>
-          <span className="font-sans text-[18px] font-medium text-[rgba(244,243,240,0.5)]">
+            {({ focused }) => (
+              <Icon
+                name="plus"
+                size={46}
+                stroke={1.6}
+                color={focused ? 'accent' : 'rgba(255, 255, 255, 0.35)'}
+              />
+            )}
+          </Focusable>
+          <Txt style={{ fontSize: 18, fontWeight: '500' }} color="rgba(244, 243, 240, 0.5)">
             {t('profiles.addProfile')}
-          </span>
-        </div>
-      </div>
+          </Txt>
+        </Box>
+      </Box>
 
       {/* Device settings (language, keyboard, desktop extras) must stay reachable
-          while signed out - there is no profile menu yet. */}
-      <button
-        data-focus=""
-        type="button"
-        onClick={() => nav.go('deviceSettings')}
-        className="mt-10 inline-flex cursor-pointer items-center gap-2.5 rounded-full border border-border bg-[rgba(255,255,255,0.05)] px-4.5 py-2.5 font-sans text-[14px] font-semibold text-[rgba(244,243,240,0.7)] outline-none transition-transform focus:scale-[1.04] focus:border-accent focus:text-text"
-      >
-        <IconSettings size={17} stroke={1.8} />
-        {t('profiles.deviceSettings')}
-      </button>
+          while signed out: there is no profile menu yet. */}
+      <Box mt={40}>
+        <Chip
+          variant="subtle"
+          icon="settings"
+          focusScale={1.04}
+          label={t('profiles.deviceSettings')}
+          onPress={() => nav.go('deviceSettings')}
+          style={{ paddingHorizontal: 18, paddingVertical: 10, borderWidth: 1 }}
+        />
+      </Box>
 
-      <div className="mt-6 flex items-center gap-4 font-sans text-[14px] font-semibold tracking-[0.03em] text-[rgba(244,243,240,0.4)]">
+      <Txt style={NAV_HINT} color="rgba(244, 243, 240, 0.4)">
         {t('profiles.navHint')}
-      </div>
+      </Txt>
     </AuthScreen>
   );
 }
+
+const ADD_TILE = {
+  width: 146,
+  height: 146,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  borderRadius: 24,
+  borderWidth: 2,
+  borderStyle: 'dashed' as const,
+  borderColor: 'rgba(255, 255, 255, 0.18)',
+};
+
+const NAV_HINT = {
+  fontSize: 14,
+  fontWeight: '600' as const,
+  letterSpacing: 0.42,
+  marginTop: 24,
+};
