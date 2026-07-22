@@ -63,7 +63,7 @@ function makeClient(serverUrl: string): KromaClient {
   return new KromaClient({ baseUrl: serverUrl });
 }
 
-export function SessionProvider({ children }: { children: ReactNode }) {
+export function SessionProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [status, setStatus] = useState<AuthSession['status']>('booting');
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [user, setUserState] = useState<User | null>(null);

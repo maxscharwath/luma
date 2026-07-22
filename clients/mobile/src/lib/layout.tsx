@@ -49,11 +49,11 @@ export function MaxWidth({
   max,
   style,
   children,
-}: {
+}: Readonly<{
   max?: number;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
-}) {
+}>) {
   return <View style={[boxed(max), style]}>{children}</View>;
 }
 
@@ -66,13 +66,13 @@ export function SplitColumns({
   leftFlex = 2,
   rightFlex = 3,
   style,
-}: {
+}: Readonly<{
   left: ReactNode;
   right: ReactNode;
   leftFlex?: number;
   rightFlex?: number;
   style?: StyleProp<ViewStyle>;
-}) {
+}>) {
   const wide = useIsWide();
   if (!wide) {
     return (

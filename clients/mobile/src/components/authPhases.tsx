@@ -12,7 +12,10 @@ import { Button, ErrorBanner, TextField } from './ui';
 export type Identity = { name: string; avatarUri: string | null };
 
 /** Centered avatar + name header used by the PIN and password phases. */
-function IdentityHeader({ identity, subtitle }: { identity: Identity; subtitle?: string }) {
+function IdentityHeader({
+  identity,
+  subtitle,
+}: Readonly<{ identity: Identity; subtitle?: string }>) {
   return (
     <View style={styles.identity}>
       <Avatar uri={identity.avatarUri} name={identity.name} size={72} />
@@ -30,7 +33,7 @@ export function PinPhase({
   error,
   onChange,
   onBack,
-}: {
+}: Readonly<{
   identity: Identity;
   pin: string;
   disabled: boolean;
@@ -39,7 +42,7 @@ export function PinPhase({
   error: string | null;
   onChange(next: string): void;
   onBack(): void;
-}) {
+}>) {
   const t = useT();
   return (
     <OnboardingBox>
@@ -63,7 +66,7 @@ export function CredentialsPhase({
   onPassword,
   onSubmit,
   onBack,
-}: {
+}: Readonly<{
   /** Known profile (stale-token fallback): avatar header + password only.
    * Null = the full credentials form on the selected server. */
   identity: Identity | null;
@@ -76,7 +79,7 @@ export function CredentialsPhase({
   onPassword(next: string): void;
   onSubmit(): void;
   onBack(): void;
-}) {
+}>) {
   const t = useT();
   return (
     <OnboardingBox>

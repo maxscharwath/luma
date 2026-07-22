@@ -12,7 +12,7 @@ import { ProgressRing } from './ProgressRing';
 
 const RING = 34;
 
-export function DownloadButton({ item, size = 22 }: { item: MediaItem; size?: number }) {
+export function DownloadButton({ item, size = 22 }: Readonly<{ item: MediaItem; size?: number }>) {
   const t = useT();
   const downloads = useDownloads();
   const state = downloads.stateFor(item.id);

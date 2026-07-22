@@ -34,98 +34,98 @@ interface IconProps {
 
 const IVORY = '#F4F3F0';
 
-export function PlayIcon({ size = 34, color = IVORY }: IconProps) {
+export function PlayIcon({ size = 34, color = IVORY }: Readonly<IconProps>) {
   return <IconPlayerPlayFilled width={size} height={size} color={color} fill={color} />;
 }
 
-export function PauseIcon({ size = 34, color = IVORY }: IconProps) {
+export function PauseIcon({ size = 34, color = IVORY }: Readonly<IconProps>) {
   return <IconPlayerPauseFilled width={size} height={size} color={color} fill={color} />;
 }
 
-export function BackIcon({ size = 26, color = IVORY }: IconProps) {
+export function BackIcon({ size = 26, color = IVORY }: Readonly<IconProps>) {
   return <IconChevronLeft width={size} height={size} color={color} strokeWidth={2.4} />;
 }
 
-export function Back10Icon({ size = 32, color = IVORY }: IconProps) {
+export function Back10Icon({ size = 32, color = IVORY }: Readonly<IconProps>) {
   return <IconRewindBackward10 width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function Forward10Icon({ size = 32, color = IVORY }: IconProps) {
+export function Forward10Icon({ size = 32, color = IVORY }: Readonly<IconProps>) {
   return <IconRewindForward10 width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function TracksIcon({ size = 26, color = IVORY }: IconProps) {
+export function TracksIcon({ size = 26, color = IVORY }: Readonly<IconProps>) {
   return <IconBadgeCc width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function GearIcon({ size = 24, color = IVORY }: IconProps) {
+export function GearIcon({ size = 24, color = IVORY }: Readonly<IconProps>) {
   return <IconSettings width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function CheckIcon({ size = 20, color = IVORY }: IconProps) {
+export function CheckIcon({ size = 20, color = IVORY }: Readonly<IconProps>) {
   return <IconCheck width={size} height={size} color={color} strokeWidth={2.4} />;
 }
 
-export function DownloadIcon({ size = 22, color = IVORY }: IconProps) {
+export function DownloadIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconDownload width={size} height={size} color={color} strokeWidth={2} />;
 }
 
-export function TrashIcon({ size = 20, color = IVORY }: IconProps) {
+export function TrashIcon({ size = 20, color = IVORY }: Readonly<IconProps>) {
   return <IconTrash width={size} height={size} color={color} strokeWidth={2} />;
 }
 
-export function PlusIcon({ size = 22, color = IVORY }: IconProps) {
+export function PlusIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconPlus width={size} height={size} color={color} strokeWidth={2.2} />;
 }
 
-export function TvIcon({ size = 22, color = IVORY }: IconProps) {
+export function TvIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconDeviceTv width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function PipIcon({ size = 24, color = IVORY }: IconProps) {
+export function PipIcon({ size = 24, color = IVORY }: Readonly<IconProps>) {
   return <IconPictureInPicture width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function ChevronDownIcon({ size = 18, color = IVORY }: IconProps) {
+export function ChevronDownIcon({ size = 18, color = IVORY }: Readonly<IconProps>) {
   return <IconChevronDown width={size} height={size} color={color} strokeWidth={2.4} />;
 }
 
-export function EyeIcon({ size = 22, color = IVORY }: IconProps) {
+export function EyeIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconEye width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function EyeCheckIcon({ size = 22, color = IVORY }: IconProps) {
+export function EyeCheckIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconEyeCheck width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function FlagIcon({ size = 22, color = IVORY }: IconProps) {
+export function FlagIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconFlag width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function LockIcon({ size = 18, color = IVORY }: IconProps) {
+export function LockIcon({ size = 18, color = IVORY }: Readonly<IconProps>) {
   return <IconLock width={size} height={size} color={color} strokeWidth={2.2} />;
 }
 
-export function UsersIcon({ size = 22, color = IVORY }: IconProps) {
+export function UsersIcon({ size = 22, color = IVORY }: Readonly<IconProps>) {
   return <IconUsers width={size} height={size} color={color} strokeWidth={2} />;
 }
 
-export function AlertIcon({ size = 20, color = IVORY }: IconProps) {
+export function AlertIcon({ size = 20, color = IVORY }: Readonly<IconProps>) {
   return <IconAlertCircle width={size} height={size} color={color} strokeWidth={2} />;
 }
 
-export function ScanIcon({ size = 24, color = IVORY }: IconProps) {
+export function ScanIcon({ size = 24, color = IVORY }: Readonly<IconProps>) {
   return <IconScan width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function ChevronRightIcon({ size = 18, color = IVORY }: IconProps) {
+export function ChevronRightIcon({ size = 18, color = IVORY }: Readonly<IconProps>) {
   return <IconChevronRight width={size} height={size} color={color} strokeWidth={2.2} />;
 }
 
-export function PencilIcon({ size = 18, color = IVORY }: IconProps) {
+export function PencilIcon({ size = 18, color = IVORY }: Readonly<IconProps>) {
   return <IconPencil width={size} height={size} color={color} strokeWidth={1.8} />;
 }
 
-export function LogoutIcon({ size = 20, color = IVORY }: IconProps) {
+export function LogoutIcon({ size = 20, color = IVORY }: Readonly<IconProps>) {
   return <IconLogout width={size} height={size} color={color} strokeWidth={1.8} />;
 }

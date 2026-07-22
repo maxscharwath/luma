@@ -15,11 +15,11 @@ export function Screen({
   children,
   padded = true,
   style,
-}: {
+}: Readonly<{
   children: ReactNode;
   padded?: boolean;
   style?: ViewStyle;
-}) {
+}>) {
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -38,7 +38,10 @@ export function Screen({
 /** Netflix-style collapsed paragraph: clamped with a "more" toggle. A clamped
  * Text reports the CLAMPED count in onTextLayout, so the real line count is
  * measured on a hidden unclamped copy rendered behind the visible one. */
-export function ExpandableText({ children, lines = 3 }: { children: string; lines?: number }) {
+export function ExpandableText({
+  children,
+  lines = 3,
+}: Readonly<{ children: string; lines?: number }>) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [clampable, setClampable] = useState(false);
@@ -61,7 +64,7 @@ export function ExpandableText({ children, lines = 3 }: { children: string; line
   );
 }
 
-export function SectionTitle({ children }: { children: ReactNode }) {
+export function SectionTitle({ children }: Readonly<{ children: ReactNode }>) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 

@@ -32,7 +32,7 @@ export function ControlsLayer({
   next,
   onPlayNext,
   onPip,
-}: {
+}: Readonly<{
   engine: Engine;
   item: MediaItem;
   insets: EdgeInsets;
@@ -44,7 +44,7 @@ export function ControlsLayer({
   next?: MediaItem | null;
   onPlayNext?(): void;
   onPip?(): void;
-}) {
+}>) {
   const t = useT();
   const title = item.showTitle ?? item.metadata?.title ?? item.title;
   const sub = episodeTag(item) ?? undefined;
@@ -181,12 +181,12 @@ function ScrubRow({
   onInteract,
   tileFor,
   item,
-}: {
+}: Readonly<{
   engine: Engine;
   onInteract(): void;
   tileFor?: (abs: number) => StoryboardTile | null;
   item: MediaItem;
-}) {
+}>) {
   const markers = (item.markers ?? []).map((m) => m.startMs / 1000);
   return (
     <View>

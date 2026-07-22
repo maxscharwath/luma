@@ -26,7 +26,11 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
 import type { Subtitles } from './useSubtitles';
 
-function Row({ label, selected, onPress }: { label: string; selected: boolean; onPress(): void }) {
+function Row({
+  label,
+  selected,
+  onPress,
+}: Readonly<{ label: string; selected: boolean; onPress(): void }>) {
   return (
     <Pressable
       onPress={onPress}
@@ -46,13 +50,13 @@ export function TrackSheet({
   engine,
   subs,
   item,
-}: {
+}: Readonly<{
   visible: boolean;
   onClose(): void;
   engine: Engine;
   subs: Subtitles;
   item: MediaItem;
-}) {
+}>) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();

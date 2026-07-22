@@ -53,10 +53,10 @@ export function sectionCard(entry: SectionItem, client: KromaClient, width: numb
 export const PosterCard = memo(function PosterCard({
   card,
   width,
-}: {
+}: Readonly<{
   card: CardModel;
   width: number;
-}) {
+}>) {
   const router = useRouter();
   return (
     <Pressable
@@ -73,7 +73,7 @@ export const PosterCard = memo(function PosterCard({
   );
 });
 
-export function MediaRail({ cards }: { cards: CardModel[] }) {
+export function MediaRail({ cards }: Readonly<{ cards: CardModel[] }>) {
   const { width: windowWidth } = useWindowDimensions();
   const width = posterWidth(windowWidth);
   return (
@@ -96,11 +96,11 @@ export function ContinueCard({
   entry,
   client,
   width,
-}: {
+}: Readonly<{
   entry: ContinueItem;
   client: KromaClient;
   width: number;
-}) {
+}>) {
   const router = useRouter();
   const { item, positionMs, durationMs } = entry;
   const total = durationMs ?? item.durationMs ?? 0;
@@ -135,10 +135,10 @@ export function ContinueCard({
 export function ContinueRail({
   entries,
   client,
-}: {
+}: Readonly<{
   entries: ContinueItem[];
   client: KromaClient;
-}) {
+}>) {
   const { width: windowWidth } = useWindowDimensions();
   const width = Math.min(300, windowWidth * 0.55);
   return (

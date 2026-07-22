@@ -29,7 +29,7 @@ function wheelSectors(cx: number, cy: number, R: number, r: number): string[] {
 
 const SECTORS = wheelSectors(50, 50, 50, 17.045);
 
-export function KromaWheel({ size = 64 }: { size?: number }) {
+export function KromaWheel({ size = 64 }: Readonly<{ size?: number }>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       {SECTORS.map((d, i) => (

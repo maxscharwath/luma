@@ -12,11 +12,11 @@ export function LockCard({
   title,
   sub,
   children,
-}: {
+}: Readonly<{
   title: string;
   sub: string;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -33,12 +33,12 @@ export function BioSwitchRow({
   value,
   disabled,
   onChange,
-}: {
+}: Readonly<{
   label: string;
   value: boolean;
   disabled: boolean;
   onChange(next: boolean): void;
-}) {
+}>) {
   return (
     <View style={styles.bioRow}>
       <Text style={styles.bioLabel}>{label}</Text>
@@ -61,14 +61,14 @@ export function PinWizard({
   error,
   onChange,
   onCancel,
-}: {
+}: Readonly<{
   subtitle: string;
   pin: string;
   busy: boolean;
   error: string | null;
   onChange(next: string): void;
   onCancel(): void;
-}) {
+}>) {
   const t = useT();
   return (
     <View style={styles.wizard}>

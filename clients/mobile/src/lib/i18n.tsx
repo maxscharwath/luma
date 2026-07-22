@@ -53,7 +53,7 @@ function osLocale(): Locale | null {
   return null;
 }
 
-export function I18nProvider({ children }: { children: ReactNode }) {
+export function I18nProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { user, client } = useSession();
   const [override, setOverrideState] = useState<Locale | null>(null);
 

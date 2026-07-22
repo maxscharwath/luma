@@ -10,7 +10,7 @@ import { Button } from './controls';
 /** Inline error surface: tinted banner with an icon and a small shake when the
  * message appears or changes, so failures read at a glance instead of as a
  * bare red caption. Renders nothing while `message` is null. */
-export function ErrorBanner({ message }: { message: string | null }) {
+export function ErrorBanner({ message }: Readonly<{ message: string | null }>) {
   const shake = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -35,7 +35,7 @@ export function ErrorBanner({ message }: { message: string | null }) {
   );
 }
 
-export function Loading({ label }: { label?: string }) {
+export function Loading({ label }: Readonly<{ label?: string }>) {
   return (
     <View style={styles.center}>
       <ActivityIndicator color={colors.textDim} size="large" />
@@ -48,11 +48,11 @@ export function ErrorView({
   message,
   retryLabel,
   onRetry,
-}: {
+}: Readonly<{
   message: string;
   retryLabel?: string;
   onRetry?: () => void;
-}) {
+}>) {
   return (
     <View style={styles.center}>
       <Text style={styles.centerText}>{message}</Text>
@@ -72,13 +72,13 @@ export function EmptyState({
   hint,
   actionLabel,
   onAction,
-}: {
+}: Readonly<{
   icon: ReactNode;
   title: string;
   hint?: string;
   actionLabel?: string;
   onAction?: () => void;
-}) {
+}>) {
   return (
     <View style={styles.emptyBox}>
       <View style={styles.emptyDisc}>{icon}</View>

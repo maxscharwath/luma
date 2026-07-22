@@ -18,7 +18,7 @@ import { FadeImage } from './FadeImage';
 
 export { DetailActions } from './DetailActions';
 
-export function MetaBadge({ children }: { children: ReactNode }) {
+export function MetaBadge({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <View style={styles.badge}>
       <Text style={styles.badgeText}>{children}</Text>
@@ -36,14 +36,14 @@ export function DetailHero({
   context,
   meta,
   scrollY,
-}: {
+}: Readonly<{
   art: string | null;
   seed: string;
   title: string;
   context?: string;
   meta?: ReactNode;
   scrollY?: SharedValue<number>;
-}) {
+}>) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -88,7 +88,7 @@ export function DetailHero({
 
 /** Circular cast photos with an initials fallback when no photo exists;
  * tapping a member opens their credits page. */
-export function CastRail({ cast }: { cast: CastMember[] }) {
+export function CastRail({ cast }: Readonly<{ cast: CastMember[] }>) {
   const client = useClient();
   const router = useRouter();
   if (cast.length === 0) return null;

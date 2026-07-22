@@ -21,7 +21,7 @@ export function ServerPicker({
   onPickDiscovered,
   onAddServer,
   onBack,
-}: {
+}: Readonly<{
   saved: SavedServerRow[];
   discovered: FoundServerRow[];
   /** A connection is in flight: freezes the discovered rows. */
@@ -31,7 +31,7 @@ export function ServerPicker({
   onPickDiscovered(url: string): void;
   onAddServer(): void;
   onBack(): void;
-}) {
+}>) {
   const t = useT();
   return (
     <OnboardingBox>

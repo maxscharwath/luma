@@ -58,12 +58,13 @@ export function useEngineControls(deps: ControlDeps): Controls {
       // Player already released.
     }
     // Detach the source so the audio session is dropped, not just paused. The
-    // async variant is the reliable one on iOS; failures mean already-released.
-    try {
-      void player.replaceAsync(null).catch(() => undefined);
-    } catch {
-      // Player already released.
-    }
+    // async variant is the reliable one on iOS. A released player throws
+    // SYNCHRONOUSLY here, so the call is made inside a promise chain: that turns
+    // both failure modes into one rejection the `.catch` swallows, instead of
+    // needing a try/catch around a promise as well.
+    void Promise.resolve()
+      .then(() => player.replaceAsync(null))
+      .catch(() => undefined);
   }, [player, core]);
 
   useEffect(() => {

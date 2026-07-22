@@ -11,7 +11,7 @@ import { PlayIcon } from '../icons';
 
 /** The current subtitle line. It rides above the controls when they are up, so
  * the two never overlap. */
-export function CueLine({ cue, bottom }: { cue: string; bottom: number }) {
+export function CueLine({ cue, bottom }: Readonly<{ cue: string; bottom: number }>) {
   if (!cue) return null;
   return (
     <View style={[styles.cueBox, { bottom }]}>
@@ -28,7 +28,10 @@ export function BufferingSpinner() {
   );
 }
 
-export function SkipIntroButton({ onPress, bottom }: { onPress(): void; bottom: number }) {
+export function SkipIntroButton({
+  onPress,
+  bottom,
+}: Readonly<{ onPress(): void; bottom: number }>) {
   const t = useT();
   return (
     <Pressable onPress={onPress} style={[styles.skipIntro, { bottom }]}>
@@ -41,11 +44,11 @@ export function UpNextCard({
   next,
   onPlayNext,
   bottom,
-}: {
+}: Readonly<{
   next: MediaItem;
   onPlayNext(): void;
   bottom: number;
-}) {
+}>) {
   const t = useT();
   const client = useClient();
   const thumb = sizedImageUrl(client.backdropFor(next) ?? client.posterFor(next), 320);

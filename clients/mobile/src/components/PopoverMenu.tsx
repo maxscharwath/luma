@@ -38,12 +38,12 @@ export function PopoverMenu({
   anchor,
   items,
   onClose,
-}: {
+}: Readonly<{
   visible: boolean;
   anchor: PopoverAnchor | null;
   items: PopoverItem[];
   onClose(): void;
-}) {
+}>) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const scale = useRef(new Animated.Value(0.85)).current;
   const opacity = useRef(new Animated.Value(0)).current;

@@ -21,7 +21,7 @@ export function ScrubBar({
   onSeek,
   tileFor,
   markers,
-}: {
+}: Readonly<{
   cur: number;
   dur: number;
   buffered: number;
@@ -29,7 +29,7 @@ export function ScrubBar({
   tileFor?: (abs: number) => StoryboardTile | null;
   /** Chapter/marker starts (abs seconds) shown as ticks on the track. */
   markers?: number[];
-}) {
+}>) {
   const [preview, setPreview] = useState<number | null>(null);
   const [width, setWidth] = useState(1);
   const widthRef = useRef(1);

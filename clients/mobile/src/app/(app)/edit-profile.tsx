@@ -16,7 +16,7 @@ import { colors, radius, spacing, type } from '../../lib/theme';
 
 const TRACK_LANGS = [null, 'fr', 'en', 'es', 'de', 'it', 'ja', 'ko'] as const;
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -29,11 +29,11 @@ function LangPicker({
   label,
   value,
   onPick,
-}: {
+}: Readonly<{
   label: string;
   value: string | null;
   onPick(code: string | null): void;
-}) {
+}>) {
   const t = useT();
   return (
     <View style={styles.langBlock}>

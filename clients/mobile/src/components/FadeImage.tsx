@@ -17,7 +17,13 @@ export interface FadeImageProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export function FadeImage({ uri, seed, fit = 'cover', radius = 0, style }: FadeImageProps) {
+export function FadeImage({
+  uri,
+  seed,
+  fit = 'cover',
+  radius = 0,
+  style,
+}: Readonly<FadeImageProps>) {
   const [from, to] = posterColors(seed ?? uri ?? 'kroma');
   return (
     <View style={[styles.box, { borderRadius: radius }, style]}>

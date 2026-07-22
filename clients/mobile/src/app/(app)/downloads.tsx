@@ -20,7 +20,7 @@ import { useClient } from '../../lib/session';
 import { colors, radius, spacing, type } from '../../lib/theme';
 import { DownloadIcon, PlayIcon, TrashIcon } from '../../player/icons';
 
-function RowArt({ uri, seed }: { uri: string | null; seed: string }) {
+function RowArt({ uri, seed }: Readonly<{ uri: string | null; seed: string }>) {
   return (
     <View>
       <FadeImage uri={uri} seed={seed} radius={radius.sm} style={styles.thumb} />
@@ -33,7 +33,7 @@ function RowArt({ uri, seed }: { uri: string | null; seed: string }) {
   );
 }
 
-function DownloadRow({ entry }: { entry: DownloadEntry }) {
+function DownloadRow({ entry }: Readonly<{ entry: DownloadEntry }>) {
   const t = useT();
   const router = useRouter();
   const downloads = useDownloads();
@@ -90,11 +90,11 @@ function ActiveRow({
   item,
   progress,
   queued,
-}: {
+}: Readonly<{
   item: MediaItem;
   progress: number;
   queued?: boolean;
-}) {
+}>) {
   const t = useT();
   const client = useClient();
   const downloads = useDownloads();

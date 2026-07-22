@@ -8,12 +8,12 @@ export function ProgressRing({
   progress,
   size = 34,
   stroke = 2.5,
-}: {
+}: Readonly<{
   /** 0..1, or -1 for indeterminate. */
   progress: number;
   size?: number;
   stroke?: number;
-}) {
+}>) {
   if (progress < 0) return <ActivityIndicator size="small" color={colors.accent} />;
   const r = size / 2 - stroke;
   const c = 2 * Math.PI * r;

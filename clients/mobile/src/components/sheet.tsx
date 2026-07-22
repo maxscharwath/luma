@@ -45,7 +45,7 @@ export const AppSheet = forwardRef<BottomSheetModal, { children: ReactNode }>(fu
   );
 });
 
-export function SheetTitle({ children }: { children: ReactNode }) {
+export function SheetTitle({ children }: Readonly<{ children: ReactNode }>) {
   return <Text style={styles.title}>{children}</Text>;
 }
 
@@ -54,12 +54,12 @@ export function SheetRow({
   detail,
   active,
   onPress,
-}: {
+}: Readonly<{
   label: string;
   detail?: string;
   active?: boolean;
   onPress(): void;
-}) {
+}>) {
   return (
     <Pressable
       onPress={onPress}

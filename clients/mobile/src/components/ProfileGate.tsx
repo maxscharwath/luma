@@ -25,13 +25,13 @@ export function ProfileGate({
   disabled,
   error,
   onAdd,
-}: {
+}: Readonly<{
   tiles: GateTile[];
   /** Freezes every tile while a login is in flight. */
   disabled: boolean;
   error: string | null;
   onAdd(): void;
-}) {
+}>) {
   const t = useT();
   return (
     <OnboardingBox>

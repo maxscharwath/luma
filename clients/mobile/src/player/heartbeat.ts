@@ -30,8 +30,19 @@ function pingMode(s: HeartbeatSnapshot): 'direct' | 'remux' | 'transcode' {
   return s.aac ? 'transcode' : 'remux';
 }
 
-function newSessionId(): string {
-  return `mob-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+/** Sessions opened by this process so far, so two playbacks started in the same
+ * millisecond still get distinct ids. */
+let sessionSeq = 0;
+
+/** A session id keys ONE row in the server's live "now playing" registry and is
+ * never an auth token or a secret, so it needs uniqueness, not unpredictability.
+ * Device + clock + counter gives that without a random source (React Native has
+ * no `crypto.randomUUID`, and pulling in a native crypto module to name a
+ * dashboard row would not be a trade worth making), and the id stays readable in
+ * the admin console. */
+function newSessionId(device: string): string {
+  const slug = device.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase();
+  return `mob-${slug}-${Date.now().toString(36)}-${(sessionSeq++).toString(36)}`;
 }
 
 export function useHeartbeat(
@@ -43,8 +54,8 @@ export function useHeartbeat(
   snapRef.current = snapshot;
 
   useEffect(() => {
-    const sessionId = newSessionId();
     const device = Device.modelName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android');
+    const sessionId = newSessionId(device);
 
     const save = () => {
       const s = snapRef.current();

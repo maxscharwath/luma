@@ -34,12 +34,12 @@ function PlayerBody({
   startSec,
   localUri,
   offline,
-}: {
+}: Readonly<{
   item: MediaItem;
   startSec: number;
   localUri?: string;
   offline?: DownloadEntry;
-}) {
+}>) {
   const t = useT();
   const client = useClient();
   const router = useRouter();

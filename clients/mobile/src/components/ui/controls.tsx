@@ -20,14 +20,14 @@ export function Button({
   disabled,
   loading,
   icon,
-}: {
+}: Readonly<{
   label: string;
   onPress: () => void;
   kind?: 'primary' | 'ghost' | 'danger';
   disabled?: boolean;
   loading?: boolean;
   icon?: ReactNode;
-}) {
+}>) {
   return (
     <Pressable
       onPress={onPress}
@@ -60,7 +60,7 @@ export function Button({
   );
 }
 
-export function TextField(props: TextInputProps) {
+export function TextField(props: Readonly<TextInputProps>) {
   return (
     <TextInput
       placeholderTextColor={colors.textFaint}
@@ -77,11 +77,11 @@ export function Chip({
   label,
   active,
   onPress,
-}: {
+}: Readonly<{
   label: string;
   active?: boolean;
   onPress(): void;
-}) {
+}>) {
   return (
     <Pressable
       onPress={onPress}

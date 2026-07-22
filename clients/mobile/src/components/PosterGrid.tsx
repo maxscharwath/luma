@@ -23,14 +23,14 @@ export function PosterGrid({
   empty,
   refreshing,
   onRefresh,
-}: {
+}: Readonly<{
   cards: CardModel[];
   header?: React.ReactElement;
   /** Centered placeholder when there is nothing to show. */
   empty?: React.ReactElement;
   refreshing?: boolean;
   onRefresh?: () => void;
-}) {
+}>) {
   const { width } = useWindowDimensions();
   const { cols, cardW } = gridMetrics(width);
   return (

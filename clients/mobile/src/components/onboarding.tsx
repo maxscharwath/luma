@@ -19,7 +19,7 @@ export function ProfileTile({
   offline,
   locked,
   onPress,
-}: {
+}: Readonly<{
   name: string;
   caption?: string | null;
   avatarUri: string | null;
@@ -29,7 +29,7 @@ export function ProfileTile({
   /** PIN-locked profile: shows a small lock badge on the avatar. */
   locked?: boolean;
   onPress(): void;
-}) {
+}>) {
   return (
     <Pressable
       onPress={onPress}
@@ -61,7 +61,7 @@ export function ProfileTile({
   );
 }
 
-export function AddTile({ label, onPress }: { label: string; onPress(): void }) {
+export function AddTile({ label, onPress }: Readonly<{ label: string; onPress(): void }>) {
   return (
     <Pressable
       onPress={onPress}
@@ -94,7 +94,7 @@ export function CodeCells({
   showActive = true,
   editable = true,
   refocusOnBlur = false,
-}: {
+}: Readonly<{
   value: string;
   onChange(next: string): void;
   length?: number;
@@ -106,7 +106,7 @@ export function CodeCells({
   editable?: boolean;
   /** Pull focus back whenever the hidden input blurs (kiosk-style entry). */
   refocusOnBlur?: boolean;
-}) {
+}>) {
   const inputRef = useRef<TextInput>(null);
   return (
     <Pressable onPress={() => inputRef.current?.focus()} style={styles.pinRow}>
@@ -146,12 +146,12 @@ export function PinPad({
   onChange,
   length = 4,
   disabled,
-}: {
+}: Readonly<{
   value: string;
   onChange(next: string): void;
   length?: number;
   disabled?: boolean;
-}) {
+}>) {
   return (
     <CodeCells value={value} onChange={onChange} length={length} masked editable={!disabled} />
   );

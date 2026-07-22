@@ -22,11 +22,11 @@ export function Avatar({
   uri,
   name,
   size = 40,
-}: {
+}: Readonly<{
   uri: string | null | undefined;
   name: string | null | undefined;
   size?: number;
-}) {
+}>) {
   const [failed, setFailed] = useState(false);
   const label = name?.trim() || '?';
   const [from, to] = posterColors(label);

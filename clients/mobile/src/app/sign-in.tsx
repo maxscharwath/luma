@@ -50,7 +50,10 @@ export default function SignIn() {
     const set = new Set(accounts.map((a) => a.serverUrl));
     for (const s of servers) set.add(s.url);
     if (serverUrl) set.add(serverUrl);
-    return [...set].sort();
+    // Sorted only to keep the probe list (and therefore the effect key) stable
+    // across renders; an explicit comparator so the order can't depend on the
+    // engine's default coercion.
+    return [...set].sort((a, b) => a.localeCompare(b));
   }, [accounts, servers, serverUrl]);
   const probes = useServerProbes(probeUrls);
   const multiServer = new Set(accounts.map((a) => a.serverUrl)).size > 1;

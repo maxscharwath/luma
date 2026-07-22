@@ -27,12 +27,12 @@ function Row({
   label,
   value,
   onPress,
-}: {
+}: Readonly<{
   icon: React.ReactNode;
   label: string;
   value?: string;
   onPress(): void;
-}) {
+}>) {
   return (
     <Pressable
       onPress={onPress}

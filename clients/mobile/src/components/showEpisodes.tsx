@@ -15,7 +15,7 @@ import { ProgressRing } from './ProgressRing';
 
 /** Bulk season download: enqueues every not-yet-downloaded episode; while the
  * season is transferring it shows x/y and taps cancel the remainder. */
-export function SeasonDownload({ episodes }: { episodes: MediaItem[] }) {
+export function SeasonDownload({ episodes }: Readonly<{ episodes: MediaItem[] }>) {
   const t = useT();
   const downloads = useDownloads();
   const states = episodes.map((ep) => downloads.stateFor(ep.id));
@@ -65,7 +65,7 @@ export function SeasonDownload({ episodes }: { episodes: MediaItem[] }) {
 }
 
 /** "Up next" resume card: backdrop thumb, progress sliver, episode title. */
-export function UpNextCard({ next, frac }: { next: MediaItem; frac: number }) {
+export function UpNextCard({ next, frac }: Readonly<{ next: MediaItem; frac: number }>) {
   const t = useT();
   const client = useClient();
   const router = useRouter();
@@ -103,11 +103,11 @@ export function EpisodeRow({
   episode,
   progress,
   watched,
-}: {
+}: Readonly<{
   episode: MediaItem;
   progress: ProgressEntry | undefined;
   watched: boolean;
-}) {
+}>) {
   const client = useClient();
   const router = useRouter();
   const runtime = formatRuntime(episode.durationMs);

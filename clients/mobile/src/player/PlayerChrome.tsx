@@ -26,7 +26,7 @@ export function PlayerChrome({
   next,
   onPlayNext,
   onPip,
-}: {
+}: Readonly<{
   engine: Engine;
   item: MediaItem;
   cue: string;
@@ -36,7 +36,7 @@ export function PlayerChrome({
   next?: MediaItem | null;
   onPlayNext?(): void;
   onPip?(): void;
-}) {
+}>) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

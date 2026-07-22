@@ -8,7 +8,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { spacing, type } from '../lib/theme';
 import { BackIcon } from '../player/icons';
 
-export function PageHeader({ title, right }: { title: string; right?: ReactNode }) {
+export function PageHeader({ title, right }: Readonly<{ title: string; right?: ReactNode }>) {
   const router = useRouter();
   return (
     <View style={[styles.header, { paddingTop: 6 }]}>

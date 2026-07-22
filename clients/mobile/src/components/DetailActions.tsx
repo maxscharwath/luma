@@ -42,7 +42,7 @@ export function DetailActions({
   onToggleWatched,
   onReport,
   item,
-}: {
+}: Readonly<{
   playLabel: string;
   onPlay(): void;
   inList: boolean;
@@ -51,7 +51,7 @@ export function DetailActions({
   onToggleWatched?(): void;
   onReport?(): void;
   item: MediaItem;
-}) {
+}>) {
   const t = useT();
   const downloads = useDownloads();
   const state = downloads.stateFor(item.id);

@@ -25,11 +25,11 @@ import { KromaLockup } from './KromaLockup';
 export function OnboardingScreen({
   keyboardBehavior,
   children,
-}: {
+}: Readonly<{
   /** Android KeyboardAvoidingView behavior override; iOS always pads. */
   keyboardBehavior?: KeyboardAvoidingViewProps['behavior'];
   children: ReactNode;
-}) {
+}>) {
   const insets = useSafeAreaInsets();
   const wide = useIsWide();
   return (
@@ -70,13 +70,16 @@ export function OnboardingScreen({
  * pins to the bottom. In wide windows the lockup + box group centers
  * vertically instead, with a fixed minHeight so the anchor still lands at the
  * same y per phase. */
-export function OnboardingBox({ children }: { children: ReactNode }) {
+export function OnboardingBox({ children }: Readonly<{ children: ReactNode }>) {
   const wide = useIsWide();
   return <View style={wide ? styles.boxWide : styles.box}>{children}</View>;
 }
 
 /** The shared headline (+ optional caption subtitle) typography. */
-export function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string | null }) {
+export function OnboardingTitle({
+  title,
+  subtitle,
+}: Readonly<{ title: string; subtitle?: string | null }>) {
   return (
     <View style={styles.titleBlock}>
       <Text style={styles.headline}>{title}</Text>
@@ -86,7 +89,7 @@ export function OnboardingTitle({ title, subtitle }: { title: string; subtitle?:
 }
 
 /** The quiet "Retour" action, pinned to the bottom of the content column. */
-export function BackLink({ onPress }: { onPress(): void }) {
+export function BackLink({ onPress }: Readonly<{ onPress(): void }>) {
   const t = useT();
   return (
     <Pressable

@@ -27,7 +27,7 @@ function useDebounced(value: string, ms: number): string {
   return debounced;
 }
 
-function SuggestedRow({ item }: { item: MediaItem }) {
+function SuggestedRow({ item }: Readonly<{ item: MediaItem }>) {
   const client = useClient();
   const router = useRouter();
   return (

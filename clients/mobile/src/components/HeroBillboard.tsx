@@ -14,7 +14,7 @@ import { colors, radius, SHADE, spacing, type } from '../lib/theme';
 import { CheckIcon, PlayIcon, PlusIcon } from '../player/icons';
 import { FadeImage } from './FadeImage';
 
-export function HeroBillboard({ entry }: { entry: SectionItem }) {
+export function HeroBillboard({ entry }: Readonly<{ entry: SectionItem }>) {
   const t = useT();
   const client = useClient();
   const router = useRouter();

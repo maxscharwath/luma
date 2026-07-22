@@ -62,10 +62,10 @@ export function useDownloads(): DownloadsApi {
 export function DownloadsProvider({
   client,
   children,
-}: {
+}: Readonly<{
   client: KromaClient | null;
   children: ReactNode;
-}) {
+}>) {
   const t = useT();
   const [entries, setEntries] = useState<DownloadEntry[]>([]);
   const [active, setActive] = useState<Record<string, number>>({});

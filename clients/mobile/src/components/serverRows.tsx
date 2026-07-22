@@ -8,7 +8,7 @@ import { colors, radius, spacing, type } from '../lib/theme';
 import { ChevronRightIcon } from '../player/icons';
 
 /** Soft surface card the rows stack in (the profile-rows card language). */
-export function ServerList({ children }: { children: ReactNode }) {
+export function ServerList({ children }: Readonly<{ children: ReactNode }>) {
   return <View style={styles.list}>{children}</View>;
 }
 
@@ -19,7 +19,7 @@ export function ServerRow({
   disabled,
   dimmed,
   onPress,
-}: {
+}: Readonly<{
   name: string;
   /** Optional sub-line under the name (host, or an offline notice). */
   host?: string | null;
@@ -29,7 +29,7 @@ export function ServerRow({
   /** Faded row (offline server); pairs with `disabled`. */
   dimmed?: boolean;
   onPress(): void;
-}) {
+}>) {
   return (
     <Pressable
       disabled={disabled}
@@ -57,7 +57,10 @@ export function ServerRow({
 }
 
 /** Uppercase section header; `loading` appends a small spinner (live scan). */
-export function ServerSectionHeader({ title, loading }: { title: string; loading?: boolean }) {
+export function ServerSectionHeader({
+  title,
+  loading,
+}: Readonly<{ title: string; loading?: boolean }>) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -66,7 +69,7 @@ export function ServerSectionHeader({ title, loading }: { title: string; loading
   );
 }
 
-export function ServerSectionHint({ children }: { children: string }) {
+export function ServerSectionHint({ children }: Readonly<{ children: string }>) {
   return <Text style={styles.sectionHint}>{children}</Text>;
 }
 

@@ -22,7 +22,7 @@ const LOCKUP = {
   gapRight: 10,
 } as const;
 
-export function KromaLockup({ height = 40 }: { height?: number }) {
+export function KromaLockup({ height = 40 }: Readonly<{ height?: number }>) {
   const s = height / LOCKUP.height;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>

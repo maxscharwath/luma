@@ -36,7 +36,7 @@ export function CatalogueScreen<T extends MediaItem | Show>({
   error,
   refetch,
   refreshing,
-}: {
+}: Readonly<{
   title: string;
   entries: T[] | undefined;
   kind: 'movie' | 'show';
@@ -44,7 +44,7 @@ export function CatalogueScreen<T extends MediaItem | Show>({
   error: boolean;
   refetch(): void;
   refreshing: boolean;
-}) {
+}>) {
   const t = useT();
   const client = useClient();
   const { width } = useWindowDimensions();

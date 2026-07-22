@@ -11,7 +11,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, type } from '../lib/theme';
 
-export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function PillTabBar({ state, descriptors, navigation }: Readonly<BottomTabBarProps>) {
   const insets = useSafeAreaInsets();
   return (
     <View
