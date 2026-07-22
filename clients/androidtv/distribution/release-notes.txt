@@ -1,0 +1,18 @@
+KROMA Android TV 0.1.32
+
+Android TV / Google TV / Fire TV / Nvidia Shield client for the self-hosted
+KROMA media server. Remote-driven (D-pad) interface, native ExoPlayer playback
+with a libVLC software fallback for codecs the device cannot decode.
+
+What to test:
+- Connecting to the server (Quick Connect from the mobile app, or manual entry)
+- D-pad navigation through the movies / shows / genres library
+- ExoPlayer playback (HEVC, 4K) and the libVLC fallback
+- Audio tracks and subtitles
+- The "Continue watching" row in the Android TV launcher
+
+Install: sideload the APK. The Firebase App Tester app does not exist on
+Android TV, see BETA.md for the steps.
+
+Requires a KROMA server reachable from the TV's network.
+Feedback: beta@kroma.tv

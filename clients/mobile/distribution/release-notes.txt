@@ -1,15 +1,15 @@
-KROMA Mobile 0.1.3 - premiere beta publique
+KROMA Mobile 0.1.3 - first public beta
 
-Client mobile du serveur multimedia Kroma auto-heberge.
+Mobile client for the self-hosted KROMA media server.
 
-A tester :
-- Connexion a votre serveur Kroma (detection automatique sur le reseau local)
-- Bibliotheque films / series / genres, recherche
-- Lecture directe HEVC et 4K, remux automatique sinon
-- Pistes audio multiples, sous-titres integres et generes par IA
-- Telechargements hors ligne (films et episodes, avec sous-titres)
-- Multi-serveurs et multi-profils, verrouillage PIN
-- Connexion d'une TV en scannant un QR code
+What to test:
+- Connecting to your KROMA server (automatic discovery on the local network)
+- Movies / shows / genres library, search
+- Direct HEVC and 4K playback, automatic remux otherwise
+- Multiple audio tracks, embedded and AI-generated subtitles
+- Offline downloads (films and episodes, with their subtitles)
+- Multiple servers and profiles, PIN lock
+- Signing in a TV by scanning a QR code
 
-Prerequis : un serveur Kroma accessible depuis votre telephone.
-Retours : maxscharwath@gmail.com
+Requires a KROMA server reachable from your phone.
+Feedback: beta@kroma.tv

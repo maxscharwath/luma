@@ -244,7 +244,8 @@ Chromium 53-94 TVs (2018-2023). `bun run build:tv` builds all TV shells.
 **Installing on real devices** (TV developer mode, macOS quarantine, sideloading):
 see [INSTALL.md](INSTALL.md).
 
-> A **mobile** client is the next planned shell the design source already covers it.
+**Joining the beta as a tester** (TestFlight, Firebase, sideloading on a beamer),
+written for non-technical users: see [BETA.md](BETA.md).
 
 ## Build
 
