@@ -9,7 +9,7 @@ import {
   sortTitles,
 } from '@kroma/core';
 import { useT } from '@kroma/ui';
-import { useFocusNav } from '@kroma/ui/kit';
+import { Box, Txt, useFocusNav } from '@kroma/ui/kit';
 import { useEffect, useMemo, useState } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useMyList } from '#tv/app/providers/mylist';
@@ -21,6 +21,7 @@ import {
   entryBackdrop,
   entryPoster,
 } from '#tv/features/catalog/home/AmbientBackdrop';
+import { HintBar } from '#tv/features/catalog/home/HintBar';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
 import { BrowseFilters, BrowseHeader } from '#tv/features/catalog/TvBrowseHeader';
@@ -127,7 +128,7 @@ export function TvGrid() {
   const empty = kind === 'mylist' && cards.length === 0;
 
   return (
-    <div className="fixed inset-0 isolate flex flex-col overflow-hidden bg-bg">
+    <Box fill bg="bg" overflow="hidden" style={{ isolation: 'isolate' }}>
       <AmbientBackdrop
         src={entryBackdrop(client, focused)}
         colors={focused ? posterColors(focused.item.id) : ['#1c1c22', '#0a0a0c']}
@@ -152,22 +153,23 @@ export function TvGrid() {
       ) : null}
 
       {empty ? (
-        <div className="flex flex-1 items-center justify-center px-16">
-          <p className="max-w-160 text-center font-sans text-[18px] font-medium text-dim">
+        <Box flex center px={64}>
+          <Txt style={EMPTY} color="textDim">
             {t('content.myListEmpty')}
-          </p>
-        </div>
+          </Txt>
+        </Box>
       ) : (
         <PosterGrid cards={cards} />
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-7.5 bg-[linear-gradient(0deg,rgba(10,10,12,0.85),transparent)] p-4 font-sans text-[13px] font-semibold text-dim">
-        <span>{t('content.hintBrowseAll')}</span>
-        <span>{t('content.hintRows')}</span>
-        <span>
-          <b className="font-bold text-accent">{t('content.hintOk')}</b> {t('content.hintOpen')}
-        </span>
-      </div>
-    </div>
+      <HintBar browseKey="content.hintBrowseAll" strength={0.85} />
+    </Box>
   );
 }
+
+const EMPTY = {
+  fontSize: 18,
+  fontWeight: '500' as const,
+  textAlign: 'center' as const,
+  maxWidth: 640,
+};

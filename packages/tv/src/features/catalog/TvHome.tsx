@@ -32,6 +32,7 @@ import { useMyList } from '#tv/app/providers/mylist';
 import { useRecommend } from '#tv/app/providers/recommend';
 import { useWatched } from '#tv/app/providers/watched';
 import { useClient, useNav } from '#tv/app/router';
+import { HintBar } from '#tv/features/catalog/home/HintBar';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 
 const RAIL_LIMIT = 20;
@@ -66,9 +67,6 @@ const ROW_TITLE = {
   fontWeight: '700' as const,
   letterSpacing: -0.56,
 };
-
-const HINT_BAR = 'linear-gradient(0deg, rgba(10,10,12,0.8), transparent)';
-const HINT = { fontSize: 13, fontWeight: '600' as const };
 
 interface Row {
   key: string;
@@ -357,31 +355,7 @@ export function TvHome() {
 
       <TvTopNav active="home" />
 
-      <Box
-        absolute
-        left={0}
-        right={0}
-        bottom={0}
-        row
-        center
-        gap={30}
-        p={16}
-        pointerEvents="none"
-        style={gradient(HINT_BAR)}
-      >
-        <Txt style={HINT} color="textDim">
-          {t('content.hintBrowse')}
-        </Txt>
-        <Txt style={HINT} color="textDim">
-          {t('content.hintRows')}
-        </Txt>
-        <Txt style={HINT} color="textDim">
-          <Txt style={{ ...HINT, fontWeight: '700' }} color="accent">
-            {t('content.hintOk')}
-          </Txt>
-          {` ${t('content.hintOpen')}`}
-        </Txt>
-      </Box>
+      <HintBar browseKey="content.hintBrowse" />
     </Box>
   );
 }

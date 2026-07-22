@@ -1,13 +1,12 @@
 import type { Metadata } from '@kroma/core';
 import { creditsPerson, personInvolvement, posterColors, roleLabels } from '@kroma/core';
-import { Image, useT } from '@kroma/ui';
-import { useFocusNav } from '@kroma/ui/kit';
-import { useMemo, useState } from 'react';
+import { useT } from '@kroma/ui';
+import { Avatar, Box, radius, Txt, useFocusNav } from '@kroma/ui/kit';
+import { useMemo } from 'react';
 import { useConnection } from '#tv/app/providers/connection';
 import { useClient, useNav, useParams } from '#tv/app/router';
 import { TvTopNav } from '#tv/features/catalog/home/TopNav';
 import { type GridCard, TvGrid as PosterGrid } from '#tv/features/catalog/home/TvGrid';
-import { gradFor, initials } from '#tv/shared/ui';
 
 /** Everything one cast/crew person is credited in reached by selecting a face
  * in a detail page's "Distribution" rail. Filters the already-loaded catalogue
@@ -60,57 +59,53 @@ export function TvPerson() {
   const roles = roleLabels(t, involvement);
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-bg animate-[tv-fade-in_0.3s_ease]">
-      {/* Header sits below the persistent nav bar (pt clears it); Back is the
-          remote key, so no separate hint. */}
-      <header className="flex items-center gap-6 px-16 pb-6 pt-28">
-        <PersonAvatar photo={photo} name={name} />
-        <div className="min-w-0">
+    <Box fill bg="bg" overflow="hidden">
+      {/* Header sits below the persistent nav bar (its top padding clears it);
+          Back is the remote key, so no separate hint. */}
+      <Box row align="center" gap={24} px={64} pt={112} pb={24}>
+        <Avatar name={name} src={photo} size={96} radius={radius.pill} />
+        <Box style={{ minWidth: 0 }} gap={8}>
           {roles.length ? (
-            <div className="mb-2 font-sans text-[13px] font-bold uppercase tracking-[0.22em] text-accent">
+            <Txt style={SECTION} color="accent">
               {roles.join(' · ')}
-            </div>
+            </Txt>
           ) : null}
-          <h1 className="m-0 font-display text-[clamp(34px,5.5vh,60px)] font-bold leading-[0.98] tracking-[-0.02em]">
+          <Txt variant="hero" style={TITLE}>
             {name}
-          </h1>
-          <div className="mt-2 font-sans text-[16px] font-semibold text-muted">
+          </Txt>
+          <Txt style={{ fontSize: 16, fontWeight: '600' }} color="textMuted">
             {t('person.titleCount', { count: cards.length })}
-          </div>
-        </div>
-      </header>
+          </Txt>
+        </Box>
+      </Box>
 
       {cards.length ? (
         <PosterGrid cards={cards} />
       ) : (
-        <div className="flex flex-1 items-center justify-center px-16">
-          <p className="max-w-160 text-center font-sans text-[18px] font-medium text-dim">
+        <Box flex center px={64}>
+          <Txt style={EMPTY} color="textDim">
             {t('person.empty')}
-          </p>
-        </div>
+          </Txt>
+        </Box>
       )}
 
-      {/* Persistent nav last in DOM so a poster keeps the initial focus. */}
+      {/* Persistent nav last in the tree so a poster keeps the initial focus. */}
       <TvTopNav />
-    </div>
+    </Box>
   );
 }
 
-/** Round headshot: the photo (over its gradient placeholder) or initials. */
-function PersonAvatar({ photo, name }: Readonly<{ photo: string | null; name: string }>) {
-  const [failed, setFailed] = useState(false);
-  const showImg = Boolean(photo) && !failed;
-  return (
-    <div
-      className="relative flex h-24 w-24 flex-none items-center justify-center overflow-hidden rounded-full font-display text-[32px] font-bold text-[rgba(255,255,255,0.9)] shadow-card"
-      style={{ background: gradFor(name) }}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_22%,rgba(255,255,255,0.2),transparent_60%)]" />
-      {showImg ? (
-        <Image src={photo} fit="cover" fill onError={() => setFailed(true)} />
-      ) : (
-        initials(name)
-      )}
-    </div>
-  );
-}
+const SECTION = {
+  fontSize: 13,
+  fontWeight: '700' as const,
+  letterSpacing: 2.86,
+  textTransform: 'uppercase' as const,
+};
+// clamp(34px, 5.5vh, 60px) resolves to 59px on the fixed 1080-tall stage.
+const TITLE = { fontSize: 59, lineHeight: 58, fontWeight: '700' as const, letterSpacing: -1.18 };
+const EMPTY = {
+  fontSize: 18,
+  fontWeight: '500' as const,
+  textAlign: 'center' as const,
+  maxWidth: 640,
+};
